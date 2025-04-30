@@ -1,0 +1,44 @@
+app-id: land.arcana.TarotCanvas
+runtime: org.kde.Platform
+runtime-version: '6.9'
+sdk: org.kde.Sdk
+base: com.riverbankcomputing.PyQt.BaseApp
+base-version: '6.9'
+command: tarot-canvas
+finish-args:
+  - --filesystem=home 
+  - --share=network
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  - --filesystem=xdg-config/gtk-3.0:ro
+  - --filesystem=xdg-config/gtk-4.0:ro
+
+modules:
+  #- python3-requirements.json
+  - name: tarot-canvas
+    buildsystem: simple
+    build-commands:
+      - mkdir -p ${FLATPAK_DEST}/bin
+      - mkdir -p ${FLATPAK_DEST}/share/applications
+      - mkdir -p ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps
+      - mkdir -p ${FLATPAK_DEST}/share/metainfo
+      
+      #- pip3 install --prefix=${FLATPAK_DEST} .
+      
+      - install -Dm644 land.arcana.TarotCanvas.desktop ${FLATPAK_DEST}/share/applications/land.arcana.TarotCanvas.desktop
+      - install -Dm644 icon.svg ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/land.arcana.TarotCanvas.svg
+      - install -Dm644 land.arcana.TarotCanvas.appdata.xml ${FLATPAK_DEST}/share/metainfo/land.arcana.TarotCanvas.metainfo.xml
+
+      # Create a wrapper script
+      - echo '#!/bin/sh' > ${FLATPAK_DEST}/bin/tarot-canvas
+      - echo 'python3 -m tarot_canvas.main "$@"' >> ${FLATPAK_DEST}/bin/tarot-canvas
+      - chmod +x ${FLATPAK_DEST}/bin/tarot-canvas
+      
+    sources:
+      - type: dir
+        path: .
+      - type: file
+        path: land.arcana.TarotCanvas.desktop
+      - type: file
+        path: land.arcana.TarotCanvas.appdata.xml

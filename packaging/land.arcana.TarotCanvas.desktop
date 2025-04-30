@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Tarot Canvas
+Comment=View, manage and explore tarot decks
+Exec=tarot-canvas
+Icon=land.arcana.TarotCanvas
+Categories=Utility;Graphics;Qt;
+Keywords=tarot;cards;deck;
+StartupNotify=true
+Terminal=false

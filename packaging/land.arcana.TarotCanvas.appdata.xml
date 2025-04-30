@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>land.arcana.TarotCanvas</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>Tarot Canvas</name>
+  <summary>Cross-platform Qt application for viewing and exploring tarot decks</summary>
+  <description>
+    <p>
+      Tarot Canvas is a cross-platform application for viewing and exploring tarot decks.
+      It adheres to the Tarot Deck Specification v1.0 to ensure compatibility across
+      different decks and platforms.
+    </p>
+    <p>Features include:</p>
+    <ul>
+      <li>Load and view tarot decks that follow the Tarot Deck Specification</li>
+      <li>Support for multiple card formats including SVG and raster images</li>
+      <li>Internationalization support</li>
+      <li>Custom card backs and variants</li>
+    </ul>
+  </description>
+  <url type="homepage">https://arcana.land/tarot-canvas</url>
+  <url type="bugtracker">https://github.com/arcanaland/tarot-canvas/issues</url>
+  <developer_name>ledif</developer_name>
+  <update_contact>adam@fidel.id</update_contact>
+  <launchable type="desktop-id">land.arcana.TarotCanvas.desktop</launchable>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Tarot Canvas main window</caption>
+      <image>https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/screenshots/main-window.png</image>
+    </screenshot>
+  </screenshots>
+  <content_rating type="oars-1.1" />
+  <releases>
+    <release version="0.1.0" date="2025-04-30">
+      <description>
+        <p>Initial release of Tarot Canvas</p>
+      </description>
+    </release>
+  </releases>
+</component>
