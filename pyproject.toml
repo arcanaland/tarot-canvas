@@ -28,7 +28,8 @@ classifiers = [
 python = ">=3.13,<4.0"
 PyQt6 = "^6.5.0"
 toml = "^0.10.2"
-xdg = "^5.1.1"  # For XDG directory support
+requests = "^2.31.0"
+xdg-base-dirs = "^6.0.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.3.1"
