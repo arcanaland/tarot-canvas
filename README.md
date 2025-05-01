@@ -3,6 +3,8 @@
 # Tarot Canvas
 
 A cross-platform desktop application for viewing and exploring tarot decks.
+![image](https://github.com/user-attachments/assets/c859ad76-2d29-4828-9559-ea2c6695774e)
+
 
 ## Features
 
