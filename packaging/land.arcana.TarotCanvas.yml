@@ -25,7 +25,7 @@ modules:
       - mkdir -p ${FLATPAK_DEST}/share/metainfo
             
       - install -Dm644 land.arcana.TarotCanvas.desktop ${FLATPAK_DEST}/share/applications/land.arcana.TarotCanvas.desktop
-      - install -Dm644 icon.svg ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/land.arcana.TarotCanvas.svg
+      - install -Dm644 icon.png ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/land.arcana.TarotCanvas.png
       - install -Dm644 land.arcana.TarotCanvas.appdata.xml ${FLATPAK_DEST}/share/metainfo/land.arcana.TarotCanvas.metainfo.xml
 
       # Create a wrapper script

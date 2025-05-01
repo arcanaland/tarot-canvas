@@ -1,4 +1,4 @@
-<img src="./packaging/icon.svg"  align="right" height="60" />
+<img src="./packaging/icon.png"  align="right" height="60" />
 
 # Tarot Canvas
 
@@ -31,6 +31,3 @@ flatpak run land.arcana.TarotCanvas
 ```
 
 Once this project is sufficiently far along, it will be submitted to Flathub.
-
-## Attribution
-- Temporary application logo adapted from https://www.svgrepo.com/svg/387085/card-two
