@@ -41,6 +41,12 @@ class MainWindow(QMainWindow):
         new_canvas_action.triggered.connect(self.new_canvas_tab)
         new_menu.addAction(new_canvas_action)
         
+                
+        new_card_view_action = QAction("&Card View", self)
+        new_card_view_action.setShortcut("Ctrl+T")
+        new_card_view_action.triggered.connect(self.new_card_view_tab)
+        new_menu.addAction(new_card_view_action)
+        
         new_deck_view_action = QAction("&Deck View", self)
         new_deck_view_action.triggered.connect(self.new_deck_view_tab)
         new_menu.addAction(new_deck_view_action)
@@ -48,10 +54,7 @@ class MainWindow(QMainWindow):
         new_library_action = QAction("&Library", self)
         new_library_action.triggered.connect(self.new_library_tab)
         new_menu.addAction(new_library_action)
-        
-        new_card_view_action = QAction("&Card View", self)
-        new_card_view_action.triggered.connect(self.new_card_view_tab)
-        new_menu.addAction(new_card_view_action)
+
         
         open_action = QAction("&Open Deck", self)
         open_action.setShortcut("Ctrl+O")
