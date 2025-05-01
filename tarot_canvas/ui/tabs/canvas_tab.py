@@ -1,14 +1,12 @@
-from tarot_canvas.ui.tabs.base_tab import BaseTab
-from PyQt6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGraphicsRectItem
-from PyQt6.QtWidgets import QToolBar, QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QFrame
-from PyQt6.QtCore import Qt, QRectF, pyqtSignal, QPointF
-from PyQt6.QtGui import QIcon, QAction, QPixmap, QBrush, QPen, QColor, QPainter, QTransform
-import types
-from PyQt6.QtGui import QUndoStack, QUndoCommand, QRadialGradient, QKeySequence, QLinearGradient
-from PyQt6.QtCore import QTimer, QPropertyAnimation, QEasingCurve, QPointF
-from PyQt6.QtCore import QSequentialAnimationGroup, QParallelAnimationGroup, pyqtProperty, QObject
+from PyQt6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGraphicsRectItem,  QToolBar, QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QFrame
+from PyQt6.QtCore import Qt, QRectF, pyqtSignal, QPointF, QTimer, QPropertyAnimation, QEasingCurve, QPointF, QSequentialAnimationGroup, QParallelAnimationGroup, pyqtProperty, QObject
+from PyQt6.QtGui import QIcon, QAction, QPixmap, QBrush, QPen, QColor, QPainter, QTransform,  QUndoStack, QUndoCommand, QRadialGradient, QKeySequence, QLinearGradient
+
 from tarot_canvas.models.deck import TarotDeck
 from tarot_canvas.models.deck_manager import deck_manager
+from tarot_canvas.ui.tabs.base_tab import BaseTab
+
+import types
 import os
 import random
 import math
