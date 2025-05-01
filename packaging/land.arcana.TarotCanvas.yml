@@ -12,29 +12,37 @@ finish-args:
   - --socket=fallback-x11
   - --device=dri
   - --talk-name=org.freedesktop.portal.Desktop
+  - --talk-name=org.freedesktop.portal.OpenURI  # Add this for URI handling
 
 modules:
   - python3-modules.yaml
   - name: tarot-canvas
     buildsystem: simple
     build-commands:
+      - |
+        PYTHON_VERSION=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')") && \
+        SITE_PACKAGES="${FLATPAK_DEST}/lib/python${PYTHON_VERSION}/site-packages" && \
+        mkdir -p ${SITE_PACKAGES} && \
+        cp -r tarot_canvas ${SITE_PACKAGES}/ && \
+        touch ${SITE_PACKAGES}/tarot_canvas/__init__.py
+      
+      # Create directories
       - mkdir -p ${FLATPAK_DEST}/bin
       - mkdir -p ${FLATPAK_DEST}/share/applications
       - mkdir -p ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps
       - mkdir -p ${FLATPAK_DEST}/share/metainfo
             
-      - install -Dm644 land.arcana.TarotCanvas.desktop ${FLATPAK_DEST}/share/applications/land.arcana.TarotCanvas.desktop
-      - install -Dm644 icon.png ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/land.arcana.TarotCanvas.png
-      - install -Dm644 land.arcana.TarotCanvas.appdata.xml ${FLATPAK_DEST}/share/metainfo/land.arcana.TarotCanvas.metainfo.xml
+      # Install files
+      - install -Dm644 packaging/land.arcana.TarotCanvas.desktop ${FLATPAK_DEST}/share/applications/land.arcana.TarotCanvas.desktop
+      - install -Dm644 packaging/icon.png ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/land.arcana.TarotCanvas.png
+      - install -Dm644 packaging/land.arcana.TarotCanvas.appdata.xml ${FLATPAK_DEST}/share/metainfo/land.arcana.TarotCanvas.metainfo.xml
+      - install -Dm755 packaging/tarot-canvas-launcher.sh ${FLATPAK_DEST}/bin/tarot-canvas
 
-      # Create a wrapper script
-      - echo '#!/bin/sh' > ${FLATPAK_DEST}/bin/tarot-canvas
-      - echo 'python3 -m tarot_canvas.main "$@"' >> ${FLATPAK_DEST}/bin/tarot-canvas
-      - chmod +x ${FLATPAK_DEST}/bin/tarot-canvas
+
       
     sources:
       - type: dir
-        path: .
+        path: ..
       - type: file
         path: land.arcana.TarotCanvas.desktop
       - type: file
