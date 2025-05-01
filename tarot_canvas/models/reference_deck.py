@@ -11,15 +11,11 @@ class ReferenceDeck:
 
     @staticmethod
     def get_reference_deck_path():
-        return xdg_data_home() / "tarot-canvas" / ReferenceDeck.REFERENCE_DECK_DIR
+        return xdg_data_home() / "tarot-canvas" / ReferenceDeck.REFERENCE_DECK_DIR / ReferenceDeck.REFERENCE_DECK_NAME
 
     @staticmethod
     def is_reference_deck_present():
-        reference_deck_path = os.path.join(
-            ReferenceDeck.get_reference_deck_path(),
-            ReferenceDeck.REFERENCE_DECK_NAME
-        )
-        return os.path.exists(reference_deck_path)
+        return os.path.exists(ReferenceDeck.get_reference_deck_path())
 
     @staticmethod
     def download_reference_deck():

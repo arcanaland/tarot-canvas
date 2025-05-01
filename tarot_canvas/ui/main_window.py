@@ -1,6 +1,7 @@
 from PyQt6.QtWidgets import (QMainWindow, QVBoxLayout, QWidget, QLabel, QPushButton, 
                             QMenuBar, QMenu, QApplication, QMessageBox, QFileDialog,
-                            QTabWidget, QHBoxLayout)
+                            QTabWidget, QHBoxLayout, QToolButton)
+                            
 from PyQt6.QtGui import QIcon, QAction
 from PyQt6.QtCore import Qt
 import os
@@ -102,6 +103,7 @@ class MainWindow(QMainWindow):
         self.tab_widget = QTabWidget()
         self.tab_widget.setTabsClosable(True)
         self.tab_widget.tabCloseRequested.connect(self.close_tab)
+        
         main_layout.addWidget(self.tab_widget)
         
         # Set the central widget
@@ -127,7 +129,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(icon_label)
         
         # Change label text
-        welcome_label = QLabel("Try creating one of the following:")
+        welcome_label = QLabel("Try choosing one of the following:")
         welcome_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(welcome_label)
 
@@ -155,24 +157,35 @@ class MainWindow(QMainWindow):
         welcome_tab.setLayout(layout)
         
         self.tab_widget.addTab(welcome_tab, "Welcome")
+        
+    def close_welcome_tab(self):
+        """Close the welcome tab if it exists"""
+        for i in range(self.tab_widget.count()):
+            if self.tab_widget.tabText(i) == "Welcome":
+                self.tab_widget.removeTab(i)
+                break
 
     def new_canvas_tab(self):
         canvas_tab = CanvasTab()
+        self.close_welcome_tab()
         self.tab_widget.addTab(canvas_tab, "Canvas")
         self.tab_widget.setCurrentWidget(canvas_tab)
 
     def new_deck_view_tab(self):
         deck_tab = DeckViewTab()
+        self.close_welcome_tab()
         self.tab_widget.addTab(deck_tab, "Deck View")
         self.tab_widget.setCurrentWidget(deck_tab)
 
     def new_library_tab(self):
         library_tab = LibraryTab()
+        self.close_welcome_tab()
         self.tab_widget.addTab(library_tab, "Library")
         self.tab_widget.setCurrentWidget(library_tab)
 
     def new_card_view_tab(self):
         card_tab = CardViewTab()
+        self.close_welcome_tab()
         self.tab_widget.addTab(card_tab, "Card View")
         self.tab_widget.setCurrentWidget(card_tab)
 
@@ -197,6 +210,7 @@ class MainWindow(QMainWindow):
             print(f"Selected file: {selected_files[0]}")
             # Create a new deck view tab with the selected deck
             deck_tab = DeckViewTab(deck_path=selected_files[0])
+            self.close_welcome_tab()
             self.tab_widget.addTab(deck_tab, os.path.basename(os.path.dirname(selected_files[0])))
             self.tab_widget.setCurrentWidget(deck_tab)
 
