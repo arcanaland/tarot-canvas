@@ -1,18 +1,50 @@
 from tarot_canvas.ui.tabs.base_tab import BaseTab
-from PyQt6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem
+from PyQt6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGraphicsRectItem
 from PyQt6.QtWidgets import QToolBar, QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QFrame
 from PyQt6.QtCore import Qt, QRectF, pyqtSignal, QPointF
 from PyQt6.QtGui import QIcon, QAction, QPixmap, QBrush, QPen, QColor, QPainter, QTransform
 import types
-from PyQt6.QtGui import QUndoStack, QUndoCommand, QRadialGradient, QKeySequence
-
+from PyQt6.QtGui import QUndoStack, QUndoCommand, QRadialGradient, QKeySequence, QLinearGradient
+from PyQt6.QtCore import QTimer, QPropertyAnimation, QEasingCurve, QPointF
+from PyQt6.QtCore import QSequentialAnimationGroup, QParallelAnimationGroup, pyqtProperty, QObject
 from tarot_canvas.models.deck import TarotDeck
 from tarot_canvas.models.deck_manager import deck_manager
 import os
 import random
+import math
+
+class CardAnimationController(QObject):
+    """Controller for card animations."""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._rotation = 0.0
+        self._scale = 1.0
+        self.card_item = None
+    
+    def _get_rotation(self):
+        return self._rotation
+        
+    def _set_rotation(self, angle):
+        self._rotation = angle
+        if self.card_item:
+            self.card_item.setRotation(angle)
+        
+    def _get_scale(self):
+        return self._scale
+        
+    def _set_scale(self, scale):
+        self._scale = scale
+        if self.card_item:
+            self.card_item.setScale(scale)
+    
+    # Define properties for QPropertyAnimation
+    rotation = pyqtProperty(float, _get_rotation, _set_rotation)
+    scale = pyqtProperty(float, _get_scale, _set_scale)
+
 
 class DraggableCardItem(QGraphicsPixmapItem):
-    """Enhanced draggable card item for the canvas with advanced features."""
+    """Enhanced draggable card item with wobble animation."""
     
     def __init__(self, pixmap, card_data, parent_tab=None):
         super().__init__(pixmap)
@@ -22,46 +54,82 @@ class DraggableCardItem(QGraphicsPixmapItem):
         self.setFlag(QGraphicsPixmapItem.GraphicsItemFlag.ItemIsSelectable)
         self.setFlag(QGraphicsPixmapItem.GraphicsItemFlag.ItemSendsGeometryChanges)
         self.setAcceptHoverEvents(True)
+        self.setTransformOriginPoint(pixmap.width() / 2, pixmap.height() / 2)
+
+        # Create animation controller
+        self.anim_controller = CardAnimationController()
+        self.anim_controller.card_item = self
         
-        # Set a border when selected
-        self.setPen = QPen(QColor(255, 215, 0))  # Gold color
-        self.setPen.setWidth(3)
+        # Set up wobble animation
+        self.setup_wobble_animation()
         
-        self.highlighted = False
-        self.is_locked = False
-        self.connections = []  # Store connections to other cards
+    def setup_wobble_animation(self):
+        """Set up wobble animation with slight rotation changes."""
+        # Create a sequential animation group for rotation
+        self.rotation_anim = QSequentialAnimationGroup()
+
+        # Create subtle rotation animations
+        rot1 = QPropertyAnimation(self.anim_controller, b"rotation")
+        rot1.setDuration(4000 + random.randint(-500, 500))  # Randomize duration slightly
+        rot1.setStartValue(0)
+        rot1.setEndValue(0.8)  # Small rotation angle
+        rot1.setEasingCurve(QEasingCurve.Type.InOutSine)
         
-    def paint(self, painter, option, widget):
-        # Call the parent class's paint method first
-        super().paint(painter, option, widget)
+        rot2 = QPropertyAnimation(self.anim_controller, b"rotation")
+        rot2.setDuration(2000 + random.randint(-500, 500))
+        rot2.setStartValue(0.8)
+        rot2.setEndValue(-0.8)  # Small negative rotation
+        rot2.setEasingCurve(QEasingCurve.Type.InOutSine)
         
-        # Draw selection border
-        if self.isSelected():
-            painter.setPen(QPen(QColor(255, 215, 0), 3))
-            painter.setBrush(QBrush(Qt.BrushStyle.NoBrush))
-            painter.drawRect(self.boundingRect().adjusted(1, 1, -1, -1))
+        rot3 = QPropertyAnimation(self.anim_controller, b"rotation")
+        rot3.setDuration(2000 + random.randint(-500, 500))
+        rot3.setStartValue(-0.8)
+        rot3.setEndValue(0)  # Back to neutral
+        rot3.setEasingCurve(QEasingCurve.Type.InOutSine)
         
-        # Draw highlight effect if highlighted
-        if getattr(self, 'highlighted', False):
-            # Draw a glowing effect around the card
-            painter.setPen(Qt.PenStyle.NoPen)
-            gradient = QRadialGradient(self.boundingRect().center(), 
-                                       max(self.boundingRect().width(), 
-                                           self.boundingRect().height()) / 1.5)
-            gradient.setColorAt(0.85, QColor(255, 255, 200, 150))
-            gradient.setColorAt(1.0, QColor(255, 255, 200, 0))
-            painter.setBrush(QBrush(gradient))
-            painter.drawEllipse(self.boundingRect().center(), 
-                               self.boundingRect().width() / 1.2, 
-                               self.boundingRect().height() / 1.2)
-                               
-        # Draw locked indicator if card is locked
-        if getattr(self, 'is_locked', False):
-            painter.drawPixmap(
-                self.boundingRect().topRight() + QPointF(-24, 5),
-                QPixmap("path/to/lock_icon.png").scaled(20, 20)
-            )
-    
+        # Add the animations to the sequence
+        self.rotation_anim.addAnimation(rot1)
+        self.rotation_anim.addAnimation(rot2)
+        self.rotation_anim.addAnimation(rot3)
+        
+        # Create a very subtle scale animation
+        
+        self.scale_anim = QPropertyAnimation(self.anim_controller, b"scale")
+        self.scale_anim.setDuration(1500 + random.randint(-300, 300))
+        self.scale_anim.setStartValue(1.0)
+        self.scale_anim.setEndValue(1.02)  # Very slight scale up
+        self.scale_anim.setLoopCount(-1)  # Loop indefinitely
+        self.scale_anim.setEasingCurve(QEasingCurve.Type.InOutSine)
+        
+        # Start animations with slight delay for each card
+        QTimer.singleShot(random.randint(0, 1000), self.start_animations)
+        
+    def start_animations(self):
+        """Start the wobble animations."""
+        self.rotation_anim.setLoopCount(-1)  # Loop indefinitely
+        self.rotation_anim.start()
+        #self.scale_anim.start()
+        
+    def pause_animations(self):
+        """Pause animations (when card is being dragged)."""
+        self.rotation_anim.pause()
+        self.scale_anim.pause()
+        
+    def resume_animations(self):
+        """Resume animations after dragging stops."""
+        self.rotation_anim.resume()
+        self.scale_anim.resume()
+        
+    # Override these to pause/resume animations during drag
+    def mousePressEvent(self, event):
+        self.pause_animations()
+        super().mousePressEvent(event)
+        
+    def mouseReleaseEvent(self, event):
+        super().mouseReleaseEvent(event)
+        # Small delay before resuming animation
+        QTimer.singleShot(200, self.resume_animations)
+        
     def mouseDoubleClickEvent(self, event):
         """Handle double click events to open a card view tab"""
         if self.parent_tab and hasattr(self.parent_tab, 'open_card_view'):
@@ -127,6 +195,7 @@ class PannableGraphicsView(QGraphicsView):
             # Zoom out
             self.scale(1.0 / zoom_factor, 1.0 / zoom_factor)
 
+
 class CanvasTab(BaseTab):
     # Signal to notify the main window that we want to navigate
     navigation_requested = pyqtSignal(str, object)  # action, data
@@ -150,7 +219,8 @@ class CanvasTab(BaseTab):
         # Create a canvas area for card placement
         self.scene = QGraphicsScene(self)
         self.scene.setSceneRect(QRectF(0, 0, 2000, 2000))  # Large canvas area
-        
+        #background = AnimatedBackground(self.scene.sceneRect())
+        #self.scene.addItem(background)
         # Use our custom view with shift+drag panning
         self.view = PannableGraphicsView(self.scene)
         self.view.setBackgroundBrush(QBrush(QColor(120, 120, 120)))  # Gray background
