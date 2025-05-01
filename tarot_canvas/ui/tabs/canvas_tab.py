@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import QToolBar, QVBoxLayout, QWidget, QPushButton, QHBoxLa
 from PyQt6.QtCore import Qt, QRectF, pyqtSignal, QPointF
 from PyQt6.QtGui import QIcon, QAction, QPixmap, QBrush, QPen, QColor, QPainter, QTransform
 import types
-from PyQt6.QtGui import QUndoStack, QUndoCommand, QRadialGradient
+from PyQt6.QtGui import QUndoStack, QUndoCommand, QRadialGradient, QKeySequence
 
 from tarot_canvas.models.deck import TarotDeck
 from tarot_canvas.models.deck_manager import deck_manager
@@ -68,6 +68,65 @@ class DraggableCardItem(QGraphicsPixmapItem):
             self.parent_tab.open_card_view(self.card_data)
         super().mouseDoubleClickEvent(event)
 
+# Create a custom QGraphicsView to handle shift+drag panning
+class PannableGraphicsView(QGraphicsView):
+    def __init__(self, scene, parent=None):
+        super().__init__(scene, parent)
+        self.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
+        self._panning = False
+        self._last_mouse_pos = None
+        
+    def mousePressEvent(self, event):
+        """Override mouse press to implement shift+drag panning"""
+        if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+            # Start panning mode
+            self._panning = True
+            self._last_mouse_pos = event.pos()
+            self.setCursor(Qt.CursorShape.ClosedHandCursor)
+            event.accept()
+        else:
+            # Default behavior (selection)
+            super().mousePressEvent(event)
+            
+    def mouseMoveEvent(self, event):
+        """Handle mouse movement for panning or default behavior"""
+        if self._panning and self._last_mouse_pos:
+            # Calculate how much to pan
+            delta = event.pos() - self._last_mouse_pos
+            self._last_mouse_pos = event.pos()
+            
+            # Pan the view
+            self.horizontalScrollBar().setValue(
+                self.horizontalScrollBar().value() - delta.x())
+            self.verticalScrollBar().setValue(
+                self.verticalScrollBar().value() - delta.y())
+            
+            event.accept()
+        else:
+            super().mouseMoveEvent(event)
+            
+    def mouseReleaseEvent(self, event):
+        """Handle mouse release for ending panning or default behavior"""
+        if self._panning:
+            self._panning = False
+            self._last_mouse_pos = None
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+            event.accept()
+        else:
+            super().mouseReleaseEvent(event)
+    
+    def wheelEvent(self, event):
+        """Handle zooming with mouse wheel"""
+        zoom_factor = 1.15
+        
+        if event.angleDelta().y() > 0:
+            # Zoom in
+            self.scale(zoom_factor, zoom_factor)
+        else:
+            # Zoom out
+            self.scale(1.0 / zoom_factor, 1.0 / zoom_factor)
+
 class CanvasTab(BaseTab):
     # Signal to notify the main window that we want to navigate
     navigation_requested = pyqtSignal(str, object)  # action, data
@@ -91,10 +150,10 @@ class CanvasTab(BaseTab):
         # Create a canvas area for card placement
         self.scene = QGraphicsScene(self)
         self.scene.setSceneRect(QRectF(0, 0, 2000, 2000))  # Large canvas area
-        self.view = QGraphicsView(self.scene)
-        self.view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
-        self.view.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-        self.view.setBackgroundBrush(QBrush(QColor(120, 120, 120)))  # Light gray background
+        
+        # Use our custom view with shift+drag panning
+        self.view = PannableGraphicsView(self.scene)
+        self.view.setBackgroundBrush(QBrush(QColor(120, 120, 120)))  # Gray background
         
         # Add canvas to layout (will take most of the space)
         main_layout.addWidget(self.view, 1)  # The 1 is stretch factor
@@ -111,6 +170,32 @@ class CanvasTab(BaseTab):
             layout = QVBoxLayout(self)
             layout.setContentsMargins(0, 0, 0, 0)
             layout.addWidget(container)
+        
+        # Set up keyboard shortcuts
+        self.setup_shortcuts()
+    
+    def setup_shortcuts(self):
+        """Set up keyboard shortcuts for common actions"""
+        # Create shortcut for Draw Card (d key)
+        draw_shortcut = QKeySequence("d")
+        draw_action = QAction("Draw Card", self)
+        draw_action.setShortcut(draw_shortcut)
+        draw_action.triggered.connect(self.on_draw_card)
+        self.addAction(draw_action)
+        
+        # Create shortcut for Delete (Delete/Backspace keys)
+        delete_shortcut = QKeySequence(Qt.Key.Key_Delete)
+        delete_action = QAction("Delete Card", self)
+        delete_action.setShortcut(delete_shortcut)
+        delete_action.triggered.connect(self.on_delete_card)
+        self.addAction(delete_action)
+        
+        # Add backspace as an alternative delete key
+        backspace_shortcut = QKeySequence(Qt.Key.Key_Backspace)
+        backspace_action = QAction("Delete Card (Backspace)", self)
+        backspace_action.setShortcut(backspace_shortcut)
+        backspace_action.triggered.connect(self.on_delete_card)
+        self.addAction(backspace_action)
     
     def create_toolbar(self, parent_layout):
         # Create a vertical layout for the toolbar
