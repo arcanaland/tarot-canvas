@@ -1,5 +1,6 @@
 from PyQt6.QtWidgets import (QMainWindow, QVBoxLayout, QWidget, QLabel, QPushButton, 
-                            QMenuBar, QMenu, QApplication, QMessageBox, QFileDialog)
+                            QMenuBar, QMenu, QApplication, QMessageBox, QFileDialog,
+                            QTabWidget, QHBoxLayout)
 from PyQt6.QtGui import QIcon, QAction
 from PyQt6.QtCore import Qt
 import os
@@ -7,6 +8,12 @@ import importlib.resources as pkg_resources
 
 from importlib.resources import files
 ICON_PATH = files('tarot_canvas.resources.icons').joinpath('icon.png')
+
+# Import custom tab classes
+from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
+from tarot_canvas.ui.tabs.deck_view_tab import DeckViewTab
+from tarot_canvas.ui.tabs.library_tab import LibraryTab
+from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -25,15 +32,37 @@ class MainWindow(QMainWindow):
         # File menu
         file_menu = menu_bar.addMenu("&File")
         
-        new_action = QAction("&New Canvas", self)
-        new_action.setShortcut("Ctrl+N")
-        new_action.triggered.connect(self.new_reading)
-        file_menu.addAction(new_action)
+        new_menu = QMenu("&New", self)
+        file_menu.addMenu(new_menu)
+        
+        new_canvas_action = QAction("&Canvas", self)
+        new_canvas_action.setShortcut("Ctrl+N")
+        new_canvas_action.triggered.connect(self.new_canvas_tab)
+        new_menu.addAction(new_canvas_action)
+        
+        new_deck_view_action = QAction("&Deck View", self)
+        new_deck_view_action.triggered.connect(self.new_deck_view_tab)
+        new_menu.addAction(new_deck_view_action)
+        
+        new_library_action = QAction("&Library", self)
+        new_library_action.triggered.connect(self.new_library_tab)
+        new_menu.addAction(new_library_action)
+        
+        new_card_view_action = QAction("&Card View", self)
+        new_card_view_action.triggered.connect(self.new_card_view_tab)
+        new_menu.addAction(new_card_view_action)
         
         open_action = QAction("&Open Deck", self)
         open_action.setShortcut("Ctrl+O")
         open_action.triggered.connect(self.open_deck)
         file_menu.addAction(open_action)
+        
+        file_menu.addSeparator()
+        
+        close_tab_action = QAction("Close &Tab", self)
+        close_tab_action.setShortcut("Ctrl+W")
+        close_tab_action.triggered.connect(self.close_current_tab)
+        file_menu.addAction(close_tab_action)
         
         file_menu.addSeparator()
         
@@ -66,6 +95,25 @@ class MainWindow(QMainWindow):
         about_menu.addAction(about_action)
 
     def init_ui(self):
+        # Create main layout
+        main_layout = QVBoxLayout()
+        
+        # Create tab widget
+        self.tab_widget = QTabWidget()
+        self.tab_widget.setTabsClosable(True)
+        self.tab_widget.tabCloseRequested.connect(self.close_tab)
+        main_layout.addWidget(self.tab_widget)
+        
+        # Set the central widget
+        central_widget = QWidget()
+        central_widget.setLayout(main_layout)
+        self.setCentralWidget(central_widget)
+        
+        # Add a welcome tab
+        self.add_welcome_tab()
+
+    def add_welcome_tab(self):
+        welcome_tab = QWidget()
         layout = QVBoxLayout()
 
         label = QLabel("Welcome to Tarot Canvas!")
@@ -79,18 +127,66 @@ class MainWindow(QMainWindow):
         layout.addWidget(icon_label)
         
         # Change label text
-        label.setText("Try summoning a card?")
-        layout.addWidget(label)
+        welcome_label = QLabel("Try creating one of the following:")
+        welcome_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(welcome_label)
 
-        # Button to open a tarot deck
-        open_deck_btn = QPushButton("Open Tarot Deck")
-        open_deck_btn.clicked.connect(self.open_deck)
-        layout.addWidget(open_deck_btn)
+        # Button container
+        button_layout = QHBoxLayout()
+        
+        # Buttons for different tab types
+        canvas_btn = QPushButton("New Canvas")
+        canvas_btn.clicked.connect(self.new_canvas_tab)
+        button_layout.addWidget(canvas_btn)
+        
+        deck_btn = QPushButton("Random Deck")
+        deck_btn.clicked.connect(self.new_deck_view_tab)
+        button_layout.addWidget(deck_btn)
+        
+        library_btn = QPushButton("Deck Library")
+        library_btn.clicked.connect(self.new_library_tab)
+        button_layout.addWidget(library_btn)
+        
+        card_btn = QPushButton("Pick Random Card")
+        card_btn.clicked.connect(self.new_card_view_tab)
+        button_layout.addWidget(card_btn)
+        
+        layout.addLayout(button_layout)
+        welcome_tab.setLayout(layout)
+        
+        self.tab_widget.addTab(welcome_tab, "Welcome")
 
-        # Set the central widget
-        central_widget = QWidget()
-        central_widget.setLayout(layout)
-        self.setCentralWidget(central_widget)
+    def new_canvas_tab(self):
+        canvas_tab = CanvasTab()
+        self.tab_widget.addTab(canvas_tab, "Canvas")
+        self.tab_widget.setCurrentWidget(canvas_tab)
+
+    def new_deck_view_tab(self):
+        deck_tab = DeckViewTab()
+        self.tab_widget.addTab(deck_tab, "Deck View")
+        self.tab_widget.setCurrentWidget(deck_tab)
+
+    def new_library_tab(self):
+        library_tab = LibraryTab()
+        self.tab_widget.addTab(library_tab, "Library")
+        self.tab_widget.setCurrentWidget(library_tab)
+
+    def new_card_view_tab(self):
+        card_tab = CardViewTab()
+        self.tab_widget.addTab(card_tab, "Card View")
+        self.tab_widget.setCurrentWidget(card_tab)
+
+    def close_tab(self, index):
+        if self.tab_widget.count() > 1:  # Keep at least one tab open
+            self.tab_widget.removeTab(index)
+        else:
+            # If it's the last tab, replace it with welcome
+            self.tab_widget.removeTab(index)
+            self.add_welcome_tab()
+
+    def close_current_tab(self):
+        current_index = self.tab_widget.currentIndex()
+        self.close_tab(current_index)
 
     def open_deck(self):
         # Placeholder for opening a tarot deck
@@ -99,9 +195,13 @@ class MainWindow(QMainWindow):
         if file_dialog.exec():
             selected_files = file_dialog.selectedFiles()
             print(f"Selected file: {selected_files[0]}")
+            # Create a new deck view tab with the selected deck
+            deck_tab = DeckViewTab(deck_path=selected_files[0])
+            self.tab_widget.addTab(deck_tab, os.path.basename(os.path.dirname(selected_files[0])))
+            self.tab_widget.setCurrentWidget(deck_tab)
 
     def new_reading(self):
-        print("New reading")
+        self.new_canvas_tab()
 
     def show_preferences(self):
         print("Preferences")
