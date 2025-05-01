@@ -43,6 +43,9 @@ class TarotDeck:
         # Check for localized names
         names = self.load_localized_names()
         
+        # Load alt text
+        alt_texts = self.load_alt_texts()
+        
         # Standard major arcana: 0-21
         for i in range(22):
             card_id = f"major_arcana.{i:02d}"
@@ -55,12 +58,18 @@ class TarotDeck:
             # Find image for the card
             image_path = self.find_card_image("major_arcana", f"{i:02d}")
             
+            # Get alt text for the card
+            alt_text = None
+            if alt_texts and "major_arcana" in alt_texts and f"{i:02d}" in alt_texts["major_arcana"]:
+                alt_text = alt_texts["major_arcana"][f"{i:02d}"]
+            
             cards.append({
                 "id": card_id,
                 "name": name,
                 "type": "major_arcana",
                 "number": i,
-                "image": image_path
+                "image": image_path,
+                "alt_text": alt_text
             })
             
         return cards
@@ -71,6 +80,9 @@ class TarotDeck:
         
         # Check for localized names
         names = self.load_localized_names()
+        
+        # Load alt text
+        alt_texts = self.load_alt_texts()
         
         # Numbers: ace, two, ..., ten
         ranks = ["ace", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]
@@ -90,13 +102,19 @@ class TarotDeck:
             # Find image for the card
             image_path = self.find_card_image(f"minor_arcana/{suit}", rank)
             
+            # Get alt text for the card
+            alt_text = None
+            if alt_texts and "minor_arcana" in alt_texts and suit in alt_texts["minor_arcana"] and rank in alt_texts["minor_arcana"][suit]:
+                alt_text = alt_texts["minor_arcana"][suit][rank]
+            
             cards.append({
                 "id": card_id,
                 "name": name,
                 "type": "minor_arcana",
                 "suit": suit,
                 "rank": rank,
-                "image": image_path
+                "image": image_path,
+                "alt_text": alt_text
             })
             
         # Process court cards
@@ -111,13 +129,19 @@ class TarotDeck:
             # Find image for the card
             image_path = self.find_card_image(f"minor_arcana/{suit}", court)
             
+            # Get alt text for the card
+            alt_text = None
+            if alt_texts and "minor_arcana" in alt_texts and suit in alt_texts["minor_arcana"] and court in alt_texts["minor_arcana"][suit]:
+                alt_text = alt_texts["minor_arcana"][suit][court]
+            
             cards.append({
                 "id": card_id,
                 "name": name,
                 "type": "minor_arcana",
                 "suit": suit,
                 "rank": court,
-                "image": image_path
+                "image": image_path,
+                "alt_text": alt_text
             })
             
         return cards
@@ -163,6 +187,17 @@ class TarotDeck:
             with open(names_file, "r") as f:
                 return toml.load(f)
         return None
+    
+    def load_alt_texts(self, lang="en"):
+        """Load alt texts for cards from localization files"""
+        names_file = os.path.join(self.deck_path, "names", f"{lang}.toml")
+        if os.path.exists(names_file):
+            with open(names_file, "r") as f:
+                data = toml.load(f)
+                # Extract alt_text section if it exists
+                if "alt_text" in data:
+                    return data["alt_text"]
+        return None
         
     def get_card_backs(self):
         """Get available card back images"""
@@ -180,6 +215,13 @@ class TarotDeck:
             backs[name] = back_file
             
         return backs, default_back
+    
+    def get_card_back_alt_text(self, back_name="classic", lang="en"):
+        """Get alt text for a specific card back"""
+        alt_texts = self.load_alt_texts(lang)
+        if alt_texts and "card_backs" in alt_texts and back_name in alt_texts["card_backs"]:
+            return alt_texts["card_backs"][back_name]
+        return None
 
     def get_name(self):
         return self.metadata.get("deck", {}).get("name", "Unknown Deck")

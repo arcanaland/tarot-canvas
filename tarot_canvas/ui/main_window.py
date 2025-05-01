@@ -101,7 +101,9 @@ class MainWindow(QMainWindow):
     def init_ui(self):
         # Create main layout
         main_layout = QVBoxLayout()
-        
+        main_layout.setContentsMargins(4, 4, 4, 4)  # Set smaller margins (left, top, right, bottom)
+        main_layout.setSpacing(2)  # Reduce spacing between widgets
+    
         # Create tab widget
         self.tab_widget = QTabWidget()
         self.tab_widget.setTabsClosable(True)
@@ -205,13 +207,11 @@ class MainWindow(QMainWindow):
         self.close_tab(current_index)
 
     def open_deck(self):
-        # Placeholder for opening a tarot deck
         file_dialog = QFileDialog()
         file_dialog.setNameFilter("Tarot Decks (deck.toml);;All Files (*)")
         if file_dialog.exec():
             selected_files = file_dialog.selectedFiles()
             print(f"Selected file: {selected_files[0]}")
-            # Create a new deck view tab with the selected deck
             deck_tab = DeckViewTab(deck_path=selected_files[0])
             self.close_welcome_tab()
             self.tab_widget.addTab(deck_tab, os.path.basename(os.path.dirname(selected_files[0])))

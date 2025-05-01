@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QSplitter, QScrollArea
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QSplitter, QScrollArea, QGroupBox
 from PyQt6.QtGui import QPixmap, QIcon
 from PyQt6.QtCore import Qt
 from tarot_canvas.models.deck_manager import deck_manager
@@ -78,10 +78,38 @@ class CardViewTab(BaseTab):
             details_label = QLabel(f"Suit: {self.card['suit'].capitalize()}\nRank: {self.card['rank'].capitalize()}")
             info_layout.addWidget(details_label)
             
-        
         # Add deck information
         deck_label = QLabel(f"Deck: {self.deck.get_name()}")
         info_layout.addWidget(deck_label)
+        
+        # Add description (alt_text) section
+        description_group = QGroupBox("Description")
+        description_layout = QVBoxLayout(description_group)
+        
+        # Create a scroll area for the description to handle long text
+        description_scroll = QScrollArea()
+        description_scroll.setWidgetResizable(True)
+        
+        description_content = QWidget()
+        description_content_layout = QVBoxLayout(description_content)
+        
+        # Add the alt_text as a description if available
+        if "alt_text" in self.card and self.card["alt_text"]:
+            description_label = QLabel(self.card["alt_text"])
+            description_label.setWordWrap(True)
+            description_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        else:
+            description_label = QLabel("No description available for this card.")
+            description_label.setStyleSheet("color: gray; font-style: italic;")
+        
+        description_content_layout.addWidget(description_label)
+        description_content_layout.addStretch()
+        
+        description_scroll.setWidget(description_content)
+        description_layout.addWidget(description_scroll)
+        
+        # Add the description group to the info layout
+        info_layout.addWidget(description_group)
         
         info_layout.addStretch()
         splitter.addWidget(info_widget)
