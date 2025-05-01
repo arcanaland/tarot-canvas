@@ -42,4 +42,9 @@
   </requires>
   <content_rating type="oars-1.1"/>
   <launchable type="desktop-id">land.arcana.TarotCanvas.desktop</launchable>
+   <provides>
+    <binary>tarot-canvas</binary>
+    <id>tarot-canvas.desktop</id>
+    <mediatype>x-scheme-handler/tarot</mediatype>
+  </provides>
 </component>

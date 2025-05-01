@@ -2,9 +2,12 @@
 Type=Application
 Name=Tarot Canvas
 Comment=View, manage and explore tarot decks
-Exec=tarot-canvas
+Exec=tarot-canvas %u
 Icon=land.arcana.TarotCanvas
-Categories=Utility;Graphics;Qt;
+Categories=Graphics;Spirituality;
 Keywords=tarot;cards;deck;
 StartupNotify=true
 Terminal=false
+MimeType=x-scheme-handler/tarot;
+X-Flatpak-RenamedFrom=tarot-canvas.desktop;
+

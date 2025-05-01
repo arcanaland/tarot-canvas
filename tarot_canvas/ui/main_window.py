@@ -237,3 +237,21 @@ class MainWindow(QMainWindow):
             "© 2025 Arcana Land"
         )
         QMessageBox.about(self, "About Tarot Canvas", about_text)
+
+    def open_card_view(self, card, deck=None):
+        """Open a card view tab for a specific card
+        
+        Args:
+            card (dict): Card dictionary
+            deck (TarotDeck, optional): Deck the card belongs to
+        """
+        from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
+        
+        # Create a card view tab
+        tab = CardViewTab(card=card, deck=deck, parent=self.tab_widget)
+        
+        # Add it to the tab widget
+        self.tab_widget.addTab(tab, card["name"])
+        
+        # Select the new tab
+        self.tab_widget.setCurrentWidget(tab)

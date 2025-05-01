@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QSplitter, QScrollArea, QPushButton
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QSplitter, QScrollArea
 from PyQt6.QtGui import QPixmap, QIcon
 from PyQt6.QtCore import Qt
 from tarot_canvas.models.deck_manager import deck_manager
@@ -92,38 +92,8 @@ class CardViewTab(BaseTab):
         # Add splitter to main layout
         main_layout.addWidget(splitter)
         
-        # Add "Pick Another" button at the bottom of the window
-        pick_another_btn = QPushButton("New Random Card")
-        pick_another_btn.clicked.connect(self.pick_another_card)
-        main_layout.addWidget(pick_another_btn)
-        
         # Set the main layout
         self.layout.addLayout(main_layout)
-        
-    def pick_another_card(self):
-        """Generate a new random card and update this tab"""
-        if self.deck:
-            # Simply update the current tab with a new random card instead of replacing it
-            new_card = self.deck.get_random_card()
-            self.card = new_card
-            
-            # Clear the current layout
-            while self.layout.count():
-                item = self.layout.takeAt(0)
-                if item.widget():
-                    item.widget().deleteLater()
-                elif item.layout():
-                    # Clear sublayouts (we need to handle nested layouts)
-                    while item.layout().count():
-                        subitem = item.layout().takeAt(0)
-                        if subitem.widget():
-                            subitem.widget().deleteLater()
-            
-            # Update the UI with new card
-            self.setup_ui()
-            
-            # Update tab name in parent widget
-            self.update_tab_name()
             
     def update_tab_name(self):
         """Update the tab name to match the current card"""

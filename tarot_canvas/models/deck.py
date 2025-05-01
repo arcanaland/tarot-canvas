@@ -131,7 +131,23 @@ class TarotDeck:
                 if os.path.exists(path):
                     return path
                 
-        # Fallback: check for any image in any graphics folder
+        # Try to find an image in any "h" prefixed folder, prioritizing highest resolution
+        h_folders = []
+        for item in os.listdir(self.deck_path):
+            if os.path.isdir(os.path.join(self.deck_path, item)) and item.startswith('h') and item[1:].isdigit():
+                h_folders.append(item)
+        
+        # Sort by resolution (numeric value after 'h') in descending order
+        h_folders.sort(key=lambda x: int(x[1:]), reverse=True)
+        
+        # Look in each folder in order of resolution
+        for folder in h_folders:
+            pattern = os.path.join(self.deck_path, folder, card_type, f"{card_id}.*")
+            matches = glob.glob(pattern)
+            if matches:
+                return matches[0]
+            
+        # If not found in h folders, check any remaining folders
         pattern = os.path.join(self.deck_path, "*", card_type, f"{card_id}.*")
         matches = glob.glob(pattern)
         if matches:
@@ -186,3 +202,22 @@ class TarotDeck:
         if not self.cards:
             return None
         return random.choice(self.cards)
+        
+    def find_card_by_attributes(self, attributes):
+        """Find a card by matching its attributes
+        
+        Args:
+            attributes (dict): Dictionary of attributes to match
+            
+        Returns:
+            dict: Card dictionary or None if not found
+        """
+        for card in self.cards:
+            matches = True
+            for key, value in attributes.items():
+                if key not in card or card[key] != value:
+                    matches = False
+                    break
+            if matches:
+                return card
+        return None

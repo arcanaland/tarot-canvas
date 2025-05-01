@@ -7,12 +7,11 @@ base-version: '6.9'
 command: tarot-canvas
 finish-args:
   - --filesystem=home 
-  - --share=network
+  - --share=network # TODO: only needed for grabbing reference deck
   - --socket=wayland
   - --socket=fallback-x11
   - --device=dri
-  - --filesystem=xdg-config/gtk-3.0:ro
-  - --filesystem=xdg-config/gtk-4.0:ro
+  - --talk-name=org.freedesktop.portal.Desktop
 
 modules:
   - python3-modules.yaml
