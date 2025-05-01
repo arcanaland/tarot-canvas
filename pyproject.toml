@@ -42,6 +42,3 @@ tarot-canvas = "tarot_canvas.main:main"
 # Add metadata for Linux desktop integration
 [tool.poetry.plugins."gui_scripts"]
 tarot-canvas = "tarot_canvas.main:main"
-
-[tool.poetry.requires-plugins]
-poetry-plugin-export = ">=1.8"
