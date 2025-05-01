@@ -1,7 +1,7 @@
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from PyQt6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem
 from PyQt6.QtWidgets import QToolBar, QVBoxLayout, QWidget, QPushButton, QHBoxLayout
-from PyQt6.QtCore import Qt, QRectF
+from PyQt6.QtCore import Qt, QRectF, pyqtSignal
 from PyQt6.QtGui import QIcon, QAction, QPixmap, QBrush, QPen, QColor, QPainter
 
 from tarot_canvas.models.deck import TarotDeck
@@ -11,9 +11,10 @@ import os
 class DraggableCardItem(QGraphicsPixmapItem):
     """A draggable card item for the canvas."""
     
-    def __init__(self, pixmap, card_data):
+    def __init__(self, pixmap, card_data, parent_tab=None):
         super().__init__(pixmap)
         self.card_data = card_data
+        self.parent_tab = parent_tab
         self.setFlag(QGraphicsPixmapItem.GraphicsItemFlag.ItemIsMovable)
         self.setFlag(QGraphicsPixmapItem.GraphicsItemFlag.ItemIsSelectable)
         self.setFlag(QGraphicsPixmapItem.GraphicsItemFlag.ItemSendsGeometryChanges)
@@ -32,13 +33,25 @@ class DraggableCardItem(QGraphicsPixmapItem):
             painter.setPen(QPen(QColor(255, 215, 0), 3))  # Gold border, 3px width
             painter.setBrush(QBrush(Qt.BrushStyle.NoBrush))
             painter.drawRect(self.boundingRect().adjusted(1, 1, -1, -1))  # Adjust rect to fit inside
+    
+    def mouseDoubleClickEvent(self, event):
+        """Handle double click events to open a card view tab"""
+        if self.parent_tab and hasattr(self.parent_tab, 'open_card_view'):
+            self.parent_tab.open_card_view(self.card_data)
+        super().mouseDoubleClickEvent(event)
 
 class CanvasTab(BaseTab):
+    # Signal to notify the main window that we want to navigate
+    navigation_requested = pyqtSignal(str, object)  # action, data
+    
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.id = f"canvas_{id(self)}"  # Unique ID for this tab
         self.setup_ui()        
         self.deck = deck_manager.get_reference_deck()
-
+        
+        # Navigation history
+        self.source_tab = None  # From where we came
     
     def setup_ui(self):
         # Create a container widget instead of using self directly
@@ -53,7 +66,7 @@ class CanvasTab(BaseTab):
         self.view = QGraphicsView(self.scene)
         self.view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
         self.view.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-        self.view.setBackgroundBrush(QBrush(QColor(240, 240, 240)))  # Light gray background
+        self.view.setBackgroundBrush(QBrush(QColor(120, 120, 120)))  # Light gray background
         
         # Add canvas to layout (will take most of the space)
         main_layout.addWidget(self.view, 1)  # The 1 is stretch factor
@@ -149,8 +162,8 @@ class CanvasTab(BaseTab):
                 pixmap = pixmap.scaled(300, 500, Qt.AspectRatioMode.KeepAspectRatio, 
                                       Qt.TransformationMode.SmoothTransformation)
                 
-            # Create a draggable card item
-            card_item = DraggableCardItem(pixmap, card)
+            # Create a draggable card item - pass self as parent_tab
+            card_item = DraggableCardItem(pixmap, card, self)
             
             # Position the card in the middle of the visible canvas
             view_center = self.view.mapToScene(self.view.viewport().rect().center())
@@ -167,7 +180,15 @@ class CanvasTab(BaseTab):
             
         except Exception as e:
             print(f"Error adding card to canvas: {e}")
-
+            
+    def open_card_view(self, card_data):
+        """Open a card view tab for the given card"""
+        self.navigation_requested.emit("open_card_view", {
+            "card": card_data,
+            "deck": self.deck,
+            "source_tab_id": self.id
+        })
+    
     def on_create_spread(self):
         # Implement creating a new spread
         pass
@@ -179,3 +200,8 @@ class CanvasTab(BaseTab):
     def on_save_layout(self):
         # Implement saving the layout
         pass
+    
+    def on_navigate_back(self):
+        """Navigate back to the source tab"""
+        if self.source_tab:
+            self.navigation_requested.emit("navigate", self.source_tab)

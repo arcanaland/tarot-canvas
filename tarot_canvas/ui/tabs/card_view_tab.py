@@ -1,19 +1,23 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QSplitter, QScrollArea, QGroupBox
-from PyQt6.QtGui import QPixmap, QIcon
-from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QSplitter, QScrollArea, QGroupBox, QToolBar, QPushButton
+from PyQt6.QtGui import QPixmap, QIcon, QAction
+from PyQt6.QtCore import Qt, pyqtSignal
 from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 import os
 
 class CardViewTab(BaseTab):
-    def __init__(self, card=None, deck=None, parent=None):
+    # Signal to notify the main window that we want to navigate
+    navigation_requested = pyqtSignal(str, object)
+    
+    def __init__(self, card=None, deck=None, source_tab_id=None, parent=None):
         super().__init__(parent)
+        self.card = card
         self.deck = deck or deck_manager.get_reference_deck()
+        self.source_tab_id = source_tab_id
+        self.id = f"card_{id(self)}"
         
         if card is None and self.deck:
             self.card = self.deck.get_random_card()
-        else:
-            self.card = card
         
         # Set the tab name to the card name when it's created
         self.tab_name = self.card["name"] if self.card else "Card View"
@@ -32,6 +36,12 @@ class CardViewTab(BaseTab):
         
         # Main layout setup
         main_layout = QVBoxLayout()
+        
+        # Add a back button to the top if we came from somewhere
+        if self.source_tab_id:
+            back_btn = QPushButton("← Back to Canvas")
+            back_btn.clicked.connect(self.navigate_back)
+            main_layout.addWidget(back_btn)
         
         # Create a splitter for image and information
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -151,3 +161,8 @@ class CardViewTab(BaseTab):
                     index = tab_widget.indexOf(parent)
                     if index >= 0:
                         tab_widget.setTabText(index, self.card["name"])
+    
+    def navigate_back(self):
+        """Navigate back to the source tab"""
+        if self.source_tab_id:
+            self.navigation_requested.emit("navigate", self.source_tab_id)

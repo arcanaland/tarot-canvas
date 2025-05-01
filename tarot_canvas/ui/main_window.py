@@ -172,9 +172,45 @@ class MainWindow(QMainWindow):
 
     def new_canvas_tab(self):
         canvas_tab = CanvasTab()
+        canvas_tab.navigation_requested.connect(self.handle_tab_navigation)
         self.close_welcome_tab()
         self.tab_widget.addTab(canvas_tab, "Canvas")
         self.tab_widget.setCurrentWidget(canvas_tab)
+        return canvas_tab
+
+    def handle_tab_navigation(self, action, data):
+        """Handle navigation between tabs"""
+        if action == "open_card_view":
+            # Extract the data
+            card = data.get("card")
+            deck = data.get("deck")
+            source_tab_id = data.get("source_tab_id")
+            
+            # Check if a tab for this card already exists
+            for i in range(self.tab_widget.count()):
+                tab = self.tab_widget.widget(i)
+                if hasattr(tab, 'id') and hasattr(tab, 'card') and tab.card and tab.card.get('id') == card.get('id'):
+                    # Tab exists, just select it
+                    self.tab_widget.setCurrentWidget(tab)
+                    return
+            
+            # Create a new card view tab
+            from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
+            card_tab = CardViewTab(card=card, deck=deck, source_tab_id=source_tab_id)
+            card_tab.navigation_requested.connect(self.handle_tab_navigation)
+            
+            # Add it to the tab widget
+            self.tab_widget.addTab(card_tab, card.get("name", "Card"))
+            self.tab_widget.setCurrentWidget(card_tab)
+            
+        elif action == "navigate":
+            # Navigate to a specific tab by ID
+            tab_id = data
+            for i in range(self.tab_widget.count()):
+                tab = self.tab_widget.widget(i)
+                if hasattr(tab, 'id') and tab.id == tab_id:
+                    self.tab_widget.setCurrentWidget(tab)
+                    break
 
     def new_deck_view_tab(self):
         deck_tab = DeckViewTab()
