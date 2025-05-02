@@ -9,9 +9,9 @@ A cross-platform desktop application for viewing and exploring tarot decks.
 
 ## Features
 
-- Explore tarot deck imagery and esoterica
-- Support for multiple image formats (SVG, raster, ANSI)
-- A Canvas view that acts as a physical space to interact with cards
+- Explore tarot deck imagery, metadata and esoterica (corrospondences and other occult or divinatory information)
+- Includes the traditional Rider-Waite-Smith deck and supports any deck following the [Tarot Deck Specification](https://github.com/arcanaland/specifications)
+- Provides a playground canvas where you can place and arrange tarot cards from any deck 
 
 ## Installation
 
