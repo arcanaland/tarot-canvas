@@ -4,8 +4,8 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from tarot_canvas.models.deck_manager import deck_manager
 
 class CardExplorerPanel(QWidget):
-    # Signal emitted when a card is selected
-    card_selected = pyqtSignal(dict, object)  # card, deck
+    # Signal emitted when a card action is requested
+    card_action_requested = pyqtSignal(str, dict, object)  # action, card, deck
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -26,7 +26,13 @@ class CardExplorerPanel(QWidget):
         self.tree_view.setHeaderHidden(True)
         self.tree_view.setAnimated(True)
         self.tree_view.setIndentation(15)
+        
+        # IMPORTANT: Disable editing to prevent rename on double-click
+        self.tree_view.setEditTriggers(QTreeView.EditTrigger.NoEditTriggers)
+        
+        # Connect signals
         self.tree_view.clicked.connect(self.on_item_clicked)
+        self.tree_view.doubleClicked.connect(self.on_item_double_clicked)
         
         # Create model
         self.model = QStandardItemModel()
@@ -86,9 +92,16 @@ class CardExplorerPanel(QWidget):
             self.tree_view.expand(first_deck_index)
     
     def on_item_clicked(self, index):
+        """Handle single clicks - just select the item without taking action"""
+        # Don't emit any signal - just let the tree view handle selection
+        pass
+
+    def on_item_double_clicked(self, index):
+        """Handle double clicks with context-sensitive actions"""
         item = self.model.itemFromIndex(index)
         data = item.data(Qt.ItemDataRole.UserRole)
         
         if data and data["type"] == "card":
-            # Emit signal with the card and deck
-            self.card_selected.emit(data["card"], data["deck"])
+            # Emit the action signal - main window will decide what to do based on context
+            self.card_action_requested.emit("double_click", data["card"], data["deck"])
+            print(f"Double-clicked on card: {data['card']['name']}")

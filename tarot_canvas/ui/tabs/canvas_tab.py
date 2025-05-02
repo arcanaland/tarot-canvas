@@ -533,6 +533,13 @@ class CanvasTab(BaseTab):
             print("Could not draw a card!")
             return
             
+        self.add_specific_card(card)
+            
+    def add_specific_card(self, card, card_deck=None):
+        """Add a specific card to the canvas"""
+        # Use provided deck or fall back to tab's deck
+        deck_to_use = card_deck or self.deck
+        
         # Load the card image
         image_path = card.get("image")
         if not image_path or not os.path.exists(image_path):
@@ -551,10 +558,9 @@ class CanvasTab(BaseTab):
                 pixmap = pixmap.scaled(300, 500, Qt.AspectRatioMode.KeepAspectRatio, 
                                       Qt.TransformationMode.SmoothTransformation)
                 
-            # Create a draggable card item - pass self as parent_tab
+            # Create a draggable card item
             card_item = DraggableCardItem(pixmap, card, self)
             
-            # Position the card in the middle of the visible canvas
             # Deselect any currently selected cards
             for selected_item in self.scene.selectedItems():
                 selected_item.setSelected(False)
@@ -575,7 +581,7 @@ class CanvasTab(BaseTab):
             # Select the newly added card
             card_item.setSelected(True)
             
-            print(f"Added card: {card['name']}")
+            print(f"Added specific card to canvas: {card['name']}")
             
         except Exception as e:
             print(f"Error adding card to canvas: {e}")

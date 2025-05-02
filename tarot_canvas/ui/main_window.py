@@ -121,7 +121,8 @@ class MainWindow(QMainWindow):
         
         # Create and add card explorer panel (hidden by default)
         self.card_explorer = CardExplorerPanel()
-        self.card_explorer.card_selected.connect(self.on_explorer_card_selected)
+        self.card_explorer.card_action_requested.connect(self.on_explorer_card_selected)
+        self.card_explorer.card_action_requested.connect(self.on_card_action_requested)
         self.card_explorer.hide()  # Hide by default
         self.main_splitter.addWidget(self.card_explorer)
         
@@ -302,8 +303,60 @@ class MainWindow(QMainWindow):
             # Collapse explorer completely
             self.main_splitter.setSizes([0, self.main_splitter.width()])
     
-    def on_explorer_card_selected(self, card, deck):
-        """Handle card selection from explorer panel"""
+    def on_explorer_card_selected(self, action, card, deck):
+        """Handle card selection from explorer panel (original handler)"""
+        # Skip handling if it's a different action than viewing
+        if action != "view_card" and action != "use_card":
+            return
+            
+        # Check if we already have a tab open for this card
+        for i in range(self.tab_widget.count()):
+            tab = self.tab_widget.widget(i)
+            if hasattr(tab, 'id') and hasattr(tab, 'card') and tab.card and tab.card.get('id') == card.get('id'):
+                # Tab exists, just select it
+                self.tab_widget.setCurrentWidget(tab)
+                return
+        
+        # Create a new card view tab
+        from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
+        card_tab = CardViewTab(card=card, deck=deck)
+        card_tab.navigation_requested.connect(self.handle_tab_navigation)
+        
+        # Add it to the tab widget
+        self.tab_widget.addTab(card_tab, card.get("name", "Card"))
+        self.tab_widget.setCurrentWidget(card_tab)
+
+    def on_card_action_requested(self, action, card, deck):
+        """Handle all card actions from the explorer based on context"""
+        if action == "double_click":
+            # Get the current active tab
+            current_tab = self.tab_widget.currentWidget()
+            
+            # Check if the current tab is a canvas tab
+            if hasattr(current_tab, 'id') and current_tab.id.startswith('canvas_'):
+                # If it's a canvas tab, add the card to it
+                if hasattr(current_tab, 'add_specific_card'):
+                    current_tab.add_specific_card(card, deck)
+                    print(f"Adding card to canvas: {card['name']}")
+            else:
+                # For any other tab type, open a card view
+                self.open_card_view_tab(card, deck)
+                print(f"Opening card view for: {card['name']}")
+        elif action == "use_card":
+            # Check if the current tab is a canvas tab
+            if hasattr(current_tab, 'id') and 'canvas_' in current_tab.id:
+                # If it's a canvas tab, add the card to it
+                if hasattr(current_tab, 'add_specific_card'):
+                    current_tab.add_specific_card(card, deck)
+            else:
+                # Default to opening a card view for non-canvas tabs
+                self.on_explorer_card_selected("view_card", card, deck)
+        elif action == "view_card":
+            # Always open the card view for this action
+            self.on_explorer_card_selected(action, card, deck)
+
+    def open_card_view_tab(self, card, deck):
+        """Open a new tab to view a specific card"""
         # Check if we already have a tab open for this card
         for i in range(self.tab_widget.count()):
             tab = self.tab_widget.widget(i)
