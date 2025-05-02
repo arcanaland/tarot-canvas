@@ -4,7 +4,7 @@
 
 A cross-platform desktop application for viewing and exploring tarot decks.
 
-![image](https://github.com/user-attachments/assets/83d61fc2-00ff-438c-b904-f6ed0695f70e)
+![image](https://github.com/user-attachments/assets/faaa7fa9-12d1-494f-8625-0496bcf2b6b1)
 
 
 ## Features
