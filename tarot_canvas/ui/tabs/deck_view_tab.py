@@ -116,30 +116,12 @@ class DeckViewTab(BaseTab):
         # Also emit the signal as a backup mechanism
         self.title_changed.emit(self.deck.get_name())
         
-        # Create a header with the deck info button
-        header_layout = QHBoxLayout()
-        
-        # Deck title
-        title_label = QLabel(self.deck.get_name())
-        title_label.setFont(QFont("Arial", 18, QFont.Weight.Bold))
-        
-        # Info button
-        info_button = QPushButton("Deck Info")
-        info_button.setMaximumWidth(100)
-        info_button.clicked.connect(self.show_deck_info)
-        
-        header_layout.addWidget(title_label)
-        header_layout.addStretch()
-        header_layout.addWidget(info_button)
-        
-        self.layout.addLayout(header_layout)
-        
         # Main content widget with vertical layout
         content = QWidget()
         main_layout = QVBoxLayout(content)
         main_layout.setSpacing(15)
         
-        # Add the Major Arcana journey
+        # Add the Major Arcana journey with deck info button
         self.add_major_arcana_journey(main_layout)
         
         # Add Minor Arcana sections
@@ -159,10 +141,23 @@ class DeckViewTab(BaseTab):
     
     def add_major_arcana_journey(self, layout):
         """Add the Major Arcana journey section"""
+        # Create a header with section title and info button
+        header_layout = QHBoxLayout()
+        
         # Section title
         journey_title = QLabel("Major Arcana - The Fool's Journey")
         journey_title.setFont(QFont("Arial", 14, QFont.Weight.Bold))
-        layout.addWidget(journey_title)
+        
+        # Info button
+        info_button = QPushButton("Deck Info")
+        info_button.setMaximumWidth(100)
+        info_button.clicked.connect(self.show_deck_info)
+        
+        header_layout.addWidget(journey_title)
+        header_layout.addStretch()
+        header_layout.addWidget(info_button)
+        
+        layout.addLayout(header_layout)
         
         # Get Major Arcana cards
         major_arcana = self.deck.get_cards_by_type("major_arcana")

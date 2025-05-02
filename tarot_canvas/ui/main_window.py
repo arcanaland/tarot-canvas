@@ -363,13 +363,35 @@ class MainWindow(QMainWindow):
         self.close_tab(current_index)
 
     def open_deck(self):
+        """Open a deck by selecting the directory containing deck.toml"""
         file_dialog = QFileDialog()
-        file_dialog.setNameFilter("Tarot Decks (deck.toml);;All Files (*)")
+        
+        # Change to directory selection instead of file selection
+        file_dialog.setFileMode(QFileDialog.FileMode.Directory)
+        file_dialog.setOption(QFileDialog.Option.ShowDirsOnly, True)
+        file_dialog.setWindowTitle("Select Tarot Deck Directory")
+        
         if file_dialog.exec():
-            selected_files = file_dialog.selectedFiles()
-            print(f"Selected file: {selected_files[0]}")
-            deck_path = Path(selected_files[0]).parent.resolve()
-            deck_tab = self.new_deck_view_tab(deck_path=deck_path)
+            selected_dirs = file_dialog.selectedFiles()
+            if not selected_dirs:
+                return
+                
+            deck_dir = selected_dirs[0]
+            deck_toml_path = os.path.join(deck_dir, "deck.toml")
+            
+            # Check if the selected directory contains a deck.toml file
+            if not os.path.exists(deck_toml_path):
+                QMessageBox.warning(
+                    self, 
+                    "Invalid Deck Directory", 
+                    f"The selected directory does not contain a deck.toml file.\n"
+                    f"Please select a valid tarot deck directory."
+                )
+                return
+            
+            # Open the deck
+            print(f"Selected deck directory: {deck_dir}")
+            deck_tab = self.new_deck_view_tab(deck_path=deck_dir)
 
     def new_reading(self):
         self.new_canvas_tab()
