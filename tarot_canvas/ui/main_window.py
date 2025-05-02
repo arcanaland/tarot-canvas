@@ -2,7 +2,7 @@ from PyQt6.QtWidgets import (QMainWindow, QVBoxLayout, QWidget, QLabel, QPushBut
                             QMenuBar, QMenu, QApplication, QMessageBox, QFileDialog,
                             QTabWidget, QHBoxLayout, QToolButton, QSplitter, QInputDialog)
                             
-from PyQt6.QtGui import QIcon, QAction, QActionGroup
+from PyQt6.QtGui import QIcon, QAction, QActionGroup, QKeySequence, QShortcut
 from PyQt6.QtCore import Qt, pyqtSignal, QObject, QEvent
 import os
 import importlib.resources as pkg_resources
@@ -11,21 +11,17 @@ from pathlib import Path
 from importlib.resources import files
 ICON_PATH = files('tarot_canvas.resources.icons').joinpath('icon.png')
 
-# Import custom tab classes
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.deck_view_tab import DeckViewTab
 from tarot_canvas.ui.tabs.library_tab import LibraryTab
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
-
-# Import the card explorer panel
 from tarot_canvas.ui.components.card_explorer import CardExplorerPanel
-
-# Import log viewer and logger
 from tarot_canvas.ui.windows.log_viewer import LogViewerDialog
 from tarot_canvas.utils.logger import TarotLogger
 from tarot_canvas.utils.theme_manager import ThemeManager, ThemeType
 from tarot_canvas.utils.logger import logger
 from tarot_canvas.models.deck_manager import deck_manager
+from tarot_canvas.ui.command_palette import CommandPalette
 
 class TabBarEventFilter(QObject):
     """Event filter to detect double-clicks on tab bar for renaming"""
@@ -62,6 +58,7 @@ class MainWindow(QMainWindow):
         
         self.create_menus()
         self.init_ui()
+        self.setup_shortcuts()
 
     def create_menus(self):
         # Create menu bar
@@ -83,12 +80,8 @@ class MainWindow(QMainWindow):
         new_card_view_action.setShortcut("Ctrl+T")
         new_card_view_action.triggered.connect(self.new_card_view_tab)
         new_menu.addAction(new_card_view_action)
-        
-        new_deck_view_action = QAction("&Deck View", self)
-        new_deck_view_action.triggered.connect(self.new_deck_view_tab)
-        new_menu.addAction(new_deck_view_action)
-        
-        new_library_action = QAction("&Library", self)
+
+        new_library_action = QAction("&Library View", self)
         new_library_action.triggered.connect(self.new_library_tab)
         new_menu.addAction(new_library_action)
 
@@ -612,3 +605,41 @@ class MainWindow(QMainWindow):
         # Create a deck view tab with the reference deck path
         deck_tab = self.new_deck_view_tab(deck_path=reference_deck.deck_path)
         self.close_welcome_tab()
+
+    def setup_shortcuts(self):
+        # Command palette shortcut (Ctrl+P)
+        self.command_palette_shortcut = QShortcut(QKeySequence("Ctrl+P"), self)
+        self.command_palette_shortcut.activated.connect(self.show_command_palette)
+
+    def show_command_palette(self):
+        """Show the command palette with context-aware behavior"""
+        # Determine active tab type
+        current_tab = self.tab_widget.currentWidget()
+        active_tab_type = ""
+        
+        if hasattr(current_tab, 'id'):
+            if current_tab.id.startswith('canvas_'):
+                active_tab_type = "canvas"
+            elif hasattr(current_tab, 'card'):
+                active_tab_type = "card"
+        
+        # Create and show command palette
+        palette = CommandPalette(self, active_tab_type)
+        palette.card_selected.connect(self.handle_command_palette_selection)
+        palette.exec()
+
+    def handle_command_palette_selection(self, card, deck):
+        """Handle card selection from command palette"""
+        # Get active tab
+        current_tab = self.tab_widget.currentWidget()
+        
+        if hasattr(current_tab, 'id') and current_tab.id.startswith('canvas_'):
+            # In canvas tab, add card to canvas
+            current_tab.add_specific_card(card, deck)
+        else:
+            # Otherwise, open card view tab
+            self.handle_tab_navigation("open_card_view", {
+                "card": card,
+                "deck": deck,
+                "source_tab_id": getattr(current_tab, 'id', None)
+            })
