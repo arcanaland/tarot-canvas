@@ -1,19 +1,30 @@
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QTextEdit, QPushButton, 
-                            QHBoxLayout, QComboBox, QLabel, QCheckBox)
+                           QHBoxLayout, QComboBox, QLabel, QCheckBox, QApplication)
 from PyQt6.QtCore import Qt, pyqtSlot
-from PyQt6.QtGui import QColor, QTextCursor, QFont
+from PyQt6.QtGui import QColor, QTextCursor, QFont, QPalette
 import logging
 from tarot_canvas.utils.logger import TarotLogger
+from tarot_canvas.utils.theme_manager import ThemeManager, ThemeType
 
 class LogViewerDialog(QDialog):
     """Dialog window to view application logs"""
     
-    LOG_COLORS = {
+    # Define colors for light theme
+    LIGHT_THEME_COLORS = {
         logging.DEBUG: QColor(100, 100, 100),     # Gray
         logging.INFO: QColor(0, 0, 0),            # Black
         logging.WARNING: QColor(255, 165, 0),     # Orange
         logging.ERROR: QColor(255, 0, 0),         # Red
         logging.CRITICAL: QColor(128, 0, 128)     # Purple
+    }
+    
+    # Define colors for dark theme
+    DARK_THEME_COLORS = {
+        logging.DEBUG: QColor(170, 170, 170),     # Light Gray
+        logging.INFO: QColor(220, 220, 220),      # Off-White
+        logging.WARNING: QColor(255, 190, 0),     # Gold
+        logging.ERROR: QColor(255, 100, 100),     # Light Red
+        logging.CRITICAL: QColor(255, 100, 255)   # Pink
     }
     
     LOG_LEVELS = {
@@ -28,6 +39,14 @@ class LogViewerDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Log Viewer")
         self.resize(800, 600)
+        
+        # Get the theme manager and connect to theme changes
+        self.theme_manager = ThemeManager.get_instance()
+        self.theme_manager.theme_changed.connect(self.on_theme_changed)
+        
+        # Set colors based on current theme
+        self.update_colors_for_theme()
+        
         self.setup_ui()
         
         # Subscribe to log events
@@ -35,6 +54,46 @@ class LogViewerDialog(QDialog):
         
         # Show initial log content
         self.load_log_file()
+    
+    def update_colors_for_theme(self):
+        """Update colors based on the current theme"""
+        current_theme = self.theme_manager.get_current_theme()
+        
+        # For System theme, detect if it's a dark theme by checking background color
+        if current_theme == ThemeType.SYSTEM:
+            app = QApplication.instance()
+            bg_color = app.palette().color(QPalette.ColorRole.Base)
+            # If background is dark (brightness < 128), use dark colors
+            brightness = (bg_color.red() * 299 + bg_color.green() * 587 + bg_color.blue() * 114) / 1000
+            if brightness < 128:
+                self.LOG_COLORS = self.DARK_THEME_COLORS
+                return
+        
+        # Explicit theme selection
+        if current_theme == ThemeType.DARK:
+            self.LOG_COLORS = self.DARK_THEME_COLORS
+        else:
+            # For light theme or system theme that's light
+            self.LOG_COLORS = self.LIGHT_THEME_COLORS
+    
+    def on_theme_changed(self, theme_name):
+        """Handle theme changes"""
+        self.update_colors_for_theme()
+        
+        # Refresh the display to apply new colors
+        self.reload_with_new_colors()
+    
+    def reload_with_new_colors(self):
+        """Reload the log content with the new color scheme"""
+        # Save current scroll position
+        scrollbar = self.log_display.verticalScrollBar()
+        scroll_position = scrollbar.value()
+        
+        # Reload the log with new colors
+        self.load_log_file()
+        
+        # Restore scroll position
+        scrollbar.setValue(scroll_position)
     
     def setup_ui(self):
         layout = QVBoxLayout(self)
@@ -60,6 +119,15 @@ class LogViewerDialog(QDialog):
         
         controls_layout.addStretch()
         
+        # Search box - adding a new feature
+        self.search_label = QLabel("Search:")
+        controls_layout.addWidget(self.search_label)
+        
+        self.search_box = QComboBox()
+        self.search_box.setEditable(True)
+        self.search_box.setMinimumWidth(150)
+        self.search_box.editTextChanged.connect(self.filter_log)
+        controls_layout.addWidget(self.search_box)
         
         # Refresh button
         refresh_button = QPushButton("Refresh")
@@ -72,8 +140,35 @@ class LogViewerDialog(QDialog):
         self.log_display = QTextEdit()
         self.log_display.setReadOnly(True)
         self.log_display.setFont(QFont("Monospace", 9))
-        layout.addWidget(self.log_display)
         
+        # Set background color based on theme
+        self.apply_textbox_theme()
+        
+        layout.addWidget(self.log_display)
+    
+    def apply_textbox_theme(self):
+        """Apply theme-specific styling to the text box using the application palette"""
+        # Clear any previously set stylesheet
+        self.log_display.setStyleSheet("")
+        
+        # Get the application palette
+        app = QApplication.instance()
+        palette = app.palette()
+        
+        # Detect if the palette is for a dark theme
+        bg_color = palette.color(QPalette.ColorRole.Base)
+        brightness = (bg_color.red() * 299 + bg_color.green() * 587 + bg_color.blue() * 114) / 1000
+        
+        # Create a new palette for the text edit based on the application palette
+        text_edit_palette = QPalette(palette)
+        
+        # If we're in a dark theme using system themes, ensure the text is light colored
+        if brightness < 128 and self.theme_manager.get_current_theme() == ThemeType.SYSTEM:
+            # Make sure the text is visible on dark background by modifying the text color
+            text_edit_palette.setColor(QPalette.ColorRole.Text, QColor(220, 220, 220))
+        
+        # Set text edit's palette
+        self.log_display.setPalette(text_edit_palette)
     
     def load_log_file(self):
         """Load the current log file content"""
@@ -104,8 +199,9 @@ class LogViewerDialog(QDialog):
             else:
                 level = logging.INFO  # Default if can't determine
             
-            # Check if level meets the filter
-            if level >= self.get_selected_level():
+            # Check if level meets the filter and search text matches (if any)
+            search_text = self.search_box.currentText().strip().lower()
+            if level >= self.get_selected_level() and (not search_text or search_text in line.lower()):
                 # Format and append
                 self.append_colored_text(line.strip(), level)
         except Exception as e:
@@ -114,8 +210,11 @@ class LogViewerDialog(QDialog):
     @pyqtSlot(int, str, str)
     def on_log_message(self, level, timestamp, message):
         """Handle new log messages from the logger"""
-        if level >= self.get_selected_level():
-            formatted_message = f"{timestamp} - {logging.getLevelName(level)} - {message}"
+        # Check if level meets the filter and search text matches (if any)
+        search_text = self.search_box.currentText().strip().lower()
+        formatted_message = f"{timestamp} - {logging.getLevelName(level)} - {message}"
+        
+        if level >= self.get_selected_level() and (not search_text or search_text in formatted_message.lower()):
             self.append_colored_text(formatted_message, level)
     
     def append_colored_text(self, text, level):
@@ -154,4 +253,11 @@ class LogViewerDialog(QDialog):
         """Handle window close event"""
         # Unsubscribe from logger
         TarotLogger.unsubscribe(self.on_log_message)
+        
+        # Disconnect from theme manager
+        try:
+            self.theme_manager.theme_changed.disconnect(self.on_theme_changed)
+        except:
+            pass
+            
         super().closeEvent(event)

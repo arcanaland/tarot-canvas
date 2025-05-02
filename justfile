@@ -1,6 +1,9 @@
 run-flatpak: install-flatpak
   flatpak run land.arcana.TarotCanvas
 
+run:
+  poetry run tarot-canvas
+
 install-flatpak:
   #!/bin/bash
   cd packaging
