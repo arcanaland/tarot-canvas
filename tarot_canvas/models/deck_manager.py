@@ -13,7 +13,7 @@ class DeckManager:
     def load_decks(self):
         """Load all available decks from standard locations"""
         deck_paths = [
-            os.path.expanduser("~/.local/share/tarot-canvas/decks"),
+            os.path.expanduser("~/.local/share/tarot/decks"),
         ]
         
         # Check each path for decks (directories with deck.toml)
@@ -23,6 +23,7 @@ class DeckManager:
                     deck_path = os.path.join(base_path, deck_dir)
                     if os.path.isdir(deck_path) and os.path.exists(os.path.join(deck_path, "deck.toml")):
                         try:
+                            print(f"Loading deck from {deck_path}")
                             deck = TarotDeck(deck_path)
                             self.decks[deck.get_name()] = deck
                         except Exception as e:
@@ -40,7 +41,7 @@ class DeckManager:
     def get_reference_deck(self):
         """Get the reference deck"""
         return self.reference_deck
-        
+
     def get_all_decks(self):
         """Get all available decks including the reference deck"""
         # Create a list with all decks including the reference deck
