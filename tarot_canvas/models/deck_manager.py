@@ -41,5 +41,15 @@ class DeckManager:
         """Get the reference deck"""
         return self.reference_deck
         
+    def get_all_decks(self):
+        """Get all available decks including the reference deck"""
+        # Create a list with all decks including the reference deck
+        all_decks = list(self.decks.values())
+        
+        # Add reference deck if it's not already in the list
+        if self.reference_deck not in all_decks:
+            all_decks.insert(0, self.reference_deck)  # Insert at beginning
+            
+        return all_decks    
 # Create a global instance
 deck_manager = DeckManager()

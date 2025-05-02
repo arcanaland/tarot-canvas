@@ -263,3 +263,37 @@ class TarotDeck:
             if matches:
                 return card
         return None
+
+    def get_cards_by_type(self, card_type):
+        """Get all cards of a specific type from the deck
+        
+        Args:
+            card_type (str): Type of cards to retrieve (e.g., "major_arcana", "minor_arcana")
+            
+        Returns:
+            list: List of card dictionaries matching the type
+        """
+        return [card for card in self.cards if card.get("type") == card_type]
+
+    def get_suits(self):
+        """Get all suits available in this deck
+        
+        Returns:
+            list: List of suit names (e.g., ["wands", "cups", "swords", "pentacles"])
+        """
+        suits = set()
+        for card in self.cards:
+            if card.get("type") == "minor_arcana" and "suit" in card:
+                suits.add(card["suit"])
+        return sorted(list(suits))
+
+    def get_cards_by_suit(self, suit):
+        """Get all cards of a specific suit from the deck
+        
+        Args:
+            suit (str): Suit name (e.g., "wands", "cups", "swords", "pentacles")
+            
+        Returns:
+            list: List of card dictionaries matching the suit
+        """
+        return [card for card in self.cards if card.get("suit") == suit]

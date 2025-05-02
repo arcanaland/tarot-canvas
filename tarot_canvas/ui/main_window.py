@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import (QMainWindow, QVBoxLayout, QWidget, QLabel, QPushButton, 
                             QMenuBar, QMenu, QApplication, QMessageBox, QFileDialog,
-                            QTabWidget, QHBoxLayout, QToolButton)
+                            QTabWidget, QHBoxLayout, QToolButton, QSplitter)
                             
 from PyQt6.QtGui import QIcon, QAction
 from PyQt6.QtCore import Qt
@@ -15,6 +15,9 @@ from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.deck_view_tab import DeckViewTab
 from tarot_canvas.ui.tabs.library_tab import LibraryTab
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
+
+# Import the card explorer panel
+from tarot_canvas.ui.components.card_explorer import CardExplorerPanel
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -85,6 +88,15 @@ class MainWindow(QMainWindow):
         # View menu
         view_menu = menu_bar.addMenu("&View")
         
+        # Add explorer toggle to View menu
+        self.explorer_action = QAction("&Card Explorer", self)
+        self.explorer_action.setShortcut("Ctrl+E")
+        self.explorer_action.setCheckable(True)
+        self.explorer_action.triggered.connect(self.toggle_card_explorer)
+        view_menu.addAction(self.explorer_action)
+        
+        view_menu.addSeparator()
+        
         fullscreen_action = QAction("&Fullscreen", self)
         fullscreen_action.setShortcut("F11")
         fullscreen_action.setCheckable(True)
@@ -104,12 +116,25 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(4, 4, 4, 4)  # Set smaller margins (left, top, right, bottom)
         main_layout.setSpacing(2)  # Reduce spacing between widgets
     
+        # Create splitter for explorer panel and tab area
+        self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        
+        # Create and add card explorer panel (hidden by default)
+        self.card_explorer = CardExplorerPanel()
+        self.card_explorer.card_selected.connect(self.on_explorer_card_selected)
+        self.card_explorer.hide()  # Hide by default
+        self.main_splitter.addWidget(self.card_explorer)
+        
         # Create tab widget
         self.tab_widget = QTabWidget()
         self.tab_widget.setTabsClosable(True)
         self.tab_widget.tabCloseRequested.connect(self.close_tab)
+        self.main_splitter.addWidget(self.tab_widget)
         
-        main_layout.addWidget(self.tab_widget)
+        # Set appropriate sizes for splitter
+        self.main_splitter.setSizes([0, self.width()])  # Initially collapse explorer
+        
+        main_layout.addWidget(self.main_splitter)
         
         # Set the central widget
         central_widget = QWidget()
@@ -264,6 +289,37 @@ class MainWindow(QMainWindow):
             self.showFullScreen()
         else:
             self.showNormal()
+
+    def toggle_card_explorer(self, checked):
+        """Toggle visibility of the card explorer panel"""
+        if checked:
+            self.card_explorer.show()
+            # Adjust splitter sizes to show explorer with reasonable width
+            width = self.main_splitter.width()
+            self.main_splitter.setSizes([int(width * 0.2), int(width * 0.8)])
+        else:
+            self.card_explorer.hide()
+            # Collapse explorer completely
+            self.main_splitter.setSizes([0, self.main_splitter.width()])
+    
+    def on_explorer_card_selected(self, card, deck):
+        """Handle card selection from explorer panel"""
+        # Check if we already have a tab open for this card
+        for i in range(self.tab_widget.count()):
+            tab = self.tab_widget.widget(i)
+            if hasattr(tab, 'id') and hasattr(tab, 'card') and tab.card and tab.card.get('id') == card.get('id'):
+                # Tab exists, just select it
+                self.tab_widget.setCurrentWidget(tab)
+                return
+        
+        # Create a new card view tab
+        from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
+        card_tab = CardViewTab(card=card, deck=deck)
+        card_tab.navigation_requested.connect(self.handle_tab_navigation)
+        
+        # Add it to the tab widget
+        self.tab_widget.addTab(card_tab, card.get("name", "Card"))
+        self.tab_widget.setCurrentWidget(card_tab)
 
     def show_about(self):
         about_text = (
