@@ -310,22 +310,32 @@ class MainWindow(QMainWindow):
 
     def new_deck_view_tab(self, deck_path=None):
         deck_tab = DeckViewTab(deck_path=deck_path)
-        # Connect the card action signal to the main window's handler
         deck_tab.card_action_requested.connect(self.on_card_action_requested)
         
-        # Set initial tab title
-        title = "Deck View"
+        # Close welcome tab if needed
+        self.close_welcome_tab()
+        
+        # Add tab with initial title
+        initial_title = "Deck View"
         if deck_path:
-            # Use path as a fallback title, it will be updated when the deck loads
-            title = os.path.basename(deck_path)
+            initial_title = os.path.basename(deck_path)
         
-        tab_index = self.tab_widget.addTab(deck_tab, title)
+        tab_index = self.tab_widget.addTab(deck_tab, initial_title)
         
-        # Connect title change signal to update the tab title
-        deck_tab.title_changed.connect(lambda new_title: self.tab_widget.setTabText(
-            self.tab_widget.indexOf(deck_tab), new_title))
-        
+        # Set current to this tab
         self.tab_widget.setCurrentWidget(deck_tab)
+        
+        # Immediately try to update the title if we have a deck loaded
+        if deck_path and hasattr(deck_tab, 'deck') and deck_tab.deck:
+            pretty_name = deck_tab.deck.get_name()
+            self.tab_widget.setTabText(tab_index, pretty_name)
+            print(f"Setting tab title to: {pretty_name}")
+        
+        # Still connect the signal for future updates
+        deck_tab.title_changed.connect(
+            lambda new_title: self.tab_widget.setTabText(self.tab_widget.indexOf(deck_tab), new_title)
+        )
+        
         return deck_tab
 
     def new_library_tab(self):

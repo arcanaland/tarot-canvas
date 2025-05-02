@@ -1,7 +1,7 @@
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from PyQt6.QtWidgets import (
     QGridLayout, QScrollArea, QWidget, QVBoxLayout, QHBoxLayout, 
-    QLabel, QPushButton, QFrame, QSizePolicy, QStackedWidget, QDialog
+    QLabel, QPushButton, QFrame, QSizePolicy, QStackedWidget, QDialog, QTabWidget
 )
 from PyQt6.QtCore import Qt, QSize, pyqtSignal
 from PyQt6.QtGui import QPixmap, QFont, QColor, QPainter, QPen
@@ -97,6 +97,25 @@ class DeckViewTab(BaseTab):
         # Load the deck
         self.deck = TarotDeck(deck_path)
         
+        # Get the parent tab widget to update its title directly
+        parent_tab_widget = None
+        parent = self.parent()
+        while parent:
+            if isinstance(parent, QTabWidget):
+                parent_tab_widget = parent
+                break
+            parent = parent.parent()
+        
+        # Directly update the tab title if we can find the parent tab widget
+        if parent_tab_widget:
+            tab_index = parent_tab_widget.indexOf(self)
+            if tab_index != -1:
+                parent_tab_widget.setTabText(tab_index, self.deck.get_name())
+                print(f"Direct title update: {self.deck.get_name()}")
+        
+        # Also emit the signal as a backup mechanism
+        self.title_changed.emit(self.deck.get_name())
+        
         # Create a header with the deck info button
         header_layout = QHBoxLayout()
         
@@ -132,9 +151,6 @@ class DeckViewTab(BaseTab):
         scroll.setWidget(content)
         
         self.layout.addWidget(scroll)
-        
-        # Update the tab title with the pretty name
-        self.title_changed.emit(self.deck.get_name())
     
     def show_deck_info(self):
         """Show the deck information dialog"""
