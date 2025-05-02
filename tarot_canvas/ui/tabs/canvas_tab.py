@@ -1,6 +1,6 @@
-from PyQt6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGraphicsRectItem,  QToolBar, QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QFrame
+from PyQt6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGraphicsRectItem, QToolBar, QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QFrame, QSizePolicy, QApplication
 from PyQt6.QtCore import Qt, QRectF, pyqtSignal, QPointF, QTimer, QPropertyAnimation, QEasingCurve, QPointF, QSequentialAnimationGroup, QParallelAnimationGroup, pyqtProperty, QObject
-from PyQt6.QtGui import QIcon, QAction, QPixmap, QBrush, QPen, QColor, QPainter, QTransform,  QUndoStack, QUndoCommand, QRadialGradient, QKeySequence, QLinearGradient
+from PyQt6.QtGui import QIcon, QAction, QPixmap, QBrush, QPen, QColor, QPainter, QTransform, QUndoStack, QUndoCommand, QRadialGradient, QKeySequence, QLinearGradient
 
 from tarot_canvas.models.deck import TarotDeck
 from tarot_canvas.models.deck_manager import deck_manager
@@ -201,46 +201,128 @@ class CanvasTab(BaseTab):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.id = f"canvas_{id(self)}"  # Unique ID for this tab
+        
+        # Set a size policy that doesn't try to expand vertically
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        
+        # Add a maximum size constraint to prevent excessive expansion
+        self.setMaximumHeight(800)  # Set a reasonable maximum height
+        
+        # Setup the UI with size-constrained components
         self.setup_ui()        
         self.deck = deck_manager.get_reference_deck()
         
         # Navigation history
         self.source_tab = None  # From where we came
-    
+        
+        # Add multiple staggered calls to ensure window bounds
+        # This creates a sequence of enforcement that is harder to override
+        QTimer.singleShot(100, self.ensure_window_bounds)
+        QTimer.singleShot(500, self.ensure_window_bounds)
+        QTimer.singleShot(1000, self.ensure_window_bounds)
+
     def setup_ui(self):
         # Create a container widget instead of using self directly
         container = QWidget()
         main_layout = QHBoxLayout(container)
-        main_layout.setContentsMargins(0, 0, 0, 0)  # Minimize padding
+        
+        # Remove all margins to eliminate the padding
+        main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
         
-        # Create a canvas area for card placement
+        # Create a canvas area for card placement with sensible size constraints
         self.scene = QGraphicsScene(self)
-        self.scene.setSceneRect(QRectF(0, 0, 2000, 2000))  # Large canvas area
-        #background = AnimatedBackground(self.scene.sceneRect())
-        #self.scene.addItem(background)
+        
+        # Set a more conservative scene rect size 
+        self.scene.setSceneRect(QRectF(-500, -500, 1000, 1000))
+        
         # Use our custom view with shift+drag panning
         self.view = PannableGraphicsView(self.scene)
-        self.view.setBackgroundBrush(QBrush(QColor(120, 120, 120)))  # Gray background
+        self.view.setBackgroundBrush(QBrush(QColor(120, 120, 120)))
+        
+        # Adjust height constraints to be less restrictive
+        # Remove the maximum height constraint that may be causing the padding
+        
+        # Set sensible sizing policies for the view
+        # Use Expanding for both directions to fill available space
+        self.view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        
+        # Maintain minimum size to prevent collapse
+        self.view.setMinimumSize(400, 300)
+        
+        # Set view behavior that doesn't auto-expand
+        self.view.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
+        self.view.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         # Add canvas to layout (will take most of the space)
-        main_layout.addWidget(self.view, 1)  # The 1 is stretch factor
+        main_layout.addWidget(self.view, 1)
         
         # Create toolbar on the right
         self.create_toolbar(main_layout)
         
+        # Simplify the layout structure and remove potential padding sources
         # Set up the base layout (assuming BaseTab has one)
-        # This depends on how BaseTab is implemented
-        if hasattr(self, 'layout') and callable(getattr(self.layout, 'addWidget', None)):
+        if hasattr(self, 'layout'):
+            # Clear any existing layout contents
+            while self.layout.count():
+                item = self.layout.takeAt(0)
+                if item.widget():
+                    item.widget().setParent(None)
+                    
+            # Reset margins to zero
+            self.layout.setContentsMargins(0, 0, 0, 0)
+            self.layout.setSpacing(0)
             self.layout.addWidget(container)
         else:
             # If BaseTab doesn't have a layout, create one
             layout = QVBoxLayout(self)
             layout.setContentsMargins(0, 0, 0, 0)
+            layout.setSpacing(0)
             layout.addWidget(container)
         
         # Set up keyboard shortcuts
         self.setup_shortcuts()
+    
+    def ensure_window_bounds(self):
+        """Ensure the window stays within screen boundaries"""
+        window = self.window()
+        if window:
+            # Get screen geometry
+            screen = QApplication.primaryScreen().availableGeometry()
+
+            # Get window geometry
+            window_geometry = window.geometry()
+
+            # Check if window extends below screen
+            if window_geometry.height() > screen.height() - 50:  # Leave 50px margin
+                # Force a hard resize
+                new_height = screen.height() - 100  # 100px margin for safety
+                
+                # Block signals temporarily to prevent resize events from triggering cascading changes
+                window.blockSignals(True)
+                window.resize(window_geometry.width(), new_height)
+                window.blockSignals(False)
+                
+                print(f"Window height exceeds screen height - forcing resize to {new_height}")
+                
+                # Process events immediately to apply resize
+                QApplication.processEvents()
+            
+            # Do a second check after processing events
+            window_geometry = window.geometry()
+            if window_geometry.bottom() > screen.bottom() - 50:
+                # If still too tall, try a different approach - move to visible area
+                print("Window still too tall, applying stronger constraints")
+                
+                # Move window to ensure it's within screen bounds
+                new_y = max(screen.top(), screen.bottom() - window_geometry.height() - 50)
+                window.move(window_geometry.x(), new_y)
+                
+                # Force immediate processing
+                QApplication.processEvents()
+                
+                # As a last resort, modify maximum size of main window
+                window.setMaximumHeight(screen.height() - 100)
     
     def setup_shortcuts(self):
         """Set up keyboard shortcuts for common actions"""
