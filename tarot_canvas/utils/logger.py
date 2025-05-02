@@ -29,7 +29,20 @@ class TarotLogger:
         # Create log directory if it doesn't exist
         log_dir = Path(os.path.expanduser("~/.local/share/tarot-canvas/logs"))
         log_dir.mkdir(parents=True, exist_ok=True)
-        
+
+        # Clean up old log files (older than 24 hours)
+        current_time = datetime.datetime.now()
+        for log_file in log_dir.glob("tarot_canvas_*.log"):
+            file_time = datetime.datetime.fromtimestamp(log_file.stat().st_mtime)
+            file_age = current_time - file_time
+            
+            if file_age.days >= 1:
+                try:
+                    log_file.unlink()
+                    print(f"Cleaning up old log file: {log_file}")
+                except Exception as e:
+                    print(f"Failed to delete old log file {log_file}: {e}")
+    
         # Create log file with timestamp
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         cls._log_file = log_dir / f"tarot_canvas_{timestamp}.log"
