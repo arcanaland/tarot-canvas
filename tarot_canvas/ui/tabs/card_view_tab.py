@@ -8,6 +8,7 @@ import os
 class CardViewTab(BaseTab):
     # Signal to notify the main window that we want to navigate
     navigation_requested = pyqtSignal(str, object)
+    resized = pyqtSignal()  # Signal to handle resize events
     
     def __init__(self, card=None, deck=None, source_tab_id=None, parent=None):
         super().__init__(parent)
@@ -35,30 +36,32 @@ class CardViewTab(BaseTab):
         
         main_layout = QVBoxLayout()
         
-        # Add a back button to the top if we came from somewhere
-        # if self.source_tab_id:
-        #    back_btn = QPushButton("← Back to Canvas")
-        #    back_btn.clicked.connect(self.navigate_back)
-        #    main_layout.addWidget(back_btn)
-        
         # Create a splitter for image and information
         splitter = QSplitter(Qt.Orientation.Horizontal)
         
-        # Left side - card image
+        # Left side - card image in a better container
+        image_container = QWidget()
+        image_layout = QVBoxLayout(image_container)
+        image_layout.setContentsMargins(10, 10, 10, 10)  # Add padding around image
+        
         self.image_label = QLabel()
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.image_label.setMinimumWidth(200)  # Set minimum width to prevent too small images
         
-        # Load the image if available
-        if self.card["image"] and os.path.exists(self.card["image"]):
-            pixmap = QPixmap(self.card["image"])
-            self.image_label.setPixmap(pixmap.scaled(400, 700, Qt.AspectRatioMode.KeepAspectRatio))
-        else:
-            self.image_label.setText("No image available")
-            
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setWidget(self.image_label)
-        splitter.addWidget(scroll_area)
+        # Add stretch above and below the image to center it vertically
+        image_layout.addStretch(1)
+        image_layout.addWidget(self.image_label)
+        image_layout.addStretch(1)
+        
+        # Create scroll area with proper sizing policy
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setWidget(image_container)
+        
+        # Load and display the image
+        self.load_image()
+        
+        splitter.addWidget(self.scroll_area)
         
         # Right side - tabbed card information
         info_widget = QWidget()
@@ -178,7 +181,71 @@ class CardViewTab(BaseTab):
         
         # Set the main layout
         self.layout.addLayout(main_layout)
+        
+        # Connect resize event to update image size
+        self.resized.connect(self.resize_image)
+    
+    def load_image(self):
+        """Load and initially display the card image"""
+        if self.card and "image" in self.card and self.card["image"] and os.path.exists(self.card["image"]):
+            self.original_pixmap = QPixmap(self.card["image"])
+            # Display the image at original size first
+            self.image_label.setPixmap(self.original_pixmap)
+            # Then schedule a resize
+            QTimer.singleShot(50, self.resize_image)
+        else:
+            self.image_label.setText("No image available")
+            self.original_pixmap = None
             
+    def resize_image(self):
+        """Resize the image to fit the available space while maintaining aspect ratio"""
+        if not hasattr(self, 'original_pixmap') or not self.original_pixmap:
+            return
+        
+        # Get available width and height from scroll area
+        if not hasattr(self, 'scroll_area') or not self.scroll_area:
+            return
+        
+        # Calculate available space (account for padding)
+        available_width = self.scroll_area.width() - 40  # Account for padding and scrollbar
+        available_height = self.scroll_area.height() - 40
+        
+        # Get original image dimensions
+        pixmap_width = self.original_pixmap.width()
+        pixmap_height = self.original_pixmap.height()
+        
+        # Use reasonable default if dimensions are 0
+        if pixmap_width <= 0 or pixmap_height <= 0:
+            self.image_label.setPixmap(self.original_pixmap)
+            return
+        
+        # Calculate scaling factor
+        width_scale = available_width / pixmap_width
+        height_scale = available_height / pixmap_height
+        
+        # Use smaller scale to ensure image fits
+        scale = min(width_scale, height_scale, 1.0)  # Don't scale up images larger than original
+        
+        # Apply scaling
+        new_width = int(pixmap_width * scale)
+        new_height = int(pixmap_height * scale)
+        
+        # Create scaled pixmap
+        scaled_pixmap = self.original_pixmap.scaled(
+            new_width, 
+            new_height,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation
+        )
+        
+        # Apply to label
+        self.image_label.setPixmap(scaled_pixmap)
+    
+    def resizeEvent(self, event):
+        """Handle resize events"""
+        super().resizeEvent(event)
+        self.resized.emit()
+    
     def update_tab_name(self):
         """Update the tab name to match the current card"""
         if self.card:
