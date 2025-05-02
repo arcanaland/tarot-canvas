@@ -11,6 +11,21 @@ import os
 import random
 import math
 
+class CanvasIcon(QIcon):
+    """Creates a square icon for canvas tab decoration"""
+    def __init__(self, color="#9e9e9e"):  # Light grey default
+        pixmap = QPixmap(16, 16)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setBrush(QColor(color))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawRect(4, 4, 8, 8)
+        painter.end()
+        
+        super().__init__(pixmap)
+
 class CardAnimationController(QObject):
     """Controller for card animations."""
     
@@ -201,6 +216,7 @@ class CanvasTab(BaseTab):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.id = f"canvas_{id(self)}"  # Unique ID for this tab
+        self.tab_name = "Canvas"  # Default tab name
         
         # Set a size policy that doesn't try to expand vertically
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
@@ -220,6 +236,9 @@ class CanvasTab(BaseTab):
         QTimer.singleShot(100, self.ensure_window_bounds)
         QTimer.singleShot(500, self.ensure_window_bounds)
         QTimer.singleShot(1000, self.ensure_window_bounds)
+        
+        # Set the canvas tab icon
+        QTimer.singleShot(100, self.update_tab_icon)
 
     def setup_ui(self):
         # Create a container widget instead of using self directly
@@ -852,6 +871,29 @@ class CanvasTab(BaseTab):
         # menu.addAction(undo_action)
         # menu.addAction(redo_action)
     
+    def update_tab_icon(self):
+        """Update the tab with a canvas icon"""
+        parent = self.parent()
+        if parent:
+            # Find the tab widget that contains this widget
+            tab_widget = None
+            parent_widget = parent
+            
+            # Try to find a parent that has setTabIcon method (likely a QTabWidget)
+            while parent_widget and not tab_widget:
+                if hasattr(parent_widget, 'setTabIcon'):
+                    tab_widget = parent_widget
+                    break
+                parent_widget = parent_widget.parent()
+            
+            # If we found a tab widget, update the tab icon
+            if tab_widget:
+                index = tab_widget.indexOf(self)
+                if index >= 0:
+                    # Create and set a canvas icon
+                    canvas_icon = CanvasIcon()
+                    tab_widget.setTabIcon(index, canvas_icon)
+
 class CardMoveCommand(QUndoCommand):
     """Undo command for card movements"""
     def __init__(self, item, old_pos, new_pos):

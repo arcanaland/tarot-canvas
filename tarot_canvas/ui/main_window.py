@@ -1,9 +1,9 @@
 from PyQt6.QtWidgets import (QMainWindow, QVBoxLayout, QWidget, QLabel, QPushButton, 
                             QMenuBar, QMenu, QApplication, QMessageBox, QFileDialog,
-                            QTabWidget, QHBoxLayout, QToolButton, QSplitter)
+                            QTabWidget, QHBoxLayout, QToolButton, QSplitter, QInputDialog)
                             
 from PyQt6.QtGui import QIcon, QAction, QActionGroup
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal, QObject, QEvent
 import os
 import importlib.resources as pkg_resources
 
@@ -26,6 +26,25 @@ from tarot_canvas.utils.logger import TarotLogger
 from tarot_canvas.utils.theme_manager import ThemeManager, ThemeType
 from tarot_canvas.utils.logger import logger
 from tarot_canvas.models.deck_manager import deck_manager
+
+class TabBarEventFilter(QObject):
+    """Event filter to detect double-clicks on tab bar for renaming"""
+    rename_tab_requested = pyqtSignal(int)  # Signal with tab index
+    
+    def eventFilter(self, obj, event):
+        """Filter events for the tab bar"""
+        if event.type() == QEvent.Type.MouseButtonDblClick:
+            tab_bar = obj
+            # Get the tab index that was double-clicked
+            for i in range(tab_bar.count()):
+                if tab_bar.tabRect(i).contains(event.pos()):
+                    # Check if we have a canvas tab at this index
+                    tab_widget = tab_bar.parent()
+                    tab = tab_widget.widget(i)
+                    if hasattr(tab, 'id') and tab.id.startswith('canvas_'):
+                        self.rename_tab_requested.emit(i)
+                    break
+        return False  # Always pass the event on
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -184,7 +203,7 @@ class MainWindow(QMainWindow):
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(4, 4, 4, 4)  # Set smaller margins (left, top, right, bottom)
         main_layout.setSpacing(2)  # Reduce spacing between widgets
-    
+
         # Create splitter for explorer panel and tab area
         self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
         
@@ -199,6 +218,10 @@ class MainWindow(QMainWindow):
         self.tab_widget = QTabWidget()
         self.tab_widget.setTabsClosable(True)
         self.tab_widget.tabCloseRequested.connect(self.close_tab)
+        
+        # Enable tab reordering by drag and drop
+        self.tab_widget.setMovable(True)
+        
         self.main_splitter.addWidget(self.tab_widget)
         
         # Set appropriate sizes for splitter
@@ -270,9 +293,49 @@ class MainWindow(QMainWindow):
         canvas_tab = CanvasTab()
         canvas_tab.navigation_requested.connect(self.handle_tab_navigation)
         self.close_welcome_tab()
-        self.tab_widget.addTab(canvas_tab, "Canvas")
+        tab_index = self.tab_widget.addTab(canvas_tab, "Canvas")
         self.tab_widget.setCurrentWidget(canvas_tab)
+        
+        # Set up double-click event filter for tab renaming
+        self.setup_tab_renaming(tab_index, canvas_tab)
+        
         return canvas_tab
+
+    def setup_tab_renaming(self, tab_index, tab):
+        """Set up double-click renaming for a tab (currently only for Canvas tabs)"""
+        if not hasattr(tab, 'id') or not tab.id.startswith('canvas_'):
+            return  # Only apply to canvas tabs
+            
+        # Store initial tab name for reference
+        tab.original_tab_name = self.tab_widget.tabText(tab_index)
+        
+        # Install event filter on tab bar
+        if not hasattr(self, 'tab_bar_filter'):
+            self.tab_bar_filter = TabBarEventFilter(self)
+            self.tab_widget.tabBar().installEventFilter(self.tab_bar_filter)
+            # Connect rename signal
+            self.tab_bar_filter.rename_tab_requested.connect(self.show_tab_rename_dialog)
+
+    def show_tab_rename_dialog(self, tab_index):
+        """Show a dialog to rename the tab at the given index"""
+        tab = self.tab_widget.widget(tab_index)
+        if not tab or not hasattr(tab, 'id') or not tab.id.startswith('canvas_'):
+            return  # Only canvas tabs are renamable
+        
+        current_name = self.tab_widget.tabText(tab_index)
+        new_name, ok = QInputDialog.getText(
+            self, 
+            "Rename Canvas", 
+            "Enter a new name for this canvas:",
+            text=current_name
+        )
+        
+        if ok and new_name:
+            # Update the tab text
+            self.tab_widget.setTabText(tab_index, new_name)
+            
+            # Also store the name in the tab object
+            tab.tab_name = new_name
 
     def handle_tab_navigation(self, action, data):
         """Handle navigation between tabs"""
