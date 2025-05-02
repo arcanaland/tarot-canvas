@@ -30,7 +30,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Tarot Canvas")
         self.setWindowIcon(QIcon(str(ICON_PATH)))
-        self.setGeometry(100, 100, 800, 600)
+        self.setGeometry(100, 100, 950, 600)
 
         # Initialize theme manager
         self.theme_manager = ThemeManager.get_instance()
@@ -105,6 +105,7 @@ class MainWindow(QMainWindow):
         self.explorer_action = QAction("&Card Explorer", self)
         self.explorer_action.setShortcut("Ctrl+E")
         self.explorer_action.setCheckable(True)
+        self.explorer_action.setChecked(True)  # Set checked by default
         self.explorer_action.triggered.connect(self.toggle_card_explorer)
         view_menu.addAction(self.explorer_action)
         
@@ -189,7 +190,7 @@ class MainWindow(QMainWindow):
         self.card_explorer = CardExplorerPanel()
         self.card_explorer.card_action_requested.connect(self.on_explorer_card_selected)
         self.card_explorer.card_action_requested.connect(self.on_card_action_requested)
-        self.card_explorer.hide()  # Hide by default
+        self.card_explorer.show()  # Show by default
         self.main_splitter.addWidget(self.card_explorer)
         
         # Create tab widget
@@ -199,7 +200,8 @@ class MainWindow(QMainWindow):
         self.main_splitter.addWidget(self.tab_widget)
         
         # Set appropriate sizes for splitter
-        self.main_splitter.setSizes([0, self.width()])  # Initially collapse explorer
+        width = self.width()
+        self.main_splitter.setSizes([int(width * 0.2), int(width * 0.8)])
         
         main_layout.addWidget(self.main_splitter)
         
@@ -226,7 +228,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(icon_label)
         
         # Change label text
-        welcome_label = QLabel("Try choosing one of the following:")
+        welcome_label = QLabel("Select a card on the left or choose:")
         welcome_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(welcome_label)
 
@@ -394,10 +396,9 @@ class MainWindow(QMainWindow):
 
     def on_card_action_requested(self, action, card, deck):
         """Handle all card actions from the explorer based on context"""
-        if action == "double_click":
-            # Get the current active tab
-            current_tab = self.tab_widget.currentWidget()
-            
+        current_tab = self.tab_widget.currentWidget()
+
+        if action == "double_click":            
             # Check if the current tab is a canvas tab
             if hasattr(current_tab, 'id') and current_tab.id.startswith('canvas_'):
                 # If it's a canvas tab, add the card to it
