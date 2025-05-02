@@ -1,14 +1,39 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QSplitter, QScrollArea, QGroupBox, QToolBar, QPushButton, QTabWidget, QHBoxLayout, QTextEdit
-from PyQt6.QtGui import QPixmap, QIcon, QAction
-from PyQt6.QtCore import Qt, pyqtSignal, QTimer
+from PyQt6.QtGui import QPixmap, QIcon, QAction, QColor, QPainter
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QSize
 from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 import os
+
+class ColorDot(QIcon):
+    """Creates a colored dot icon for tab decoration"""
+    def __init__(self, color):
+        pixmap = QPixmap(16, 16)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setBrush(QColor(color))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawEllipse(4, 4, 8, 8)  # Draw a circle with 8px diameter
+        painter.end()
+        
+        super().__init__(pixmap)
 
 class CardViewTab(BaseTab):
     # Signal to notify the main window that we want to navigate
     navigation_requested = pyqtSignal(str, object)
     resized = pyqtSignal()  # Signal to handle resize events
+    
+    # Define color mapping for card types and suits
+    COLOR_MAP = {
+        "major_arcana": "#9c27b0",  # Purple for Major Arcana
+        "wands": "#ff9800",         # Orange for Wands
+        "cups": "#2196f3",          # Blue for Cups
+        "swords": "#ffeb3b",        # Yellow for Swords
+        "pentacles": "#4caf50",     # Green for Pentacles
+        "default": "#9e9e9e"        # Gray for unknown
+    }
     
     def __init__(self, card=None, deck=None, source_tab_id=None, parent=None):
         super().__init__(parent)
@@ -247,7 +272,7 @@ class CardViewTab(BaseTab):
         self.resized.emit()
     
     def update_tab_name(self):
-        """Update the tab name to match the current card"""
+        """Update the tab name and add color dot based on card type/suit"""
         if self.card:
             parent = self.parent()
             if parent:
@@ -262,11 +287,17 @@ class CardViewTab(BaseTab):
                         break
                     parent_widget = parent_widget.parent()
                 
-                # If we found a tab widget, update the tab text
+                # If we found a tab widget, update the tab text and icon
                 if tab_widget:
                     index = tab_widget.indexOf(self)
                     if index >= 0:
+                        # Update tab text
                         tab_widget.setTabText(index, self.card["name"])
+                        
+                        # Create and set a colored dot icon based on card type/suit
+                        color = self.get_card_color()
+                        dot_icon = ColorDot(color)
+                        tab_widget.setTabIcon(index, dot_icon)
                 
                 # If parent is a QStackedWidget inside a tab widget
                 if hasattr(parent, 'parent') and hasattr(parent.parent(), 'setTabText'):
@@ -274,6 +305,26 @@ class CardViewTab(BaseTab):
                     index = tab_widget.indexOf(parent)
                     if index >= 0:
                         tab_widget.setTabText(index, self.card["name"])
+                        
+                        # Create and set a colored dot icon based on card type/suit
+                        color = self.get_card_color()
+                        dot_icon = ColorDot(color)
+                        tab_widget.setTabIcon(index, dot_icon)
+    
+    def get_card_color(self):
+        """Get the appropriate color for this card based on its type/suit"""
+        if not self.card:
+            return self.COLOR_MAP["default"]
+            
+        card_type = self.card.get("type", "")
+        
+        if card_type == "major_arcana":
+            return self.COLOR_MAP["major_arcana"]
+        elif card_type == "minor_arcana":
+            suit = self.card.get("suit", "")
+            return self.COLOR_MAP.get(suit, self.COLOR_MAP["default"])
+        else:
+            return self.COLOR_MAP["default"]
     
     def navigate_back(self):
         """Navigate back to the source tab"""
