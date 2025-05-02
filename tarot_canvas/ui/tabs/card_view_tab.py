@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QSplitter, QScrollArea, QGroupBox, QToolBar, QPushButton
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QSplitter, QScrollArea, QGroupBox, QToolBar, QPushButton, QTabWidget, QHBoxLayout, QTextEdit
 from PyQt6.QtGui import QPixmap, QIcon, QAction
 from PyQt6.QtCore import Qt, pyqtSignal
 from tarot_canvas.models.deck_manager import deck_manager
@@ -62,66 +62,111 @@ class CardViewTab(BaseTab):
         scroll_area.setWidget(self.image_label)
         splitter.addWidget(scroll_area)
         
-        # Right side - card information
+        # Right side - tabbed card information
         info_widget = QWidget()
-        info_layout = QVBoxLayout(info_widget)
+        info_layout = QHBoxLayout(info_widget)
+        info_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Create tabbed widget for different information categories
+        self.info_tabs = QTabWidget()
+        self.info_tabs.setTabPosition(QTabWidget.TabPosition.East)  # Tabs on the right side
+        
+        # Tab 1: Overview (renamed from Basic Information)
+        overview_tab = QWidget()
+        overview_layout = QVBoxLayout(overview_tab)
         
         # Card name
         name_label = QLabel(self.card["name"])
         name_label.setStyleSheet("font-size: 18px; font-weight: bold;")
-        info_layout.addWidget(name_label)
+        overview_layout.addWidget(name_label)
         
         # Card ID
         id_label = QLabel(f"ID: {self.card['id']}")
         id_label.setStyleSheet("color: gray;")
-        info_layout.addWidget(id_label)
+        overview_layout.addWidget(id_label)
 
         # Card type
         type_label = QLabel(f"Type: {self.card['type'].replace('_', ' ').title()}")
-        info_layout.addWidget(type_label)
+        overview_layout.addWidget(type_label)
         
         # Card details based on type
         if self.card["type"] == "major_arcana":
             details_label = QLabel(f"Number: {self.card['number']}")
-            info_layout.addWidget(details_label)
+            overview_layout.addWidget(details_label)
         else:
             details_label = QLabel(f"Suit: {self.card['suit'].capitalize()}\nRank: {self.card['rank'].capitalize()}")
-            info_layout.addWidget(details_label)
+            overview_layout.addWidget(details_label)
             
         # Add deck information
         deck_label = QLabel(f"Deck: {self.deck.get_name()}")
-        info_layout.addWidget(deck_label)
+        overview_layout.addWidget(deck_label)
         
-        # Add description (alt_text) section
-        description_group = QGroupBox("Description")
-        description_layout = QVBoxLayout(description_group)
-        
-        # Create a scroll area for the description to handle long text
-        description_scroll = QScrollArea()
-        description_scroll.setWidgetResizable(True)
-        
-        description_content = QWidget()
-        description_content_layout = QVBoxLayout(description_content)
-        
-        # Add the alt_text as a description if available
+        # Add description text to the overview tab
         if "alt_text" in self.card and self.card["alt_text"]:
+            overview_layout.addSpacing(15)
+            description_header = QLabel("Description:")
+            description_header.setStyleSheet("font-weight: bold;")
+            overview_layout.addWidget(description_header)
+            
             description_label = QLabel(self.card["alt_text"])
             description_label.setWordWrap(True)
             description_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        else:
-            description_label = QLabel("No description available for this card.")
-            description_label.setStyleSheet("color: gray; font-style: italic;")
+            overview_layout.addWidget(description_label)
         
-        description_content_layout.addWidget(description_label)
-        description_content_layout.addStretch()
+        # Add stretch to push everything to the top
+        overview_layout.addStretch()
         
-        description_scroll.setWidget(description_content)
-        description_layout.addWidget(description_scroll)
+        # Add overview tab
+        self.info_tabs.addTab(overview_tab, "Overview")
         
-        # Add the description group to the info layout
-        info_layout.addWidget(description_group)
+        # Tab 2: Esoterica (placeholder for future content)
+        esoterica_tab = QWidget()
+        esoterica_layout = QVBoxLayout(esoterica_tab)
         
-        info_layout.addStretch()
+        # Add some placeholder sections for esoteric content
+        esoterica_header = QLabel("Esoteric Correspondences")
+        esoterica_header.setStyleSheet("font-size: 16px; font-weight: bold;")
+        esoterica_layout.addWidget(esoterica_header)
+        
+        # Placeholder sections
+        for section in ["Elements", "Astrology", "Numerology", "Kabbalah", "Alchemy"]:
+            section_label = QLabel(f"{section}:")
+            section_label.setStyleSheet("font-weight: bold;")
+            esoterica_layout.addWidget(section_label)
+            
+            placeholder = QLabel("Information will be added in the future.")
+            placeholder.setStyleSheet("color: gray; font-style: italic; margin-left: 10px;")
+            esoterica_layout.addWidget(placeholder)
+            esoterica_layout.addSpacing(10)
+        
+        esoterica_layout.addStretch()
+        self.info_tabs.addTab(esoterica_tab, "Esoterica")
+        
+        # Tab 3: Notes (user notes and journal entries)
+        notes_tab = QWidget()
+        notes_layout = QVBoxLayout(notes_tab)
+        
+        notes_header = QLabel("Personal Notes")
+        notes_header.setStyleSheet("font-size: 16px; font-weight: bold;")
+        notes_layout.addWidget(notes_header)
+        
+        # Add text editor for notes
+        notes_edit = QTextEdit()
+        notes_edit.setPlaceholderText("Enter your personal notes about this card here...")
+        notes_layout.addWidget(notes_edit)
+        
+        # Add a save button
+        save_btn = QPushButton("Save Notes")
+        save_btn.setMaximumWidth(150)
+        # Connect to a save function (to be implemented)
+        # save_btn.clicked.connect(self.save_notes)
+        notes_layout.addWidget(save_btn)
+        
+        self.info_tabs.addTab(notes_tab, "Notes")
+        
+        # Add the tabbed widget to the info layout
+        info_layout.addWidget(self.info_tabs)
+        
         splitter.addWidget(info_widget)
         
         # Set initial splitter sizes
