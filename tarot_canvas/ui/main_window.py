@@ -2,7 +2,7 @@ from PyQt6.QtWidgets import (QMainWindow, QVBoxLayout, QWidget, QLabel, QPushBut
                             QMenuBar, QMenu, QApplication, QMessageBox, QFileDialog,
                             QTabWidget, QHBoxLayout, QToolButton, QSplitter)
                             
-from PyQt6.QtGui import QIcon, QAction
+from PyQt6.QtGui import QIcon, QAction, QActionGroup
 from PyQt6.QtCore import Qt
 import os
 import importlib.resources as pkg_resources
@@ -22,6 +22,8 @@ from tarot_canvas.ui.components.card_explorer import CardExplorerPanel
 # Import log viewer and logger
 from tarot_canvas.ui.windows.log_viewer import LogViewerDialog
 from tarot_canvas.utils.logger import TarotLogger
+from tarot_canvas.utils.theme_manager import ThemeManager, ThemeType
+from tarot_canvas.utils.logger import logger
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -30,6 +32,13 @@ class MainWindow(QMainWindow):
         self.setWindowIcon(QIcon(str(ICON_PATH)))
         self.setGeometry(100, 100, 800, 600)
 
+        # Initialize theme manager
+        self.theme_manager = ThemeManager.get_instance()
+        self.theme_manager.theme_changed.connect(self.on_theme_changed)
+        
+        # Apply current theme
+        self.theme_manager._apply_theme()
+        
         self.create_menus()
         self.init_ui()
 
@@ -106,6 +115,51 @@ class MainWindow(QMainWindow):
         fullscreen_action.setCheckable(True)
         fullscreen_action.triggered.connect(self.toggle_fullscreen)
         view_menu.addAction(fullscreen_action)
+        
+        # Add Theme submenu
+        theme_menu = QMenu("&Theme", self)
+        view_menu.addMenu(theme_menu)
+        
+        # Create a theme action group for radio behavior
+        theme_group = QActionGroup(self)
+        theme_group.setExclusive(True)
+        
+        # System theme action
+        system_theme_action = QAction("&System Default", self)
+        system_theme_action.setCheckable(True)
+        system_theme_action.triggered.connect(lambda: self.change_theme(ThemeType.SYSTEM))
+        theme_group.addAction(system_theme_action)
+        theme_menu.addAction(system_theme_action)
+        
+        # Light theme action
+        light_theme_action = QAction("&Light", self)
+        light_theme_action.setCheckable(True)
+        light_theme_action.triggered.connect(lambda: self.change_theme(ThemeType.LIGHT))
+        theme_group.addAction(light_theme_action)
+        theme_menu.addAction(light_theme_action)
+        
+        # Dark theme action
+        dark_theme_action = QAction("&Dark", self)
+        dark_theme_action.setCheckable(True)
+        dark_theme_action.triggered.connect(lambda: self.change_theme(ThemeType.DARK))
+        theme_group.addAction(dark_theme_action)
+        theme_menu.addAction(dark_theme_action)
+        
+        # Set the checked state based on current theme
+        current_theme = ThemeManager.get_instance().get_current_theme()
+        if current_theme == ThemeType.SYSTEM:
+            system_theme_action.setChecked(True)
+        elif current_theme == ThemeType.LIGHT:
+            light_theme_action.setChecked(True)
+        elif current_theme == ThemeType.DARK:
+            dark_theme_action.setChecked(True)
+        
+        # Store theme actions for later reference
+        self.theme_actions = {
+            ThemeType.SYSTEM: system_theme_action,
+            ThemeType.LIGHT: light_theme_action,
+            ThemeType.DARK: dark_theme_action
+        }
         
         # Tools menu
         tools_menu = menu_bar.addMenu("&Tools")
@@ -417,3 +471,20 @@ class MainWindow(QMainWindow):
         """Show the log viewer dialog"""
         log_viewer = LogViewerDialog(self)
         log_viewer.exec()
+
+    def change_theme(self, theme_type):
+        """Change the application theme"""
+        logger.info(f"Changing theme to: {theme_type.value}")
+        ThemeManager.get_instance().set_theme(theme_type)
+
+    def on_theme_changed(self, theme_name):
+        """Handle theme change events"""
+        logger.info(f"Theme changed to: {theme_name}")
+        
+        # Update checked state of theme actions
+        try:
+            theme = ThemeType(theme_name)
+            for t, action in self.theme_actions.items():
+                action.setChecked(t == theme)
+        except (ValueError, AttributeError) as e:
+            logger.error(f"Error updating theme actions: {e}")

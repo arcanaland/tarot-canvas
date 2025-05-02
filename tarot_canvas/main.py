@@ -1,10 +1,13 @@
 import sys
+import os
 import argparse
 import urllib.parse
 from PyQt6.QtWidgets import QApplication
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.models.reference_deck import ReferenceDeck
 from tarot_canvas.models.deck_manager import deck_manager
+from tarot_canvas.utils.theme_manager import ThemeManager
+from tarot_canvas.utils.logger import logger
 
 def initialize_reference_deck():
     if not ReferenceDeck.is_reference_deck_present():
@@ -18,14 +21,26 @@ def initialize_reference_deck():
 def main():
     initialize_reference_deck()
 
+    # Suppress Qt warnings about Wayland
+    os.environ["QT_LOGGING_RULES"] = "qt.qpa.wayland=false"
+
+    # Initialize the application
+    app = QApplication(sys.argv)
+    app.setApplicationName("Tarot Canvas")
+    app.setApplicationDisplayName("Tarot Canvas")
+    
+    # Initialize and apply theme
+    logger.info("Initializing theme manager")
+    theme_manager = ThemeManager.get_instance()
+    
+    # Create and show the main window
+    main_window = MainWindow()
+    
+    # If a URI is provided, parse and open the card
     parser = argparse.ArgumentParser(description='Tarot Canvas')
     parser.add_argument('uri', nargs='?', help='Open a specific card by URI')
     args = parser.parse_args()
     
-    app = QApplication(sys.argv)
-    window = MainWindow()
-    
-    # If a URI is provided, parse and open the card
     if args.uri and args.uri.startswith('tarot://'):
         # Parse the URI
         parsed_uri = urllib.parse.urlparse(args.uri)
@@ -65,14 +80,15 @@ def main():
             
             # If card found, open it
             if card:
-                window.open_card_view(card, deck)
+                main_window.open_card_view(card, deck)
             else:
                 print("Card not found in the reference deck.")
-            
     
-    window.show()
+    main_window.show()
+    
+    # Run the application event loop
     return app.exec()
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
 
