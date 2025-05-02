@@ -7,6 +7,7 @@ from PyQt6.QtCore import Qt
 import os
 import importlib.resources as pkg_resources
 
+from pathlib import Path
 from importlib.resources import files
 ICON_PATH = files('tarot_canvas.resources.icons').joinpath('icon.png')
 
@@ -24,6 +25,7 @@ from tarot_canvas.ui.windows.log_viewer import LogViewerDialog
 from tarot_canvas.utils.logger import TarotLogger
 from tarot_canvas.utils.theme_manager import ThemeManager, ThemeType
 from tarot_canvas.utils.logger import logger
+from tarot_canvas.models.deck_manager import deck_manager
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -228,7 +230,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(icon_label)
         
         # Change label text
-        welcome_label = QLabel("Select a card on the left or choose:")
+        welcome_label = QLabel("Select a card on the left or choose an option below:")
         welcome_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(welcome_label)
 
@@ -240,8 +242,8 @@ class MainWindow(QMainWindow):
         canvas_btn.clicked.connect(self.new_canvas_tab)
         button_layout.addWidget(canvas_btn)
         
-        deck_btn = QPushButton("Random Deck")
-        deck_btn.clicked.connect(self.new_deck_view_tab)
+        deck_btn = QPushButton("Open Standard Deck")
+        deck_btn.clicked.connect(self.open_reference_deck)
         button_layout.addWidget(deck_btn)
         
         library_btn = QPushButton("Deck Library")
@@ -256,7 +258,7 @@ class MainWindow(QMainWindow):
         welcome_tab.setLayout(layout)
         
         self.tab_widget.addTab(welcome_tab, "Welcome")
-        
+
     def close_welcome_tab(self):
         """Close the welcome tab if it exists"""
         for i in range(self.tab_widget.count()):
@@ -306,11 +308,25 @@ class MainWindow(QMainWindow):
                     self.tab_widget.setCurrentWidget(tab)
                     break
 
-    def new_deck_view_tab(self):
-        deck_tab = DeckViewTab()
-        self.close_welcome_tab()
-        self.tab_widget.addTab(deck_tab, "Deck View")
+    def new_deck_view_tab(self, deck_path=None):
+        deck_tab = DeckViewTab(deck_path=deck_path)
+        # Connect the card action signal to the main window's handler
+        deck_tab.card_action_requested.connect(self.on_card_action_requested)
+        
+        # Set initial tab title
+        title = "Deck View"
+        if deck_path:
+            # Use path as a fallback title, it will be updated when the deck loads
+            title = os.path.basename(deck_path)
+        
+        tab_index = self.tab_widget.addTab(deck_tab, title)
+        
+        # Connect title change signal to update the tab title
+        deck_tab.title_changed.connect(lambda new_title: self.tab_widget.setTabText(
+            self.tab_widget.indexOf(deck_tab), new_title))
+        
         self.tab_widget.setCurrentWidget(deck_tab)
+        return deck_tab
 
     def new_library_tab(self):
         library_tab = LibraryTab()
@@ -342,10 +358,8 @@ class MainWindow(QMainWindow):
         if file_dialog.exec():
             selected_files = file_dialog.selectedFiles()
             print(f"Selected file: {selected_files[0]}")
-            deck_tab = DeckViewTab(deck_path=selected_files[0])
-            self.close_welcome_tab()
-            self.tab_widget.addTab(deck_tab, os.path.basename(os.path.dirname(selected_files[0])))
-            self.tab_widget.setCurrentWidget(deck_tab)
+            deck_path = Path(selected_files[0]).parent.resolve()
+            deck_tab = self.new_deck_view_tab(deck_path=deck_path)
 
     def new_reading(self):
         self.new_canvas_tab()
@@ -489,3 +503,17 @@ class MainWindow(QMainWindow):
                 action.setChecked(t == theme)
         except (ValueError, AttributeError) as e:
             logger.error(f"Error updating theme actions: {e}")
+
+    def open_reference_deck(self):
+        """Open the reference deck from the deck manager"""
+        # Get reference deck from deck manager
+        reference_deck = deck_manager.get_reference_deck()
+        
+        if not reference_deck:
+            QMessageBox.warning(self, "Deck Not Found", 
+                              "The reference deck could not be loaded.")
+            return
+        
+        # Create a deck view tab with the reference deck path
+        deck_tab = self.new_deck_view_tab(deck_path=reference_deck.deck_path)
+        self.close_welcome_tab()
