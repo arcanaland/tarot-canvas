@@ -108,7 +108,11 @@ class CardExplorerPanel(QWidget):
         # Create suit groups
         suits = self.current_deck.get_suits()
         for suit in suits:
-            suit_group = QStandardItem(suit.capitalize())
+            # Get display name for suit (aliased if available)
+            display_suit = self.current_deck.get_display_suit_name(suit)
+            
+            # Create group with display name
+            suit_group = QStandardItem(display_suit)
             suit_group.setData({"type": "group", "group": suit, "deck": self.current_deck}, 
                               Qt.ItemDataRole.UserRole)
             

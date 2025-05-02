@@ -19,6 +19,10 @@ from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 # Import the card explorer panel
 from tarot_canvas.ui.components.card_explorer import CardExplorerPanel
 
+# Import log viewer and logger
+from tarot_canvas.ui.windows.log_viewer import LogViewerDialog
+from tarot_canvas.utils.logger import TarotLogger
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -102,6 +106,14 @@ class MainWindow(QMainWindow):
         fullscreen_action.setCheckable(True)
         fullscreen_action.triggered.connect(self.toggle_fullscreen)
         view_menu.addAction(fullscreen_action)
+        
+        # Tools menu
+        tools_menu = menu_bar.addMenu("&Tools")
+        
+        # Add Log Viewer action
+        log_viewer_action = QAction("&Log Viewer", self)
+        log_viewer_action.triggered.connect(self.show_log_viewer)
+        tools_menu.addAction(log_viewer_action)
         
         # About menu
         about_menu = menu_bar.addMenu("&About")
@@ -400,3 +412,8 @@ class MainWindow(QMainWindow):
         
         # Select the new tab
         self.tab_widget.setCurrentWidget(tab)
+
+    def show_log_viewer(self):
+        """Show the log viewer dialog"""
+        log_viewer = LogViewerDialog(self)
+        log_viewer.exec()

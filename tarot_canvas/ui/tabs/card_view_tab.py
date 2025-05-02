@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QSplitter, QScrollArea, QGroupBox, QToolBar, QPushButton, QTabWidget, QHBoxLayout, QTextEdit
 from PyQt6.QtGui import QPixmap, QIcon, QAction
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 import os
@@ -26,7 +26,6 @@ class CardViewTab(BaseTab):
         
         # Call update_tab_name() after initialization to set the tab's name immediately
         # Use a short timer to ensure the widget is fully added to its parent first
-        from PyQt6.QtCore import QTimer
         QTimer.singleShot(100, self.update_tab_name)
         
     def setup_ui(self):
@@ -34,14 +33,13 @@ class CardViewTab(BaseTab):
             self.set_placeholder("No deck or card available")
             return
         
-        # Main layout setup
         main_layout = QVBoxLayout()
         
         # Add a back button to the top if we came from somewhere
-        if self.source_tab_id:
-            back_btn = QPushButton("← Back to Canvas")
-            back_btn.clicked.connect(self.navigate_back)
-            main_layout.addWidget(back_btn)
+        # if self.source_tab_id:
+        #    back_btn = QPushButton("← Back to Canvas")
+        #    back_btn.clicked.connect(self.navigate_back)
+        #    main_layout.addWidget(back_btn)
         
         # Create a splitter for image and information
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -71,7 +69,7 @@ class CardViewTab(BaseTab):
         self.info_tabs = QTabWidget()
         self.info_tabs.setTabPosition(QTabWidget.TabPosition.East)  # Tabs on the right side
         
-        # Tab 1: Overview (renamed from Basic Information)
+        # Tab 1: Overview
         overview_tab = QWidget()
         overview_layout = QVBoxLayout(overview_tab)
         
@@ -89,12 +87,15 @@ class CardViewTab(BaseTab):
         type_label = QLabel(f"Type: {self.card['type'].replace('_', ' ').title()}")
         overview_layout.addWidget(type_label)
         
-        # Card details based on type
+        # Card details based on type - using display names
         if self.card["type"] == "major_arcana":
             details_label = QLabel(f"Number: {self.card['number']}")
             overview_layout.addWidget(details_label)
         else:
-            details_label = QLabel(f"Suit: {self.card['suit'].capitalize()}\nRank: {self.card['rank'].capitalize()}")
+            # Use display_suit and display_rank if available
+            suit_name = self.card.get("display_suit", self.card['suit'].capitalize())
+            rank_name = self.card.get("display_rank", self.card['rank'].capitalize())
+            details_label = QLabel(f"Suit: {suit_name}\nRank: {rank_name}")
             overview_layout.addWidget(details_label)
             
         # Add deck information
@@ -119,7 +120,7 @@ class CardViewTab(BaseTab):
         # Add overview tab
         self.info_tabs.addTab(overview_tab, "Overview")
         
-        # Tab 2: Esoterica (placeholder for future content)
+        # Tab 2: Esoterica 
         esoterica_tab = QWidget()
         esoterica_layout = QVBoxLayout(esoterica_tab)
         
@@ -142,7 +143,7 @@ class CardViewTab(BaseTab):
         esoterica_layout.addStretch()
         self.info_tabs.addTab(esoterica_tab, "Esoterica")
         
-        # Tab 3: Notes (user notes and journal entries)
+        # Tab 3: Notes
         notes_tab = QWidget()
         notes_layout = QVBoxLayout(notes_tab)
         

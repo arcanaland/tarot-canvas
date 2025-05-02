@@ -3,11 +3,14 @@ import os
 import random
 from pathlib import Path
 import glob
+from tarot_canvas.utils.logger import logger
 
 class TarotDeck:
     def __init__(self, deck_path):
         self.deck_path = deck_path
         self.metadata = self.load_metadata()
+        self.suit_aliases = self.get_suit_aliases()  # Load suit aliases
+        self.court_aliases = self.get_court_aliases()  # Load court card aliases
         self.cards = self.load_cards()
 
     def load_metadata(self):
@@ -84,6 +87,9 @@ class TarotDeck:
         # Load alt text
         alt_texts = self.load_alt_texts()
         
+        # Get display suit name (using alias if available)
+        display_suit = self.get_display_suit_name(suit)
+        
         # Numbers: ace, two, ..., ten
         ranks = ["ace", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]
         
@@ -94,8 +100,8 @@ class TarotDeck:
         for rank in ranks:
             card_id = f"minor_arcana.{suit}.{rank}"
             
-            # Try to get name from localized names, fallback to default
-            name = f"{rank.capitalize()} of {suit.capitalize()}"
+            # Try to get name from localized names, fallback to default with display suit name
+            name = f"{rank.capitalize()} of {display_suit}"
             if names and "minor_arcana" in names and suit in names["minor_arcana"] and rank in names["minor_arcana"][suit]:
                 name = names["minor_arcana"][suit][rank]
             
@@ -111,7 +117,8 @@ class TarotDeck:
                 "id": card_id,
                 "name": name,
                 "type": "minor_arcana",
-                "suit": suit,
+                "suit": suit,              # Store canonical suit name
+                "display_suit": display_suit,  # Store display suit name
                 "rank": rank,
                 "image": image_path,
                 "alt_text": alt_text
@@ -121,8 +128,11 @@ class TarotDeck:
         for court in courts:
             card_id = f"minor_arcana.{suit}.{court}"
             
-            # Try to get name from localized names, fallback to default
-            name = f"{court.capitalize()} of {suit.capitalize()}"
+            # Get display court name (using alias if available)
+            display_court = self.get_display_court_name(court)
+            
+            # Try to get name from localized names, fallback to default with display names
+            name = f"{display_court} of {display_suit}"
             if names and "minor_arcana" in names and suit in names["minor_arcana"] and court in names["minor_arcana"][suit]:
                 name = names["minor_arcana"][suit][court]
             
@@ -138,8 +148,10 @@ class TarotDeck:
                 "id": card_id,
                 "name": name,
                 "type": "minor_arcana",
-                "suit": suit,
+                "suit": suit,               # Store canonical suit name
+                "display_suit": display_suit,   # Store display suit name 
                 "rank": court,
+                "display_rank": display_court,  # Store display rank name
                 "image": image_path,
                 "alt_text": alt_text
             })
@@ -297,3 +309,44 @@ class TarotDeck:
             list: List of card dictionaries matching the suit
         """
         return [card for card in self.cards if card.get("suit") == suit]
+
+    def get_suit_aliases(self):
+        """Get suit aliases from metadata if available"""
+        aliases = {}
+        if "aliases" in self.metadata and "suits" in self.metadata["aliases"]:
+            for canonical_suit, custom_name in self.metadata["aliases"]["suits"].items():
+                aliases[canonical_suit] = custom_name
+        
+        if aliases:
+            logger.debug(f"Deck '{self.get_name()}' has suit aliases: {aliases}")
+        return aliases
+
+    def get_court_aliases(self):
+        """Get court card aliases from metadata if available"""
+        aliases = {}
+        if "aliases" in self.metadata and "courts" in self.metadata["aliases"]:
+            for canonical_court, custom_name in self.metadata["aliases"]["courts"].items():
+                aliases[canonical_court] = custom_name
+        return aliases
+    
+    def get_canonical_suit_name(self, suit):
+        """Get the canonical name for a suit, handling aliases"""
+        # Check if this is an aliased suit name
+        for canonical, alias in self.suit_aliases.items():
+            if alias.lower() == suit.lower():
+                return canonical
+        return suit
+
+    def get_display_suit_name(self, canonical_suit):
+        """Get the display name for a suit, using aliases if available"""
+        if canonical_suit in self.suit_aliases:
+            display_name = self.suit_aliases[canonical_suit]
+            return display_name
+        
+        return canonical_suit.capitalize()
+
+    def get_display_court_name(self, canonical_court):
+        """Get the display name for a court card, using aliases if available"""
+        if canonical_court in self.court_aliases:
+            return self.court_aliases[canonical_court]
+        return canonical_court.capitalize()

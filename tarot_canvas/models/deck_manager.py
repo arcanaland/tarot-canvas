@@ -3,6 +3,7 @@ from pathlib import Path
 import glob
 from tarot_canvas.models.deck import TarotDeck
 from tarot_canvas.models.reference_deck import ReferenceDeck
+from tarot_canvas.utils.logger import logger
 
 class DeckManager:
     def __init__(self):
@@ -23,9 +24,11 @@ class DeckManager:
                     deck_path = os.path.join(base_path, deck_dir)
                     if os.path.isdir(deck_path) and os.path.exists(os.path.join(deck_path, "deck.toml")):
                         try:
-                            print(f"Loading deck from {deck_path}")
+                            logger.debug(f"Loading deck from {deck_path}")
                             deck = TarotDeck(deck_path)
                             self.decks[deck.get_name()] = deck
+                            logger.info(f"Loaded deck '{deck.get_name()}' from {deck_path}")
+
                         except Exception as e:
                             print(f"Error loading deck {deck_path}: {e}")
     
