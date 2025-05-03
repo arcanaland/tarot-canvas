@@ -65,7 +65,7 @@ class DeckCard(QFrame):
         
         # Deck info
         cards_count = len(self.deck._cards)
-        creator = self.deck._metadata.get("deck", {}).get("creator", "Unknown")
+        creator = self.deck._metadata.get("deck", {}).get("author", "Unknown")
         info_label = QLabel(f"{cards_count} cards • {creator}")
         info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         

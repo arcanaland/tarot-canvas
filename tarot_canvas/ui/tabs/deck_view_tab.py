@@ -37,8 +37,7 @@ class DeckInfoDialog(QDialog):
         title_label.setFont(QFont("Arial", 16, QFont.Weight.Bold))
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
-        # Creator
-        creator_info = self.deck._metadata.get("deck", {}).get("creator", "Unknown")
+        creator_info = self.deck._metadata.get("deck", {}).get("author", "Unknown")
         creator_label = QLabel(f"Created by: {creator_info}")
         
         # Version
