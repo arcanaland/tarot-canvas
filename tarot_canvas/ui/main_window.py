@@ -179,6 +179,12 @@ class MainWindow(QMainWindow):
         # Tools menu
         tools_menu = menu_bar.addMenu("&Tools")
         
+        # Add Command Palette action
+        command_palette_action = QAction("&Command Palette", self)
+        command_palette_action.setShortcut("Ctrl+P")
+        command_palette_action.triggered.connect(self.show_command_palette)
+        tools_menu.addAction(command_palette_action)
+        
         # Add Log Viewer action
         log_viewer_action = QAction("&Log Viewer", self)
         log_viewer_action.triggered.connect(self.show_log_viewer)
@@ -194,28 +200,57 @@ class MainWindow(QMainWindow):
     def init_ui(self):
         # Create main layout
         main_layout = QVBoxLayout()
-        main_layout.setContentsMargins(4, 4, 4, 4)  # Set smaller margins (left, top, right, bottom)
-        main_layout.setSpacing(2)  # Reduce spacing between widgets
+        main_layout.setContentsMargins(4, 4, 4, 4)
+        main_layout.setSpacing(2)
 
         # Create splitter for explorer panel and tab area
         self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
         
-        # Create and add card explorer panel (hidden by default)
+        # Create and add card explorer panel
         self.card_explorer = CardExplorerPanel()
         self.card_explorer.card_action_requested.connect(self.on_explorer_card_selected)
         self.card_explorer.card_action_requested.connect(self.on_card_action_requested)
-        self.card_explorer.show()  # Show by default
+        self.card_explorer.show()
         self.main_splitter.addWidget(self.card_explorer)
+        
+        # Create right side container 
+        right_container = QWidget()
+        right_layout = QVBoxLayout(right_container)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(0)
         
         # Create tab widget
         self.tab_widget = QTabWidget()
         self.tab_widget.setTabsClosable(True)
         self.tab_widget.tabCloseRequested.connect(self.close_tab)
-        
-        # Enable tab reordering by drag and drop
         self.tab_widget.setMovable(True)
         
-        self.main_splitter.addWidget(self.tab_widget)
+        # Create search button and put it in the tab corner
+        search_button = QToolButton()
+        search_button.setIcon(QIcon.fromTheme("search", QIcon(str(Path(__file__).parent.parent / "resources" / "icons" / "search.png"))))
+        search_button.setToolTip("Search Cards (Ctrl+P)")
+        search_button.clicked.connect(self.show_command_palette)
+
+        # Style the button to show only the icon without borders or background
+        search_button.setStyleSheet("""
+            QToolButton {
+                border: none;
+                background-color: transparent;
+                margin: 2px;
+            }
+            QToolButton:hover {
+                background-color: rgba(128, 128, 128, 0.2);
+                border-radius: 2px;
+            }
+        """)
+
+        # Add the search button to the right corner of the tab widget
+        self.tab_widget.setCornerWidget(search_button, Qt.Corner.TopRightCorner)
+        
+        right_layout.addWidget(self.tab_widget)
+        
+        # Add the right container to the splitter
+        self.main_splitter.addWidget(right_container)
         
         # Set appropriate sizes for splitter
         width = self.width()

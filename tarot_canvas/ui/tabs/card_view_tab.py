@@ -64,16 +64,17 @@ class CardViewTab(BaseTab):
         # Create a splitter for image and information
         splitter = QSplitter(Qt.Orientation.Horizontal)
         
-        # Left side - card image in a better container
+        # Left side - card image in a container with reduced padding
         image_container = QWidget()
         image_layout = QVBoxLayout(image_container)
-        image_layout.setContentsMargins(10, 10, 10, 10)  # Add padding around image
+        # Reduce padding from 10px to 5px
+        image_layout.setContentsMargins(5, 5, 5, 5)
         
         self.image_label = QLabel()
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.image_label.setMinimumWidth(200)  # Set minimum width to prevent too small images
+        self.image_label.setMinimumWidth(200)
         
-        # Add stretch above and below the image to center it vertically
+        # We still want vertical centering
         image_layout.addStretch(1)
         image_layout.addWidget(self.image_label)
         image_layout.addStretch(1)
@@ -231,9 +232,9 @@ class CardViewTab(BaseTab):
         if not hasattr(self, 'scroll_area') or not self.scroll_area:
             return
         
-        # Calculate available space (account for padding)
-        available_width = self.scroll_area.width() - 40  # Account for padding and scrollbar
-        available_height = self.scroll_area.height() - 40
+        # Calculate available space (account for reduced padding)
+        available_width = self.scroll_area.width() - 20  # Reduced from 40 to 20 (5px padding on each side)
+        available_height = self.scroll_area.height() - 20
         
         # Get original image dimensions
         pixmap_width = self.original_pixmap.width()
