@@ -3,9 +3,10 @@ from PyQt6.QtWidgets import (
     QGridLayout, QScrollArea, QWidget, QVBoxLayout, QHBoxLayout, 
     QLabel, QPushButton, QFrame, QSizePolicy, QStackedWidget, QDialog, QTabWidget
 )
-from PyQt6.QtCore import Qt, QSize, pyqtSignal
-from PyQt6.QtGui import QPixmap, QFont, QColor, QPainter, QPen
+from PyQt6.QtCore import Qt, QSize, pyqtSignal, QTimer
+from PyQt6.QtGui import QPixmap, QFont, QColor, QPainter, QPen, QIcon
 import os
+from pathlib import Path
 from tarot_canvas.models.deck import TarotDeck
 from tarot_canvas.ui.widgets.card_thumbnail import CardThumbnail
 
@@ -84,6 +85,9 @@ class DeckViewTab(BaseTab):
         self.row_height = self.card_size.height() + 40  # Extra padding for larger cards
         self.setup_ui()
         
+        # Set the tab icon after a short delay to ensure the tab is added
+        QTimer.singleShot(100, self.update_tab_icon)
+    
     def setup_ui(self):
         if self.deck_path:
             # Load deck from deck_path
@@ -248,3 +252,27 @@ class DeckViewTab(BaseTab):
             item = self.layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
+    
+    def update_tab_icon(self):
+        """Update the tab with a deck icon"""
+        parent = self.parent()
+        if parent:
+            # Find the tab widget that contains this widget
+            tab_widget = None
+            parent_widget = parent
+            
+            # Try to find a parent that has setTabIcon method
+            while parent_widget and not tab_widget:
+                if hasattr(parent_widget, 'setTabIcon'):
+                    tab_widget = parent_widget
+                    break
+                parent_widget = parent_widget.parent()
+            
+            # If we found a tab widget, update the tab icon
+            if tab_widget:
+                index = tab_widget.indexOf(self)
+                if index >= 0:
+                    # Create and set the cards-stack icon from theme or fallback
+                    icon = QIcon.fromTheme("view-grid", 
+                             QIcon(str(Path(__file__).parent.parent.parent / "resources" / "icons" / "cards-stack.png")))
+                    tab_widget.setTabIcon(index, icon)

@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (
     QListWidget, QLabel, QHBoxLayout, QVBoxLayout, QWidget, QPushButton,
     QScrollArea, QFrame, QGridLayout, QListWidgetItem, QSizePolicy
 )
-from PyQt6.QtCore import Qt, QSize, pyqtSignal
+from PyQt6.QtCore import Qt, QSize, pyqtSignal, QTimer
 from PyQt6.QtGui import QPixmap, QIcon, QFont
 import os
 from pathlib import Path
@@ -104,6 +104,9 @@ class LibraryTab(BaseTab):
         super().__init__(parent)
         self.setup_ui()
         
+        # Set the tab icon after a short delay to ensure the tab is added
+        QTimer.singleShot(100, self.update_tab_icon)
+        
     def setup_ui(self):
         main_layout = QVBoxLayout()
         
@@ -189,3 +192,27 @@ class LibraryTab(BaseTab):
         # Re-populate the grid when the tab is resized
         self.populate_deck_grid()
         super().resizeEvent(event)
+    
+    def update_tab_icon(self):
+        """Update the tab with a library icon"""
+        parent = self.parent()
+        if parent:
+            # Find the tab widget that contains this widget
+            tab_widget = None
+            parent_widget = parent
+            
+            # Try to find a parent that has setTabIcon method
+            while parent_widget and not tab_widget:
+                if hasattr(parent_widget, 'setTabIcon'):
+                    tab_widget = parent_widget
+                    break
+                parent_widget = parent_widget.parent()
+            
+            # If we found a tab widget, update the tab icon
+            if tab_widget:
+                index = tab_widget.indexOf(self)
+                if index >= 0:
+                    # Create and set the bookmarks icon from theme or fallback
+                    icon = QIcon.fromTheme("folder-bookmarks", 
+                             QIcon(str(Path(__file__).parent.parent.parent / "resources" / "icons" / "bookmarks.png")))
+                    tab_widget.setTabIcon(index, icon)

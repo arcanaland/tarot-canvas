@@ -82,6 +82,7 @@ class MainWindow(QMainWindow):
         new_menu.addAction(new_card_view_action)
 
         new_library_action = QAction("&Library View", self)
+        new_library_action.setShortcut("Ctrl+L")
         new_library_action.triggered.connect(self.new_library_tab)
         new_menu.addAction(new_library_action)
 
