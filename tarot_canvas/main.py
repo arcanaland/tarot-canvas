@@ -26,9 +26,10 @@ def main():
 
     # Initialize the application
     app = QApplication(sys.argv)
-    app.setApplicationName("Tarot Canvas")
+    app.setApplicationName("tarot-canvas")
     app.setApplicationDisplayName("Tarot Canvas")
-    
+    app.setDesktopFileName("land.arcana.TarotCanvas")
+
     # Initialize and apply theme
     logger.info("Initializing theme manager")
     theme_manager = ThemeManager.get_instance()

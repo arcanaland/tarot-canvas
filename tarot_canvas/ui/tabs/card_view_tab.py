@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QSplitter, QScrollArea, QGroupBox, QToolBar, QPushButton, QTabWidget, QHBoxLayout, QTextEdit
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QSplitter, QScrollArea, QGroupBox, QToolBar, QPushButton, QTabWidget, QHBoxLayout, QTextEdit, QGridLayout, QFrame
 from PyQt6.QtGui import QPixmap, QIcon, QAction, QColor, QPainter
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QSize
 from tarot_canvas.models.deck_manager import deck_manager
@@ -101,39 +101,87 @@ class CardViewTab(BaseTab):
         # Tab 1: Overview
         overview_tab = QWidget()
         overview_layout = QVBoxLayout(overview_tab)
-        
-        # Card name
+
+        # Card name at the top
         name_label = QLabel(self.card["name"])
         name_label.setStyleSheet("font-size: 18px; font-weight: bold;")
         overview_layout.addWidget(name_label)
-        
-        # Card ID
+
+        # Card ID below name (kept separate as requested)
         id_label = QLabel(f"ID: {self.card['id']}")
         id_label.setStyleSheet("color: gray;")
         overview_layout.addWidget(id_label)
 
-        # Card type
-        type_label = QLabel(f"Type: {self.card['type'].replace('_', ' ').title()}")
-        overview_layout.addWidget(type_label)
-        
-        # Card details based on type - using display names
-        if self.card["type"] == "major_arcana":
-            details_label = QLabel(f"Number: {self.card['number']}")
-            overview_layout.addWidget(details_label)
-        else:
-            # Use display_suit and display_rank if available
+        # Create a grid for structured information
+        info_grid = QGridLayout()
+        info_grid.setVerticalSpacing(8)
+        info_grid.setHorizontalSpacing(12)
+        info_grid.setColumnStretch(1, 1)  # Make value column expandable
+
+        # Add a frame around the structured info
+        info_frame = QFrame()
+        info_frame.setFrameShape(QFrame.Shape.StyledPanel)
+        info_frame.setFrameShadow(QFrame.Shadow.Sunken)
+        info_frame.setStyleSheet("background-color: rgba(0, 0, 0, 0.03);")
+        info_frame.setLayout(info_grid)
+
+        # Add card type (always present)
+        type_label = QLabel("Type:")
+        type_label.setStyleSheet("font-weight: bold;")
+        type_value = QLabel(self.card['type'].replace('_', ' ').title())
+        info_grid.addWidget(type_label, 0, 0, Qt.AlignmentFlag.AlignTop)
+        info_grid.addWidget(type_value, 0, 1, Qt.AlignmentFlag.AlignTop)
+
+        # Row counter for dynamic fields
+        row = 1
+
+        # Add suit and rank for minor arcana
+        if self.card["type"] == "minor_arcana":
+            # Suit
+            suit_label = QLabel("Suit:")
+            suit_label.setStyleSheet("font-weight: bold;")
             suit_name = self.card.get("display_suit", self.card['suit'].capitalize())
-            rank_name = self.card.get("display_rank", self.card['rank'].capitalize())
-            details_label = QLabel(f"Suit: {suit_name}\nRank: {rank_name}")
-            overview_layout.addWidget(details_label)
+            suit_value = QLabel(suit_name)
+            info_grid.addWidget(suit_label, row, 0, Qt.AlignmentFlag.AlignTop)
+            info_grid.addWidget(suit_value, row, 1, Qt.AlignmentFlag.AlignTop)
+            row += 1
             
-        # Add deck information
-        deck_label = QLabel(f"Deck: {self.deck.get_name()}")
-        overview_layout.addWidget(deck_label)
-        
+            # Rank
+            rank_label = QLabel("Rank:")
+            rank_label.setStyleSheet("font-weight: bold;")
+            rank_name = self.card.get("display_rank", self.card['rank'].capitalize())
+            rank_value = QLabel(rank_name)
+            info_grid.addWidget(rank_label, row, 0, Qt.AlignmentFlag.AlignTop)
+            info_grid.addWidget(rank_value, row, 1, Qt.AlignmentFlag.AlignTop)
+            row += 1
+
+        # Add number for major arcana
+        elif self.card["type"] == "major_arcana":
+            number_label = QLabel("Number:")
+            number_label.setStyleSheet("font-weight: bold;")
+            number_value = QLabel(str(self.card['number']))
+            info_grid.addWidget(number_label, row, 0, Qt.AlignmentFlag.AlignTop)
+            info_grid.addWidget(number_value, row, 1, Qt.AlignmentFlag.AlignTop)
+            row += 1
+
+        # Add deck (always present)
+        deck_label = QLabel("Deck:")
+        deck_label.setStyleSheet("font-weight: bold;")
+        deck_value = QLabel(f"<a href='deck:{self.deck.deck_path}'>{self.deck.get_name()}</a>")
+        deck_value.setTextFormat(Qt.TextFormat.RichText)
+        deck_value.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+        deck_value.setOpenExternalLinks(False)
+        deck_value.linkActivated.connect(self.on_deck_link_clicked)
+        info_grid.addWidget(deck_label, row, 0, Qt.AlignmentFlag.AlignTop)
+        info_grid.addWidget(deck_value, row, 1, Qt.AlignmentFlag.AlignTop)
+
+        # Add the frame to the layout with some spacing
+        overview_layout.addSpacing(10)
+        overview_layout.addWidget(info_frame)
+        overview_layout.addSpacing(10)
+
         # Add description text to the overview tab
         if "alt_text" in self.card and self.card["alt_text"]:
-            overview_layout.addSpacing(15)
             description_header = QLabel("Description:")
             description_header.setStyleSheet("font-weight: bold;")
             overview_layout.addWidget(description_header)
@@ -142,10 +190,10 @@ class CardViewTab(BaseTab):
             description_label.setWordWrap(True)
             description_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
             overview_layout.addWidget(description_label)
-        
+
         # Add stretch to push everything to the top
         overview_layout.addStretch()
-        
+
         # Add overview tab
         self.info_tabs.addTab(overview_tab, "Overview")
         
@@ -331,3 +379,13 @@ class CardViewTab(BaseTab):
         """Navigate back to the source tab"""
         if self.source_tab_id:
             self.navigation_requested.emit("navigate", self.source_tab_id)
+    
+    def on_deck_link_clicked(self, link):
+        """Handle clicks on the deck link"""
+        if link.startswith('deck:'):
+            deck_path = link[5:]  # Remove 'deck:' prefix
+            # Emit signal to open the deck view
+            self.navigation_requested.emit("open_deck_view", {
+                "deck_path": deck_path,
+                "source_tab_id": self.id
+            })

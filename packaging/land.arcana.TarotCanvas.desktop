@@ -2,7 +2,7 @@
 Type=Application
 Name=Tarot Canvas
 Comment=View, manage and explore tarot decks
-Exec=tarot-canvas %u
+Exec=env RESOURCE_NAME=tarot-canvas tarot-canvas %u
 Icon=land.arcana.TarotCanvas
 Categories=Graphics;Spirituality;
 Keywords=tarot;cards;deck;
@@ -10,4 +10,5 @@ StartupNotify=true
 Terminal=false
 MimeType=x-scheme-handler/tarot;
 X-Flatpak-RenamedFrom=tarot-canvas.desktop;
+StartupWMClass=tarot-canvas
 
