@@ -1,5 +1,5 @@
-from PyQt6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGraphicsRectItem, QToolBar, QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QFrame, QSizePolicy, QApplication
-from PyQt6.QtCore import Qt, QRectF, pyqtSignal, QPointF, QTimer, QPropertyAnimation, QEasingCurve, QPointF, QSequentialAnimationGroup, QParallelAnimationGroup, pyqtProperty, QObject
+from PyQt6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGraphicsRectItem, QToolBar, QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QFrame, QSizePolicy, QApplication, QLabel
+from PyQt6.QtCore import Qt, QRectF, pyqtSignal, QPointF, QTimer, QPropertyAnimation, QEasingCurve, QPointF, QSequentialAnimationGroup, QParallelAnimationGroup, pyqtProperty, QObject, QSize
 from PyQt6.QtGui import QIcon, QAction, QPixmap, QBrush, QPen, QColor, QPainter, QTransform, QUndoStack, QUndoCommand, QRadialGradient, QKeySequence, QLinearGradient
 
 from tarot_canvas.models.deck import TarotDeck
@@ -10,21 +10,15 @@ import types
 import os
 import random
 import math
+from pathlib import Path
 
 class CanvasIcon(QIcon):
-    """Creates a square icon for canvas tab decoration"""
-    def __init__(self, color="#9e9e9e"):  # Light grey default
-        pixmap = QPixmap(16, 16)
-        pixmap.fill(Qt.GlobalColor.transparent)
-        
-        painter = QPainter(pixmap)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setBrush(QColor(color))
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawRect(4, 4, 8, 8)
-        painter.end()
-        
-        super().__init__(pixmap)
+    """Creates an icon for canvas tab decoration using a Breeze icon"""
+    def __init__(self):
+        # Use the draw-rectangle icon from Breeze theme (or fallback to local path)
+        icon = QIcon.fromTheme("draw-rectangle", 
+                  QIcon(str(Path(__file__).parent.parent.parent / "resources" / "icons" / "draw-rectangle.png")))
+        super().__init__(icon)
 
 class CardAnimationController(QObject):
     """Controller for card animations."""
@@ -76,28 +70,32 @@ class DraggableCardItem(QGraphicsPixmapItem):
         # Set up wobble animation
         self.setup_wobble_animation()
         
-    def setup_wobble_animation(self):
+    def setup_wobble_animation(self, base_rotation=0):
         """Set up wobble animation with slight rotation changes."""
+        # Stop any existing animation
+        if hasattr(self, 'rotation_anim') and self.rotation_anim:
+            self.rotation_anim.stop()
+        
         # Create a sequential animation group for rotation
         self.rotation_anim = QSequentialAnimationGroup()
 
-        # Create subtle rotation animations
+        # Create subtle rotation animations around the base rotation
         rot1 = QPropertyAnimation(self.anim_controller, b"rotation")
         rot1.setDuration(4000 + random.randint(-500, 500))  # Randomize duration slightly
-        rot1.setStartValue(0)
-        rot1.setEndValue(0.8)  # Small rotation angle
+        rot1.setStartValue(base_rotation)
+        rot1.setEndValue(base_rotation + 0.8)  # Small rotation angle
         rot1.setEasingCurve(QEasingCurve.Type.InOutSine)
         
         rot2 = QPropertyAnimation(self.anim_controller, b"rotation")
         rot2.setDuration(2000 + random.randint(-500, 500))
-        rot2.setStartValue(0.8)
-        rot2.setEndValue(-0.8)  # Small negative rotation
+        rot2.setStartValue(base_rotation + 0.8)
+        rot2.setEndValue(base_rotation - 0.8)  # Small negative rotation
         rot2.setEasingCurve(QEasingCurve.Type.InOutSine)
         
         rot3 = QPropertyAnimation(self.anim_controller, b"rotation")
         rot3.setDuration(2000 + random.randint(-500, 500))
-        rot3.setStartValue(-0.8)
-        rot3.setEndValue(0)  # Back to neutral
+        rot3.setStartValue(base_rotation - 0.8)
+        rot3.setEndValue(base_rotation)  # Back to neutral
         rot3.setEasingCurve(QEasingCurve.Type.InOutSine)
         
         # Add the animations to the sequence
@@ -105,8 +103,7 @@ class DraggableCardItem(QGraphicsPixmapItem):
         self.rotation_anim.addAnimation(rot2)
         self.rotation_anim.addAnimation(rot3)
         
-        # Create a very subtle scale animation
-        
+        # Create a very subtle scale animation (keep this part the same)
         self.scale_anim = QPropertyAnimation(self.anim_controller, b"scale")
         self.scale_anim.setDuration(1500 + random.randint(-300, 300))
         self.scale_anim.setStartValue(1.0)
@@ -257,7 +254,9 @@ class CanvasTab(BaseTab):
         
         # Use our custom view with shift+drag panning
         self.view = PannableGraphicsView(self.scene)
-        self.view.setBackgroundBrush(QBrush(QColor(120, 120, 120)))
+        
+        # Create and set the purple checkerboard background
+        self.create_purple_checkerboard_background()
         
         # Adjust height constraints to be less restrictive
         # Remove the maximum height constraint that may be causing the padding
@@ -302,6 +301,38 @@ class CanvasTab(BaseTab):
         # Set up keyboard shortcuts
         self.setup_shortcuts()
     
+    def create_purple_checkerboard_background(self):
+        """Create a purple checkerboard pattern background for the canvas"""
+        # Define two purple colors for the checkerboard
+        light_purple = QColor(220, 210, 240)  # Light lavender
+        dark_purple = QColor(180, 160, 220)   # Darker lavender
+        
+        # Create a pixmap for the pattern
+        size = 40  # Size of each square
+        pixmap = QPixmap(size * 2, size * 2)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        
+        # Create a painter to draw the pattern
+        painter = QPainter(pixmap)
+        painter.setPen(Qt.PenStyle.NoPen)
+        
+        # Draw the checkerboard pattern
+        painter.setBrush(QBrush(light_purple))
+        painter.drawRect(0, 0, size, size)
+        painter.drawRect(size, size, size, size)
+        
+        painter.setBrush(QBrush(dark_purple))
+        painter.drawRect(0, size, size, size)
+        painter.drawRect(size, 0, size, size)
+        
+        painter.end()
+        
+        # Create a brush with this pattern
+        pattern_brush = QBrush(pixmap)
+        
+        # Set the background brush of the view
+        self.view.setBackgroundBrush(pattern_brush)
+    
     def ensure_window_bounds(self):
         """Ensure the window stays within screen boundaries"""
         window = self.window()
@@ -344,204 +375,145 @@ class CanvasTab(BaseTab):
                 window.setMaximumHeight(screen.height() - 100)
     
     def setup_shortcuts(self):
-        """Set up keyboard shortcuts for common actions"""
-        # Create shortcut for Draw Card (d key)
-        draw_shortcut = QKeySequence("d")
-        draw_action = QAction("Draw Card", self)
-        draw_action.setShortcut(draw_shortcut)
-        draw_action.triggered.connect(self.on_draw_card)
-        self.addAction(draw_action)
+        """Set up keyboard shortcuts for all toolbar actions"""
+        # Card Actions
+        self.create_shortcut("D", self.on_draw_card, "Summon Card")
+        self.create_shortcut("R", self.on_flip_card, "Flip Card (Reversed)")
+        self.create_shortcut("Ctrl+D", self.on_duplicate_card, "Duplicate Card")
+        self.create_shortcut(Qt.Key.Key_Delete, self.on_delete_card, "Delete Card")
+        self.create_shortcut(Qt.Key.Key_Backspace, self.on_delete_card, "Delete Card (Alt)")
         
-        # Create shortcut for Delete (Delete/Backspace keys)
-        delete_shortcut = QKeySequence(Qt.Key.Key_Delete)
-        delete_action = QAction("Delete Card", self)
-        delete_action.setShortcut(delete_shortcut)
-        delete_action.triggered.connect(self.on_delete_card)
-        self.addAction(delete_action)
+        # Arrangement Actions
+        self.create_shortcut("Ctrl+]", self.on_bring_to_front, "Bring to Front")
+        self.create_shortcut("Ctrl+[", self.on_send_to_back, "Send to Back")
+        self.create_shortcut("Ctrl+A", self.on_align_cards, "Align Cards")
         
-        # Add backspace as an alternative delete key
-        backspace_shortcut = QKeySequence(Qt.Key.Key_Backspace)
-        backspace_action = QAction("Delete Card (Backspace)", self)
-        backspace_action.setShortcut(backspace_shortcut)
-        backspace_action.triggered.connect(self.on_delete_card)
-        self.addAction(backspace_action)
+        # View Actions
+        self.create_shortcut("Ctrl++", self.on_zoom_in, "Zoom In")
+        self.create_shortcut("Ctrl+=", self.on_zoom_in, "Zoom In (Alt)")
+        self.create_shortcut("Ctrl+-", self.on_zoom_out, "Zoom Out")
+        self.create_shortcut("Ctrl+0", self.on_reset_view, "Reset View")
+        self.create_shortcut("Ctrl+F", self.on_fit_view, "Fit All in View")
+        
+        # Navigation
+        self.create_shortcut("Escape", self.on_escape_pressed, "Cancel Selection")
+
+    def create_shortcut(self, key_sequence, slot, description=""):
+        """Create and register a keyboard shortcut"""
+        # Convert string to QKeySequence if needed
+        if isinstance(key_sequence, str):
+            shortcut = QKeySequence(key_sequence)
+        else:
+            shortcut = QKeySequence(key_sequence)
+        
+        # Create the action
+        action = QAction(description, self)
+        action.setShortcut(shortcut)
+        action.triggered.connect(slot)
+        self.addAction(action)
+        
+        # Update tooltip for corresponding toolbar button if it exists
+        for toolbar_action in self.toolbar.actions():
+            if toolbar_action.text() or toolbar_action.toolTip():
+                # Check if this action is connected to the same slot
+                # This is a bit of a hack but should work for simple cases
+                connections = toolbar_action.receivers(toolbar_action.triggered)
+                if connections > 0 and slot.__name__ in toolbar_action.toolTip():
+                    # Update tooltip to include shortcut
+                    current_tooltip = toolbar_action.toolTip().split(" (")[0]  # Remove any existing shortcut info
+                    toolbar_action.setToolTip(f"{current_tooltip} ({shortcut.toString()})")
+        
+        return action
+
+    def on_escape_pressed(self):
+        """Handle Escape key - cancel selection"""
+        # Clear any selection
+        for item in self.scene.selectedItems():
+            item.setSelected(False)
     
     def create_toolbar(self, parent_layout):
-        # Create a vertical layout for the toolbar
-        toolbar_layout = QVBoxLayout()
-        toolbar_layout.setSpacing(10)
-        toolbar_layout.setContentsMargins(5, 10, 5, 10)
+        """Create a vertical toolbar using QToolBar"""
+        # Create a QToolBar configured for vertical layout
+        self.toolbar = QToolBar()
+        self.toolbar.setOrientation(Qt.Orientation.Vertical)
+        self.toolbar.setIconSize(QSize(24, 24))
+        self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        self.toolbar.setMovable(False)
+        self.toolbar.setFloatable(False)
         
-        # Create a widget to hold the toolbar
-        toolbar_widget = QWidget()
-        toolbar_widget.setLayout(toolbar_layout)
-        toolbar_widget.setFixedWidth(80)  # Fixed width for the toolbar
+        # Primary actions group
+        self.toolbar.addWidget(self.create_section_label("Cards"))
         
-        # Primary actions for the first section of toolbar
+        # Primary actions with Breeze icons
         primary_actions = [
-            ("Draw Card", "draw_card", "Draw a random card"),
-            ("Rotate", "rotate_card", "Rotate selected card"),
-            ("Flip", "flip_card", "Flip selected card"),
-            ("Duplicate", "duplicate_card", "Clone selected card"),
-            ("Delete", "delete_card", "Remove selected card"),
+            ("format-add-node", self.on_draw_card, "Summon a random card (D)"),
+            ("object-flip-vertical", self.on_flip_card, "Flip card upside down (reversed position)"),
+            ("edit-copy", self.on_duplicate_card, "Clone selected card"),
+            ("edit-delete", self.on_delete_card, "Remove selected card (Delete)"),
         ]
         
         # Add primary actions to toolbar
-        for name, icon_name, tooltip in primary_actions:
-            action = QAction(name, self)
-            # TODO: add icons with: action.setIcon(QIcon("path/to/icons/{icon_name}.png"))
+        for icon_name, slot, tooltip in primary_actions:
+            action = QAction(QIcon.fromTheme(icon_name, 
+                            QIcon(str(Path(__file__).parent.parent.parent / "resources" / "icons" / f"{icon_name}.png"))),
+                            "", self)
             action.setToolTip(tooltip)
-            
-            # Create button for the action
-            button = QPushButton(name)
-            button.setToolTip(tooltip)
-            button.setMinimumHeight(40)
-            
-            # Connect the primary action buttons
-            if icon_name == "draw_card":
-                button.clicked.connect(self.on_draw_card)
-            elif icon_name == "rotate_card":
-                button.clicked.connect(self.on_rotate_card)
-            elif icon_name == "flip_card":
-                button.clicked.connect(self.on_flip_card)
-            elif icon_name == "duplicate_card":
-                button.clicked.connect(self.on_duplicate_card)
-            elif icon_name == "delete_card":
-                button.clicked.connect(self.on_delete_card)
-                
-            toolbar_layout.addWidget(button)
+            action.triggered.connect(slot)
+            self.toolbar.addAction(action)
         
-        # Add a section divider
-        divider = QFrame()
-        divider.setFrameShape(QFrame.Shape.HLine)
-        divider.setFrameShadow(QFrame.Shadow.Sunken)
-        toolbar_layout.addWidget(divider)
+        # Arrangement actions group
+        self.toolbar.addSeparator()
+        self.toolbar.addWidget(self.create_section_label("Arrange"))
         
-        # Arrangement actions
+        # Arrangement actions with Breeze icons
         arrangement_actions = [
-            ("To Front", "bring_to_front", "Bring card to front"),
-            ("To Back", "send_to_back", "Send card to back"),
-            ("Lock", "toggle_lock", "Lock/unlock selected card"),
-            ("Group", "toggle_group", "Group/ungroup selected cards"),
-            ("Align", "align_cards", "Align selected cards"),
+            ("go-top", self.on_bring_to_front, "Bring card to front"),
+            ("go-bottom", self.on_send_to_back, "Send card to back"),
+            ("align-horizontal-center", self.on_align_cards, "Align selected cards"),
         ]
         
         # Add arrangement actions to toolbar
-        for name, icon_name, tooltip in arrangement_actions:
-            action = QAction(name, self)
-            # TODO: add icons with: action.setIcon(QIcon("path/to/icons/{icon_name}.png"))
+        for icon_name, slot, tooltip in arrangement_actions:
+            action = QAction(QIcon.fromTheme(icon_name, 
+                            QIcon(str(Path(__file__).parent.parent.parent / "resources" / "icons" / f"{icon_name}.png"))),
+                            "", self)
             action.setToolTip(tooltip)
-            
-            # Create button for the action
-            button = QPushButton(name)
-            button.setToolTip(tooltip)
-            button.setMinimumHeight(40)
-            
-            # Connect the arrangement action buttons
-            if icon_name == "bring_to_front":
-                button.clicked.connect(self.on_bring_to_front)
-            elif icon_name == "send_to_back":
-                button.clicked.connect(self.on_send_to_back)
-            elif icon_name == "toggle_lock":
-                button.clicked.connect(self.on_toggle_lock)
-            elif icon_name == "toggle_group":
-                button.clicked.connect(self.on_toggle_group)
-            elif icon_name == "align_cards":
-                button.clicked.connect(self.on_align_cards)
-                
-            toolbar_layout.addWidget(button)
+            action.triggered.connect(slot)
+            self.toolbar.addAction(action)
         
-        # Add another section divider
-        divider = QFrame()
-        divider.setFrameShape(QFrame.Shape.HLine)
-        divider.setFrameShadow(QFrame.Shadow.Sunken)
-        toolbar_layout.addWidget(divider)
+        # View control actions group
+        self.toolbar.addSeparator()
+        self.toolbar.addWidget(self.create_section_label("View"))
         
-        # Tarot-specific actions
-        tarot_actions = [
-            ("Spreads", "choose_spread", "Select a tarot spread template"),
-            ("Highlight", "highlight_card", "Highlight/emphasize card"),
-            ("Connect", "connect_cards", "Draw connections between cards"),
-            ("Add Item", "add_object", "Add gem, stone or other object"),
-        ]
-        
-        # Add tarot-specific actions to toolbar
-        for name, icon_name, tooltip in tarot_actions:
-            action = QAction(name, self)
-            # TODO: add icons with: action.setIcon(QIcon("path/to/icons/{icon_name}.png"))
-            action.setToolTip(tooltip)
-            
-            # Create button for the action
-            button = QPushButton(name)
-            button.setToolTip(tooltip)
-            button.setMinimumHeight(40)
-            
-            # Connect the tarot action buttons
-            if icon_name == "choose_spread":
-                button.clicked.connect(self.on_choose_spread)
-            elif icon_name == "highlight_card":
-                button.clicked.connect(self.on_highlight_card)
-            elif icon_name == "connect_cards":
-                button.clicked.connect(self.on_connect_cards)
-            elif icon_name == "add_object":
-                button.clicked.connect(self.on_add_object)
-                
-            toolbar_layout.addWidget(button)
-        
-        # Add another section divider
-        divider = QFrame()
-        divider.setFrameShape(QFrame.Shape.HLine)
-        divider.setFrameShadow(QFrame.Shadow.Sunken)
-        toolbar_layout.addWidget(divider)
-        
-        # View control actions
+        # View control actions with Breeze icons
         view_actions = [
-            ("Zoom In", "zoom_in", "Zoom in"),
-            ("Zoom Out", "zoom_out", "Zoom out"),
-            ("Fit View", "fit_view", "Fit all cards in view"),
-            ("Reset View", "reset_view", "Reset to default view"),
-            ("Grid", "toggle_grid", "Show/hide grid"),
+            ("zoom-in", self.on_zoom_in, "Zoom in"),
+            ("zoom-out", self.on_zoom_out, "Zoom out"),
+            ("zoom-fit-best", self.on_fit_view, "Fit all cards in view"),
+            ("zoom-original", self.on_reset_view, "Reset to default view"),
         ]
         
         # Add view control actions to toolbar
-        for name, icon_name, tooltip in view_actions:
-            action = QAction(name, self)
-            # TODO: add icons with: action.setIcon(QIcon("path/to/icons/{icon_name}.png"))
+        for icon_name, slot, tooltip in view_actions:
+            action = QAction(QIcon.fromTheme(icon_name, 
+                            QIcon(str(Path(__file__).parent.parent.parent / "resources" / "icons" / f"{icon_name}.png"))),
+                            "", self)
             action.setToolTip(tooltip)
-            
-            # Create button for the action
-            button = QPushButton(name)
-            button.setToolTip(tooltip)
-            button.setMinimumHeight(40)
-            
-            # Connect the view action buttons
-            if icon_name == "zoom_in":
-                button.clicked.connect(self.on_zoom_in)
-            elif icon_name == "zoom_out":
-                button.clicked.connect(self.on_zoom_out)
-            elif icon_name == "fit_view":
-                button.clicked.connect(self.on_fit_view)
-            elif icon_name == "reset_view":
-                button.clicked.connect(self.on_reset_view)
-            elif icon_name == "toggle_grid":
-                button.clicked.connect(self.on_toggle_grid)
-                
-            toolbar_layout.addWidget(button)
-        
-        # Add another section divider
-        divider = QFrame()
-        divider.setFrameShape(QFrame.Shape.HLine)
-        divider.setFrameShadow(QFrame.Shadow.Sunken)
-        toolbar_layout.addWidget(divider)
-        
-        # Add spacer to push buttons to the top
-        toolbar_layout.addStretch()
+            action.triggered.connect(slot)
+            self.toolbar.addAction(action)
         
         # Add the toolbar to the main layout
-        parent_layout.addWidget(toolbar_widget, 0)  # The 0 means no stretch
+        parent_layout.addWidget(self.toolbar, 0)  # 0 means no stretch
 
+    def create_section_label(self, text):
+        """Create a section label for the toolbar"""
+        label = QLabel(text)
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        label.setStyleSheet("color: #888; font-size: 11px; margin-top: 5px; margin-bottom: 2px;")
+        return label
+    
     def on_draw_card(self):
-        """Draw a random card and add it to the canvas"""
+        """Draw a random card and add it to the canvas with 50% chance to be reversed"""
         if not self.deck:
             print("No deck loaded!")
             return
@@ -552,10 +524,14 @@ class CanvasTab(BaseTab):
             print("Could not draw a card!")
             return
             
-        self.add_specific_card(card)
+        # Add a 50% chance for the card to be reversed
+        is_reversed = random.choice([True, False])
+        
+        # Add the card, possibly reversed
+        self.add_specific_card(card, is_reversed=is_reversed)
             
-    def add_specific_card(self, card, card_deck=None):
-        """Add a specific card to the canvas"""
+    def add_specific_card(self, card, card_deck=None, is_reversed=False):
+        """Add a specific card to the canvas, optionally reversed"""
         # Use provided deck or fall back to tab's deck
         deck_to_use = card_deck or self.deck
         
@@ -580,6 +556,21 @@ class CanvasTab(BaseTab):
             # Create a draggable card item
             card_item = DraggableCardItem(pixmap, card, self)
             
+            # Set initial rotation based on reversed status
+            initial_rotation = 180 if is_reversed else 0
+            card_item.setRotation(initial_rotation)
+            
+            # Update the animation controller's base rotation
+            if hasattr(card_item, 'anim_controller'):
+                card_item.anim_controller._rotation = initial_rotation
+                
+            # Update the card's data to reflect its reversed status
+            if card_item.card_data:
+                card_item.card_data['reversed'] = is_reversed
+                
+            # Setup wobble animation with the correct base rotation
+            card_item.setup_wobble_animation(base_rotation=initial_rotation)
+            
             # Deselect any currently selected cards
             for selected_item in self.scene.selectedItems():
                 selected_item.setSelected(False)
@@ -600,10 +591,14 @@ class CanvasTab(BaseTab):
             # Select the newly added card
             card_item.setSelected(True)
             
-            print(f"Added specific card to canvas: {card['name']}")
+            reversed_status = "reversed" if is_reversed else "upright"
+            print(f"Added card to canvas: {card['name']} ({reversed_status})")
+            
+            return card_item
             
         except Exception as e:
             print(f"Error adding card to canvas: {e}")
+            return None
             
     def open_card_view(self, card_data):
         """Open a card view tab for the given card"""
@@ -675,12 +670,38 @@ class CanvasTab(BaseTab):
                 item.setRotation((item.rotation() + 90) % 360)
             
     def on_flip_card(self):
-        """Flip the selected card horizontally (to indicate reversed)"""
+        """Flip the selected card upside down (to indicate reversed position in Tarot)"""
         items = self.scene.selectedItems()
         for item in items:
             if isinstance(item, DraggableCardItem):
-                # Apply a scale transform to flip
-                item.setTransform(QTransform().scale(-1, 1), True)
+                # First, stop all animations that might override our rotation
+                if hasattr(item, 'rotation_anim'):
+                    item.rotation_anim.stop()
+                
+                # Toggle between normal and reversed position (180° rotation)
+                current_rotation = item.rotation()
+                
+                # If close to upright (0°), flip to reversed (180°)
+                # If close to reversed (180°), flip to upright (0°)
+                new_rotation = 0
+                if abs(current_rotation % 360) < 90 or abs(current_rotation % 360) > 270:
+                    new_rotation = 180
+                
+                # Set the new rotation directly
+                item.setRotation(new_rotation)
+                
+                # Update the base rotation in the animation controller
+                if hasattr(item, 'anim_controller'):
+                    item.anim_controller._rotation = new_rotation
+                
+                # Update the card's internal state to reflect reversed status
+                if hasattr(item, 'card_data') and item.card_data:
+                    # Toggle the reversed flag (create if it doesn't exist)
+                    item.card_data['reversed'] = new_rotation == 180
+                
+                # Now restart the animation with the new base rotation
+                if hasattr(item, 'setup_wobble_animation'):
+                    item.setup_wobble_animation(base_rotation=new_rotation)
             
     def on_duplicate_card(self):
         """Duplicate the selected card"""
@@ -700,18 +721,7 @@ class CanvasTab(BaseTab):
         items = self.scene.selectedItems()
         for item in items:
             self.scene.removeItem(item)
-        
-    def on_toggle_lock(self):
-        """Lock or unlock the selected card"""
-        items = self.scene.selectedItems()
-        for item in items:
-            if isinstance(item, DraggableCardItem):
-                # Toggle movable flag
-                is_movable = item.flags() & QGraphicsPixmapItem.GraphicsItemFlag.ItemIsMovable
-                if is_movable:
-                    item.setFlag(QGraphicsPixmapItem.GraphicsItemFlag.ItemIsMovable, False)
-                else:
-                    item.setFlag(QGraphicsPixmapItem.GraphicsItemFlag.ItemIsMovable, True)
+
 
     # Arrangement Control Methods
     def on_bring_to_front(self):
@@ -726,15 +736,6 @@ class CanvasTab(BaseTab):
         for item in items:
             item.setZValue(-100)  # Low z-value
         
-    def on_toggle_group(self):
-        """Group or ungroup selected cards"""
-        items = self.scene.selectedItems()
-        if not items or len(items) < 2:
-            return
-        
-        # Here we would implement grouping logic
-        # Could create a QGraphicsItemGroup or custom implementation
-        pass
     
     def on_align_cards(self):
         """Show alignment options for selected cards"""
@@ -744,72 +745,6 @@ class CanvasTab(BaseTab):
         # - Distribute horizontally/vertically
         pass
 
-    # Grid and Guidelines
-    def on_toggle_grid(self):
-        """Toggle grid visibility"""
-        # Implement grid drawing logic
-        # Could be stored as a scene background or drawn on paintEvent
-        self.show_grid = not getattr(self, 'show_grid', False)
-        self.view.viewport().update()
-    
-    def setup_grid_drawing(self):
-        """Set up grid drawing for the view"""
-        # Override the view's drawBackground method
-        old_draw_background = self.view.drawBackground
-        
-        def new_draw_background(painter, rect):
-            # Call original method
-            old_draw_background(painter, rect)
-            
-            # Draw grid if enabled
-            if getattr(self, 'show_grid', False):
-                # Draw grid lines
-                painter.setPen(QPen(QColor(80, 80, 80, 100), 1))
-                grid_size = 50
-                
-                # Calculate visible area
-                left = int(rect.left()) - (int(rect.left()) % grid_size)
-                top = int(rect.top()) - (int(rect.top()) % grid_size)
-                
-                # Draw vertical lines
-                x = left
-                while x < rect.right():
-                    painter.drawLine(x, rect.top(), x, rect.bottom())
-                    x += grid_size
-                    
-                # Draw horizontal lines
-                y = top
-                while y < rect.bottom():
-                    painter.drawLine(rect.left(), y, rect.right(), y)
-                    y += grid_size
-        
-        # Replace the drawBackground method
-        self.view.drawBackground = types.MethodType(new_draw_background, self.view)
-
-    # Tarot-Specific Features
-    def on_choose_spread(self):
-        """Show spread template options"""
-        # This could open a dialog with spread options:
-        # - Three-card spread
-        # - Celtic Cross
-        # - etc.
-        pass
-    
-    def apply_spread_template(self, spread_name):
-        """Apply a specific spread template"""
-        if spread_name == "three_card":
-            # Set up positions for a three-card spread
-            positions = [
-                QPointF(400, 500),  # Past
-                QPointF(650, 500),  # Present
-                QPointF(900, 500),  # Future
-            ]
-            # Draw cards for each position
-            for pos in positions:
-                self.draw_card_at_position(pos)
-        elif spread_name == "celtic_cross":
-            # Define positions for Celtic Cross
-            pass
         
     def draw_card_at_position(self, position):
         """Draw a card and place it at a specific position"""
@@ -830,34 +765,6 @@ class CanvasTab(BaseTab):
         self.scene.addItem(card_item)
         return card_item
     
-    def on_highlight_card(self):
-        """Highlight or emphasize the selected card"""
-        items = self.scene.selectedItems()
-        for item in items:
-            if isinstance(item, DraggableCardItem):
-                # Toggle highlight state
-                item.highlighted = not getattr(item, 'highlighted', False)
-                # Update appearance
-                item.update()
-            
-    def on_connect_cards(self):
-        """Enable connection drawing mode between cards"""
-        # Store state
-        self.drawing_connection = not getattr(self, 'drawing_connection', False)
-        self.connection_start_item = None
-        
-        # Update cursor
-        if self.drawing_connection:
-            self.view.setCursor(Qt.CursorShape.CrossCursor)
-        else:
-            self.view.setCursor(Qt.CursorShape.ArrowCursor)
-    
-    def on_add_object(self):
-        """Add a gem, stone, seal or other object to the canvas"""
-        # This could show a palette of available objects
-        # Then the selected object is added to the canvas
-        pass
-
     # Advanced Features
     def setup_undo_framework(self):
         """Set up undo/redo framework"""

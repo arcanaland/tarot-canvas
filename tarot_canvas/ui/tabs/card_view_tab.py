@@ -29,7 +29,7 @@ class CardViewTab(BaseTab):
     
     # Define color mapping for card types and suits
     COLOR_MAP = {
-        "major_arcana": "#9c27b0",  # Purple for Major Arcana
+        "major_arcana": "#916de4",  # Purple for Major Arcana
         "wands": "#ff9800",         # Orange for Wands
         "cups": "#2196f3",          # Blue for Cups
         "swords": "#ffeb3b",        # Yellow for Swords
