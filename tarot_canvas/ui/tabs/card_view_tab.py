@@ -384,6 +384,19 @@ class CardViewTab(BaseTab):
         """Handle clicks on the deck link"""
         if link.startswith('deck:'):
             deck_path = link[5:]  # Remove 'deck:' prefix
+            print(f"DEBUG: Extracted deck path: {deck_path}")
+            
+            # Check if deck path is valid
+            if not deck_path or deck_path == "None" or not os.path.exists(deck_path):
+                # If it's the reference deck but has invalid path, use a different method
+                if self.deck == deck_manager.get_reference_deck():
+                    reference_deck = deck_manager.get_reference_deck()
+                    self.navigation_requested.emit("open_deck_view", {
+                        "deck_path": reference_deck.deck_path,
+                        "source_tab_id": self.id
+                    })
+                    return
+            
             # Emit signal to open the deck view
             self.navigation_requested.emit("open_deck_view", {
                 "deck_path": deck_path,

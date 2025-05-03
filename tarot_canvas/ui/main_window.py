@@ -392,7 +392,6 @@ class MainWindow(QMainWindow):
                     return
             
             # Create a new card view tab
-            from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
             card_tab = CardViewTab(card=card, deck=deck, source_tab_id=source_tab_id)
             card_tab.navigation_requested.connect(self.handle_tab_navigation)
             
@@ -427,34 +426,41 @@ class MainWindow(QMainWindow):
                     break
 
     def new_deck_view_tab(self, deck_path=None):
-        deck_tab = DeckViewTab(deck_path=deck_path)
-        deck_tab.card_action_requested.connect(self.on_card_action_requested)
-        
-        # Close welcome tab if needed
-        self.close_welcome_tab()
-        
-        # Add tab with initial title
-        initial_title = "Deck View"
-        if deck_path:
-            initial_title = os.path.basename(deck_path)
-        
-        tab_index = self.tab_widget.addTab(deck_tab, initial_title)
-        
-        # Set current to this tab
-        self.tab_widget.setCurrentWidget(deck_tab)
-        
-        # Immediately try to update the title if we have a deck loaded
-        if deck_path and hasattr(deck_tab, 'deck') and deck_tab.deck:
-            pretty_name = deck_tab.deck.get_name()
-            self.tab_widget.setTabText(tab_index, pretty_name)
-            print(f"Setting tab title to: {pretty_name}")
-        
-        # Still connect the signal for future updates
-        deck_tab.title_changed.connect(
-            lambda new_title: self.tab_widget.setTabText(self.tab_widget.indexOf(deck_tab), new_title)
-        )
-        
-        return deck_tab
+        # Try to create the deck tab
+        try:
+            deck_tab = DeckViewTab(deck_path=deck_path)
+            deck_tab.card_action_requested.connect(self.on_card_action_requested)
+            
+            # Close welcome tab if needed
+            self.close_welcome_tab()
+            
+            # Add tab with initial title
+            initial_title = "Deck View"
+            if deck_path:
+                initial_title = os.path.basename(deck_path)
+            
+            tab_index = self.tab_widget.addTab(deck_tab, initial_title)
+            
+            # Set current to this tab
+            self.tab_widget.setCurrentWidget(deck_tab)
+            
+            # Immediately try to update the title if we have a deck loaded
+            if deck_path and hasattr(deck_tab, 'deck') and deck_tab.deck:
+                pretty_name = deck_tab.deck.get_name()
+                self.tab_widget.setTabText(tab_index, pretty_name)
+                print(f"Setting tab title to: {pretty_name}")
+            
+            # Still connect the signal for future updates
+            deck_tab.title_changed.connect(
+                lambda new_title: self.tab_widget.setTabText(self.tab_widget.indexOf(deck_tab), new_title)
+            )
+            
+            return deck_tab
+        except Exception as e:
+            print(f"Error creating deck view tab: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
 
     def new_library_tab(self):
         library_tab = LibraryTab()

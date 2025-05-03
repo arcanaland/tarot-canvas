@@ -148,7 +148,7 @@ class DeckViewTab(BaseTab):
         header_layout = QHBoxLayout()
         
         # Section title
-        journey_title = QLabel("Major Arcana - The Fool's Journey")
+        journey_title = QLabel("Major Arcana")
         journey_title.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         
         # Info button
