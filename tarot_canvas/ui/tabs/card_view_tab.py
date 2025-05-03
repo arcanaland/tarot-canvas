@@ -1,4 +1,6 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QSplitter, QScrollArea, QGroupBox, QToolBar, QPushButton, QTabWidget, QHBoxLayout, QTextEdit, QGridLayout, QFrame
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QSplitter, QScrollArea, 
+                           QGroupBox, QToolBar, QPushButton, QTabWidget, QHBoxLayout, 
+                           QTextEdit, QGridLayout, QFrame, QComboBox)
 from PyQt6.QtGui import QPixmap, QIcon, QAction, QColor, QPainter
 from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QSize
 from tarot_canvas.models.deck_manager import deck_manager
@@ -70,14 +72,53 @@ class CardViewTab(BaseTab):
         # Reduce padding from 10px to 5px
         image_layout.setContentsMargins(5, 5, 5, 5)
         
+        # Create an inner container to hold the image and allow vertical centering
+        image_inner_container = QWidget()
+        image_inner_layout = QVBoxLayout(image_inner_container)
+        image_inner_layout.setContentsMargins(0, 0, 0, 0)
+        
         self.image_label = QLabel()
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.image_label.setMinimumWidth(200)
         
-        # We still want vertical centering
-        image_layout.addStretch(1)
-        image_layout.addWidget(self.image_label)
-        image_layout.addStretch(1)
+        # Add image to inner container with stretches for vertical centering
+        image_inner_layout.addStretch(1)
+        image_inner_layout.addWidget(self.image_label)
+        image_inner_layout.addStretch(1)
+        
+        # Add the inner container to the main image layout
+        image_layout.addWidget(image_inner_container)
+        
+        # Add deck switching controls at the bottom of the image container
+        self.deck_controls = QWidget()
+        self.deck_controls.setMaximumHeight(40)  # Limit height for compact display
+        deck_controls_layout = QHBoxLayout(self.deck_controls)
+        deck_controls_layout.setContentsMargins(0, 5, 0, 0)
+        
+        # Previous deck button
+        self.prev_deck_btn = QPushButton()
+        self.prev_deck_btn.setIcon(QIcon.fromTheme("go-previous"))
+        self.prev_deck_btn.setToolTip("Previous Deck")
+        self.prev_deck_btn.clicked.connect(self.switch_to_previous_deck)
+        self.prev_deck_btn.setFixedWidth(30)
+        deck_controls_layout.addWidget(self.prev_deck_btn)
+        
+        # Deck selection combo box
+        self.deck_combo = QComboBox()
+        self.deck_combo.currentIndexChanged.connect(self.on_deck_selected)
+        deck_controls_layout.addWidget(self.deck_combo, 1)  # Give combo box stretch priority
+        
+        # Next deck button
+        self.next_deck_btn = QPushButton()
+        self.next_deck_btn.setIcon(QIcon.fromTheme("go-next"))
+        self.next_deck_btn.setToolTip("Next Deck")
+        self.next_deck_btn.clicked.connect(self.switch_to_next_deck)
+        self.next_deck_btn.setFixedWidth(30)
+        deck_controls_layout.addWidget(self.next_deck_btn)
+        
+        # Add controls to image layout but hide initially (will show if multiple decks available)
+        self.deck_controls.setVisible(False)
+        image_layout.addWidget(self.deck_controls)  # Now anchored at the bottom
         
         # Create scroll area with proper sizing policy
         self.scroll_area = QScrollArea()
@@ -86,6 +127,9 @@ class CardViewTab(BaseTab):
         
         # Load and display the image
         self.load_image()
+        
+        # Find compatible decks and update the deck switching UI
+        self.find_compatible_decks()
         
         splitter.addWidget(self.scroll_area)
         
@@ -402,3 +446,180 @@ class CardViewTab(BaseTab):
                 "deck_path": deck_path,
                 "source_tab_id": self.id
             })
+    
+    def find_compatible_decks(self):
+        """Find all decks that contain this card (by ID) with an image and populate the deck selector"""
+        if not self.card:
+            return
+        
+        card_id = self.card.get("id")
+        if not card_id:
+            return
+        
+        # Get all decks
+        all_decks = deck_manager.get_all_decks()
+        self.compatible_decks = []
+        
+        # Find decks that have this card ID WITH an image
+        for deck in all_decks:
+            card = deck.get_card_by_id(card_id)
+            if card and card.get("image") and os.path.exists(card.get("image", "")):
+                self.compatible_decks.append((deck, card))
+        
+        # Only show controls if we have more than one deck
+        if len(self.compatible_decks) <= 1:
+            self.deck_controls.setVisible(False)
+            return
+        
+        # Populate combobox
+        self.deck_combo.blockSignals(True)
+        self.deck_combo.clear()
+        
+        current_index = 0
+        for i, (deck, _) in enumerate(self.compatible_decks):
+            self.deck_combo.addItem(deck.get_name(), deck.deck_path)
+            if deck.deck_path == self.deck.deck_path:
+                current_index = i
+        
+        self.deck_combo.setCurrentIndex(current_index)
+        self.deck_combo.blockSignals(False)
+        
+        # Show the controls
+        self.deck_controls.setVisible(True)
+
+    def on_deck_selected(self, index):
+        """Handle selection of a different deck from the dropdown"""
+        if index < 0 or index >= len(self.compatible_decks):
+            return
+        
+        # Get the selected deck and card
+        new_deck, new_card = self.compatible_decks[index]
+        
+        # Only proceed if this is actually a different deck
+        if new_deck.deck_path == self.deck.deck_path:
+            return
+        
+        # Hide components during update
+        self.scroll_area.setVisible(False)
+        self.info_tabs.setVisible(False)
+        
+        # Update the current deck and card
+        self.deck = new_deck
+        self.card = new_card
+        
+        # Update the components
+        self.load_image()
+        self.update_deck_info()
+        self.update_tab_name()
+        
+        # Show components again
+        self.scroll_area.setVisible(True)
+        self.info_tabs.setVisible(True)
+
+    def load_and_refresh_image(self):
+        """Clean load and display of the new card image"""
+        # Load the new image
+        self.load_image()
+        
+        # Update the tab name and icon
+        self.update_tab_name()
+        
+        # Force a layout update
+        self.layout.update()
+        self.update()
+
+    def update_deck_info(self):
+        """Update card information in the overview tab without recreating everything"""
+        # Find the overview tab
+        for i in range(self.info_tabs.count()):
+            if self.info_tabs.tabText(i) == "Overview":
+                overview_tab = self.info_tabs.widget(i)
+                break
+        else:
+            return  # Overview tab not found
+        
+        # Find all QLabels in the tab
+        labels = overview_tab.findChildren(QLabel)
+        
+        # Update card name
+        for label in labels:
+            if label.font().bold() and label.font().pointSize() > 12:
+                label.setText(self.card["name"])
+                break
+        
+        # Update alt text/description
+        description_found = False
+        for i, label in enumerate(labels):
+            if label.text() == "Description:" and i+1 < len(labels):
+                # The next label should be the description
+                desc_label = labels[i+1]
+                if "alt_text" in self.card and self.card["alt_text"]:
+                    desc_label.setText(self.card["alt_text"])
+                    desc_label.setVisible(True)
+                    description_found = True
+                else:
+                    desc_label.setVisible(False)
+                break
+        
+        # If we didn't find existing description but have one in the new card, add it
+        if not description_found and "alt_text" in self.card and self.card["alt_text"]:
+            # Find the layout
+            layout = overview_tab.layout()
+            if layout:
+                # Add description header
+                description_header = QLabel("Description:")
+                description_header.setStyleSheet("font-weight: bold;")
+                layout.addWidget(description_header)
+                
+                # Add description text
+                description_label = QLabel(self.card["alt_text"])
+                description_label.setWordWrap(True)
+                description_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+                layout.addWidget(description_label)
+        
+        # Update the deck link in the info grid
+        frames = overview_tab.findChildren(QFrame)
+        for frame in frames:
+            if frame.frameShape() == QFrame.Shape.StyledPanel:
+                # This is likely our info frame
+                grid_layout = frame.layout()
+                if isinstance(grid_layout, QGridLayout):
+                    # Look for the deck label and value
+                    for row in range(grid_layout.rowCount()):
+                        label_item = grid_layout.itemAtPosition(row, 0)
+                        if label_item and label_item.widget() and isinstance(label_item.widget(), QLabel) and label_item.widget().text() == "Deck:":
+                            # Found the deck row, update the value
+                            value_item = grid_layout.itemAtPosition(row, 1)
+                            if value_item and value_item.widget():
+                                deck_value = value_item.widget()
+                                if isinstance(deck_value, QLabel):
+                                    deck_value.setText(f"<a href='deck:{self.deck.deck_path}'>{self.deck.get_name()}</a>")
+                                    deck_value.setTextFormat(Qt.TextFormat.RichText)
+                                    deck_value.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+                                    deck_value.setOpenExternalLinks(False)
+                                    if not deck_value.receivers(deck_value.linkActivated):
+                                        deck_value.linkActivated.connect(self.on_deck_link_clicked)
+                                    break
+
+    def switch_to_previous_deck(self):
+        """Switch to the previous deck in the list"""
+        current_index = self.deck_combo.currentIndex()
+        if current_index > 0:
+            self.deck_combo.setCurrentIndex(current_index - 1)
+
+    def switch_to_next_deck(self):
+        """Switch to the next deck in the list"""
+        current_index = self.deck_combo.currentIndex()
+        if current_index < self.deck_combo.count() - 1:
+            self.deck_combo.setCurrentIndex(current_index + 1)
+
+    def update_overview_tab(self):
+        """Recreate the entire UI with the new deck and card"""
+        # Clear the current layout
+        while self.layout.count():
+            item = self.layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        
+        # Re-create the UI with the current deck and card
+        self.setup_ui()
