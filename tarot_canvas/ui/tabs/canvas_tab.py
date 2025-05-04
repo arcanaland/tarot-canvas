@@ -1,251 +1,26 @@
-from PyQt6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGraphicsRectItem, QToolBar, QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QFrame, QSizePolicy, QApplication, QLabel, QMenu
-from PyQt6.QtCore import Qt, QRectF, pyqtSignal, QPointF, QTimer, QPropertyAnimation, QEasingCurve, QPointF, QSequentialAnimationGroup, QParallelAnimationGroup, pyqtProperty, QObject, QSize, QSettings
-from PyQt6.QtGui import QIcon, QAction, QPixmap, QBrush, QPen, QColor, QPainter, QTransform, QUndoStack, QUndoCommand, QRadialGradient, QKeySequence, QLinearGradient, QCursor
+from PyQt6.QtWidgets import (QGraphicsScene, QGraphicsView, QToolBar, QVBoxLayout, QWidget, 
+                           QPushButton, QHBoxLayout, QFrame, QSizePolicy, 
+                           QApplication, QLabel, QMenu)
+from PyQt6.QtCore import (Qt, QRectF, pyqtSignal, QPointF, QTimer, QSize, 
+                         QSettings)
+from PyQt6.QtGui import (QIcon, QAction, QPixmap, QBrush, QColor, QPainter, 
+                       QUndoStack, QRadialGradient, QKeySequence, QCursor)
 
 from tarot_canvas.models.deck import TarotDeck
 from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 
-import types
+# Import the refactored components
+from tarot_canvas.ui.canvas import (
+    DraggableCardItem, PannableGraphicsView, CanvasIcon,
+    align_items_horizontally, align_items_vertically,
+    distribute_items_horizontally, distribute_items_vertically,
+    arrange_items_in_circle
+)
+
 import os
 import random
-import math
 from pathlib import Path
-
-class CanvasIcon(QIcon):
-    """Creates an icon for canvas tab decoration using a Breeze icon"""
-    def __init__(self):
-        # Use the draw-rectangle icon from Breeze theme (or fallback to local path)
-        icon = QIcon.fromTheme("draw-rectangle", 
-                  QIcon(str(Path(__file__).parent.parent.parent / "resources" / "icons" / "draw-rectangle.png")))
-        super().__init__(icon)
-
-class CardAnimationController(QObject):
-    """Controller for card animations."""
-    
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._rotation = 0.0
-        self._scale = 1.0
-        self.card_item = None
-    
-    def _get_rotation(self):
-        return self._rotation
-        
-    def _set_rotation(self, angle):
-        self._rotation = angle
-        if self.card_item:
-            self.card_item.setRotation(angle)
-        
-    def _get_scale(self):
-        return self._scale
-        
-    def _set_scale(self, scale):
-        self._scale = scale
-        if self.card_item:
-            self.card_item.setScale(scale)
-    
-    # Define properties for QPropertyAnimation
-    rotation = pyqtProperty(float, _get_rotation, _set_rotation)
-    scale = pyqtProperty(float, _get_scale, _set_scale)
-
-
-class DraggableCardItem(QGraphicsPixmapItem):
-    """Enhanced draggable card item with wobble animation."""
-    
-    def __init__(self, pixmap, card_data, parent_tab=None):
-        super().__init__(pixmap)
-        self.card_data = card_data
-        self.parent_tab = parent_tab
-        self.setFlag(QGraphicsPixmapItem.GraphicsItemFlag.ItemIsMovable)
-        self.setFlag(QGraphicsPixmapItem.GraphicsItemFlag.ItemIsSelectable)
-        self.setFlag(QGraphicsPixmapItem.GraphicsItemFlag.ItemSendsGeometryChanges)
-        self.setAcceptHoverEvents(True)
-        self.setTransformOriginPoint(pixmap.width() / 2, pixmap.height() / 2)
-
-        # Create animation controller
-        self.anim_controller = CardAnimationController()
-        self.anim_controller.card_item = self
-        
-        # Set up wobble animation
-        self.setup_wobble_animation()
-        
-    def setup_wobble_animation(self, base_rotation=0):
-        """Set up wobble animation with slight rotation changes."""
-        # Stop any existing animation
-        if hasattr(self, 'rotation_anim') and self.rotation_anim:
-            self.rotation_anim.stop()
-        
-        # Create a sequential animation group for rotation
-        self.rotation_anim = QSequentialAnimationGroup()
-
-        # Create subtle rotation animations around the base rotation
-        rot1 = QPropertyAnimation(self.anim_controller, b"rotation")
-        rot1.setDuration(4000 + random.randint(-500, 500))  # Randomize duration slightly
-        rot1.setStartValue(base_rotation)
-        rot1.setEndValue(base_rotation + 0.8)  # Small rotation angle
-        rot1.setEasingCurve(QEasingCurve.Type.InOutSine)
-        
-        rot2 = QPropertyAnimation(self.anim_controller, b"rotation")
-        rot2.setDuration(2000 + random.randint(-500, 500))
-        rot2.setStartValue(base_rotation + 0.8)
-        rot2.setEndValue(base_rotation - 0.8)  # Small negative rotation
-        rot2.setEasingCurve(QEasingCurve.Type.InOutSine)
-        
-        rot3 = QPropertyAnimation(self.anim_controller, b"rotation")
-        rot3.setDuration(2000 + random.randint(-500, 500))
-        rot3.setStartValue(base_rotation - 0.8)
-        rot3.setEndValue(base_rotation)  # Back to neutral
-        rot3.setEasingCurve(QEasingCurve.Type.InOutSine)
-        
-        # Add the animations to the sequence
-        self.rotation_anim.addAnimation(rot1)
-        self.rotation_anim.addAnimation(rot2)
-        self.rotation_anim.addAnimation(rot3)
-        
-        # Create a very subtle scale animation (keep this part the same)
-        self.scale_anim = QPropertyAnimation(self.anim_controller, b"scale")
-        self.scale_anim.setDuration(1500 + random.randint(-300, 300))
-        self.scale_anim.setStartValue(1.0)
-        self.scale_anim.setEndValue(1.02)  # Very slight scale up
-        self.scale_anim.setLoopCount(-1)  # Loop indefinitely
-        self.scale_anim.setEasingCurve(QEasingCurve.Type.InOutSine)
-        
-        # Start animations with slight delay for each card
-        QTimer.singleShot(random.randint(0, 1000), self.start_animations)
-        
-    def setup_wobble_animation_with_intensity(self, base_rotation=0, rotation_amplitude=0.8, scale_amplitude=1.02):
-        """Set up wobble animation with custom intensity."""
-        # Stop any existing animation
-        if hasattr(self, 'rotation_anim') and self.rotation_anim:
-            self.rotation_anim.stop()
-        
-        # Create a sequential animation group for rotation
-        self.rotation_anim = QSequentialAnimationGroup()
-
-        # Create subtle rotation animations around the base rotation
-        rot1 = QPropertyAnimation(self.anim_controller, b"rotation")
-        rot1.setDuration(4000 + random.randint(-500, 500))  # Randomize duration slightly
-        rot1.setStartValue(base_rotation)
-        rot1.setEndValue(base_rotation + rotation_amplitude)  # Configurable rotation angle
-        rot1.setEasingCurve(QEasingCurve.Type.InOutSine)
-        
-        rot2 = QPropertyAnimation(self.anim_controller, b"rotation")
-        rot2.setDuration(2000 + random.randint(-500, 500))
-        rot2.setStartValue(base_rotation + rotation_amplitude)
-        rot2.setEndValue(base_rotation - rotation_amplitude)  # Configurable negative rotation
-        rot2.setEasingCurve(QEasingCurve.Type.InOutSine)
-        
-        rot3 = QPropertyAnimation(self.anim_controller, b"rotation")
-        rot3.setDuration(2000 + random.randint(-500, 500))
-        rot3.setStartValue(base_rotation - rotation_amplitude)
-        rot3.setEndValue(base_rotation)  # Back to neutral
-        rot3.setEasingCurve(QEasingCurve.Type.InOutSine)
-        
-        # Add the animations to the sequence
-        self.rotation_anim.addAnimation(rot1)
-        self.rotation_anim.addAnimation(rot2)
-        self.rotation_anim.addAnimation(rot3)
-        
-        # Create a very subtle scale animation with configurable scale
-        self.scale_anim = QPropertyAnimation(self.anim_controller, b"scale")
-        self.scale_anim.setDuration(1500 + random.randint(-300, 300))
-        self.scale_anim.setStartValue(1.0)
-        self.scale_anim.setEndValue(scale_amplitude)  # Configurable scale
-        self.scale_anim.setLoopCount(-1)  # Loop indefinitely
-        self.scale_anim.setEasingCurve(QEasingCurve.Type.InOutSine)
-        
-    def start_animations(self):
-        """Start the wobble animations."""
-        self.rotation_anim.setLoopCount(-1)  # Loop indefinitely
-        self.rotation_anim.start()
-        #self.scale_anim.start()
-        
-    def pause_animations(self):
-        """Pause animations (when card is being dragged)."""
-        self.rotation_anim.pause()
-        self.scale_anim.pause()
-        
-    def resume_animations(self):
-        """Resume animations after dragging stops."""
-        self.rotation_anim.resume()
-        self.scale_anim.resume()
-        
-    # Override these to pause/resume animations during drag
-    def mousePressEvent(self, event):
-        self.pause_animations()
-        super().mousePressEvent(event)
-        
-    def mouseReleaseEvent(self, event):
-        super().mouseReleaseEvent(event)
-        # Small delay before resuming animation
-        QTimer.singleShot(200, self.resume_animations)
-        
-    def mouseDoubleClickEvent(self, event):
-        """Handle double click events to open a card view tab"""
-        if self.parent_tab and hasattr(self.parent_tab, 'open_card_view'):
-            self.parent_tab.open_card_view(self.card_data)
-        super().mouseDoubleClickEvent(event)
-
-# Create a custom QGraphicsView to handle shift+drag panning
-class PannableGraphicsView(QGraphicsView):
-    def __init__(self, scene, parent=None):
-        super().__init__(scene, parent)
-        self.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-        self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
-        self._panning = False
-        self._last_mouse_pos = None
-        
-    def mousePressEvent(self, event):
-        """Override mouse press to implement shift+drag panning"""
-        if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
-            # Start panning mode
-            self._panning = True
-            self._last_mouse_pos = event.pos()
-            self.setCursor(Qt.CursorShape.ClosedHandCursor)
-            event.accept()
-        else:
-            # Default behavior (selection)
-            super().mousePressEvent(event)
-            
-    def mouseMoveEvent(self, event):
-        """Handle mouse movement for panning or default behavior"""
-        if self._panning and self._last_mouse_pos:
-            # Calculate how much to pan
-            delta = event.pos() - self._last_mouse_pos
-            self._last_mouse_pos = event.pos()
-            
-            # Pan the view
-            self.horizontalScrollBar().setValue(
-                self.horizontalScrollBar().value() - delta.x())
-            self.verticalScrollBar().setValue(
-                self.verticalScrollBar().value() - delta.y())
-            
-            event.accept()
-        else:
-            super().mouseMoveEvent(event)
-            
-    def mouseReleaseEvent(self, event):
-        """Handle mouse release for ending panning or default behavior"""
-        if self._panning:
-            self._panning = False
-            self._last_mouse_pos = None
-            self.setCursor(Qt.CursorShape.ArrowCursor)
-            event.accept()
-        else:
-            super().mouseReleaseEvent(event)
-    
-    def wheelEvent(self, event):
-        """Handle zooming with mouse wheel"""
-        zoom_factor = 1.15
-        
-        if event.angleDelta().y() > 0:
-            # Zoom in
-            self.scale(zoom_factor, zoom_factor)
-        else:
-            # Zoom out
-            self.scale(1.0 / zoom_factor, 1.0 / zoom_factor)
-
 
 class CanvasTab(BaseTab):
     # Signal to notify the main window that we want to navigate
@@ -299,17 +74,9 @@ class CanvasTab(BaseTab):
         # Apply background from settings
         self.apply_background_settings()
         
-        # Adjust height constraints to be less restrictive
-        # Remove the maximum height constraint that may be causing the padding
-        
         # Set sensible sizing policies for the view
-        # Use Expanding for both directions to fill available space
         self.view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        
-        # Maintain minimum size to prevent collapse
         self.view.setMinimumSize(400, 300)
-        
-        # Set view behavior that doesn't auto-expand
         self.view.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
         self.view.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
@@ -319,8 +86,7 @@ class CanvasTab(BaseTab):
         # Create toolbar on the right
         self.create_toolbar(main_layout)
         
-        # Simplify the layout structure and remove potential padding sources
-        # Set up the base layout (assuming BaseTab has one)
+        # Set up the base layout
         if hasattr(self, 'layout'):
             # Clear any existing layout contents
             while self.layout.count():
@@ -366,20 +132,15 @@ class CanvasTab(BaseTab):
 
     def create_gradient_background(self):
         """Create a gradient background for the canvas"""
-        # Create a dark purple radial gradient
         center = QPointF(0, 0)
         radius = 800
         gradient = QRadialGradient(center, radius)
         
-        # Add color stops for a mystical look
         gradient.setColorAt(0, QColor(50, 30, 80))   # Center - medium purple
         gradient.setColorAt(0.5, QColor(30, 18, 60)) # Middle - darker purple
         gradient.setColorAt(1, QColor(15, 10, 30))   # Edge - very dark purple
         
-        # Create a brush with this gradient
         brush = QBrush(gradient)
-        
-        # Apply it to both scene and view for consistent appearance
         self.scene.setBackgroundBrush(brush)
         self.view.setBackgroundBrush(brush)
 
@@ -387,10 +148,33 @@ class CanvasTab(BaseTab):
         """Create a solid color background for the canvas"""
         color = QColor(color_str)
         brush = QBrush(color)
-        
-        # Apply it to both scene and view
         self.scene.setBackgroundBrush(brush)
         self.view.setBackgroundBrush(brush)
+
+    def create_purple_checkerboard_background(self):
+        """Create a purple checkerboard pattern background for the canvas"""
+        light_purple = QColor(220, 210, 240)  # Light lavender
+        dark_purple = QColor(180, 160, 220)   # Darker lavender
+        
+        size = 50  # Size of each square
+        pixmap = QPixmap(size * 2, size * 2)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        
+        painter = QPainter(pixmap)
+        painter.setPen(Qt.PenStyle.NoPen)
+        
+        painter.setBrush(QBrush(light_purple))
+        painter.drawRect(0, 0, size, size)
+        painter.drawRect(size, size, size, size)
+        
+        painter.setBrush(QBrush(dark_purple))
+        painter.drawRect(0, size, size, size)
+        painter.drawRect(size, 0, size, size)
+        
+        painter.end()
+        
+        pattern_brush = QBrush(pixmap)
+        self.view.setBackgroundBrush(pattern_brush)
 
     def update_card_animations(self, enable, intensity):
         """Update all card animations based on settings"""
@@ -421,38 +205,6 @@ class CanvasTab(BaseTab):
                         
                         # Start the animation
                         item.start_animations()
-    
-    def create_purple_checkerboard_background(self):
-        """Create a purple checkerboard pattern background for the canvas"""
-        # Define two purple colors for the checkerboard
-        light_purple = QColor(220, 210, 240)  # Light lavender
-        dark_purple = QColor(180, 160, 220)   # Darker lavender
-        
-        # Create a pixmap for the pattern
-        size = 50  # Size of each square
-        pixmap = QPixmap(size * 2, size * 2)
-        pixmap.fill(Qt.GlobalColor.transparent)
-        
-        # Create a painter to draw the pattern
-        painter = QPainter(pixmap)
-        painter.setPen(Qt.PenStyle.NoPen)
-        
-        # Draw the checkerboard pattern
-        painter.setBrush(QBrush(light_purple))
-        painter.drawRect(0, 0, size, size)
-        painter.drawRect(size, size, size, size)
-        
-        painter.setBrush(QBrush(dark_purple))
-        painter.drawRect(0, size, size, size)
-        painter.drawRect(size, 0, size, size)
-        
-        painter.end()
-        
-        # Create a brush with this pattern
-        pattern_brush = QBrush(pixmap)
-        
-        # Set the background brush of the view
-        self.view.setBackgroundBrush(pattern_brush)
     
     def ensure_window_bounds(self):
         """Ensure the window stays within screen boundaries"""
@@ -548,7 +300,6 @@ class CanvasTab(BaseTab):
 
     def on_escape_pressed(self):
         """Handle Escape key - cancel selection"""
-        # Clear any selection
         for item in self.scene.selectedItems():
             item.setSelected(False)
     
@@ -755,24 +506,7 @@ class CanvasTab(BaseTab):
             "deck": self.deck,
             "source_tab_id": self.id
         })
-    
-    def on_create_spread(self):
-        # Implement creating a new spread
-        pass
 
-    def on_clear_canvas(self):
-        # Implement clearing the canvas
-        self.scene.clear()
-
-    def on_save_layout(self):
-        # Implement saving the layout
-        pass
-    
-    def on_navigate_back(self):
-        """Navigate back to the source tab"""
-        if self.source_tab:
-            self.navigation_requested.emit("navigate", self.source_tab)
-    
     # Canvas Control Methods
     def on_zoom_in(self):
         """Zoom into the canvas"""
@@ -801,13 +535,6 @@ class CanvasTab(BaseTab):
         """Reset view to default position and zoom"""
         self.view.resetTransform()
         self.view.centerOn(self.scene.sceneRect().center())
-    
-    def toggle_pan_mode(self):
-        """Toggle between pan mode and selection mode"""
-        if self.view.dragMode() == QGraphicsView.DragMode.ScrollHandDrag:
-            self.view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
-        else:
-            self.view.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
 
     # Card Manipulation Methods
     def on_rotate_card(self):
@@ -870,7 +597,6 @@ class CanvasTab(BaseTab):
         for item in items:
             self.scene.removeItem(item)
 
-
     # Arrangement Control Methods
     def on_bring_to_front(self):
         """Bring selected card to front"""
@@ -884,7 +610,6 @@ class CanvasTab(BaseTab):
         for item in items:
             item.setZValue(-100)  # Low z-value
         
-    
     def on_align_cards(self):
         """Show alignment options for selected cards"""
         items = self.scene.selectedItems()
@@ -947,202 +672,21 @@ class CanvasTab(BaseTab):
                         QIcon(str(Path(__file__).parent.parent.parent / "resources" / "icons" / "object-rotate-right.png"))))
         
         # Connect actions to alignment functions
-        h_left.triggered.connect(lambda: self.align_items_horizontally(items, "left"))
-        h_center.triggered.connect(lambda: self.align_items_horizontally(items, "center"))
-        h_right.triggered.connect(lambda: self.align_items_horizontally(items, "right"))
+        h_left.triggered.connect(lambda: align_items_horizontally(items, "left"))
+        h_center.triggered.connect(lambda: align_items_horizontally(items, "center"))
+        h_right.triggered.connect(lambda: align_items_horizontally(items, "right"))
         
-        v_top.triggered.connect(lambda: self.align_items_vertically(items, "top"))
-        v_center.triggered.connect(lambda: self.align_items_vertically(items, "center"))
-        v_bottom.triggered.connect(lambda: self.align_items_vertically(items, "bottom"))
+        v_top.triggered.connect(lambda: align_items_vertically(items, "top"))
+        v_center.triggered.connect(lambda: align_items_vertically(items, "center"))
+        v_bottom.triggered.connect(lambda: align_items_vertically(items, "bottom"))
         
-        distribute_h.triggered.connect(lambda: self.distribute_items_horizontally(items))
-        distribute_v.triggered.connect(lambda: self.distribute_items_vertically(items))
+        distribute_h.triggered.connect(lambda: distribute_items_horizontally(items))
+        distribute_v.triggered.connect(lambda: distribute_items_vertically(items))
         
-        circle_arrange.triggered.connect(lambda: self.arrange_items_in_circle(items))
+        circle_arrange.triggered.connect(lambda: arrange_items_in_circle(items))
         
         # Show the menu at the cursor position
         menu.exec(QCursor.pos())
-
-    def align_items_horizontally(self, items, alignment):
-        """Align items horizontally"""
-        if not items:
-            return
-        
-        if alignment == "left":
-            # Find leftmost edge
-            leftmost = min(item.sceneBoundingRect().left() for item in items)
-            # Align all to leftmost edge
-            for item in items:
-                item_rect = item.sceneBoundingRect()
-                offset = leftmost - item_rect.left()
-                item.setPos(item.pos().x() + offset, item.pos().y())
-        
-        elif alignment == "center":
-            # Calculate average center X
-            avg_center_x = sum(item.sceneBoundingRect().center().x() for item in items) / len(items)
-            # Align all to average center
-            for item in items:
-                item_rect = item.sceneBoundingRect()
-                offset = avg_center_x - item_rect.center().x()
-                item.setPos(item.pos().x() + offset, item.pos().y())
-        
-        elif alignment == "right":
-            # Find rightmost edge
-            rightmost = max(item.sceneBoundingRect().right() for item in items)
-            # Align all to rightmost edge
-            for item in items:
-                item_rect = item.sceneBoundingRect()
-                offset = rightmost - item_rect.right()
-                item.setPos(item.pos().x() + offset, item.pos().y())
-
-    def align_items_vertically(self, items, alignment):
-        """Align items vertically"""
-        if not items:
-            return
-        
-        if alignment == "top":
-            # Find topmost edge
-            topmost = min(item.sceneBoundingRect().top() for item in items)
-            # Align all to topmost edge
-            for item in items:
-                item_rect = item.sceneBoundingRect()
-                offset = topmost - item_rect.top()
-                item.setPos(item.pos().x(), item.pos().y() + offset)
-        
-        elif alignment == "center":
-            # Calculate average center Y
-            avg_center_y = sum(item.sceneBoundingRect().center().y() for item in items) / len(items)
-            # Align all to average center
-            for item in items:
-                item_rect = item.sceneBoundingRect()
-                offset = avg_center_y - item_rect.center().y()
-                item.setPos(item.pos().x(), item.pos().y() + offset)
-        
-        elif alignment == "bottom":
-            # Find bottommost edge
-            bottommost = max(item.sceneBoundingRect().bottom() for item in items)
-            # Align all to bottommost edge
-            for item in items:
-                item_rect = item.sceneBoundingRect()
-                offset = bottommost - item_rect.bottom()
-                item.setPos(item.pos().x(), item.pos().y() + offset)
-
-    def distribute_items_horizontally(self, items):
-        """Distribute items horizontally with equal spacing"""
-        if len(items) < 3:
-            return  # Need at least 3 items to distribute
-        
-        # Sort items by x position
-        sorted_items = sorted(items, key=lambda item: item.sceneBoundingRect().center().x())
-        
-        # Get leftmost and rightmost positions
-        left_edge = sorted_items[0].sceneBoundingRect().center().x()
-        right_edge = sorted_items[-1].sceneBoundingRect().center().x()
-        
-        # Calculate equal spacing
-        total_width = right_edge - left_edge
-        spacing = total_width / (len(sorted_items) - 1) if len(sorted_items) > 1 else 0
-        
-        # Reposition middle items
-        for i in range(1, len(sorted_items) - 1):
-            item = sorted_items[i]
-            target_x = left_edge + (i * spacing)
-            current_center = item.sceneBoundingRect().center()
-            offset_x = target_x - current_center.x()
-            item.setPos(item.pos().x() + offset_x, item.pos().y())
-
-    def distribute_items_vertically(self, items):
-        """Distribute items vertically with equal spacing"""
-        if len(items) < 3:
-            return  # Need at least 3 items to distribute
-        
-        # Sort items by y position
-        sorted_items = sorted(items, key=lambda item: item.sceneBoundingRect().center().y())
-        
-        # Get topmost and bottommost positions
-        top_edge = sorted_items[0].sceneBoundingRect().center().y()
-        bottom_edge = sorted_items[-1].sceneBoundingRect().center().y()
-        
-        # Calculate equal spacing
-        total_height = bottom_edge - top_edge
-        spacing = total_height / (len(sorted_items) - 1) if len(sorted_items) > 1 else 0
-        
-        # Reposition middle items
-        for i in range(1, len(sorted_items) - 1):
-            item = sorted_items[i]
-            target_y = top_edge + (i * spacing)
-            current_center = item.sceneBoundingRect().center()
-            offset_y = target_y - current_center.y()
-            item.setPos(item.pos().x(), item.pos().y() + offset_y)
-
-    def arrange_items_in_circle(self, items):
-        """Arrange items in a circle while preserving their upright/reversed orientation"""
-        if not items:
-            return
-        
-        # Calculate the center point of all items
-        center_x = sum(item.sceneBoundingRect().center().x() for item in items) / len(items)
-        center_y = sum(item.sceneBoundingRect().center().y() for item in items) / len(items)
-        center = QPointF(center_x, center_y)
-        
-        # Calculate a reasonable radius based on card size and item count
-        # Use the first card's size as a reference
-        card_width = items[0].sceneBoundingRect().width()
-        card_height = items[0].sceneBoundingRect().height()
-        
-        # Radius should be large enough to prevent overlap
-        min_dimension = min(card_width, card_height)
-        radius = max(200, min_dimension * len(items) / (2 * math.pi))
-        
-        # Place items around the circle
-        for i, item in enumerate(items):
-            # Calculate angle for this item (distribute evenly around the circle)
-            angle = (i / len(items)) * 2 * math.pi
-            
-            # Calculate new position
-            new_x = center.x() + radius * math.cos(angle)
-            new_y = center.y() + radius * math.sin(angle)
-            
-            # Center the card on this position
-            item_rect = item.sceneBoundingRect()
-            offset_x = new_x - item_rect.center().x()
-            offset_y = new_y - item_rect.center().y()
-            
-            # Set the new position
-            item.setPos(item.pos().x() + offset_x, item.pos().y() + offset_y)
- 
-        
-    def draw_card_at_position(self, position):
-        """Draw a card and place it at a specific position"""
-        if not self.deck:
-            return
-        
-        card = self.deck.get_random_card()
-        if not card:
-            return
-        
-        # Create card item (simplified version of on_draw_card)
-        pixmap = QPixmap(card.get("image"))
-        if pixmap.isNull():
-            return
-        
-        card_item = DraggableCardItem(pixmap, card, self)
-        card_item.setPos(position)
-        self.scene.addItem(card_item)
-        return card_item
-    
-    # Advanced Features
-    def setup_undo_framework(self):
-        """Set up undo/redo framework"""
-        self.undo_stack = QUndoStack(self)
-        
-        # Add undo/redo actions to app menu
-        undo_action = self.undo_stack.createUndoAction(self)
-        redo_action = self.undo_stack.createRedoAction(self)
-        
-        # You would add these actions to a menu
-        # menu.addAction(undo_action)
-        # menu.addAction(redo_action)
     
     def update_tab_icon(self):
         """Update the tab with a canvas icon"""
@@ -1166,18 +710,3 @@ class CanvasTab(BaseTab):
                     # Create and set a canvas icon
                     canvas_icon = CanvasIcon()
                     tab_widget.setTabIcon(index, canvas_icon)
-
-class CardMoveCommand(QUndoCommand):
-    """Undo command for card movements"""
-    def __init__(self, item, old_pos, new_pos):
-        super().__init__()
-        self.item = item
-        self.old_pos = old_pos
-        self.new_pos = new_pos
-        self.setText(f"Move {item.card_data.get('name', 'Card')}")
-        
-    def undo(self):
-        self.item.setPos(self.old_pos)
-        
-    def redo(self):
-        self.item.setPos(self.new_pos)
