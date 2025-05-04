@@ -97,17 +97,22 @@ class CardExplorerPanel(QWidget):
         
         # Add Major Arcana cards
         major_cards = self.current_deck.get_cards_by_type("major_arcana")
-        for card in major_cards:
-            card_item = QStandardItem(card["name"])
-            card_item.setData({"type": "card", "card": card, "deck": self.current_deck}, 
-                             Qt.ItemDataRole.UserRole)
-            major_group.appendRow(card_item)
-        
-        self.model.appendRow(major_group)
+        if major_cards:  # Only add if there are cards
+            for card in major_cards:
+                card_item = QStandardItem(card["name"])
+                card_item.setData({"type": "card", "card": card, "deck": self.current_deck}, 
+                                 Qt.ItemDataRole.UserRole)
+                major_group.appendRow(card_item)
+            
+            self.model.appendRow(major_group)
         
         # Create suit groups
         suits = self.current_deck.get_suits()
         for suit in suits:
+            # Skip entirely excluded suits
+            if self.current_deck.is_suit_excluded(suit):
+                continue
+                
             # Get display name for suit (aliased if available)
             display_suit = self.current_deck.get_display_suit_name(suit)
             
@@ -118,13 +123,15 @@ class CardExplorerPanel(QWidget):
             
             # Add cards for this suit
             suit_cards = self.current_deck.get_cards_by_suit(suit)
-            for card in suit_cards:
-                card_item = QStandardItem(card["name"])
-                card_item.setData({"type": "card", "card": card, "deck": self.current_deck}, 
-                                 Qt.ItemDataRole.UserRole)
-                suit_group.appendRow(card_item)
-            
-            self.model.appendRow(suit_group)
+            if suit_cards:  # Only add if there are cards
+                for card in suit_cards:
+                    card_item = QStandardItem(card["name"])
+                    card_item.setData({"type": "card", "card": card, "deck": self.current_deck}, 
+                                     Qt.ItemDataRole.UserRole)
+                    suit_group.appendRow(card_item)
+                
+                self.model.appendRow(suit_group)
+        
         
         # Expand all top-level items by default
         for i in range(self.model.rowCount()):

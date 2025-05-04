@@ -193,6 +193,16 @@ class DeckViewTab(BaseTab):
         # Get all suits
         suits = self.deck.get_suits()
         
+        # Check if we have any suits at all
+        if not suits:
+            # Add a note about excluded cards if there's a reason
+            exclusion_reason = self.deck.get_exclusion_reason()
+            if exclusion_reason:
+                note_label = QLabel(f"Note: {exclusion_reason}")
+                note_label.setWordWrap(True)
+                note_label.setStyleSheet("font-style: italic; color: #666;")
+                layout.addWidget(note_label)
+        
         for suit in suits:
             # Get cards for this suit
             suit_cards = self.deck.get_cards_by_suit(suit)

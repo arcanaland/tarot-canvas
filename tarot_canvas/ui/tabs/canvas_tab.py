@@ -308,7 +308,7 @@ class CanvasTab(BaseTab):
         dark_purple = QColor(180, 160, 220)   # Darker lavender
         
         # Create a pixmap for the pattern
-        size = 40  # Size of each square
+        size = 50  # Size of each square
         pixmap = QPixmap(size * 2, size * 2)
         pixmap.fill(Qt.GlobalColor.transparent)
         

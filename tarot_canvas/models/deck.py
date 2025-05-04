@@ -30,11 +30,14 @@ class TarotDeck:
         self._court_aliases = None
         self._card_backs = None
         self._default_back = None
+        self._excluded_cards = set()
+        self._excluded_reason = ""
         
         # Load essential data immediately
         self._metadata = self._load_metadata()
         self._suit_aliases = self._extract_suit_aliases()
         self._court_aliases = self._extract_court_aliases()
+        self._excluded_cards, self._excluded_reason = self._extract_excluded_cards()  # New
         
         # Load cards
         self._cards = self._load_all_cards()
@@ -73,8 +76,26 @@ class TarotDeck:
                 aliases[canonical_court] = custom_name
         return aliases
 
+    def _extract_excluded_cards(self):
+        """Extract excluded cards list from metadata."""
+        excluded = set()
+        reason = ""
+        
+        if "deck" in self._metadata and "excluded_cards" in self._metadata["deck"]:
+            excluded_data = self._metadata["deck"]["excluded_cards"]
+            if "cards" in excluded_data and isinstance(excluded_data["cards"], list):
+                excluded.update(excluded_data["cards"])
+        
+            if "reason" in excluded_data:
+                reason = excluded_data["reason"]
+        
+        if excluded:
+            logger.debug(f"Deck '{self.get_name()}' has {len(excluded)} excluded cards")
+        
+        return excluded, reason
+
     def _load_all_cards(self):
-        """Load all cards from the deck."""
+        """Load all cards from the deck, respecting exclusions."""
         cards = []
         
         # Load major arcana cards
@@ -89,8 +110,15 @@ class TarotDeck:
             # TODO: Add support for custom cards
             pass
         
-        logger.info(f"Loaded {len(cards)} cards for deck: {self.get_name()}")    
-        return cards
+        # Filter out excluded cards
+        filtered_cards = [card for card in cards if card["id"] not in self._excluded_cards]
+        
+        excluded_count = len(cards) - len(filtered_cards)
+        if excluded_count > 0:
+            logger.info(f"Excluded {excluded_count} cards from deck: {self.get_name()}")
+        
+        logger.info(f"Loaded {len(filtered_cards)} cards for deck: {self.get_name()}")    
+        return filtered_cards
         
     def _load_major_arcana_cards(self):
         """Load all major arcana cards from the deck."""
@@ -413,6 +441,34 @@ class TarotDeck:
             if alias.lower() == suit.lower():
                 return canonical
         return suit
+
+    def is_suit_excluded(self, suit):
+        """
+        Check if an entire suit is excluded from the deck.
+        
+        Args:
+            suit (str): Canonical suit name to check
+        
+        Returns:
+            bool: True if all cards of this suit are excluded
+        """
+        # Get all cards that would be in this suit
+        ranks = ["ace", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", 
+                 "page", "knight", "queen", "king"]
+        
+        # Check if all possible cards in this suit are excluded
+        all_excluded = True
+        for rank in ranks:
+            card_id = f"minor_arcana.{suit}.{rank}"
+            if card_id not in self._excluded_cards:
+                all_excluded = False
+                break
+                
+        return all_excluded
+
+    def get_exclusion_reason(self):
+        """Get the reason for card exclusions, if any."""
+        return self._excluded_reason
 
     # --------------------------------
     # SEARCH/FIND METHODS
