@@ -521,7 +521,10 @@ class MainWindow(QMainWindow):
         self.new_canvas_tab()
 
     def show_preferences(self):
-        print("Preferences")
+        """Show the preferences dialog"""
+        from tarot_canvas.ui.windows.preferences_dialog import PreferencesDialog
+        prefs_dialog = PreferencesDialog(self)
+        prefs_dialog.exec()
 
     def toggle_fullscreen(self, checked):
         if checked:

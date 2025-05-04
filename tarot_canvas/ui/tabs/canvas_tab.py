@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGraphicsRectItem, QToolBar, QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QFrame, QSizePolicy, QApplication, QLabel
-from PyQt6.QtCore import Qt, QRectF, pyqtSignal, QPointF, QTimer, QPropertyAnimation, QEasingCurve, QPointF, QSequentialAnimationGroup, QParallelAnimationGroup, pyqtProperty, QObject, QSize
+from PyQt6.QtCore import Qt, QRectF, pyqtSignal, QPointF, QTimer, QPropertyAnimation, QEasingCurve, QPointF, QSequentialAnimationGroup, QParallelAnimationGroup, pyqtProperty, QObject, QSize, QSettings
 from PyQt6.QtGui import QIcon, QAction, QPixmap, QBrush, QPen, QColor, QPainter, QTransform, QUndoStack, QUndoCommand, QRadialGradient, QKeySequence, QLinearGradient
 
 from tarot_canvas.models.deck import TarotDeck
@@ -113,6 +113,47 @@ class DraggableCardItem(QGraphicsPixmapItem):
         
         # Start animations with slight delay for each card
         QTimer.singleShot(random.randint(0, 1000), self.start_animations)
+        
+    def setup_wobble_animation_with_intensity(self, base_rotation=0, rotation_amplitude=0.8, scale_amplitude=1.02):
+        """Set up wobble animation with custom intensity."""
+        # Stop any existing animation
+        if hasattr(self, 'rotation_anim') and self.rotation_anim:
+            self.rotation_anim.stop()
+        
+        # Create a sequential animation group for rotation
+        self.rotation_anim = QSequentialAnimationGroup()
+
+        # Create subtle rotation animations around the base rotation
+        rot1 = QPropertyAnimation(self.anim_controller, b"rotation")
+        rot1.setDuration(4000 + random.randint(-500, 500))  # Randomize duration slightly
+        rot1.setStartValue(base_rotation)
+        rot1.setEndValue(base_rotation + rotation_amplitude)  # Configurable rotation angle
+        rot1.setEasingCurve(QEasingCurve.Type.InOutSine)
+        
+        rot2 = QPropertyAnimation(self.anim_controller, b"rotation")
+        rot2.setDuration(2000 + random.randint(-500, 500))
+        rot2.setStartValue(base_rotation + rotation_amplitude)
+        rot2.setEndValue(base_rotation - rotation_amplitude)  # Configurable negative rotation
+        rot2.setEasingCurve(QEasingCurve.Type.InOutSine)
+        
+        rot3 = QPropertyAnimation(self.anim_controller, b"rotation")
+        rot3.setDuration(2000 + random.randint(-500, 500))
+        rot3.setStartValue(base_rotation - rotation_amplitude)
+        rot3.setEndValue(base_rotation)  # Back to neutral
+        rot3.setEasingCurve(QEasingCurve.Type.InOutSine)
+        
+        # Add the animations to the sequence
+        self.rotation_anim.addAnimation(rot1)
+        self.rotation_anim.addAnimation(rot2)
+        self.rotation_anim.addAnimation(rot3)
+        
+        # Create a very subtle scale animation with configurable scale
+        self.scale_anim = QPropertyAnimation(self.anim_controller, b"scale")
+        self.scale_anim.setDuration(1500 + random.randint(-300, 300))
+        self.scale_anim.setStartValue(1.0)
+        self.scale_anim.setEndValue(scale_amplitude)  # Configurable scale
+        self.scale_anim.setLoopCount(-1)  # Loop indefinitely
+        self.scale_anim.setEasingCurve(QEasingCurve.Type.InOutSine)
         
     def start_animations(self):
         """Start the wobble animations."""
@@ -255,8 +296,8 @@ class CanvasTab(BaseTab):
         # Use our custom view with shift+drag panning
         self.view = PannableGraphicsView(self.scene)
         
-        # Create and set the purple checkerboard background
-        self.create_purple_checkerboard_background()
+        # Apply background from settings
+        self.apply_background_settings()
         
         # Adjust height constraints to be less restrictive
         # Remove the maximum height constraint that may be causing the padding
@@ -300,6 +341,86 @@ class CanvasTab(BaseTab):
         
         # Set up keyboard shortcuts
         self.setup_shortcuts()
+    
+    def apply_background_settings(self):
+        """Apply background settings from preferences"""
+        settings = QSettings("ArcanaLand", "TarotCanvas")
+        
+        # Get the background style preference
+        bg_style = settings.value("appearance/background_style", "Gradient")
+        
+        if bg_style == "Checkerboard":
+            self.create_purple_checkerboard_background()
+        elif bg_style == "Gradient":
+            self.create_gradient_background()
+        elif bg_style == "Solid Color":
+            bg_color = settings.value("appearance/background_color", "#1E1432")
+            self.create_solid_color_background(bg_color)
+        
+        # Apply animation settings
+        enable_animations = settings.value("appearance/enable_animations", True, type=bool)
+        animation_intensity = settings.value("appearance/animation_intensity", 50, type=int)
+        
+        # Update all card animations
+        self.update_card_animations(enable_animations, animation_intensity)
+
+    def create_gradient_background(self):
+        """Create a gradient background for the canvas"""
+        # Create a dark purple radial gradient
+        center = QPointF(0, 0)
+        radius = 800
+        gradient = QRadialGradient(center, radius)
+        
+        # Add color stops for a mystical look
+        gradient.setColorAt(0, QColor(50, 30, 80))   # Center - medium purple
+        gradient.setColorAt(0.5, QColor(30, 18, 60)) # Middle - darker purple
+        gradient.setColorAt(1, QColor(15, 10, 30))   # Edge - very dark purple
+        
+        # Create a brush with this gradient
+        brush = QBrush(gradient)
+        
+        # Apply it to both scene and view for consistent appearance
+        self.scene.setBackgroundBrush(brush)
+        self.view.setBackgroundBrush(brush)
+
+    def create_solid_color_background(self, color_str):
+        """Create a solid color background for the canvas"""
+        color = QColor(color_str)
+        brush = QBrush(color)
+        
+        # Apply it to both scene and view
+        self.scene.setBackgroundBrush(brush)
+        self.view.setBackgroundBrush(brush)
+
+    def update_card_animations(self, enable, intensity):
+        """Update all card animations based on settings"""
+        # Scale intensity from 0-100 to appropriate animation values
+        rotation_amplitude = intensity * 0.016  # 0 to 1.6 degrees
+        scale_amplitude = 1.0 + (intensity * 0.0004)  # 1.0 to 1.04
+        
+        # Get all card items in the scene
+        for item in self.scene.items():
+            if isinstance(item, DraggableCardItem):
+                # Update animation settings
+                if hasattr(item, 'rotation_anim'):
+                    # Stop any existing animation
+                    item.rotation_anim.stop()
+                    
+                    if enable:
+                        # Get current rotation/state
+                        base_rotation = item.rotation()
+                        if hasattr(item, 'anim_controller'):
+                            item.anim_controller._rotation = base_rotation
+                        
+                        # Set up animation with new intensity
+                        item.setup_wobble_animation_with_intensity(
+                            base_rotation, 
+                            rotation_amplitude, 
+                            scale_amplitude
+                        )
+                        
+                        # Start the animation
+                        item.start_animations()
     
     def create_purple_checkerboard_background(self):
         """Create a purple checkerboard pattern background for the canvas"""
