@@ -1,6 +1,6 @@
-from PyQt6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGraphicsRectItem, QToolBar, QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QFrame, QSizePolicy, QApplication, QLabel
+from PyQt6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGraphicsRectItem, QToolBar, QVBoxLayout, QWidget, QPushButton, QHBoxLayout, QFrame, QSizePolicy, QApplication, QLabel, QMenu
 from PyQt6.QtCore import Qt, QRectF, pyqtSignal, QPointF, QTimer, QPropertyAnimation, QEasingCurve, QPointF, QSequentialAnimationGroup, QParallelAnimationGroup, pyqtProperty, QObject, QSize, QSettings
-from PyQt6.QtGui import QIcon, QAction, QPixmap, QBrush, QPen, QColor, QPainter, QTransform, QUndoStack, QUndoCommand, QRadialGradient, QKeySequence, QLinearGradient
+from PyQt6.QtGui import QIcon, QAction, QPixmap, QBrush, QPen, QColor, QPainter, QTransform, QUndoStack, QUndoCommand, QRadialGradient, QKeySequence, QLinearGradient, QCursor
 
 from tarot_canvas.models.deck import TarotDeck
 from tarot_canvas.models.deck_manager import deck_manager
@@ -634,22 +634,49 @@ class CanvasTab(BaseTab):
         return label
     
     def on_draw_card(self):
-        """Draw a random card and add it to the canvas with 50% chance to be reversed"""
-        if not self.deck:
-            print("No deck loaded!")
+        """Draw a random card from the selected deck in Card Explorer (or default deck)"""
+        # Get the main window to access the card explorer
+        main_window = self.window()
+        if not main_window:
+            print("Couldn't find main window")
             return
+        
+        # Try to find the card explorer in the main window
+        selected_deck = None
+        try:
+            # Find card explorer in the main window
+            card_explorer = None
+            for child in main_window.findChildren(QWidget):
+                if hasattr(child, 'current_deck') and hasattr(child, 'deck_selector'):
+                    card_explorer = child
+                    break
             
-        # Get a random card
-        card = self.deck.get_random_card()
+            # Get the currently selected deck from the explorer if it exists
+            if card_explorer and card_explorer.current_deck:
+                selected_deck = card_explorer.current_deck
+        except Exception as e:
+            print(f"Error accessing card explorer: {e}")
+        
+        # Use the selected deck or fall back to the default deck
+        deck_to_use = selected_deck or self.deck
+        if not deck_to_use:
+            print("No deck available to draw from!")
+            return
+        
+        # Get a random card from the selected deck
+        card = deck_to_use.get_random_card()
         if not card:
-            print("Could not draw a card!")
+            print(f"Could not draw a card from {deck_to_use.get_name()}!")
             return
-            
+        
         # Add a 50% chance for the card to be reversed
         is_reversed = random.choice([True, False])
         
-        # Add the card, possibly reversed
-        self.add_specific_card(card, is_reversed=is_reversed)
+        # Add the card, possibly reversed, using the selected deck
+        self.add_specific_card(card, card_deck=deck_to_use, is_reversed=is_reversed)
+        
+        # Log what deck we drew from
+        print(f"Drew card from {deck_to_use.get_name()} deck")
             
     def add_specific_card(self, card, card_deck=None, is_reversed=False):
         """Add a specific card to the canvas, optionally reversed"""
@@ -860,12 +887,230 @@ class CanvasTab(BaseTab):
     
     def on_align_cards(self):
         """Show alignment options for selected cards"""
-        # This could open a small popup with alignment options:
-        # - Align left, center, right
-        # - Align top, middle, bottom
-        # - Distribute horizontally/vertically
-        pass
+        items = self.scene.selectedItems()
+        # Only proceed if we have 2+ cards selected
+        if len(items) < 2:
+            return
+        
+        # Create a popup menu with alignment options
+        menu = QMenu(self)
+        
+        # Horizontal alignment actions
+        horizontal_menu = menu.addMenu("Horizontal Align")
+        horizontal_menu.setIcon(QIcon.fromTheme("align-horizontal-left", 
+                        QIcon(str(Path(__file__).parent.parent.parent / "resources" / "icons" / "align-horizontal-left.png"))))
+        
+        h_left = horizontal_menu.addAction("Left Edges")
+        h_left.setIcon(QIcon.fromTheme("align-horizontal-left", 
+                        QIcon(str(Path(__file__).parent.parent.parent / "resources" / "icons" / "align-horizontal-left.png"))))
+        
+        h_center = horizontal_menu.addAction("Centers")
+        h_center.setIcon(QIcon.fromTheme("align-horizontal-center", 
+                        QIcon(str(Path(__file__).parent.parent.parent / "resources" / "icons" / "align-horizontal-center.png"))))
+        
+        h_right = horizontal_menu.addAction("Right Edges")
+        h_right.setIcon(QIcon.fromTheme("align-horizontal-right", 
+                        QIcon(str(Path(__file__).parent.parent.parent / "resources" / "icons" / "align-horizontal-right.png"))))
+        
+        # Vertical alignment actions
+        vertical_menu = menu.addMenu("Vertical Align")
+        vertical_menu.setIcon(QIcon.fromTheme("align-vertical-top", 
+                        QIcon(str(Path(__file__).parent.parent.parent / "resources" / "icons" / "align-vertical-top.png"))))
+        
+        v_top = vertical_menu.addAction("Top Edges")
+        v_top.setIcon(QIcon.fromTheme("align-vertical-top", 
+                        QIcon(str(Path(__file__).parent.parent.parent / "resources" / "icons" / "align-vertical-top.png"))))
+        
+        v_center = vertical_menu.addAction("Centers")
+        v_center.setIcon(QIcon.fromTheme("align-vertical-center", 
+                        QIcon(str(Path(__file__).parent.parent.parent / "resources" / "icons" / "align-vertical-center.png"))))
+        
+        v_bottom = vertical_menu.addAction("Bottom Edges")
+        v_bottom.setIcon(QIcon.fromTheme("align-vertical-bottom", 
+                        QIcon(str(Path(__file__).parent.parent.parent / "resources" / "icons" / "align-vertical-bottom.png"))))
+        
+        # Distribution options
+        menu.addSeparator()
+        
+        distribute_h = menu.addAction("Distribute Horizontally")
+        distribute_h.setIcon(QIcon.fromTheme("distribute-horizontal-center", 
+                        QIcon(str(Path(__file__).parent.parent.parent / "resources" / "icons" / "distribute-horizontal-center.png"))))
+        
+        distribute_v = menu.addAction("Distribute Vertically")
+        distribute_v.setIcon(QIcon.fromTheme("distribute-vertical-center", 
+                        QIcon(str(Path(__file__).parent.parent.parent / "resources" / "icons" / "distribute-vertical-center.png"))))
+        
+        # Circle arrangement (useful for tarot spread)
+        menu.addSeparator()
+        circle_arrange = menu.addAction("Arrange in Circle")
+        circle_arrange.setIcon(QIcon.fromTheme("object-rotate-right", 
+                        QIcon(str(Path(__file__).parent.parent.parent / "resources" / "icons" / "object-rotate-right.png"))))
+        
+        # Connect actions to alignment functions
+        h_left.triggered.connect(lambda: self.align_items_horizontally(items, "left"))
+        h_center.triggered.connect(lambda: self.align_items_horizontally(items, "center"))
+        h_right.triggered.connect(lambda: self.align_items_horizontally(items, "right"))
+        
+        v_top.triggered.connect(lambda: self.align_items_vertically(items, "top"))
+        v_center.triggered.connect(lambda: self.align_items_vertically(items, "center"))
+        v_bottom.triggered.connect(lambda: self.align_items_vertically(items, "bottom"))
+        
+        distribute_h.triggered.connect(lambda: self.distribute_items_horizontally(items))
+        distribute_v.triggered.connect(lambda: self.distribute_items_vertically(items))
+        
+        circle_arrange.triggered.connect(lambda: self.arrange_items_in_circle(items))
+        
+        # Show the menu at the cursor position
+        menu.exec(QCursor.pos())
 
+    def align_items_horizontally(self, items, alignment):
+        """Align items horizontally"""
+        if not items:
+            return
+        
+        if alignment == "left":
+            # Find leftmost edge
+            leftmost = min(item.sceneBoundingRect().left() for item in items)
+            # Align all to leftmost edge
+            for item in items:
+                item_rect = item.sceneBoundingRect()
+                offset = leftmost - item_rect.left()
+                item.setPos(item.pos().x() + offset, item.pos().y())
+        
+        elif alignment == "center":
+            # Calculate average center X
+            avg_center_x = sum(item.sceneBoundingRect().center().x() for item in items) / len(items)
+            # Align all to average center
+            for item in items:
+                item_rect = item.sceneBoundingRect()
+                offset = avg_center_x - item_rect.center().x()
+                item.setPos(item.pos().x() + offset, item.pos().y())
+        
+        elif alignment == "right":
+            # Find rightmost edge
+            rightmost = max(item.sceneBoundingRect().right() for item in items)
+            # Align all to rightmost edge
+            for item in items:
+                item_rect = item.sceneBoundingRect()
+                offset = rightmost - item_rect.right()
+                item.setPos(item.pos().x() + offset, item.pos().y())
+
+    def align_items_vertically(self, items, alignment):
+        """Align items vertically"""
+        if not items:
+            return
+        
+        if alignment == "top":
+            # Find topmost edge
+            topmost = min(item.sceneBoundingRect().top() for item in items)
+            # Align all to topmost edge
+            for item in items:
+                item_rect = item.sceneBoundingRect()
+                offset = topmost - item_rect.top()
+                item.setPos(item.pos().x(), item.pos().y() + offset)
+        
+        elif alignment == "center":
+            # Calculate average center Y
+            avg_center_y = sum(item.sceneBoundingRect().center().y() for item in items) / len(items)
+            # Align all to average center
+            for item in items:
+                item_rect = item.sceneBoundingRect()
+                offset = avg_center_y - item_rect.center().y()
+                item.setPos(item.pos().x(), item.pos().y() + offset)
+        
+        elif alignment == "bottom":
+            # Find bottommost edge
+            bottommost = max(item.sceneBoundingRect().bottom() for item in items)
+            # Align all to bottommost edge
+            for item in items:
+                item_rect = item.sceneBoundingRect()
+                offset = bottommost - item_rect.bottom()
+                item.setPos(item.pos().x(), item.pos().y() + offset)
+
+    def distribute_items_horizontally(self, items):
+        """Distribute items horizontally with equal spacing"""
+        if len(items) < 3:
+            return  # Need at least 3 items to distribute
+        
+        # Sort items by x position
+        sorted_items = sorted(items, key=lambda item: item.sceneBoundingRect().center().x())
+        
+        # Get leftmost and rightmost positions
+        left_edge = sorted_items[0].sceneBoundingRect().center().x()
+        right_edge = sorted_items[-1].sceneBoundingRect().center().x()
+        
+        # Calculate equal spacing
+        total_width = right_edge - left_edge
+        spacing = total_width / (len(sorted_items) - 1) if len(sorted_items) > 1 else 0
+        
+        # Reposition middle items
+        for i in range(1, len(sorted_items) - 1):
+            item = sorted_items[i]
+            target_x = left_edge + (i * spacing)
+            current_center = item.sceneBoundingRect().center()
+            offset_x = target_x - current_center.x()
+            item.setPos(item.pos().x() + offset_x, item.pos().y())
+
+    def distribute_items_vertically(self, items):
+        """Distribute items vertically with equal spacing"""
+        if len(items) < 3:
+            return  # Need at least 3 items to distribute
+        
+        # Sort items by y position
+        sorted_items = sorted(items, key=lambda item: item.sceneBoundingRect().center().y())
+        
+        # Get topmost and bottommost positions
+        top_edge = sorted_items[0].sceneBoundingRect().center().y()
+        bottom_edge = sorted_items[-1].sceneBoundingRect().center().y()
+        
+        # Calculate equal spacing
+        total_height = bottom_edge - top_edge
+        spacing = total_height / (len(sorted_items) - 1) if len(sorted_items) > 1 else 0
+        
+        # Reposition middle items
+        for i in range(1, len(sorted_items) - 1):
+            item = sorted_items[i]
+            target_y = top_edge + (i * spacing)
+            current_center = item.sceneBoundingRect().center()
+            offset_y = target_y - current_center.y()
+            item.setPos(item.pos().x(), item.pos().y() + offset_y)
+
+    def arrange_items_in_circle(self, items):
+        """Arrange items in a circle while preserving their upright/reversed orientation"""
+        if not items:
+            return
+        
+        # Calculate the center point of all items
+        center_x = sum(item.sceneBoundingRect().center().x() for item in items) / len(items)
+        center_y = sum(item.sceneBoundingRect().center().y() for item in items) / len(items)
+        center = QPointF(center_x, center_y)
+        
+        # Calculate a reasonable radius based on card size and item count
+        # Use the first card's size as a reference
+        card_width = items[0].sceneBoundingRect().width()
+        card_height = items[0].sceneBoundingRect().height()
+        
+        # Radius should be large enough to prevent overlap
+        min_dimension = min(card_width, card_height)
+        radius = max(200, min_dimension * len(items) / (2 * math.pi))
+        
+        # Place items around the circle
+        for i, item in enumerate(items):
+            # Calculate angle for this item (distribute evenly around the circle)
+            angle = (i / len(items)) * 2 * math.pi
+            
+            # Calculate new position
+            new_x = center.x() + radius * math.cos(angle)
+            new_y = center.y() + radius * math.sin(angle)
+            
+            # Center the card on this position
+            item_rect = item.sceneBoundingRect()
+            offset_x = new_x - item_rect.center().x()
+            offset_y = new_y - item_rect.center().y()
+            
+            # Set the new position
+            item.setPos(item.pos().x() + offset_x, item.pos().y() + offset_y)
+ 
         
     def draw_card_at_position(self, position):
         """Draw a card and place it at a specific position"""
