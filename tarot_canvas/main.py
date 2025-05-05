@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import (QApplication, QProgressDialog, QMessageBox,
                             QDialog, QVBoxLayout, QLabel, QProgressBar, QPushButton)
 from PyQt6.QtCore import QThread, pyqtSignal, Qt, QSize
 from PyQt6.QtGui import QIcon
+from tarot_canvas.utils.path_helper import get_data_directory, get_decks_directory
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.models.reference_deck import ReferenceDeck
 from tarot_canvas.models.deck_manager import deck_manager

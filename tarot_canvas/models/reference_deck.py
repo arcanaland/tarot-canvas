@@ -1,8 +1,8 @@
 import os
 import zipfile
 import requests
-from xdg_base_dirs import xdg_data_home
 import shutil
+from tarot_canvas.utils.path_helper import get_data_directory
 
 
 class ReferenceDeck:
@@ -12,7 +12,7 @@ class ReferenceDeck:
 
     @staticmethod
     def get_reference_deck_path():
-        return xdg_data_home() / "tarot-canvas" / ReferenceDeck.REFERENCE_DECK_DIR / ReferenceDeck.REFERENCE_DECK_NAME
+        return get_data_directory("tarot-canvas") / ReferenceDeck.REFERENCE_DECK_DIR / ReferenceDeck.REFERENCE_DECK_NAME
 
     @staticmethod
     def is_reference_deck_present():
@@ -20,7 +20,7 @@ class ReferenceDeck:
 
     @staticmethod
     def download_reference_deck(progress_callback=None):
-        parent_dir = xdg_data_home() / "tarot-canvas" / ReferenceDeck.REFERENCE_DECK_DIR
+        parent_dir = get_data_directory("tarot-canvas") / ReferenceDeck.REFERENCE_DECK_DIR
         reference_deck_path = parent_dir / ReferenceDeck.REFERENCE_DECK_NAME
         
         # Create parent directory
@@ -85,9 +85,6 @@ class ReferenceDeck:
 
         # Now move the correct directory to the final location
         # Find the rider-waite-smith directory within the extracted content
-        import shutil
-        
-        # Check if the expected directory structure exists
         extracted_deck_dir = os.path.join(temp_extract_dir, "rider-waite-smith")
         if os.path.exists(extracted_deck_dir):
             # Move the content to the final destination

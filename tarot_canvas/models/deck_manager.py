@@ -4,6 +4,7 @@ import glob
 from tarot_canvas.models.deck import TarotDeck
 from tarot_canvas.models.reference_deck import ReferenceDeck
 from tarot_canvas.utils.logger import logger
+from tarot_canvas.utils.path_helper import get_data_directory, get_decks_directory
 
 class DeckManager:
     def __init__(self):
@@ -17,25 +18,33 @@ class DeckManager:
         self.load_decks()
 
     def load_decks(self):
-        """Load all available decks from standard locations"""
-        deck_paths = [
-            os.path.expanduser("~/.local/share/tarot/decks"),
-        ]
+        """Load all available decks from all valid deck locations"""
+        # Get all valid deck directories
+        deck_directories = get_decks_directory()
         
-        # Check each path for decks (directories with deck.toml)
-        for base_path in deck_paths:
-            if os.path.exists(base_path):
-                for deck_dir in os.listdir(base_path):
-                    deck_path = os.path.join(base_path, deck_dir)
-                    if os.path.isdir(deck_path) and os.path.exists(os.path.join(deck_path, "deck.toml")):
-                        try:
-                            logger.debug(f"Loading deck from {deck_path}")
-                            deck = TarotDeck(deck_path)
-                            self.decks[deck.get_name()] = deck
-                            logger.info(f"Loaded deck '{deck.get_name()}' from {deck_path}")
-
-                        except Exception as e:
-                            logger.error(f"Error loading deck {deck_path}: {e}")
+        # Process each directory
+        for decks_directory in deck_directories:
+            # Ensure the directory exists, but only create the primary one
+            if decks_directory == deck_directories[0]:  # Only create the primary directory
+                os.makedirs(decks_directory, exist_ok=True)
+            
+            # Skip if directory doesn't exist (important for read-only locations)
+            if not os.path.exists(decks_directory):
+                continue
+                
+            logger.info(f"Loading decks from {decks_directory}")
+            
+            # Load decks from this directory
+            for deck_dir in os.listdir(decks_directory):
+                deck_path = os.path.join(decks_directory, deck_dir)
+                if os.path.isdir(deck_path) and os.path.exists(os.path.join(deck_path, "deck.toml")):
+                    try:
+                        logger.debug(f"Loading deck from {deck_path}")
+                        deck = TarotDeck(deck_path)
+                        self.decks[deck.get_name()] = deck
+                        logger.info(f"Loaded deck '{deck.get_name()}' from {deck_path}")
+                    except Exception as e:
+                        logger.error(f"Error loading deck {deck_path}: {e}")
     
     def get_deck_names(self):
         """Get a list of available deck names"""

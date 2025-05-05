@@ -6,16 +6,12 @@ base: com.riverbankcomputing.PyQt.BaseApp
 base-version: '6.9'
 command: tarot-canvas
 finish-args:
-  - --filesystem=xdg-data/tarot-canvas:create
-  - --filesystem=xdg-data/tarot:ro
-  - --share=network # TODO: remove when the reference deck is included
+  - --share=network  # Needed to download the reference deck
+  - --filesystem=xdg-data/tarot/decks:ro  # Needed to access user's decks
   - --socket=wayland
   - --socket=fallback-x11
+  - --share=ipc
   - --device=dri
-  - --talk-name=org.freedesktop.portal.Desktop
-  - --talk-name=org.freedesktop.portal.FileChooser
-  - --talk-name=org.freedesktop.portal.OpenURI
-  - --talk-name=org.freedesktop.portal.Settings  # For theme integration
 modules:
   - python3-modules.yaml
   - name: tarot-canvas

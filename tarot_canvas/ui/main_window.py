@@ -514,7 +514,7 @@ class MainWindow(QMainWindow):
                 return
             
             # Open the deck
-            print(f"Selected deck directory: {deck_dir}")
+            logger.info(f"Selected deck directory: {deck_dir}")
             deck_tab = self.new_deck_view_tab(deck_path=deck_dir)
 
     def new_reading(self):
