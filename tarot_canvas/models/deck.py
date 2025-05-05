@@ -1,4 +1,4 @@
-import toml
+import tomli
 import os
 import random
 from pathlib import Path
@@ -52,8 +52,8 @@ class TarotDeck:
         if not os.path.exists(deck_file):
             raise FileNotFoundError(f"deck.toml not found in {self.deck_path}")
 
-        with open(deck_file, "r") as f:
-            metadata = toml.load(f)
+        with open(deck_file, "rb") as f:
+            metadata = tomli.load(f)
             logger.debug(f"Loaded metadata for deck: {metadata.get('deck', {}).get('name', 'Unknown')}")
             return metadata
 
@@ -281,17 +281,17 @@ class TarotDeck:
         """Load localized names for cards."""
         names_file = os.path.join(self.deck_path, "names", f"{lang}.toml")
         if os.path.exists(names_file):
-            with open(names_file, "r") as f:
-                return toml.load(f)
+            with open(names_file, "rb") as f:
+                return tomli.load(f)
         return None
-    
+
     @lru_cache(maxsize=8)
     def _load_localized_alt_texts(self, lang="en"):
         """Load alt texts for cards from localization files."""
         names_file = os.path.join(self.deck_path, "names", f"{lang}.toml")
         if os.path.exists(names_file):
-            with open(names_file, "r") as f:
-                data = toml.load(f)
+            with open(names_file, "rb") as f:
+                data = tomli.load(f)
                 # Extract alt_text section if it exists
                 if "alt_text" in data:
                     return data["alt_text"]

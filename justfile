@@ -30,7 +30,7 @@ generate-flatpak-python3-modules:
   curl -L -o "${TEMP_DIR}/flatpak-pip-generator" https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/master/pip/flatpak-pip-generator
   chmod +x "${TEMP_DIR}/flatpak-pip-generator"
   
-  ${TEMP_DIR}/flatpak-pip-generator --yaml --checker-data --cleanup scripts requests toml xdg-base-dirs
+  ${TEMP_DIR}/flatpak-pip-generator --yaml --checker-data --cleanup scripts requests tomli xdg-base-dirs
   
   deactivate
   rm -rf "${TEMP_DIR}"
