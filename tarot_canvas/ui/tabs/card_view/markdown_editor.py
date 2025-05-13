@@ -1,6 +1,8 @@
 from PyQt6.QtWidgets import QPlainTextEdit, QCompleter
 from PyQt6.QtGui import QTextCursor, QColor, QSyntaxHighlighter, QTextCharFormat, QFont
-from PyQt6.QtCore import Qt, QRegularExpression, pyqtSignal, QStringListModel
+from PyQt6.QtCore import Qt, QRegularExpression, pyqtSignal, QStringListModel, QTimer
+from tarot_canvas.ui.tabs.card_view.card_preview import CardPreviewWidget
+from tarot_canvas.utils.logger import logger
 
 class MarkdownHighlighter(QSyntaxHighlighter):
     """Syntax highlighter for the Markdown format"""
@@ -72,6 +74,19 @@ class MarkdownEditor(QPlainTextEdit):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.parent_tab = parent
+        self.deck_manager = None
+        
+        # Add preview widget
+        self.preview = CardPreviewWidget()
+        
+        # Add hover tracking
+        self.setMouseTracking(True)
+        
+        # Hover timer to avoid flickering
+        self.hover_timer = QTimer(self)
+        self.hover_timer.setSingleShot(True)
+        self.hover_timer.timeout.connect(self.check_hover_position)
+        self.hover_position = None
         
         # Set up font and line wrapping
         font = QFont("Consolas, 'DejaVu Sans Mono', monospace", 10)
@@ -115,6 +130,11 @@ class MarkdownEditor(QPlainTextEdit):
             items = []
         model = QStringListModel(items)
         self.completer.setModel(model)
+    
+    def set_deck_manager(self, deck_manager):
+        """Set the deck manager reference directly"""
+        self.deck_manager = deck_manager
+        logger.debug(f"Deck manager set: {self.deck_manager is not None}")
     
     def keyPressEvent(self, event):
         """Handle key press events for auto-completion and formatting"""
@@ -275,3 +295,185 @@ class MarkdownEditor(QPlainTextEdit):
         # Add closing brackets if needed
         if "]]" not in text[pos:pos+10]:
             self.insertPlainText("]]")
+    
+    def mouseMoveEvent(self, event):
+        """Track mouse movement to detect hovering over links"""
+        super().mouseMoveEvent(event)
+        
+        # Store current position and start timer
+        self.hover_position = event.pos()
+        
+        # Restart timer to avoid excessive processing
+        self.hover_timer.start(300)  # Wait 300ms before showing preview
+    
+    def check_hover_position(self):
+        """Check if mouse is hovering over a card link"""
+        if not self.hover_position:
+            logger.debug("No hover position stored")
+            return
+            
+        # Get text cursor at mouse position
+        cursor = self.cursorForPosition(self.hover_position)
+        
+        # Check if we're hovering over a link to a card
+        text = self.toPlainText()
+        pos = cursor.position()
+        
+        logger.debug(f"Checking hover at position {pos} of {len(text)} chars")
+        
+        # Check for card links specifically
+        link_start = text.rfind("[[card:", 0, pos)
+        if link_start == -1:
+            link_start = text.rfind("[[", 0, pos)
+            if link_start == -1:
+                logger.debug("No [[ link start found near hover position")
+                self.preview.hide()
+                return
+                
+        link_end = text.find("]]", link_start)
+        if link_end == -1 or pos > link_end:
+            logger.debug(f"No ]] link end found, or position {pos} is after link end {link_end}")
+            self.preview.hide()
+            return
+            
+        # Extract link text
+        link_text = text[link_start+2:link_end]
+        logger.debug(f"Detected hover over link: [[{link_text}]]")
+        
+        # If it's a card link, show preview
+        if link_text.startswith("card:"):
+            card_name = link_text[5:]
+            logger.debug(f"Processing card link: {card_name}")
+            self.show_card_preview(card_name, self.hover_position)
+        else:
+            # Check if the text corresponds to a card name
+            logger.debug(f"Checking if '{link_text}' is a card name")
+            self.check_if_card_and_preview(link_text, self.hover_position)
+    
+    def show_card_preview(self, card_name, position):
+        """Show preview for a specific card"""
+        # First check our direct reference
+        if self.deck_manager is not None:
+            deck_manager = self.deck_manager
+        # Fall back to parent tab if needed
+        elif hasattr(self.parent_tab, 'deck_manager'):
+            deck_manager = self.parent_tab.deck_manager
+        else:
+            logger.debug("No deck manager available")
+            self.preview.hide()
+            return
+        
+        if deck_manager is None:
+            logger.debug("deck_manager is None")
+            self.preview.hide()
+            return
+            
+        ref_deck = deck_manager.get_reference_deck()
+        
+        if not ref_deck:
+            logger.debug("Reference deck not found")
+            self.preview.hide()
+            return
+            
+        # Find the card by name
+        found_card = None
+        has_get_all_cards = hasattr(ref_deck, 'get_all_cards')
+        logger.debug(f"Deck has get_all_cards method: {has_get_all_cards}")
+        
+        try:
+            cards = getattr(ref_deck, 'get_all_cards', lambda: ref_deck._cards)()
+            logger.debug(f"Retrieved {len(cards) if cards else 0} cards from deck")
+            
+            for card in cards:
+                if card['name'].lower() == card_name.lower():
+                    found_card = card
+                    logger.debug(f"Found card: {card['name']} (id: {card.get('id', 'unknown')})")
+                    break
+                    
+            if not found_card:
+                logger.debug(f"No card found with name: {card_name}")
+                self.preview.hide()
+                return
+                
+            # Set card in preview
+            logger.debug("Setting card in preview widget")
+            self.preview.set_card(found_card, ref_deck)
+            
+            # Position the preview widget near the current position
+            global_pos = self.mapToGlobal(position)
+            preview_x = global_pos.x() + 20
+            preview_y = global_pos.y() - 20
+            logger.debug(f"Positioning preview at ({preview_x}, {preview_y})")
+            self.preview.move(preview_x, preview_y)
+            self.preview.show()
+            logger.debug("Preview widget shown")
+        except Exception as e:
+            logger.error(f"Error showing card preview: {e}")
+            import traceback
+            logger.debug(traceback.format_exc())
+            self.preview.hide()
+    
+    def check_if_card_and_preview(self, text, position):
+        """Check if a text is a card name and show preview if it is"""
+        # First check our direct reference
+        if self.deck_manager is not None:
+            deck_manager = self.deck_manager
+        # Fall back to parent tab if needed
+        elif hasattr(self.parent_tab, 'deck_manager'):
+            deck_manager = self.parent_tab.deck_manager
+        else:
+            logger.debug("No deck manager available")
+            self.preview.hide()
+            return
+            
+        if deck_manager is None:
+            logger.debug("deck_manager is None")
+            self.preview.hide()
+            return
+            
+        ref_deck = deck_manager.get_reference_deck()
+        
+        if not ref_deck:
+            logger.debug("Reference deck not found")
+            self.preview.hide()
+            return
+            
+        # Find the card by name
+        found_card = None
+        try:
+            cards = getattr(ref_deck, 'get_all_cards', lambda: ref_deck._cards)()
+            logger.debug(f"Looking for card name: {text} among {len(cards) if cards else 0} cards")
+            
+            for card in cards:
+                if card['name'].lower() == text.lower():
+                    found_card = card
+                    logger.debug(f"Found matching card: {card['name']}")
+                    break
+                    
+            if not found_card:
+                logger.debug(f"No card found matching: {text}")
+                self.preview.hide()
+                return
+                
+            # Set card in preview
+            logger.debug("Setting card in preview widget")
+            self.preview.set_card(found_card, ref_deck)
+            
+            # Position the preview widget near the current position
+            global_pos = self.mapToGlobal(position)
+            preview_x = global_pos.x() + 20
+            preview_y = global_pos.y() - 20
+            logger.debug(f"Positioning preview at ({preview_x}, {preview_y})")
+            self.preview.move(preview_x, preview_y)
+            self.preview.show()
+            logger.debug("Preview widget shown")
+        except Exception as e:
+            logger.error(f"Error checking for card preview: {e}")
+            import traceback
+            logger.debug(traceback.format_exc())
+            self.preview.hide()
+    
+    def leaveEvent(self, event):
+        """Hide preview when mouse leaves the editor"""
+        super().leaveEvent(event)
+        self.preview.hide()

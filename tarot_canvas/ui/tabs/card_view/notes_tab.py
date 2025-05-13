@@ -1,14 +1,13 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QHBoxLayout, 
                            QPushButton, QInputDialog, QMessageBox, 
-                           QFileDialog, QToolBar, QStackedWidget,
-                           QMenu, QFrame)
+                           QFileDialog, QStackedWidget,
+                           QMenu)
 from PyQt6.QtGui import QIcon, QTextCursor, QAction
 from PyQt6.QtCore import Qt, QSize, QTimer
 import os
 import time
 import shutil
 import re
-from functools import partial
 from pathlib import Path
 
 from tarot_canvas.ui.tabs.card_view.markdown_editor import MarkdownEditor
@@ -90,60 +89,7 @@ class NotesTab(QWidget):
         
         editor_layout.addWidget(editor_header)
         
-        # Format toolbar
-        format_toolbar = QToolBar()
-        format_toolbar.setIconSize(QSize(16, 16))
-        
-        # Heading actions
-        heading_menu = QMenu("Headings")
-        for i in range(1, 4):
-            action = QAction(f"Heading {i}", self)
-            action.triggered.connect(partial(self.insert_heading, level=i))
-            heading_menu.addAction(action)
-        
-        heading_button = QPushButton("H")
-        heading_button.setToolTip("Insert heading")
-        heading_button.setMaximumSize(24, 24)
-        heading_button.setMenu(heading_menu)
-        format_toolbar.addWidget(heading_button)
-        
-        # Bold action
-        bold_action = QAction(QIcon.fromTheme("format-text-bold"), "Bold", self)
-        bold_action.setToolTip("Bold text (Ctrl+B)")
-        bold_action.triggered.connect(self.format_bold)
-        format_toolbar.addAction(bold_action)
-        
-        # Italic action
-        italic_action = QAction(QIcon.fromTheme("format-text-italic"), "Italic", self)
-        italic_action.setToolTip("Italic text (Ctrl+I)")
-        italic_action.triggered.connect(self.format_italic)
-        format_toolbar.addAction(italic_action)
-        
-        format_toolbar.addSeparator()
-        
-        # List action
-        list_action = QAction(QIcon.fromTheme("format-list-unordered"), "List", self)
-        list_action.setToolTip("Bullet list")
-        list_action.triggered.connect(self.insert_list)
-        format_toolbar.addAction(list_action)
-        
-        format_toolbar.addSeparator()
-        
-        # Link actions
-        link_action = QAction(QIcon.fromTheme("insert-link"), "Link", self)
-        link_action.setToolTip("Insert link (Ctrl+K)")
-        link_action.triggered.connect(self.insert_link)
-        format_toolbar.addAction(link_action)
-        
-        # Wiki link action
-        wiki_link_action = QAction("[[]]", self)
-        wiki_link_action.setToolTip("Insert internal link")
-        wiki_link_action.triggered.connect(self.insert_wiki_link)
-        format_toolbar.addAction(wiki_link_action)
-        
-        editor_layout.addWidget(format_toolbar)
-        
-        # Create enhanced markdown editor
+        # Create enhanced markdown editor - no toolbar now
         self.note_editor = MarkdownEditor(self)
         self.note_editor.linkClicked.connect(self.handle_link_click)
         editor_layout.addWidget(self.note_editor)
@@ -184,6 +130,11 @@ class NotesTab(QWidget):
         card_id = card.get("id")
         if not card_id:
             return
+        
+        # Ensure deck manager reference is passed to editor
+        if hasattr(self.parent_tab, 'deck_manager'):
+            self.note_editor.set_deck_manager(self.parent_tab.deck_manager)
+            logger.debug("Passed deck manager to editor")
         
         # Determine the notes directory path
         notes_dir = get_data_directory("tarot-canvas/notes") / card_id
@@ -686,106 +637,6 @@ class NotesTab(QWidget):
                     self.notes_list_widget.notes_list.setCurrentItem(item)
                     self.open_note_editor(item)
                     return
-    
-    # Editor formatting functions
-    
-    def insert_heading(self, level=1):
-        """Insert a heading of the specified level"""
-        cursor = self.note_editor.textCursor()
-        
-        # Get current line text
-        cursor.movePosition(QTextCursor.MoveOperation.StartOfLine)
-        cursor.movePosition(QTextCursor.MoveOperation.EndOfLine, QTextCursor.MoveMode.KeepAnchor)
-        line_text = cursor.selectedText()
-        
-        # Remove existing heading marks if any
-        clean_text = re.sub(r'^#+\s*', '', line_text)
-        
-        # Create heading
-        heading = '#' * level + ' ' + clean_text
-        
-        # Replace the line
-        cursor.removeSelectedText()
-        cursor.insertText(heading)
-    
-    def format_bold(self):
-        """Make selected text bold or insert bold markers"""
-        cursor = self.note_editor.textCursor()
-        
-        if cursor.hasSelection():
-            # Apply bold to selection
-            selected_text = cursor.selectedText()
-            cursor.removeSelectedText()
-            cursor.insertText(f"**{selected_text}**")
-        else:
-            # Insert bold markers and place cursor between them
-            cursor.insertText("****")
-            cursor.movePosition(QTextCursor.MoveOperation.Left, QTextCursor.MoveMode.MoveAnchor, 2)
-            self.note_editor.setTextCursor(cursor)
-    
-    def format_italic(self):
-        """Make selected text italic or insert italic markers"""
-        cursor = self.note_editor.textCursor()
-        
-        if cursor.hasSelection():
-            # Apply italic to selection
-            selected_text = cursor.selectedText()
-            cursor.removeSelectedText()
-            cursor.insertText(f"*{selected_text}*")
-        else:
-            # Insert italic markers and place cursor between them
-            cursor.insertText("**")
-            cursor.movePosition(QTextCursor.MoveOperation.Left, QTextCursor.MoveMode.MoveAnchor, 1)
-            self.note_editor.setTextCursor(cursor)
-    
-    def insert_list(self):
-        """Insert a bullet list item"""
-        cursor = self.note_editor.textCursor()
-        
-        # Move to start of line
-        cursor.movePosition(QTextCursor.MoveOperation.StartOfLine)
-        
-        # Insert bullet point
-        cursor.insertText("- ")
-        self.note_editor.setTextCursor(cursor)
-    
-    def insert_link(self):
-        """Insert a markdown link"""
-        cursor = self.note_editor.textCursor()
-        
-        if cursor.hasSelection():
-            # Use selection as link text
-            text = cursor.selectedText()
-            cursor.removeSelectedText()
-            cursor.insertText(f"[{text}]()")
-            
-            # Position cursor inside the parentheses
-            cursor.movePosition(QTextCursor.MoveOperation.Left, QTextCursor.MoveMode.MoveAnchor, 1)
-        else:
-            # Insert empty link and position cursor for the link text
-            cursor.insertText("[]()") 
-            cursor.movePosition(QTextCursor.MoveOperation.Left, QTextCursor.MoveMode.MoveAnchor, 3)
-            
-        self.note_editor.setTextCursor(cursor)
-    
-    def insert_wiki_link(self):
-        """Insert a wiki-style internal link"""
-        cursor = self.note_editor.textCursor()
-        
-        if cursor.hasSelection():
-            # Use selection as link text
-            text = cursor.selectedText()
-            cursor.removeSelectedText()
-            cursor.insertText(f"[[{text}]]")
-        else:
-            # Insert empty link and position cursor inside
-            cursor.insertText("[[]]")
-            cursor.movePosition(QTextCursor.MoveOperation.Left, QTextCursor.MoveMode.MoveAnchor, 2)
-            
-        self.note_editor.setTextCursor(cursor)
-        
-        # Start completion
-        self.note_editor.start_link_completion()
     
     # Add this method to ensure saving when the tab is closed
     def closeEvent(self, event):
