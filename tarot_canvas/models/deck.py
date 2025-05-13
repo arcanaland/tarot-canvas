@@ -470,6 +470,15 @@ class TarotDeck:
         """Get the reason for card exclusions, if any."""
         return self._excluded_reason
 
+    def get_all_cards(self):
+        """
+        Get all cards from the deck.
+        
+        Returns:
+            list: List of all card dictionaries in the deck
+        """
+        return self._cards
+
     # --------------------------------
     # SEARCH/FIND METHODS
     # --------------------------------
