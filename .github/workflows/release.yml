@@ -1,0 +1,68 @@
+name: Release Package
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.13'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install poetry
+
+    - name: Get version
+      id: get_version
+      run: |
+        VERSION=$(poetry version -s)
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Version: $VERSION"
+
+    - name: Create source package
+      run: |
+        # Create the package directory structure
+        mkdir -p tarot-canvas-${{ steps.get_version.outputs.version }}
+
+        cp -r tarot_canvas tarot-canvas-${{ steps.get_version.outputs.version }}/
+        cp -r packaging tarot-canvas-${{ steps.get_version.outputs.version }}/
+
+        cp pyproject.toml tarot-canvas-${{ steps.get_version.outputs.version }}/
+        cp poetry.lock tarot-canvas-${{ steps.get_version.outputs.version }}/
+        cp README.md tarot-canvas-${{ steps.get_version.outputs.version }}/
+        cp LICENSE tarot-canvas-${{ steps.get_version.outputs.version }}/
+
+        tar -czf tarot-canvas-${{ steps.get_version.outputs.version }}.tar.gz tarot-canvas-${{ steps.get_version.outputs.version }}/
+
+        sha256sum tarot-canvas-${{ steps.get_version.outputs.version }}.tar.gz > tarot-canvas-${{ steps.get_version.outputs.version }}.tar.gz.sha256
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: |
+          tarot-canvas-${{ steps.get_version.outputs.version }}.tar.gz
+          tarot-canvas-${{ steps.get_version.outputs.version }}.tar.gz.sha256
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: release-package
+        path: |
+          tarot-canvas-${{ steps.get_version.outputs.version }}.tar.gz
+          tarot-canvas-${{ steps.get_version.outputs.version }}.tar.gz.sha256
