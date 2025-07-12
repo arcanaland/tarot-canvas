@@ -95,7 +95,7 @@ release VERSION="":
   if [ -n "$(git diff --cached)" ] || [ -n "$(git diff)" ]; then
     echo "Committing version changes..."
     git add pyproject.toml tarot_canvas/_version.py
-    git commit -m "Bump version to $NEW_VERSION"
+    git commit -m "chore: bump version to $NEW_VERSION"
   fi
 
   # Create and push tag
@@ -121,5 +121,6 @@ release VERSION="":
   echo ""
   echo "Next steps:"
   echo "1. Push the tag to trigger the GitHub Action:"
+  echo -e "   ${YELLOW}git push origin main"
   echo -e "   ${YELLOW}git push origin $TAG_NAME${NC}"
 
