@@ -7,7 +7,7 @@ run:
 install-flatpak:
   #!/bin/bash
   cd packaging
-  flatpak-builder --user --install --force-clean build-dir land.arcana.TarotCanvas.yml
+  flatpak run org.flatpak.Builder --user --install --force-clean build-dir land.arcana.TarotCanvas.yml
 
 build-flatpak:
   #!/bin/bash
