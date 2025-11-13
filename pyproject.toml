@@ -9,6 +9,7 @@ description = "A cross-platform Qt6 application for viewing and exploring tarot 
 authors = ["Adam Fidel <adam@fidel.id>"]
 readme = "README.md"
 packages = [{include = "tarot_canvas"}]  # This directly uses the tarot_canvas directory at the project root
+include = ["tarot_canvas/resources/**/*"]
 license = "MIT"
 homepage = "https://github.com/arcanaland/tarot-canvas"
 repository = "https://github.com/arcanaland/tarot-canvas"
