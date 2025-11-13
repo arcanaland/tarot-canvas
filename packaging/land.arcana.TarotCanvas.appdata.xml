@@ -4,8 +4,8 @@
   <id>land.arcana.TarotCanvas</id>
   <name>Tarot Canvas</name>
   <summary>Cross-platform Qt application for viewing and exploring tarot decks</summary>
-  <developer>
-    <name>ledif</name>
+  <developer id="ledif">
+    <name>Adam Fidel</name>
   </developer>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT</project_license>
@@ -42,7 +42,7 @@
   </requires>
   <content_rating type="oars-1.1"/>
   <launchable type="desktop-id">land.arcana.TarotCanvas.desktop</launchable>
-   <provides>
+  <provides>
     <binary>tarot-canvas</binary>
     <id>tarot-canvas.desktop</id>
     <mediatype>x-scheme-handler/tarot</mediatype>
