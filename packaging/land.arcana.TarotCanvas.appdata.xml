@@ -24,7 +24,7 @@
   <screenshots>
     <screenshot type="default">
       <caption>Tarot Canvas main window</caption>
-      <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/screenshots/main-window.png</image>
+      <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/main-window.webp</image>
     </screenshot>
   </screenshots>
   <releases>

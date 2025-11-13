@@ -1,13 +1,12 @@
 app-id: land.arcana.TarotCanvas
 runtime: org.kde.Platform
-runtime-version: '6.9'
+runtime-version: '6.10'
 sdk: org.kde.Sdk
 base: com.riverbankcomputing.PyQt.BaseApp
-base-version: '6.9'
+base-version: '6.10'
 command: tarot-canvas
 finish-args:
-  - --share=network  # Needed to download the reference deck
-  - --filesystem=xdg-data/tarot/decks:ro  # Needed to access user's decks
+  - --share=network                       # Needed to download reference decks
   - --socket=wayland
   - --socket=fallback-x11
   - --share=ipc
@@ -21,19 +20,18 @@ modules:
         PYTHON_VERSION=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')") && \
         SITE_PACKAGES="${FLATPAK_DEST}/lib/python${PYTHON_VERSION}/site-packages" && \
         mkdir -p ${SITE_PACKAGES} && \
-        cp -r tarot_canvas ${SITE_PACKAGES}/ && \
-        touch ${SITE_PACKAGES}/tarot_canvas/__init__.py
-      
+        cp -r tarot_canvas ${SITE_PACKAGES}/
+
       - mkdir -p ${FLATPAK_DEST}/bin
       - mkdir -p ${FLATPAK_DEST}/share/applications
       - mkdir -p ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps
       - mkdir -p ${FLATPAK_DEST}/share/metainfo
-            
+
       - install -Dm644 packaging/land.arcana.TarotCanvas.desktop ${FLATPAK_DEST}/share/applications/land.arcana.TarotCanvas.desktop
       - install -Dm644 packaging/icon.png ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/land.arcana.TarotCanvas.png
       - install -Dm644 packaging/land.arcana.TarotCanvas.appdata.xml ${FLATPAK_DEST}/share/metainfo/land.arcana.TarotCanvas.metainfo.xml
       - install -Dm755 packaging/tarot-canvas-launcher.sh ${FLATPAK_DEST}/bin/tarot-canvas
-      
+
     sources:
       - type: dir
         path: ..
