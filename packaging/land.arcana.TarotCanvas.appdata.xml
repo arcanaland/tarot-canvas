@@ -3,7 +3,7 @@
   <!--Created with jdAppStreamEdit 9.2-->
   <id>land.arcana.TarotCanvas</id>
   <name>Tarot Canvas</name>
-  <summary>Cross-platform Qt application for viewing and exploring tarot decks</summary>
+  <summary>Desktop application for viewing and exploring tarot decks</summary>
   <developer id="ledif">
     <name>Adam Fidel</name>
   </developer>
@@ -11,26 +11,44 @@
   <project_license>MIT</project_license>
   <update_contact>adam@cloud.id</update_contact>
   <description>
-    <p>Tarot Canvas is a cross-platform application for viewing and exploring tarot decks.
-      It supports decks that are compliant with the Tarot Deck Specification v1.0.</p>
+    <p>Tarot Canvas is a cross-platform application for viewing and exploring tarot decks. It supports decks that are compliant with the Tarot Deck Specification v1.0.</p>
     <p>Features include:</p>
     <ul>
-      <li>Load and view tarot decks that follow the Tarot Deck Specification</li>
-      <li>Support for multiple card formats including SVG and raster images</li>
-      <li>Internationalization support</li>
-      <li>Custom card backs and variants</li>
+      <li>View and explore the traditional Rider-Waite-Smith tarot deck</li>
+      <li>Load and view any tarot deck that follows Arcana Land's open tarot deck spec</li>
+      <li>Play around in a canvas by adding and arranging cards from any deck</li>
     </ul>
   </description>
   <screenshots>
     <screenshot type="default">
-      <caption>Tarot Canvas main window</caption>
+      <caption>Main view of a single card</caption>
       <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/main-window.webp</image>
+    </screenshot>
+    <screenshot>
+      <caption>View of an entire deck</caption>
+      <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/deck-view.webp</image>
+    </screenshot>
+    <screenshot>
+      <caption>View of your library of tarot decks</caption>
+      <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/library-view.webp</image>
+    </screenshot>
+    <screenshot>
+      <caption>A canvas of cards</caption>
+      <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/canvas-view.webp</image>
+    </screenshot>
+    <screenshot>
+      <caption>Support for custom esoterica and passages</caption>
+      <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/esoterica-view.webp</image>
+    </screenshot>
+    <screenshot>
+      <caption>Take custom notes attached to cards</caption>
+      <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/notes-view.webp</image>
     </screenshot>
   </screenshots>
   <releases>
-    <release version="0.1.0" date="2025-04-30" type="stable">
+    <release version="1.1.2" date="2025-11-13" type="stable">
       <description>
-        <p>Initial release of Tarot Canvas</p>
+        <p>Initial release of Tarot Canvas on Flathub</p>
       </description>
     </release>
   </releases>
