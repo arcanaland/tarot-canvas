@@ -22,6 +22,7 @@ from tarot_canvas.utils.theme_manager import ThemeManager, ThemeType
 from tarot_canvas.utils.logger import logger
 from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.ui.command_palette import CommandPalette
+from tarot_canvas._version import __version__
 
 class TabBarEventFilter(QObject):
     """Event filter to detect double-clicks on tab bar for renaming"""
@@ -617,7 +618,7 @@ class MainWindow(QMainWindow):
     def show_about(self):
         about_text = (
             "Tarot Canvas\n\n"
-            "Version: 0.1.0\n"
+            f"Version: {__version__}\n"
             "A modern tarot exploration application.\n\n"
             "© 2025 Arcana Land"
         )
