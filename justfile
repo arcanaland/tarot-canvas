@@ -87,16 +87,21 @@ release VERSION="":
     RELEASE_DESC="Release version $NEW_VERSION"
   fi
 
-  # Create new release entry
-  NEW_RELEASE="    <release version=\"$NEW_VERSION\" date=\"$RELEASE_DATE\" type=\"stable\">
-      <description>
-        <p>$RELEASE_DESC</p>
-      </description>
-    </release>"
-
-  # Insert new release at the top of releases section
-  sed -i "/<releases>/a\\
-$NEW_RELEASE" packaging/land.arcana.TarotCanvas.appdata.xml
+  # Create new release entry using awk to insert after <releases>
+  awk -v version="$NEW_VERSION" -v date="$RELEASE_DATE" -v desc="$RELEASE_DESC" '
+    /<releases>/ {
+      print
+      print "    <release version=\"" version "\" date=\"" date "\" type=\"stable\">"
+      print "      <description>"
+      print "        <p>" desc "</p>"
+      print "      </description>"
+      print "    </release>"
+      next
+    }
+    { print }
+  ' packaging/land.arcana.TarotCanvas.appdata.xml > packaging/land.arcana.TarotCanvas.appdata.xml.tmp
+  
+  mv packaging/land.arcana.TarotCanvas.appdata.xml.tmp packaging/land.arcana.TarotCanvas.appdata.xml
 
   echo -e "${GREEN}AppStream metadata updated${NC}"
 
