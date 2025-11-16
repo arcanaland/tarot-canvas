@@ -78,6 +78,28 @@ release VERSION="":
     echo -e "${GREEN}Version updated to $NEW_VERSION${NC}"
   fi
 
+  # Update AppStream metadata with new release
+  RELEASE_DATE=$(date +%Y-%m-%d)
+  echo "Updating AppStream metadata..."
+  echo -n "Enter release description (or press Enter for default): "
+  read RELEASE_DESC
+  if [ -z "$RELEASE_DESC" ]; then
+    RELEASE_DESC="Release version $NEW_VERSION"
+  fi
+
+  # Create new release entry
+  NEW_RELEASE="    <release version=\"$NEW_VERSION\" date=\"$RELEASE_DATE\" type=\"stable\">
+      <description>
+        <p>$RELEASE_DESC</p>
+      </description>
+    </release>"
+
+  # Insert new release at the top of releases section
+  sed -i "/<releases>/a\\
+$NEW_RELEASE" packaging/land.arcana.TarotCanvas.appdata.xml
+
+  echo -e "${GREEN}AppStream metadata updated${NC}"
+
   # Check if git is clean
   if [ -n "$(git status --porcelain)" ]; then
     echo -e "${YELLOW}Warning: Working directory is not clean${NC}"
@@ -94,7 +116,7 @@ release VERSION="":
   # Commit version changes if any
   if [ -n "$(git diff --cached)" ] || [ -n "$(git diff)" ]; then
     echo "Committing version changes..."
-    git add pyproject.toml tarot_canvas/_version.py
+    git add pyproject.toml tarot_canvas/_version.py packaging/land.arcana.TarotCanvas.appdata.xml
     git commit -m "chore: bump version to $NEW_VERSION"
   fi
 
