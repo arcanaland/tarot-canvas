@@ -14,9 +14,9 @@
     <p>Tarot Canvas is a cross-platform application for viewing and exploring tarot decks. It supports decks that are compliant with the Tarot Deck Specification v1.0.</p>
     <p>Features include:</p>
     <ul>
-      <li>View and explore the traditional Rider-Waite-Smith tarot deck</li>
-      <li>Load and view any tarot deck that follows Arcana Land's open tarot deck spec</li>
-      <li>Play around in a canvas by adding and arranging cards from any deck</li>
+      <li>Explore tarot deck imagery, metadata and esoterica (corrospondences and other occult or divinatory information)</li>
+      <li>Includes the traditional Rider-Waite-Smith deck and supports any deck following Arcana Land's tarot deck specification</li>
+      <li>Provides a playground canvas where you can place and arrange tarot cards from any deck</li>
     </ul>
   </description>
   <screenshots>
