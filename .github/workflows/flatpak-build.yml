@@ -35,8 +35,7 @@ jobs:
         sudo flatpak install -y flathub com.riverbankcomputing.PyQt.BaseApp//6.10
 
     - name: Install just
-      run: |
-        curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | sudo bash -s -- --to /usr/local/bin
+      uses: extractions/setup-just@v2
 
     - name: Build Flatpak
       run: just build-flatpak
