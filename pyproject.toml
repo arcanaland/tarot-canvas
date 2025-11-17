@@ -6,9 +6,9 @@ build-backend = "poetry.core.masonry.api"
 name = "tarot-canvas"
 version = "1.2.0"
 description = "A cross-platform Qt6 application for viewing and exploring tarot decks"
-authors = ["Adam Fidel <adam@fidel.id>"]
+authors = ["Adam Fidel <adam@fidel.cloud>"]
 readme = "README.md"
-packages = [{include = "tarot_canvas"}]  # This directly uses the tarot_canvas directory at the project root
+packages = [{include = "tarot_canvas"}]
 include = ["tarot_canvas/resources/**/*"]
 license = "MIT"
 homepage = "https://github.com/arcanaland/tarot-canvas"
@@ -40,6 +40,5 @@ isort = "^5.12.0"
 [tool.poetry.scripts]
 tarot-canvas = "tarot_canvas.main:main"
 
-# Add metadata for Linux desktop integration
 [tool.poetry.plugins."gui_scripts"]
 tarot-canvas = "tarot_canvas.main:main"
