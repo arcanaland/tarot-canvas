@@ -2,7 +2,7 @@
 
 # Tarot Canvas
 
-A cross-platform desktop application for viewing and exploring tarot decks.
+A Linux desktop application for viewing and exploring tarot decks.
 
 ![image](https://github.com/user-attachments/assets/fd348809-6c76-428c-a094-df7ead6a5262)
 
@@ -14,16 +14,14 @@ A cross-platform desktop application for viewing and exploring tarot decks.
 
 ## Installation
 
-### From Source with Poetry
-
-Assumes a Linux environment with KDE.
+The preferred installation method is via Flatpak from Flathub:
 
 ```bash
-poetry install
-poetry run tarot-canvas
+flatpak install flathub land.arcana.TarotCanvas
 ```
 
-## From Source with Flatpak
+
+### From Source
 
 Requires `flatpak-builder` to be available.
 
@@ -31,5 +29,3 @@ Requires `flatpak-builder` to be available.
 just install-flatpak
 flatpak run land.arcana.TarotCanvas
 ```
-
-Once this project is sufficiently far along, it will be submitted to Flathub.
