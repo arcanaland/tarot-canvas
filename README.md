@@ -16,6 +16,8 @@ A Linux desktop application for viewing and exploring tarot decks.
 
 The preferred installation method is via Flatpak from Flathub:
 
+<a href='https://flathub.org/en/apps/land.arcana.TarotCanvas'><img width='240' alt='Download on Flathub' src='https://flathub.org/assets/badges/flathub-badge-en.png'/></a>
+
 ```bash
 flatpak install flathub land.arcana.TarotCanvas
 ```
