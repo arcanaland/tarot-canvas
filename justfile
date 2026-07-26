@@ -2,7 +2,17 @@ run-flatpak: install-flatpak
   flatpak run land.arcana.TarotCanvas
 
 run:
-  poetry run tarot-canvas
+  uv run tarot-canvas
+
+test:
+  QT_QPA_PLATFORM=offscreen uv run pytest
+
+lint:
+  uv run ruff check tarot_canvas
+  uv run ruff format --check tarot_canvas
+
+fmt:
+  uv run ruff format tarot_canvas
 
 install-flatpak:
   #!/bin/bash
@@ -61,7 +71,7 @@ release VERSION="":
   echo "==============================="
   
   # Get current version
-  CURRENT_VERSION=$(poetry version -s)
+  CURRENT_VERSION=$(uv version --short)
   echo -e "Current version: ${YELLOW}$CURRENT_VERSION${NC}"
 
   # Use provided version or ask for new one
@@ -80,7 +90,7 @@ release VERSION="":
   # Update version if different
   if [ "$NEW_VERSION" != "$CURRENT_VERSION" ]; then
     echo "Updating version..."
-    poetry version $NEW_VERSION
+    uv version $NEW_VERSION
     
     # Update version in _version.py
     sed -i "s/__version__ = \".*\"/__version__ = \"$NEW_VERSION\"/" tarot_canvas/_version.py
