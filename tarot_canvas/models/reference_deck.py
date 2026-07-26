@@ -1,7 +1,9 @@
 import os
-import zipfile
-import requests
 import shutil
+import zipfile
+
+import requests
+
 from tarot_canvas.utils.path_helper import get_data_directory
 
 
@@ -12,7 +14,11 @@ class ReferenceDeck:
 
     @staticmethod
     def get_reference_deck_path():
-        return get_data_directory("tarot-canvas") / ReferenceDeck.REFERENCE_DECK_DIR / ReferenceDeck.REFERENCE_DECK_NAME
+        return (
+            get_data_directory("tarot-canvas")
+            / ReferenceDeck.REFERENCE_DECK_DIR
+            / ReferenceDeck.REFERENCE_DECK_NAME
+        )
 
     @staticmethod
     def is_reference_deck_present():
@@ -22,29 +28,29 @@ class ReferenceDeck:
     def download_reference_deck(progress_callback=None):
         parent_dir = get_data_directory("tarot-canvas") / ReferenceDeck.REFERENCE_DECK_DIR
         reference_deck_path = parent_dir / ReferenceDeck.REFERENCE_DECK_NAME
-        
+
         # Create parent directory
         os.makedirs(parent_dir, exist_ok=True)
-        
+
         # Remove existing directory if it exists (to avoid nested directories)
         if os.path.exists(reference_deck_path):
             shutil.rmtree(reference_deck_path)
-        
+
         # Temporary extraction directory
         temp_extract_dir = parent_dir / "temp_extract"
         if os.path.exists(temp_extract_dir):
             shutil.rmtree(temp_extract_dir)
         os.makedirs(temp_extract_dir, exist_ok=True)
-        
+
         zip_file_path = os.path.join(parent_dir, "rider-waite-smith.zip")
-        
+
         if progress_callback:
             progress_callback(0, "Starting download...")
-        
+
         # Get file size for progress calculation
         try:
             response = requests.head(ReferenceDeck.REFERENCE_DECK_URL)
-            total_size = int(response.headers.get('content-length', 0))
+            total_size = int(response.headers.get("content-length", 0))
         except Exception:
             total_size = 0  # If we can't get size, we'll show indeterminate progress
 
@@ -56,28 +62,28 @@ class ReferenceDeck:
                 for chunk in response.iter_content(chunk_size=4096):
                     f.write(chunk)
                     downloaded += len(chunk)
-                    
+
                     # Update progress if callback provided
                     if progress_callback and total_size > 0:
                         percent = int(downloaded * 50 / total_size)  # 0-50% for download
                         progress_callback(percent, "Downloading deck...")
-            
+
             if progress_callback:
                 progress_callback(50, "Download complete. Extracting...")
         else:
-            raise Exception(f"Failed to download the reference deck. Status code: {response.status_code}")
+            raise Exception(
+                f"Failed to download the reference deck. Status code: {response.status_code}"
+            )
 
         # Extract the zip file to a temporary directory first
         with zipfile.ZipFile(zip_file_path, "r") as zip_ref:
             # Get total files for extraction progress
             total_files = len(zip_ref.namelist())
-            extracted = 0
-            
+
             # Extract to temp directory
-            for file in zip_ref.namelist():
+            for extracted, file in enumerate(zip_ref.namelist(), start=1):
                 zip_ref.extract(file, temp_extract_dir)
-                extracted += 1
-                
+
                 # Update progress if callback provided
                 if progress_callback and total_files > 0:
                     percent = 50 + int(extracted * 50 / total_files)  # 50-100% for extraction
@@ -97,7 +103,6 @@ class ReferenceDeck:
         os.remove(zip_file_path)
         if os.path.exists(temp_extract_dir):
             shutil.rmtree(temp_extract_dir)
-        
+
         if progress_callback:
             progress_callback(100, "Setup complete")
-

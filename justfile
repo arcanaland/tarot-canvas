@@ -12,7 +12,7 @@ install-flatpak:
 build-flatpak:
   #!/bin/bash
   cd packaging
-  flatpak-builder --force-clean build-dir land.arcana.TarotCanvas.yml
+  flatpak run org.flatpak.Builder --user --force-clean build-dir land.arcana.TarotCanvas.yml
 
 generate-flatpak-python3-modules:
   #!/bin/bash
@@ -30,7 +30,7 @@ generate-flatpak-python3-modules:
   curl -L -o "${TEMP_DIR}/flatpak-pip-generator" https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/master/pip/flatpak-pip-generator.py
   chmod +x "${TEMP_DIR}/flatpak-pip-generator"
   
-  ${TEMP_DIR}/flatpak-pip-generator --yaml --checker-data --cleanup scripts requests tomli xdg-base-dirs poetry-core
+  ${TEMP_DIR}/flatpak-pip-generator --yaml --checker-data --cleanup scripts requests xdg-base-dirs poetry-core
   
   deactivate
   rm -rf "${TEMP_DIR}"
