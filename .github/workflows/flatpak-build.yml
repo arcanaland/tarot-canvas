@@ -26,7 +26,7 @@ jobs:
 
     - name: Add Flathub repository
       run: |
-        sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+        flatpak remote-add --if-not-exists --user flathub https://flathub.org/repo/flathub.flatpakrepo
 
     - name: Install Flatpak SDK and runtime
       run: |
@@ -34,11 +34,12 @@ jobs:
         RUNTIME_VERSION=$(grep "runtime-version:" packaging/land.arcana.TarotCanvas.yml | cut -d "'" -f 2)
         BASE_VERSION=$(grep "base-version:" packaging/land.arcana.TarotCanvas.yml | cut -d "'" -f 2)
 
-        # Install the required runtimes
-        sudo flatpak install -y flathub org.kde.Platform//${RUNTIME_VERSION}
-        sudo flatpak install -y flathub org.kde.Sdk//${RUNTIME_VERSION}
-        sudo flatpak install -y flathub com.riverbankcomputing.PyQt.BaseApp//${BASE_VERSION}
-        sudo flatpak install -y flathub org.flatpak.Builder
+        # Install the required runtimes into the user installation, matching
+        # the --user flag `just build-flatpak` passes to org.flatpak.Builder
+        flatpak install --user -y flathub org.kde.Platform//${RUNTIME_VERSION}
+        flatpak install --user -y flathub org.kde.Sdk//${RUNTIME_VERSION}
+        flatpak install --user -y flathub com.riverbankcomputing.PyQt.BaseApp//${BASE_VERSION}
+        flatpak install --user -y flathub org.flatpak.Builder
 
     - name: Install just
       uses: extractions/setup-just@v2.0.0
