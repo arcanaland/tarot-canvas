@@ -1,6 +1,7 @@
-from PyQt6.QtWidgets import QGraphicsView
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPainter
+from PyQt6.QtWidgets import QGraphicsView
+
 
 class PannableGraphicsView(QGraphicsView):
     def __init__(self, scene, parent=None):
@@ -9,7 +10,7 @@ class PannableGraphicsView(QGraphicsView):
         self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
         self._panning = False
         self._last_mouse_pos = None
-        
+
     def mousePressEvent(self, event):
         """Override mouse press to implement shift+drag panning"""
         if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
@@ -21,24 +22,22 @@ class PannableGraphicsView(QGraphicsView):
         else:
             # Default behavior (selection)
             super().mousePressEvent(event)
-            
+
     def mouseMoveEvent(self, event):
         """Handle mouse movement for panning or default behavior"""
         if self._panning and self._last_mouse_pos:
             # Calculate how much to pan
             delta = event.pos() - self._last_mouse_pos
             self._last_mouse_pos = event.pos()
-            
+
             # Pan the view
-            self.horizontalScrollBar().setValue(
-                self.horizontalScrollBar().value() - delta.x())
-            self.verticalScrollBar().setValue(
-                self.verticalScrollBar().value() - delta.y())
-            
+            self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - delta.x())
+            self.verticalScrollBar().setValue(self.verticalScrollBar().value() - delta.y())
+
             event.accept()
         else:
             super().mouseMoveEvent(event)
-            
+
     def mouseReleaseEvent(self, event):
         """Handle mouse release for ending panning or default behavior"""
         if self._panning:
@@ -48,11 +47,11 @@ class PannableGraphicsView(QGraphicsView):
             event.accept()
         else:
             super().mouseReleaseEvent(event)
-    
+
     def wheelEvent(self, event):
         """Handle zooming with mouse wheel"""
         zoom_factor = 1.15
-        
+
         if event.angleDelta().y() > 0:
             # Zoom in
             self.scale(zoom_factor, zoom_factor)

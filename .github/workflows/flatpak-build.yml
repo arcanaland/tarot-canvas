@@ -33,7 +33,7 @@ jobs:
         # Extract versions from the Flatpak manifest
         RUNTIME_VERSION=$(grep "runtime-version:" packaging/land.arcana.TarotCanvas.yml | cut -d "'" -f 2)
         BASE_VERSION=$(grep "base-version:" packaging/land.arcana.TarotCanvas.yml | cut -d "'" -f 2)
-        
+
         # Install the required runtimes
         sudo flatpak install -y flathub org.kde.Platform//${RUNTIME_VERSION}
         sudo flatpak install -y flathub org.kde.Sdk//${RUNTIME_VERSION}
