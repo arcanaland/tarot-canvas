@@ -134,7 +134,7 @@ class CanvasTab(BaseTab):
         settings = QSettings("ArcanaLand", "TarotCanvas")
 
         # Get the background style preference
-        bg_style = settings.value("appearance/background_style", "Gradient")
+        bg_style = settings.value("appearance/background_style", "Checkerboard")
 
         if bg_style == "Checkerboard":
             self.create_purple_checkerboard_background()

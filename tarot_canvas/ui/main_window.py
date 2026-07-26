@@ -547,7 +547,15 @@ class MainWindow(QMainWindow):
         from tarot_canvas.ui.windows.preferences_dialog import PreferencesDialog
 
         prefs_dialog = PreferencesDialog(self)
+        prefs_dialog.settings_changed.connect(self.apply_settings_to_open_canvases)
         prefs_dialog.exec()
+
+    def apply_settings_to_open_canvases(self):
+        """Re-apply appearance settings to every open canvas tab"""
+        for i in range(self.tab_widget.count()):
+            tab = self.tab_widget.widget(i)
+            if isinstance(tab, CanvasTab):
+                tab.apply_background_settings()
 
     def toggle_fullscreen(self, checked):
         if checked:
