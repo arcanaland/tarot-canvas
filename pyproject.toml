@@ -2,17 +2,14 @@
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
 
-[tool.poetry]
+[project]
 name = "tarot-canvas"
 version = "1.2.0"
 description = "A cross-platform Qt6 application for viewing and exploring tarot decks"
-authors = ["Adam Fidel <adam@fidel.cloud>"]
+authors = [{name = "Adam Fidel", email = "adam@fidel.cloud"}]
 readme = "README.md"
-packages = [{include = "tarot_canvas"}]
-include = ["tarot_canvas/resources/**/*"]
 license = "MIT"
-homepage = "https://github.com/arcanaland/tarot-canvas"
-repository = "https://github.com/arcanaland/tarot-canvas"
+requires-python = ">=3.11,<4.0"
 keywords = ["tarot", "qt6", "deck", "cards"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -24,24 +21,36 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Topic :: Utilities",
 ]
+dependencies = [
+    "PyQt6>=6.5.0,<7.0.0",
+    "requests>=2.31.0,<3.0.0",
+    "xdg-base-dirs>=6.0.2,<7.0.0",
+]
 
-[tool.poetry.dependencies]
-python = ">=3.11,<4.0"
-PyQt6 = "^6.5.0"
-requests = "^2.31.0"
-xdg-base-dirs = "^6.0.2"
+[project.urls]
+homepage = "https://github.com/arcanaland/tarot-canvas"
+repository = "https://github.com/arcanaland/tarot-canvas"
 
-[tool.poetry.group.dev.dependencies]
-pytest = "^8.0"
-pytest-qt = "^4.4"
-pytest-cov = "^5.0"
-ruff = "^0.6"
-
-[tool.poetry.scripts]
+[project.scripts]
 tarot-canvas = "tarot_canvas.main:main"
 
-[tool.poetry.plugins."gui_scripts"]
+[project.gui-scripts]
 tarot-canvas = "tarot_canvas.main:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0,<9.0",
+    "pytest-qt>=4.4,<5.0",
+    "pytest-cov>=5.0,<6.0",
+    "ruff>=0.6,<0.7",
+]
+
+[tool.poetry]
+packages = [{include = "tarot_canvas"}]
+include = ["tarot_canvas/resources/**/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 100
