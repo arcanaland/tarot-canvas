@@ -28,7 +28,7 @@ flatpak install flathub land.arcana.TarotCanvas
 Requires `just` and `flatpak`.
 
 ```
-just deps-flatpak
-just install-flatpak
+just flatpak deps
+just flatpak install
 flatpak run land.arcana.TarotCanvas
 ```

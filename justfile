@@ -1,70 +1,25 @@
-run-flatpak: install-flatpak
-  flatpak run land.arcana.TarotCanvas
+set shell := ["bash", "-euo", "pipefail", "-c"]
 
-deps-flatpak:
-  #!/bin/bash
-  set -euo pipefail
-  RUNTIME_VERSION=$(grep "runtime-version:" packaging/land.arcana.TarotCanvas.yml | cut -d "'" -f 2)
-  BASE_VERSION=$(grep "base-version:" packaging/land.arcana.TarotCanvas.yml | cut -d "'" -f 2)
+mod flatpak 'packaging/mod.just'
 
-  # If you don't have this already, just add it because you should have it anyway ¯\_(ツ)_/¯
-  flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-
-  flatpak install --user -y --noninteractive flathub \
-    org.kde.Platform//${RUNTIME_VERSION} \
-    org.kde.Sdk//${RUNTIME_VERSION} \
-    com.riverbankcomputing.PyQt.BaseApp//${BASE_VERSION} \
-    org.flatpak.Builder
-
+[group('dev')]
 run:
   uv run tarot-canvas
 
-test:
-  QT_QPA_PLATFORM=offscreen uv run pytest
+[group('dev')]
+test *ARGS:
+  QT_QPA_PLATFORM=offscreen uv run pytest {{ARGS}}
 
+[group('dev')]
 lint:
   uv run ruff check tarot_canvas tests
   uv run ruff format --check tarot_canvas tests
 
+[group('dev')]
 fmt:
   uv run ruff format tarot_canvas tests
 
-install-flatpak:
-  #!/bin/bash
-  set -euo pipefail
-  cd packaging
-  dbus-run-session -- flatpak run org.flatpak.Builder --user --install --force-clean build-dir land.arcana.TarotCanvas.yml
-
-build-flatpak:
-  #!/bin/bash
-  set -euo pipefail
-  cd packaging
-  dbus-run-session -- flatpak run org.flatpak.Builder --user --force-clean build-dir land.arcana.TarotCanvas.yml
-
-generate-flatpak-python3-modules:
-  #!/bin/bash
-  set -exuo pipefail
-  
-  TEMP_DIR=$(mktemp -d)
-  
-  # Create a temporary venv
-  python3 -m venv "${TEMP_DIR}/venv"
-  source "${TEMP_DIR}/venv/bin/activate"
-  
-  pip install requirements-parser PyYAML
-  
-
-  FLATPAK_PIP_GENERATOR_SHA=737c0085912f9f7dabf9341d4608e2a77a51a73a
-  curl -L -o "${TEMP_DIR}/flatpak-pip-generator" https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/${FLATPAK_PIP_GENERATOR_SHA}/pip/flatpak-pip-generator.py
-  chmod +x "${TEMP_DIR}/flatpak-pip-generator"
-  
-  ${TEMP_DIR}/flatpak-pip-generator --yaml --checker-data --cleanup scripts requests xdg-base-dirs poetry-core
-  
-  deactivate
-  rm -rf "${TEMP_DIR}"
-  
-  mv python3-modules.yaml packaging
-
+[group('release')]
 release VERSION="":
   #!/bin/bash
   set -e
@@ -74,10 +29,10 @@ release VERSION="":
   GREEN='\033[0;32m'
   YELLOW='\033[1;33m'
   NC='\033[0m' # No Color
-  
+
   echo -e "${GREEN}Tarot Canvas Release Helper${NC}"
   echo "==============================="
-  
+
   # Get current version
   CURRENT_VERSION=$(uv version --short)
   echo -e "Current version: ${YELLOW}$CURRENT_VERSION${NC}"
@@ -99,10 +54,10 @@ release VERSION="":
   if [ "$NEW_VERSION" != "$CURRENT_VERSION" ]; then
     echo "Updating version..."
     uv version $NEW_VERSION
-    
+
     # Update version in _version.py
     sed -i "s/__version__ = \".*\"/__version__ = \"$NEW_VERSION\"/" tarot_canvas/_version.py
-    
+
     echo -e "${GREEN}Version updated to $NEW_VERSION${NC}"
   fi
 
@@ -128,7 +83,7 @@ release VERSION="":
     }
     { print }
   ' packaging/land.arcana.TarotCanvas.appdata.xml > packaging/land.arcana.TarotCanvas.appdata.xml.tmp
-  
+
   mv packaging/land.arcana.TarotCanvas.appdata.xml.tmp packaging/land.arcana.TarotCanvas.appdata.xml
 
   echo -e "${GREEN}AppStream metadata updated${NC}"
@@ -178,4 +133,3 @@ release VERSION="":
   echo "1. Push the tag to trigger the GitHub Action:"
   echo -e "   ${YELLOW}git push origin main"
   echo -e "   ${YELLOW}git push origin $TAG_NAME${NC}"
-

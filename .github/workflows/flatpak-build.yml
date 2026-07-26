@@ -28,7 +28,7 @@ jobs:
       uses: extractions/setup-just@v2.0.0
 
     - name: Install Flatpak SDK, runtime and builder
-      run: just deps-flatpak
+      run: just flatpak deps
 
     - name: Build Flatpak
-      run: just build-flatpak
+      run: just flatpak build
