@@ -25,9 +25,10 @@ flatpak install flathub land.arcana.TarotCanvas
 
 ### From Source
 
-Requires `flatpak-builder` to be available.
+Requires `just` and `flatpak`.
 
 ```
+just deps-flatpak
 just install-flatpak
 flatpak run land.arcana.TarotCanvas
 ```

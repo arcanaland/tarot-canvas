@@ -1,6 +1,21 @@
 run-flatpak: install-flatpak
   flatpak run land.arcana.TarotCanvas
 
+deps-flatpak:
+  #!/bin/bash
+  set -euo pipefail
+  RUNTIME_VERSION=$(grep "runtime-version:" packaging/land.arcana.TarotCanvas.yml | cut -d "'" -f 2)
+  BASE_VERSION=$(grep "base-version:" packaging/land.arcana.TarotCanvas.yml | cut -d "'" -f 2)
+
+  # If you don't have this already, just add it because you should have it anyway ¯\_(ツ)_/¯
+  flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+
+  flatpak install --user -y --noninteractive flathub \
+    org.kde.Platform//${RUNTIME_VERSION} \
+    org.kde.Sdk//${RUNTIME_VERSION} \
+    com.riverbankcomputing.PyQt.BaseApp//${BASE_VERSION} \
+    org.flatpak.Builder
+
 run:
   uv run tarot-canvas
 
@@ -18,21 +33,13 @@ install-flatpak:
   #!/bin/bash
   set -euo pipefail
   cd packaging
-  if command -v flatpak-builder >/dev/null; then
-    flatpak-builder --user --install --force-clean build-dir land.arcana.TarotCanvas.yml
-  else
-    flatpak run org.flatpak.Builder --user --install --force-clean build-dir land.arcana.TarotCanvas.yml
-  fi
+  dbus-run-session -- flatpak run org.flatpak.Builder --user --install --force-clean build-dir land.arcana.TarotCanvas.yml
 
 build-flatpak:
   #!/bin/bash
   set -euo pipefail
   cd packaging
-  if command -v flatpak-builder >/dev/null; then
-    flatpak-builder --user --force-clean build-dir land.arcana.TarotCanvas.yml
-  else
-    flatpak run org.flatpak.Builder --user --force-clean build-dir land.arcana.TarotCanvas.yml
-  fi
+  dbus-run-session -- flatpak run org.flatpak.Builder --user --force-clean build-dir land.arcana.TarotCanvas.yml
 
 generate-flatpak-python3-modules:
   #!/bin/bash
@@ -47,7 +54,8 @@ generate-flatpak-python3-modules:
   pip install requirements-parser PyYAML
   
 
-  curl -L -o "${TEMP_DIR}/flatpak-pip-generator" https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/master/pip/flatpak-pip-generator.py
+  FLATPAK_PIP_GENERATOR_SHA=737c0085912f9f7dabf9341d4608e2a77a51a73a
+  curl -L -o "${TEMP_DIR}/flatpak-pip-generator" https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/${FLATPAK_PIP_GENERATOR_SHA}/pip/flatpak-pip-generator.py
   chmod +x "${TEMP_DIR}/flatpak-pip-generator"
   
   ${TEMP_DIR}/flatpak-pip-generator --yaml --checker-data --cleanup scripts requests xdg-base-dirs poetry-core
