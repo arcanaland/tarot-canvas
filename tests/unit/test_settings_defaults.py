@@ -9,6 +9,7 @@ def test_background_style_default_agrees():
         r'settings\.value\("appearance/background_style", "([^"]+)"',
         _source(preferences_dialog),
     ).group(1)
+
     canvas_default = re.search(
         r'settings\.value\("appearance/background_style", "([^"]+)"',
         _source(canvas_tab),

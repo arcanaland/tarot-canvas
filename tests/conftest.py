@@ -10,9 +10,7 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 MINIMAL_DECK_PATH = FIXTURES_DIR / "decks" / "minimal"
 
 # Modules that bind `deck_manager` at import time via
-# `from tarot_canvas.models.deck_manager import deck_manager`. Patching the
-# singleton in deck_manager.py itself would not reach these already-bound names,
-# so each has to be patched at its own import site.
+# `from tarot_canvas.models.deck_manager import deck_manager`
 DECK_MANAGER_CONSUMERS = [
     "tarot_canvas.ui.command_palette",
     "tarot_canvas.ui.tabs.canvas_tab",
@@ -25,14 +23,7 @@ DECK_MANAGER_CONSUMERS = [
 
 @pytest.fixture(autouse=True)
 def isolated_settings(tmp_path, monkeypatch):
-    """A test that mutates Adam's real preferences is a bug in the test.
-
-    Production code constructs QSettings via the 2-arg (organization,
-    application) form, which Qt always resolves to NativeFormat regardless of
-    QSettings.setDefaultFormat() -- so the only way to keep tests off Adam's
-    real ~/.config/ArcanaLand/TarotCanvas.conf is to redirect NativeFormat's
-    own lookup path via XDG_CONFIG_HOME.
-    """
+    """Set fake home"""
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     yield
 
@@ -57,8 +48,7 @@ def minimal_deck():
 
 @pytest.fixture(autouse=True)
 def stub_deck_manager(monkeypatch, minimal_deck):
-    """Replace the import-time `deck_manager` global everywhere it's bound, so
-    GUI construction never touches the real decks directory or network."""
+    """Replace the import-time `deck_manager` global everywhere"""
     stub = SimpleNamespace(
         decks={},
         reference_deck=minimal_deck,
