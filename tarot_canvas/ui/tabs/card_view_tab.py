@@ -1,4 +1,5 @@
 import os
+from typing import ClassVar
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QPixmap
@@ -27,7 +28,7 @@ class CardViewTab(BaseTab):
     resized = pyqtSignal()  # Signal to handle resize events
 
     # Define color mapping for card types and suits
-    COLOR_MAP = {
+    COLOR_MAP: ClassVar[dict] = {
         "major_arcana": "#916de4",  # Purple for Major Arcana
         "wands": "#ff9800",  # Orange for Wands
         "cups": "#2196f3",  # Blue for Cups

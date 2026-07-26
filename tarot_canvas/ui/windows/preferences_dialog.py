@@ -1,4 +1,4 @@
-from PyQt6.QtCore import QSettings, Qt
+from PyQt6.QtCore import QSettings, Qt, pyqtSignal
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QCheckBox,
@@ -18,6 +18,8 @@ from tarot_canvas.utils.theme_manager import ThemeManager, ThemeType
 
 
 class PreferencesDialog(QDialog):
+    settings_changed = pyqtSignal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Preferences")
@@ -156,6 +158,8 @@ class PreferencesDialog(QDialog):
             theme_type = ThemeType.DARK
 
         ThemeManager.get_instance().set_theme(theme_type)
+
+        self.settings_changed.emit()
 
     def accept(self):
         self.apply_settings()

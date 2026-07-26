@@ -2,7 +2,6 @@ import glob
 import os
 import random
 import tomllib
-from functools import lru_cache
 
 from tarot_canvas.utils.logger import logger
 
@@ -33,6 +32,8 @@ class TarotDeck:
         self._default_back = None
         self._excluded_cards = set()
         self._excluded_reason = ""
+        self._localized_names_cache = {}
+        self._localized_alt_texts_cache = {}
 
         # Load essential data immediately
         self._metadata = self._load_metadata()
@@ -309,26 +310,30 @@ class TarotDeck:
         logger.warning(f"No image found for card: {card_type}/{card_id}")
         return None
 
-    @lru_cache(maxsize=8)
     def _load_localized_names(self, lang="en"):
         """Load localized names for cards."""
-        names_file = os.path.join(self.deck_path, "names", f"{lang}.toml")
-        if os.path.exists(names_file):
-            with open(names_file, "rb") as f:
-                return tomllib.load(f)
-        return None
+        if lang not in self._localized_names_cache:
+            names_file = os.path.join(self.deck_path, "names", f"{lang}.toml")
+            if os.path.exists(names_file):
+                with open(names_file, "rb") as f:
+                    self._localized_names_cache[lang] = tomllib.load(f)
+            else:
+                self._localized_names_cache[lang] = None
+        return self._localized_names_cache[lang]
 
-    @lru_cache(maxsize=8)
     def _load_localized_alt_texts(self, lang="en"):
         """Load alt texts for cards from localization files."""
-        names_file = os.path.join(self.deck_path, "names", f"{lang}.toml")
-        if os.path.exists(names_file):
-            with open(names_file, "rb") as f:
-                data = tomllib.load(f)
-                # Extract alt_text section if it exists
-                if "alt_text" in data:
-                    return data["alt_text"]
-        return None
+        if lang not in self._localized_alt_texts_cache:
+            names_file = os.path.join(self.deck_path, "names", f"{lang}.toml")
+            alt_texts = None
+            if os.path.exists(names_file):
+                with open(names_file, "rb") as f:
+                    data = tomllib.load(f)
+                    # Extract alt_text section if it exists
+                    if "alt_text" in data:
+                        alt_texts = data["alt_text"]
+            self._localized_alt_texts_cache[lang] = alt_texts
+        return self._localized_alt_texts_cache[lang]
 
     def _load_card_backs(self):
         """Load available card back images."""

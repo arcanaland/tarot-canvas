@@ -2,6 +2,7 @@ import datetime
 import logging
 import os
 from pathlib import Path
+from typing import ClassVar
 
 
 class TarotLogger:
@@ -10,7 +11,7 @@ class TarotLogger:
     _instance = None
     _log_file = None
     _logger = None
-    _subscribers = []
+    _subscribers: ClassVar[list] = []
 
     @classmethod
     def get_instance(cls):

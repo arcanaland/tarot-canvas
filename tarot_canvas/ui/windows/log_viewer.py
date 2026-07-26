@@ -1,5 +1,6 @@
 import contextlib
 import logging
+from typing import ClassVar
 
 from PyQt6.QtCore import pyqtSlot
 from PyQt6.QtGui import QColor, QFont, QPalette, QTextCursor
@@ -23,7 +24,7 @@ class LogViewerDialog(QDialog):
     """Dialog window to view application logs"""
 
     # Define colors for light theme
-    LIGHT_THEME_COLORS = {
+    LIGHT_THEME_COLORS: ClassVar[dict] = {
         logging.DEBUG: QColor(100, 100, 100),  # Gray
         logging.INFO: QColor(0, 0, 0),  # Black
         logging.WARNING: QColor(255, 165, 0),  # Orange
@@ -32,7 +33,7 @@ class LogViewerDialog(QDialog):
     }
 
     # Define colors for dark theme
-    DARK_THEME_COLORS = {
+    DARK_THEME_COLORS: ClassVar[dict] = {
         logging.DEBUG: QColor(170, 170, 170),  # Light Gray
         logging.INFO: QColor(220, 220, 220),  # Off-White
         logging.WARNING: QColor(255, 190, 0),  # Gold
@@ -40,7 +41,7 @@ class LogViewerDialog(QDialog):
         logging.CRITICAL: QColor(255, 100, 255),  # Pink
     }
 
-    LOG_LEVELS = {
+    LOG_LEVELS: ClassVar[dict] = {
         "Debug": logging.DEBUG,
         "Info": logging.INFO,
         "Warning": logging.WARNING,

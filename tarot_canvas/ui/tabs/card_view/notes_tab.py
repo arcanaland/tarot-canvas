@@ -602,23 +602,26 @@ class NotesTab(QWidget):
             note_info = self.all_notes[note_name]
 
             # If it's a note for a different card, navigate to that card first
-            if self.current_card and note_info["card_id"] != self.current_card.get("id"):
-                # Try to navigate to the card
-                if self.parent_tab and hasattr(self.parent_tab, "deck_manager"):
-                    deck_manager = self.parent_tab.deck_manager
-                    ref_deck = deck_manager.get_reference_deck()
+            if (
+                self.current_card
+                and note_info["card_id"] != self.current_card.get("id")
+                and self.parent_tab
+                and hasattr(self.parent_tab, "deck_manager")
+            ):
+                deck_manager = self.parent_tab.deck_manager
+                ref_deck = deck_manager.get_reference_deck()
 
-                    if ref_deck:
-                        # Find the card by ID
-                        cards = getattr(ref_deck, "get_all_cards", lambda: ref_deck._cards)()
-                        for card in cards:
-                            if card["id"] == note_info["card_id"]:
-                                # Emit signal to navigate to this card
-                                self.parent_tab.navigation_requested.emit(
-                                    "open_card_view",
-                                    {"card": card, "deck": ref_deck, "open_note": note_name},
-                                )
-                                return
+                if ref_deck:
+                    # Find the card by ID
+                    cards = getattr(ref_deck, "get_all_cards", lambda: ref_deck._cards)()
+                    for card in cards:
+                        if card["id"] == note_info["card_id"]:
+                            # Emit signal to navigate to this card
+                            self.parent_tab.navigation_requested.emit(
+                                "open_card_view",
+                                {"card": card, "deck": ref_deck, "open_note": note_name},
+                            )
+                            return
 
             # If it's a note for the current card, just select it
             for i in range(self.notes_list_widget.notes_list.count()):

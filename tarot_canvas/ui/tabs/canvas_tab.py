@@ -134,7 +134,7 @@ class CanvasTab(BaseTab):
         settings = QSettings("ArcanaLand", "TarotCanvas")
 
         # Get the background style preference
-        bg_style = settings.value("appearance/background_style", "Gradient")
+        bg_style = settings.value("appearance/background_style", "Checkerboard")
 
         if bg_style == "Checkerboard":
             self.create_purple_checkerboard_background()
@@ -205,25 +205,23 @@ class CanvasTab(BaseTab):
 
         # Get all card items in the scene
         for item in self.scene.items():
-            if isinstance(item, DraggableCardItem):
-                # Update animation settings
-                if hasattr(item, "rotation_anim"):
-                    # Stop any existing animation
-                    item.rotation_anim.stop()
+            if isinstance(item, DraggableCardItem) and hasattr(item, "rotation_anim"):
+                # Stop any existing animation
+                item.rotation_anim.stop()
 
-                    if enable:
-                        # Get current rotation/state
-                        base_rotation = item.rotation()
-                        if hasattr(item, "anim_controller"):
-                            item.anim_controller._rotation = base_rotation
+                if enable:
+                    # Get current rotation/state
+                    base_rotation = item.rotation()
+                    if hasattr(item, "anim_controller"):
+                        item.anim_controller._rotation = base_rotation
 
-                        # Set up animation with new intensity
-                        item.setup_wobble_animation_with_intensity(
-                            base_rotation, rotation_amplitude, scale_amplitude
-                        )
+                    # Set up animation with new intensity
+                    item.setup_wobble_animation_with_intensity(
+                        base_rotation, rotation_amplitude, scale_amplitude
+                    )
 
-                        # Start the animation
-                        item.start_animations()
+                    # Start the animation
+                    item.start_animations()
 
     def ensure_window_bounds(self):
         """Ensure the window stays within screen boundaries"""
@@ -492,9 +490,6 @@ class CanvasTab(BaseTab):
 
     def add_specific_card(self, card, card_deck=None, is_reversed=False):
         """Add a specific card to the canvas, optionally reversed"""
-        # Use provided deck or fall back to tab's deck
-        deck_to_use = card_deck or self.deck
-
         # Load the card image
         image_path = card.get("image")
         if not image_path or not os.path.exists(image_path):

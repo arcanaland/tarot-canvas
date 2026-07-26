@@ -154,19 +154,20 @@ class OverviewTab(QWidget):
         if self.parent_tab and link.startswith("deck:"):
             deck_path = link[5:]  # Remove 'deck:' prefix
 
-            # Check if deck path is valid
-            if not deck_path or deck_path == "None" or not os.path.exists(deck_path):
-                # If it's the reference deck but has invalid path, use a different method
-                if self.deck == self.parent_tab.deck_manager.get_reference_deck():
-                    reference_deck = self.parent_tab.deck_manager.get_reference_deck()
-                    self.parent_tab.navigation_requested.emit(
-                        "open_deck_view",
-                        {
-                            "deck_path": reference_deck.deck_path,
-                            "source_tab_id": self.parent_tab.id,
-                        },
-                    )
-                    return
+            # Check if deck path is valid; if it's the reference deck with an
+            # invalid path, use a different method to resolve it
+            if (
+                not deck_path or deck_path == "None" or not os.path.exists(deck_path)
+            ) and self.deck == self.parent_tab.deck_manager.get_reference_deck():
+                reference_deck = self.parent_tab.deck_manager.get_reference_deck()
+                self.parent_tab.navigation_requested.emit(
+                    "open_deck_view",
+                    {
+                        "deck_path": reference_deck.deck_path,
+                        "source_tab_id": self.parent_tab.id,
+                    },
+                )
+                return
 
             # Emit signal to open the deck view
             self.parent_tab.navigation_requested.emit(
