@@ -7,6 +7,9 @@ deps-flatpak:
   RUNTIME_VERSION=$(grep "runtime-version:" packaging/land.arcana.TarotCanvas.yml | cut -d "'" -f 2)
   BASE_VERSION=$(grep "base-version:" packaging/land.arcana.TarotCanvas.yml | cut -d "'" -f 2)
 
+  # If you don't have this already, just add it because you should have it anyway ¯\_(ツ)_/¯
+  flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+
   flatpak install --user -y --noninteractive flathub \
     org.kde.Platform//${RUNTIME_VERSION} \
     org.kde.Sdk//${RUNTIME_VERSION} \

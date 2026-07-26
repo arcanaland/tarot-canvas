@@ -24,10 +24,6 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y flatpak dbus-x11
 
-    - name: Add Flathub repository
-      run: |
-        sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-
     - name: Install just
       uses: extractions/setup-just@v2.0.0
 
