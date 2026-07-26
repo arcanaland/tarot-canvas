@@ -23,11 +23,11 @@ test:
   QT_QPA_PLATFORM=offscreen uv run pytest
 
 lint:
-  uv run ruff check tarot_canvas
-  uv run ruff format --check tarot_canvas
+  uv run ruff check tarot_canvas tests
+  uv run ruff format --check tarot_canvas tests
 
 fmt:
-  uv run ruff format tarot_canvas
+  uv run ruff format tarot_canvas tests
 
 install-flatpak:
   #!/bin/bash

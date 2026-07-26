@@ -11,11 +11,11 @@ class CardThumbnail(QFrame):
     clicked = pyqtSignal()
     double_clicked = pyqtSignal()  # New signal for double clicks
 
-    def __init__(self, card, deck_path, size=QSize(100, 160), parent=None):
+    def __init__(self, card, deck_path, size=None, parent=None):
         super().__init__(parent)
         self.card = card
         self.deck_path = deck_path
-        self.thumbnail_size = size
+        self.thumbnail_size = size or QSize(100, 160)
 
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFrameShape(QFrame.Shape.NoFrame)

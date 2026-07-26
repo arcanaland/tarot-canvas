@@ -125,17 +125,21 @@ class MarkdownEditor(QPlainTextEdit):
 
     def keyPressEvent(self, event):
         """Handle key press events for auto-completion and formatting"""
-        if self.completer and self.completer.popup().isVisible():
-            # Keys that are used by the completer
-            if event.key() in (
+        # Keys that are used by the completer
+        if (
+            self.completer
+            and self.completer.popup().isVisible()
+            and event.key()
+            in (
                 Qt.Key.Key_Enter,
                 Qt.Key.Key_Return,
                 Qt.Key.Key_Escape,
                 Qt.Key.Key_Tab,
                 Qt.Key.Key_Backtab,
-            ):
-                event.ignore()
-                return
+            )
+        ):
+            event.ignore()
+            return
 
         # Auto-insert closing brackets and formatting marks
         if (
