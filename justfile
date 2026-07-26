@@ -6,13 +6,23 @@ run:
 
 install-flatpak:
   #!/bin/bash
+  set -euo pipefail
   cd packaging
-  flatpak run org.flatpak.Builder --user --install --force-clean build-dir land.arcana.TarotCanvas.yml
+  if command -v flatpak-builder >/dev/null; then
+    flatpak-builder --user --install --force-clean build-dir land.arcana.TarotCanvas.yml
+  else
+    flatpak run org.flatpak.Builder --user --install --force-clean build-dir land.arcana.TarotCanvas.yml
+  fi
 
 build-flatpak:
   #!/bin/bash
+  set -euo pipefail
   cd packaging
-  flatpak run org.flatpak.Builder --user --force-clean build-dir land.arcana.TarotCanvas.yml
+  if command -v flatpak-builder >/dev/null; then
+    flatpak-builder --user --force-clean build-dir land.arcana.TarotCanvas.yml
+  else
+    flatpak run org.flatpak.Builder --user --force-clean build-dir land.arcana.TarotCanvas.yml
+  fi
 
 generate-flatpak-python3-modules:
   #!/bin/bash

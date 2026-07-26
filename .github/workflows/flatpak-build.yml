@@ -19,10 +19,10 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Install flatpak
+    - name: Install flatpak and flatpak-builder
       run: |
         sudo apt-get update
-        sudo apt-get install -y flatpak
+        sudo apt-get install -y flatpak flatpak-builder
 
     - name: Add Flathub repository
       run: |
@@ -34,12 +34,10 @@ jobs:
         RUNTIME_VERSION=$(grep "runtime-version:" packaging/land.arcana.TarotCanvas.yml | cut -d "'" -f 2)
         BASE_VERSION=$(grep "base-version:" packaging/land.arcana.TarotCanvas.yml | cut -d "'" -f 2)
 
-        # Install the required runtimes into the user installation, matching
-        # the --user flag `just build-flatpak` passes to org.flatpak.Builder
+        # Install the required runtimes into the user installation
         flatpak install --user -y flathub org.kde.Platform//${RUNTIME_VERSION}
         flatpak install --user -y flathub org.kde.Sdk//${RUNTIME_VERSION}
         flatpak install --user -y flathub com.riverbankcomputing.PyQt.BaseApp//${BASE_VERSION}
-        flatpak install --user -y flathub org.flatpak.Builder
 
     - name: Install just
       uses: extractions/setup-just@v2.0.0
