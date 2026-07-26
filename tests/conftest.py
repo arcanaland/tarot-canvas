@@ -1,10 +1,21 @@
+import atexit
 import os
+import shutil
+import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-import pytest
+# TODO: ideally we can remove this mess when we refactor the code
+# to not unconditionally read/write stuff from $HOME
+_TEST_HOME = Path(tempfile.mkdtemp(prefix="tarot-canvas-tests-"))
+atexit.register(shutil.rmtree, str(_TEST_HOME), ignore_errors=True)
+os.environ["HOME"] = str(_TEST_HOME)
+os.environ["XDG_CONFIG_HOME"] = str(_TEST_HOME / ".config")
+os.environ["XDG_DATA_HOME"] = str(_TEST_HOME / ".local" / "share")
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 MINIMAL_DECK_PATH = FIXTURES_DIR / "decks" / "minimal"
@@ -23,7 +34,7 @@ DECK_MANAGER_CONSUMERS = [
 
 @pytest.fixture(autouse=True)
 def isolated_settings(tmp_path, monkeypatch):
-    """Set fake home"""
+    """Give each test its own QSettings file."""
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     yield
 

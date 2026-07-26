@@ -48,6 +48,4 @@ def test_disabling_animations_stops_new_cards_animating(qtbot, monkeypatch):
     assert items, "expected a card item to have been added to the canvas"
     assert items[0].rotation_anim.state() == QAbstractAnimation.State.Stopped
 
-    # See the comment in test_apply_updates_open_canvas_background: flush
-    # CanvasTab's own pending singleShot timers before teardown.
     qtbot.wait(1100)
