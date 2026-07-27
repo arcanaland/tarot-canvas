@@ -43,16 +43,14 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Install just
+        uses: extractions/setup-just@v2.0.0
+
       - name: Install project
         run: uv sync --locked
 
-      - name: Ruff (lint)
-        run: uv run ruff check tarot_canvas tests
-
-      - name: Ruff (format check)
-        run: uv run ruff format --check tarot_canvas tests
+      - name: Lint
+        run: just lint
 
       - name: Pytest
-        env:
-          QT_QPA_PLATFORM: offscreen
-        run: uv run pytest --cov=tarot_canvas --cov-report=term-missing
+        run: just test --cov=tarot_canvas --cov-report=term-missing
