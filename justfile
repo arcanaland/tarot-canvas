@@ -1,5 +1,3 @@
-set shell := ["bash", "-euo", "pipefail", "-c"]
-
 mod flatpak 'packaging/mod.just'
 
 [group('dev')]
