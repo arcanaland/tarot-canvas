@@ -46,6 +46,11 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="1.2.1" date="2026-07-26" type="stable">
+      <description>
+        <p>Preferences now apply immediately, including the animations toggle.</p>
+      </description>
+    </release>
     <release version="1.2.0" date="2025-11-15" type="stable">
       <description>
         <p>Add screenshots for Flathub</p>
