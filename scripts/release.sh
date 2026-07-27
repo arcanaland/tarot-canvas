@@ -1,18 +1,13 @@
 #!/usr/bin/env bash
 set -e
 
-# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-echo -e "${GREEN}Tarot Canvas Release Helper${NC}"
-echo "==============================="
-
-# Get current version
 CURRENT_VERSION=$(uv version --short)
-echo -e "Current version: ${YELLOW}$CURRENT_VERSION${NC}"
+echo -e "== current version: ${YELLOW}$CURRENT_VERSION${NC}"
 
 # Use provided version or ask for new one
 if [ -z "${1:-}" ]; then
@@ -25,7 +20,7 @@ else
   NEW_VERSION="${1:-}"
 fi
 
-echo -e "Target version: ${YELLOW}$NEW_VERSION${NC}"
+echo -e "== target version: ${YELLOW}$NEW_VERSION${NC}"
 
 # Update version if different
 if [ "$NEW_VERSION" != "$CURRENT_VERSION" ]; then
@@ -35,7 +30,7 @@ if [ "$NEW_VERSION" != "$CURRENT_VERSION" ]; then
   # Update version in _version.py
   sed -i "s/__version__ = \".*\"/__version__ = \"$NEW_VERSION\"/" tarot_canvas/_version.py
 
-  echo -e "${GREEN}Version updated to $NEW_VERSION${NC}"
+  echo -e "${GREEN}== version updated to $NEW_VERSION${NC}"
 fi
 
 # Update AppStream metadata with new release
@@ -59,7 +54,7 @@ awk -v version="$NEW_VERSION" -v date="$RELEASE_DATE" -v desc="$RELEASE_DESC" '
     next
   }
   { print }
-' packaging/land.arcana.TarotCanvas.appdata.xml > packaging/land.arcana.TarotCanvas.appdata.xml.tmp
+' packaging/land.arcana.TarotCanvas.appdata.xml >packaging/land.arcana.TarotCanvas.appdata.xml.tmp
 
 mv packaging/land.arcana.TarotCanvas.appdata.xml.tmp packaging/land.arcana.TarotCanvas.appdata.xml
 
@@ -67,7 +62,7 @@ echo -e "${GREEN}AppStream metadata updated${NC}"
 
 # Check if git is clean
 if [ -n "$(git status --porcelain)" ]; then
-  echo -e "${YELLOW}Warning: Working directory is not clean${NC}"
+  echo -e "${YELLOW}== warning: Working directory is not clean${NC}"
   echo "The following files have changes:"
   git status --short
   echo -n "Continue anyway? (y/N): "
@@ -80,17 +75,17 @@ fi
 
 # Commit version changes if any
 if [ -n "$(git diff --cached)" ] || [ -n "$(git diff)" ]; then
-  echo "Committing version changes..."
+  echo "== committing version changes..."
   git add pyproject.toml tarot_canvas/_version.py packaging/land.arcana.TarotCanvas.appdata.xml
   git commit -m "chore: bump version to $NEW_VERSION"
 fi
 
 # Create and push tag
 TAG_NAME="v$NEW_VERSION"
-echo "Creating tag: $TAG_NAME"
+echo "== creating tag: $TAG_NAME"
 
 if git tag -l | grep -q "^$TAG_NAME$"; then
-  echo -e "${RED}Tag $TAG_NAME already exists!${NC}"
+  echo -e "${RED} == tag $TAG_NAME already exists!${NC}"
   echo -n "Delete existing tag and recreate? (y/N): "
   read DELETE_TAG
   if [ "$DELETE_TAG" = "y" ] || [ "$DELETE_TAG" = "Y" ]; then
@@ -106,7 +101,6 @@ git tag -a $TAG_NAME -m "Release $NEW_VERSION"
 
 echo -e "${GREEN}Tag created successfully!${NC}"
 echo ""
-echo "Next steps:"
-echo "1. Push the tag to trigger the GitHub Action:"
+echo "Next step is to push:"
 echo -e "   ${YELLOW}git push origin main"
 echo -e "   ${YELLOW}git push origin $TAG_NAME${NC}"
