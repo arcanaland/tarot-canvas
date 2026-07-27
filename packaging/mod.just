@@ -1,6 +1,7 @@
-set shell := ["bash", "-euo", "pipefail", "-c"]
-
 deps:
+  #!/bin/bash
+  set -euo pipefail
+
   RUNTIME_VERSION=$(grep "runtime-version:" land.arcana.TarotCanvas.yml | cut -d "'" -f 2)
   BASE_VERSION=$(grep "base-version:" land.arcana.TarotCanvas.yml | cut -d "'" -f 2)
 
@@ -23,19 +24,17 @@ run: install
   flatpak run land.arcana.TarotCanvas
 
 gen-modules:
+  #!/bin/bash
+  set -euo pipefail
+
   TEMP_DIR=$(mktemp -d)
 
-  # Create a temporary venv
-  python3 -m venv "${TEMP_DIR}/venv"
-  source "${TEMP_DIR}/venv/bin/activate"
-
-  pip install requirements-parser PyYAML
-
   FLATPAK_PIP_GENERATOR_SHA=737c0085912f9f7dabf9341d4608e2a77a51a73a
-  curl -L -o "${TEMP_DIR}/flatpak-pip-generator" https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/${FLATPAK_PIP_GENERATOR_SHA}/pip/flatpak-pip-generator.py
-  chmod +x "${TEMP_DIR}/flatpak-pip-generator"
+  curl -L -o "${TEMP_DIR}/flatpak-pip-generator.py" \
+    https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/${FLATPAK_PIP_GENERATOR_SHA}/pip/flatpak-pip-generator.py
 
-  ${TEMP_DIR}/flatpak-pip-generator --yaml --checker-data --cleanup scripts requests xdg-base-dirs poetry-core
+  # PyYAML isn't in this script's PEP 723 metadata for some reason
+  uv run --with PyYAML "${TEMP_DIR}/flatpak-pip-generator.py" \
+    --yaml --checker-data --cleanup scripts requests xdg-base-dirs poetry-core
 
-  deactivate
   rm -rf "${TEMP_DIR}"

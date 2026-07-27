@@ -12,6 +12,9 @@ test *ARGS:
 
 [group('dev')]
 lint:
+  #!/bin/bash
+  set -euo pipefail
+
   uv run ruff check tarot_canvas tests
   uv run ruff format --check tarot_canvas tests
 
