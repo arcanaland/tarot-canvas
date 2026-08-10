@@ -70,6 +70,9 @@
   <recommends>
     <control>keyboard</control>
   </recommends>
+  <!-- Although the app doesn't bundle any decks, the RWS deck is fetched by
+       default. Some of its cards contain these attributes (The Star, The
+       Lovers, etc) so it's better to list these to be safe. -->
   <content_rating type="oars-1.1">
     <content_attribute id="sex-nudity">mild</content_attribute>
     <content_attribute id="violence-fantasy">mild</content_attribute>
