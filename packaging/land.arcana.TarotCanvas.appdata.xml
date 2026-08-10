@@ -4,7 +4,7 @@
   <id>land.arcana.TarotCanvas</id>
   <name>Tarot Canvas</name>
   <summary>Desktop application for viewing and exploring tarot decks</summary>
-  <developer id="ledif">
+  <developer id="land.arcana">
     <name>Adam Fidel</name>
   </developer>
   <metadata_license>CC0-1.0</metadata_license>
@@ -66,9 +66,15 @@
   <url type="bugtracker">https://github.com/arcanaland/tarot-canvas/issues</url>
   <requires>
     <control>pointing</control>
-    <control>keyboard</control>
   </requires>
-  <content_rating type="oars-1.1"/>
+  <recommends>
+    <control>keyboard</control>
+  </recommends>
+  <content_rating type="oars-1.1">
+    <content_attribute id="sex-nudity">mild</content_attribute>
+    <content_attribute id="violence-fantasy">mild</content_attribute>
+    <content_attribute id="violence-bloodshed">mild</content_attribute>
+  </content_rating>
   <launchable type="desktop-id">land.arcana.TarotCanvas.desktop</launchable>
   <provides>
     <binary>tarot-canvas</binary>

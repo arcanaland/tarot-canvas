@@ -14,6 +14,10 @@ deps:
     com.riverbankcomputing.PyQt.BaseApp//${BASE_VERSION} \
     org.flatpak.Builder
 
+# Validate the AppStream metainfo.
+validate:
+  flatpak run --command=appstreamcli org.flatpak.Builder validate --explain land.arcana.TarotCanvas.appdata.xml
+
 build:
   dbus-run-session -- flatpak run org.flatpak.Builder --user --force-clean build-dir land.arcana.TarotCanvas.yml
 
