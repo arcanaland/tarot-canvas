@@ -44,6 +44,10 @@
       <caption>Take custom notes attached to cards</caption>
       <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/notes-view.webp</image>
     </screenshot>
+    <screenshot>
+      <caption>View the same card across multiple decks</caption>
+      <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/strength-art.webp</image>
+    </screenshot>
   </screenshots>
   <releases>
     <release version="1.2.1" date="2026-07-26" type="stable">
