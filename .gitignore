@@ -9,5 +9,8 @@ __pycache__
 .pytest_cache
 .coverage
 
+WIP/
+
 agents/
+.claude
 *.local.md
