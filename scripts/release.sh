@@ -12,7 +12,7 @@ echo -e "== current version: ${YELLOW}$CURRENT_VERSION${NC}"
 # Use provided version or ask for new one
 if [ -z "${1:-}" ]; then
   echo -n "Enter new version (or press Enter to keep current): "
-  read NEW_VERSION
+  read -r NEW_VERSION
   if [ -z "$NEW_VERSION" ]; then
     NEW_VERSION=$CURRENT_VERSION
   fi
@@ -25,7 +25,7 @@ echo -e "== target version: ${YELLOW}$NEW_VERSION${NC}"
 # Update version if different
 if [ "$NEW_VERSION" != "$CURRENT_VERSION" ]; then
   echo "Updating version..."
-  uv version $NEW_VERSION
+  uv version "$NEW_VERSION"
 
   # Update version in _version.py
   sed -i "s/__version__ = \".*\"/__version__ = \"$NEW_VERSION\"/" tarot_canvas/_version.py
@@ -37,7 +37,7 @@ fi
 RELEASE_DATE=$(date +%Y-%m-%d)
 echo "Updating AppStream metadata..."
 echo -n "Enter release description (or press Enter for default): "
-read RELEASE_DESC
+read -r RELEASE_DESC
 if [ -z "$RELEASE_DESC" ]; then
   RELEASE_DESC="Release version $NEW_VERSION"
 fi
@@ -66,7 +66,7 @@ if [ -n "$(git status --porcelain)" ]; then
   echo "The following files have changes:"
   git status --short
   echo -n "Continue anyway? (y/N): "
-  read CONTINUE
+  read -r CONTINUE
   if [ "$CONTINUE" != "y" ] && [ "$CONTINUE" != "Y" ]; then
     echo "Aborted."
     exit 1
@@ -87,17 +87,17 @@ echo "== creating tag: $TAG_NAME"
 if git tag -l | grep -q "^$TAG_NAME$"; then
   echo -e "${RED} == tag $TAG_NAME already exists!${NC}"
   echo -n "Delete existing tag and recreate? (y/N): "
-  read DELETE_TAG
+  read -r DELETE_TAG
   if [ "$DELETE_TAG" = "y" ] || [ "$DELETE_TAG" = "Y" ]; then
-    git tag -d $TAG_NAME
-    git push origin :refs/tags/$TAG_NAME 2>/dev/null || true
+    git tag -d "$TAG_NAME"
+    git push origin ":refs/tags/$TAG_NAME" 2>/dev/null || true
   else
     echo "Aborted."
     exit 1
   fi
 fi
 
-git tag -a $TAG_NAME -m "Release $NEW_VERSION"
+git tag -a "$TAG_NAME" -m "Release $NEW_VERSION"
 
 echo -e "${GREEN}Tag created successfully!${NC}"
 echo ""

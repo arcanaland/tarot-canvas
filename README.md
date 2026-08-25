@@ -32,3 +32,4 @@ just flatpak deps
 just flatpak install
 flatpak run land.arcana.TarotCanvas
 ```
+
