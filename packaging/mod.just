@@ -14,6 +14,19 @@ deps:
     com.riverbankcomputing.PyQt.BaseApp//${BASE_VERSION} \
     org.flatpak.Builder
 
+# Lint the manifest
+lint-manifest:
+  #!/bin/bash
+  set -euo pipefail
+
+  GHA=()
+  if [ -n "${GITHUB_ACTIONS:-}" ]; then
+    GHA=(--env=GITHUB_ACTIONS=true)
+  fi
+
+  dbus-run-session -- flatpak run "${GHA[@]}" --command=flatpak-builder-lint \
+    org.flatpak.Builder --gha-format manifest land.arcana.TarotCanvas.yml
+
 # Validate the AppStream metainfo.
 validate:
   flatpak run --command=appstreamcli org.flatpak.Builder validate --explain land.arcana.TarotCanvas.appdata.xml
