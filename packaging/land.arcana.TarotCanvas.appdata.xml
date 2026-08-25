@@ -50,6 +50,11 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="1.2.2" date="2026-08-25" type="stable">
+      <description>
+        <p>Updating Flathub metadata.</p>
+      </description>
+    </release>
     <release version="1.2.1" date="2026-07-26" type="stable">
       <description>
         <p>Preferences now apply immediately, including the animations toggle.</p>
