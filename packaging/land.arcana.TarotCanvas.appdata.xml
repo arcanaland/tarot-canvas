@@ -9,9 +9,9 @@
   </developer>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT</project_license>
-  <update_contact>adam@cloud.id</update_contact>
+  <update_contact>adam@arcana.land</update_contact>
   <description>
-    <p>Tarot Canvas is a cross-platform application for viewing and exploring tarot decks. It supports decks that are compliant with the Tarot Deck Specification v1.0.</p>
+    <p>Tarot Canvas is an application for viewing and exploring tarot decks. It supports decks that are compliant with the Tarot Deck Specification v1.0.</p>
     <p>Features include:</p>
     <ul>
       <li>Explore tarot deck imagery, metadata and esoterica (corrospondences and other occult or divinatory information)</li>
@@ -43,6 +43,10 @@
     <screenshot>
       <caption>Take custom notes attached to cards</caption>
       <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/notes-view.webp</image>
+    </screenshot>
+    <screenshot>
+      <caption>View the same card across multiple decks</caption>
+      <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/strength-art.webp</image>
     </screenshot>
   </screenshots>
   <releases>
