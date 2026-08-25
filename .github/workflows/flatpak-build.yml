@@ -30,6 +30,9 @@ jobs:
     - name: Install Flatpak SDK, runtime and builder
       run: just flatpak deps
 
+    - name: Lint Flatpak manifest
+      run: just flatpak lint-manifest
+
     - name: Validate AppStream metainfo
       run: just flatpak validate
 
