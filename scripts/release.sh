@@ -76,7 +76,7 @@ fi
 # Commit version changes if any
 if [ -n "$(git diff --cached)" ] || [ -n "$(git diff)" ]; then
   echo "== committing version changes..."
-  git add pyproject.toml tarot_canvas/_version.py packaging/land.arcana.TarotCanvas.appdata.xml
+  git add pyproject.toml tarot_canvas/_version.py packaging/land.arcana.TarotCanvas.appdata.xml uv.lock
   git commit -m "chore: bump version to $NEW_VERSION"
 fi
 
