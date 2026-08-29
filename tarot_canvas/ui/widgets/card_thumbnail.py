@@ -16,6 +16,8 @@ class CardThumbnail(QFrame):
         self.card = card
         self.deck_path = deck_path
         self.thumbnail_size = size or QSize(100, 160)
+        # Box available to the image, once margins and the name label are taken out.
+        self.image_size = QSize(self.thumbnail_size.width() - 4, self.thumbnail_size.height() - 20)
 
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFrameShape(QFrame.Shape.NoFrame)
@@ -29,16 +31,11 @@ class CardThumbnail(QFrame):
         layout.setContentsMargins(2, 2, 2, 2)
         layout.setSpacing(2)
 
-        # Card image thumbnail
+        # Card image thumbnail (letterboxed)
         self.image_label = QLabel()
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.image_label.setScaledContents(True)
-        self.image_label.setMinimumSize(
-            self.thumbnail_size.width() - 4, self.thumbnail_size.height() - 20
-        )
-        self.image_label.setMaximumSize(
-            self.thumbnail_size.width() - 4, self.thumbnail_size.height() - 20
-        )
+        self.image_label.setMinimumSize(self.image_size)
+        self.image_label.setMaximumSize(self.image_size)
 
         # Card name label
         self.name_label = QLabel(self.card.get("name", "Unknown"))
@@ -59,10 +56,12 @@ class CardThumbnail(QFrame):
             # Image path is already absolute in the TarotDeck class
             if os.path.exists(image_path):
                 pixmap = QPixmap(image_path)
+                if pixmap.isNull():
+                    self.image_label.setText("Image not found")
+                    return
                 self.image_label.setPixmap(
                     pixmap.scaled(
-                        self.image_label.width(),
-                        self.image_label.height(),
+                        self.image_size,
                         Qt.AspectRatioMode.KeepAspectRatio,
                         Qt.TransformationMode.SmoothTransformation,
                     )
