@@ -2,7 +2,7 @@ import os
 import random
 from pathlib import Path
 
-from PyQt6.QtCore import QPointF, QRectF, QSettings, QSize, Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import QPoint, QPointF, QRectF, QSettings, QSize, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import (
     QAction,
     QBrush,
@@ -87,6 +87,7 @@ class CanvasTab(BaseTab):
         self.scene = QGraphicsScene(self)
 
         # Set a more conservative scene rect size
+        # Seed rect only: the view grows this as the camera moves (see RFC-013).
         self.scene.setSceneRect(QRectF(-500, -500, 1000, 1000))
 
         # Use our custom view with shift+drag panning
@@ -372,7 +373,9 @@ class CanvasTab(BaseTab):
         self.toolbar.addSeparator()
         self.toolbar.addWidget(self.create_section_label("Arrange"))
 
-        # Arrangement actions with Breeze icons
+        # Arrangement actions with Breeze icons, kept by slot so their enabled state can
+        # track the selection and so the align menu can anchor to its own button.
+        self.arrange_actions = {}
         arrangement_actions = [
             ("go-top", self.on_bring_to_front, "Bring card to front"),
             ("go-bottom", self.on_send_to_back, "Send card to back"),
@@ -399,6 +402,12 @@ class CanvasTab(BaseTab):
             action.setToolTip(tooltip)
             action.triggered.connect(slot)
             self.toolbar.addAction(action)
+            self.arrange_actions[slot] = action
+
+        # These do nothing without a selection, so let the toolbar say so rather than
+        # swallowing the click.
+        self.scene.selectionChanged.connect(self.update_arrange_actions)
+        self.update_arrange_actions()
 
         # View control actions group
         self.toolbar.addSeparator()
@@ -569,11 +578,11 @@ class CanvasTab(BaseTab):
     # Canvas Control Methods
     def on_zoom_in(self):
         """Zoom into the canvas"""
-        self.view.scale(1.2, 1.2)
+        self.view.zoom_by_from_center(1.2)
 
     def on_zoom_out(self):
         """Zoom out of the canvas"""
-        self.view.scale(0.8, 0.8)
+        self.view.zoom_by_from_center(0.8)
 
     def on_fit_view(self):
         """Fit all items in view"""
@@ -588,12 +597,15 @@ class CanvasTab(BaseTab):
         # Add margin
         rect.adjust(-50, -50, 50, 50)
         # Fit view to rect
-        self.view.fitInView(rect, Qt.AspectRatioMode.KeepAspectRatio)
+        self.view.fit_to_rect(rect)
 
     def on_reset_view(self):
         """Reset view to default position and zoom"""
         self.view.resetTransform()
-        self.view.centerOn(self.scene.sceneRect().center())
+        # The scene rect moves with the camera now, so centre on the cards instead.
+        items_rect = self.scene.itemsBoundingRect()
+        self.view.centerOn(items_rect.center() if not items_rect.isNull() else QPointF(0, 0))
+        self.view.grow_scene_rect()
 
     # Card Manipulation Methods
     def on_rotate_card(self):
@@ -657,6 +669,12 @@ class CanvasTab(BaseTab):
             self.scene.removeItem(item)
 
     # Arrangement Control Methods
+    def update_arrange_actions(self):
+        """Enable the arrangement actions only when they have something to act on."""
+        count = len(self.scene.selectedItems())
+        for slot, action in self.arrange_actions.items():
+            action.setEnabled(count >= (2 if slot == self.on_align_cards else 1))
+
     def on_bring_to_front(self):
         """Bring selected card to front"""
         items = self.scene.selectedItems()
@@ -865,8 +883,17 @@ class CanvasTab(BaseTab):
 
         circle_arrange.triggered.connect(lambda: arrange_items_in_circle(items))
 
-        # Show the menu at the cursor position
-        menu.exec(QCursor.pos())
+        # Anchor the menu under its own toolbar button. QCursor.pos() means nothing on
+        # Wayland beyond the last position Qt happened to observe, so it drops the menu
+        # wherever the pointer was last seen over the canvas — or not at all.
+        menu.exec(self.align_menu_anchor())
+
+    def align_menu_anchor(self):
+        """Global position for the align menu: just below its toolbar button."""
+        button = self.toolbar.widgetForAction(self.arrange_actions[self.on_align_cards])
+        if button is None:
+            return QCursor.pos()
+        return button.mapToGlobal(QPoint(0, button.height()))
 
     def update_tab_icon(self):
         """Update the tab with a canvas icon"""
