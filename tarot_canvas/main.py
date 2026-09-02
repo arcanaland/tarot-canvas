@@ -136,7 +136,7 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("tarot-canvas")
     app.setApplicationDisplayName("Tarot Canvas")
-    app.setDesktopFileName("land.arcana.TarotCanvas")
+    app.setDesktopFileName(os.environ.get("FLATPAK_ID", "land.arcana.TarotCanvas"))
 
     # Initialize and apply theme
     logger.info("Initializing theme manager")

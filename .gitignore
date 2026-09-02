@@ -5,6 +5,11 @@ __pycache__
 *.swo
 
 .flatpak-builder
+build-dir/
+build-devel/
+packaging/build-dir/
+packaging/build-devel/
+packaging/devel/
 
 .pytest_cache
 .coverage
