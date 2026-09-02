@@ -271,7 +271,6 @@ class CanvasTab(BaseTab):
         # Card Actions
         self.create_shortcut("D", self.on_draw_card, "Summon Card")
         self.create_shortcut("R", self.on_flip_card, "Flip Card (Reversed)")
-        self.create_shortcut("Ctrl+D", self.on_duplicate_card, "Duplicate Card")
         self.create_shortcut(Qt.Key.Key_Delete, self.on_delete_card, "Delete Card")
         self.create_shortcut(Qt.Key.Key_Backspace, self.on_delete_card, "Delete Card (Alt)")
 
@@ -370,7 +369,6 @@ class CanvasTab(BaseTab):
                 self.on_flip_card,
                 "Flip card upside down (reversed position)",
             ),
-            ("edit-copy", self.on_duplicate_card, "Clone selected card"),
             ("edit-delete", self.on_delete_card, "Remove selected card (Delete)"),
         ]
 
@@ -692,19 +690,6 @@ class CanvasTab(BaseTab):
                 # Now restart the animation with the new base rotation
                 if hasattr(item, "setup_wobble_animation"):
                     item.setup_wobble_animation(base_rotation=new_rotation)
-
-    def on_duplicate_card(self):
-        """Duplicate the selected card"""
-        items = self.scene.selectedItems()
-        for item in items:
-            if isinstance(item, DraggableCardItem):
-                # Create a copy of the card
-                new_item = DraggableCardItem(item.pixmap(), item.card_data, self)
-                # Position it slightly offset from the original
-                new_item.setPos(item.pos() + QPointF(20, 20))
-                new_item.setRotation(item.rotation())
-                # Add to scene
-                self.scene.addItem(new_item)
 
     def on_delete_card(self):
         """Remove the selected card from canvas"""
