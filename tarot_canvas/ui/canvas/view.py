@@ -4,7 +4,6 @@ from PyQt6.QtCore import QEvent, Qt
 from PyQt6.QtGui import QPainter
 from PyQt6.QtWidgets import QApplication, QGraphicsView
 
-# Zoom limits, matching the first and last entries of tldraw's default zoom steps.
 MIN_ZOOM = 0.1
 MAX_ZOOM = 8.0
 
@@ -14,9 +13,6 @@ class PannableGraphicsView(QGraphicsView):
         super().__init__(scene, parent)
         self.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
-        # Wheel zoom follows the pointer, as every comparable canvas app does. This must
-        # be set before the view first lays out its content, or Qt anchors the first zoom
-        # to a stale point and the canvas jumps once.
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
         self._panning = False
         self._last_mouse_pos = None
