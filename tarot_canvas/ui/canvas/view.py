@@ -1,6 +1,6 @@
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPainter
-from PyQt6.QtWidgets import QGraphicsView
+from PyQt6.QtWidgets import QApplication, QGraphicsView
 
 
 class PannableGraphicsView(QGraphicsView):
@@ -17,7 +17,9 @@ class PannableGraphicsView(QGraphicsView):
             # Start panning mode
             self._panning = True
             self._last_mouse_pos = event.pos()
-            self.setCursor(Qt.CursorShape.ClosedHandCursor)
+            # An override beats the per-item cursors set by DraggableCardItem,
+            # which would otherwise show a grab hand while panning over a card.
+            QApplication.setOverrideCursor(Qt.CursorShape.ClosedHandCursor)
             event.accept()
         else:
             # Default behavior (selection)
@@ -43,7 +45,7 @@ class PannableGraphicsView(QGraphicsView):
         if self._panning:
             self._panning = False
             self._last_mouse_pos = None
-            self.setCursor(Qt.CursorShape.ArrowCursor)
+            QApplication.restoreOverrideCursor()
             event.accept()
         else:
             super().mouseReleaseEvent(event)

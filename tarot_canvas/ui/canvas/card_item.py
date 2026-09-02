@@ -5,6 +5,7 @@ from PyQt6.QtCore import (
     QPropertyAnimation,
     QSequentialAnimationGroup,
     QSettings,
+    Qt,
     QTimer,
 )
 from PyQt6.QtWidgets import QGraphicsPixmapItem
@@ -23,6 +24,7 @@ class DraggableCardItem(QGraphicsPixmapItem):
         self.setFlag(QGraphicsPixmapItem.GraphicsItemFlag.ItemIsSelectable)
         self.setFlag(QGraphicsPixmapItem.GraphicsItemFlag.ItemSendsGeometryChanges)
         self.setAcceptHoverEvents(True)
+        self.setCursor(Qt.CursorShape.OpenHandCursor)
         self.setTransformOriginPoint(pixmap.width() / 2, pixmap.height() / 2)
 
         # Create animation controller
@@ -140,9 +142,11 @@ class DraggableCardItem(QGraphicsPixmapItem):
     # Override these to pause/resume animations during drag
     def mousePressEvent(self, event):
         self.pause_animations()
+        self.setCursor(Qt.CursorShape.ClosedHandCursor)
         super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event):
+        self.setCursor(Qt.CursorShape.OpenHandCursor)
         super().mouseReleaseEvent(event)
         # Small delay before resuming animation
         QTimer.singleShot(200, self.resume_animations)
