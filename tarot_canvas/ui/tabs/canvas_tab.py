@@ -363,11 +363,11 @@ class CanvasTab(BaseTab):
 
         # Primary actions with Breeze icons
         primary_actions = [
-            ("format-add-node", self.on_draw_card, "Summon a random card (D)"),
+            ("document-new", self.on_draw_card, "Summon a random card (D)"),
             (
                 "object-flip-vertical",
                 self.on_flip_card,
-                "Flip card upside down (reversed position)",
+                "Flip card (R)",
             ),
             ("edit-delete", self.on_delete_card, "Remove selected card (Delete)"),
         ]
