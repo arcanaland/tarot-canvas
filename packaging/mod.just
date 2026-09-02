@@ -26,6 +26,7 @@ build:
 install:
   {{dbus}} flatpak run org.flatpak.Builder --user --install --force-clean build-dir land.arcana.TarotCanvas.yml
 
+# Build, install and run the production-ID build.
 run: install
   flatpak run land.arcana.TarotCanvas//master
 
