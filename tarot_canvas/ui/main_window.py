@@ -153,19 +153,18 @@ class MainWindow(QMainWindow):
 
         view_menu.addSeparator()
 
-        self.fullscreen_action = QAction("&Fullscreen", self)
-        self.fullscreen_action.setShortcut("F11")
-        self.fullscreen_action.setCheckable(True)
-        self.fullscreen_action.triggered.connect(self.toggle_fullscreen)
-        view_menu.addAction(self.fullscreen_action)
-
-        # No setShortcut: "F" belongs to the focused canvas, not to the whole window
-        # (it would otherwise swallow the letter in every text field in the app). The
-        # tab-stop in the label is Qt's idiom for showing a shortcut it doesn't own.
-        self.fullscreen_canvas_action = QAction("Fullscreen &Canvas\tF", self)
+        # F11 is window-scope so it works from anywhere; "F" is bound on the canvas
+        # itself (canvas_tab.py) so the letter stays typeable everywhere else.
+        self.fullscreen_canvas_action = QAction("&Fullscreen", self)
+        self.fullscreen_canvas_action.setShortcut("F11")
+        self.fullscreen_canvas_action.setStatusTip("Fullscreen the canvas (F11 or F)")
         self.fullscreen_canvas_action.setCheckable(True)
         self.fullscreen_canvas_action.triggered.connect(self.toggle_canvas_fullscreen)
         view_menu.addAction(self.fullscreen_canvas_action)
+        # Fullscreen hides the menu bar, and a hidden menu bar's actions stop
+        # answering their shortcuts — F11 would be dead exactly when it is the way
+        # out. Owning the action on the window too keeps it live.
+        self.addAction(self.fullscreen_canvas_action)
 
         # Add Theme submenu
         theme_menu = QMenu("&Theme", self)
@@ -574,17 +573,6 @@ class MainWindow(QMainWindow):
             if isinstance(tab, CanvasTab):
                 tab.apply_background_settings()
 
-    def toggle_fullscreen(self, checked):
-        if checked:
-            self.showFullScreen()
-        else:
-            # Unchecking F11 is an unambiguous "give me my window back", so it
-            # unwinds a canvas fullscreen too rather than leaving hidden chrome.
-            if self.canvas_fullscreen_tab is not None:
-                self.exit_canvas_fullscreen()
-            else:
-                self.showNormal()
-
     def on_tab_changed(self, _index):
         if self.canvas_fullscreen_tab is not None:
             self.exit_canvas_fullscreen()
@@ -620,7 +608,6 @@ class MainWindow(QMainWindow):
 
         if not self.isFullScreen():
             self.showFullScreen()
-        self.fullscreen_action.setChecked(True)
         self.fullscreen_canvas_action.setChecked(True)
         tab.sync_fullscreen_action()
 
@@ -637,9 +624,10 @@ class MainWindow(QMainWindow):
             self.main_splitter.setSizes(state["splitter_sizes"])
             self.centralWidget().layout().setContentsMargins(state["margins"])
             tab.setMaximumHeight(state["tab_max_height"])
+            # Only undo our own fullscreen: the window manager may have put the
+            # window fullscreen independently, and that is not ours to revert.
             if not state["window_fullscreen"]:
                 self.showNormal()
-                self.fullscreen_action.setChecked(False)
 
         self.fullscreen_canvas_action.setChecked(False)
         tab.sync_fullscreen_action()

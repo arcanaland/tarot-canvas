@@ -92,3 +92,32 @@ def test_the_f_key_drives_it_from_the_canvas(qtbot):
 
     qtbot.keyClick(tab.view, Qt.Key.Key_Escape)
     assert window.canvas_fullscreen_tab is None
+
+
+def test_f11_fullscreens_the_canvas_from_anywhere_in_the_window(qtbot):
+    window, tab = make_window_with_canvas(qtbot)
+    window.activateWindow()
+    qtbot.waitActive(window)
+    # F11 is window-scope, so send it somewhere that is not the canvas
+    window.card_explorer.setFocus()
+    qtbot.waitUntil(lambda: window.isActiveWindow())
+
+    qtbot.keyClick(window, Qt.Key.Key_F11)
+    assert window.canvas_fullscreen_tab is tab
+
+    qtbot.keyClick(window, Qt.Key.Key_F11)
+    assert window.canvas_fullscreen_tab is None
+    assert window.menuBar().isVisible()
+
+
+def test_f11_on_a_non_canvas_tab_does_nothing(qtbot):
+    window, tab = make_window_with_canvas(qtbot)
+    # new_canvas_tab() closes the Welcome tab, so put a non-canvas tab back
+    window.add_welcome_tab()
+    window.tab_widget.setCurrentIndex(window.tab_widget.count() - 1)
+    assert not isinstance(window.tab_widget.currentWidget(), CanvasTab)
+
+    window.toggle_canvas_fullscreen()
+    assert window.canvas_fullscreen_tab is None
+    assert window.menuBar().isVisible()
+    assert not window.fullscreen_canvas_action.isChecked()
