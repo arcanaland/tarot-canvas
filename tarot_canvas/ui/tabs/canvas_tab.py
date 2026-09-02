@@ -496,8 +496,7 @@ class CanvasTab(BaseTab):
         print(f"Drew card from {deck_to_use.get_name()} deck")
 
     def cascade_from_occupied(self, pos, step=20, limit=20):
-        """Nudge pos clear of a card already sitting there, as duplicating does.
-        """
+        """Nudge pos clear of a card already sitting there, as duplicating does."""
         occupied = {(round(item.pos().x()), round(item.pos().y())) for item in self.scene.items()}
         for _ in range(limit):
             if (round(pos.x()), round(pos.y())) not in occupied:
