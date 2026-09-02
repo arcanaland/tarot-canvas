@@ -87,7 +87,6 @@ class CanvasTab(BaseTab):
         self.scene = QGraphicsScene(self)
 
         # Set a more conservative scene rect size
-        # Seed rect only: the view grows this as the camera moves (see RFC-013).
         self.scene.setSceneRect(QRectF(-500, -500, 1000, 1000))
 
         # Use our custom view with shift+drag panning
@@ -373,8 +372,7 @@ class CanvasTab(BaseTab):
         self.toolbar.addSeparator()
         self.toolbar.addWidget(self.create_section_label("Arrange"))
 
-        # Arrangement actions with Breeze icons, kept by slot so their enabled state can
-        # track the selection and so the align menu can anchor to its own button.
+        # Arrangement actions with Breeze icons
         self.arrange_actions = {}
         arrangement_actions = [
             ("go-top", self.on_bring_to_front, "Bring card to front"),
@@ -894,9 +892,6 @@ class CanvasTab(BaseTab):
 
         circle_arrange.triggered.connect(lambda: arrange_items_in_circle(items))
 
-        # Anchor the menu under its own toolbar button. QCursor.pos() means nothing on
-        # Wayland beyond the last position Qt happened to observe, so it drops the menu
-        # wherever the pointer was last seen over the canvas — or not at all.
         menu.exec(self.align_menu_anchor())
 
     def align_menu_anchor(self):
