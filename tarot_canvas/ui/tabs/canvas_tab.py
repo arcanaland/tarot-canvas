@@ -46,6 +46,8 @@ from tarot_canvas.ui.tabs.base_tab import BaseTab
 class CanvasTab(BaseTab):
     # Signal to notify the main window that we want to navigate
     navigation_requested = pyqtSignal(str, object)  # action, data
+    # Ask the main window to hide its chrome and give the canvas the whole screen
+    fullscreen_requested = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -285,6 +287,11 @@ class CanvasTab(BaseTab):
         self.create_shortcut("Ctrl+0", self.on_reset_view, "Reset View")
         self.create_shortcut("Ctrl+F", self.on_fit_view, "Fit All in View")
 
+        # F, not F11: F11 fullscreens the window with its chrome intact. This hides
+        # the chrome, so it stays scoped to the canvas that has focus.
+        fullscreen = self.create_shortcut("F", self.on_toggle_fullscreen, "Fullscreen Canvas")
+        fullscreen.setShortcutContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+
         # Navigation
         self.create_shortcut("Escape", self.on_escape_pressed, "Cancel Selection")
 
@@ -318,9 +325,29 @@ class CanvasTab(BaseTab):
         return action
 
     def on_escape_pressed(self):
-        """Handle Escape key - cancel selection"""
+        """Handle Escape key - leave fullscreen if in it, otherwise cancel selection"""
+        if self.is_fullscreen():
+            self.fullscreen_requested.emit()
+            return
         for item in self.scene.selectedItems():
             item.setSelected(False)
+
+    def is_fullscreen(self):
+        """True when the main window is currently fullscreened onto this canvas"""
+        return getattr(self.window(), "canvas_fullscreen_tab", None) is self
+
+    def on_toggle_fullscreen(self):
+        """Toggle canvas fullscreen. No-op when the tab has no main window."""
+        if hasattr(self.window(), "canvas_fullscreen_tab"):
+            self.fullscreen_requested.emit()
+
+    def sync_fullscreen_action(self):
+        """Keep the toolbar button in step with the actual fullscreen state"""
+        full = self.is_fullscreen()
+        self.fullscreen_action.setChecked(full)
+        self.fullscreen_action.setToolTip(
+            "Leave fullscreen (Esc)" if full else "Fullscreen canvas (F)"
+        )
 
     def create_toolbar(self, parent_layout):
         """Create a vertical toolbar using QToolBar"""
@@ -367,6 +394,9 @@ class CanvasTab(BaseTab):
             action.setToolTip(tooltip)
             action.triggered.connect(slot)
             self.toolbar.addAction(action)
+            if slot == self.on_toggle_fullscreen:
+                action.setCheckable(True)
+                self.fullscreen_action = action
 
         # Arrangement actions group
         self.toolbar.addSeparator()
@@ -400,6 +430,9 @@ class CanvasTab(BaseTab):
             action.setToolTip(tooltip)
             action.triggered.connect(slot)
             self.toolbar.addAction(action)
+            if slot == self.on_toggle_fullscreen:
+                action.setCheckable(True)
+                self.fullscreen_action = action
             self.arrange_actions[slot] = action
 
         # Grey out the arrangement buttons unless you select multiple cards
@@ -416,6 +449,7 @@ class CanvasTab(BaseTab):
             ("zoom-out", self.on_zoom_out, "Zoom out"),
             ("zoom-fit-best", self.on_fit_view, "Fit all cards in view"),
             ("zoom-original", self.on_reset_view, "Reset to default view"),
+            ("view-fullscreen", self.on_toggle_fullscreen, "Fullscreen canvas (F)"),
         ]
 
         # Add view control actions to toolbar
@@ -438,6 +472,9 @@ class CanvasTab(BaseTab):
             action.setToolTip(tooltip)
             action.triggered.connect(slot)
             self.toolbar.addAction(action)
+            if slot == self.on_toggle_fullscreen:
+                action.setCheckable(True)
+                self.fullscreen_action = action
 
         # Add the toolbar to the main layout
         parent_layout.addWidget(self.toolbar, 0)  # 0 means no stretch
