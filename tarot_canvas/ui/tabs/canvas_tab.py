@@ -2,7 +2,7 @@ import os
 import random
 from pathlib import Path
 
-from PyQt6.QtCore import QPointF, QRectF, QSettings, QSize, Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import QPoint, QPointF, QRectF, QSettings, QSize, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import (
     QAction,
     QBrush,
@@ -373,6 +373,7 @@ class CanvasTab(BaseTab):
         self.toolbar.addWidget(self.create_section_label("Arrange"))
 
         # Arrangement actions with Breeze icons
+        self.arrange_actions = {}
         arrangement_actions = [
             ("go-top", self.on_bring_to_front, "Bring card to front"),
             ("go-bottom", self.on_send_to_back, "Send card to back"),
@@ -399,6 +400,11 @@ class CanvasTab(BaseTab):
             action.setToolTip(tooltip)
             action.triggered.connect(slot)
             self.toolbar.addAction(action)
+            self.arrange_actions[slot] = action
+
+        # Grey out the arrangement buttons unless you select multiple cards
+        self.scene.selectionChanged.connect(self.update_arrange_actions)
+        self.update_arrange_actions()
 
         # View control actions group
         self.toolbar.addSeparator()
@@ -488,6 +494,15 @@ class CanvasTab(BaseTab):
         # Log what deck we drew from
         print(f"Drew card from {deck_to_use.get_name()} deck")
 
+    def cascade_from_occupied(self, pos, step=20, limit=20):
+        """Nudge pos clear of a card already sitting there, as duplicating does."""
+        occupied = {(round(item.pos().x()), round(item.pos().y())) for item in self.scene.items()}
+        for _ in range(limit):
+            if (round(pos.x()), round(pos.y())) not in occupied:
+                break
+            pos = QPointF(pos.x() + step, pos.y() + step)
+        return pos
+
     def add_specific_card(self, card, card_deck=None, is_reversed=False):
         """Add a specific card to the canvas, optionally reversed"""
         # Load the card image
@@ -534,16 +549,17 @@ class CanvasTab(BaseTab):
             for selected_item in self.scene.selectedItems():
                 selected_item.setSelected(False)
 
-            # Get the center of the viewport
-            view_center = self.view.mapToScene(self.view.viewport().rect().center())
-
-            # Add a slight random offset (±50 pixels) to avoid exact center placement
-            offset_x = random.randint(-50, 50)
-            offset_y = random.randint(-50, 50)
-            view_center = QPointF(view_center.x() + offset_x, view_center.y() + offset_y)
-            card_item.setPos(
-                view_center.x() - pixmap.width() / 2, view_center.y() - pixmap.height() / 2
-            )
+            # Place under the pointer (or middle of the view if it's in Narnia)
+            target = self.view.pointer_scene_pos()
+            if target is None:
+                target = self.view.mapToScene(self.view.viewport().rect().center())
+                # slight nudge
+                target = QPointF(
+                    target.x() + random.randint(-50, 50), target.y() + random.randint(-50, 50)
+                )
+            pos = QPointF(target.x() - pixmap.width() / 2, target.y() - pixmap.height() / 2)
+            pos = self.cascade_from_occupied(pos)
+            card_item.setPos(pos)
 
             # Add the card to the scene
             self.scene.addItem(card_item)
@@ -569,11 +585,11 @@ class CanvasTab(BaseTab):
     # Canvas Control Methods
     def on_zoom_in(self):
         """Zoom into the canvas"""
-        self.view.scale(1.2, 1.2)
+        self.view.zoom_by_from_center(1.2)
 
     def on_zoom_out(self):
         """Zoom out of the canvas"""
-        self.view.scale(0.8, 0.8)
+        self.view.zoom_by_from_center(0.8)
 
     def on_fit_view(self):
         """Fit all items in view"""
@@ -588,12 +604,15 @@ class CanvasTab(BaseTab):
         # Add margin
         rect.adjust(-50, -50, 50, 50)
         # Fit view to rect
-        self.view.fitInView(rect, Qt.AspectRatioMode.KeepAspectRatio)
+        self.view.fit_to_rect(rect)
 
     def on_reset_view(self):
         """Reset view to default position and zoom"""
         self.view.resetTransform()
-        self.view.centerOn(self.scene.sceneRect().center())
+        # The scene rect moves with the camera now, so centre on the cards instead.
+        items_rect = self.scene.itemsBoundingRect()
+        self.view.centerOn(items_rect.center() if not items_rect.isNull() else QPointF(0, 0))
+        self.view.grow_scene_rect()
 
     # Card Manipulation Methods
     def on_rotate_card(self):
@@ -657,6 +676,12 @@ class CanvasTab(BaseTab):
             self.scene.removeItem(item)
 
     # Arrangement Control Methods
+    def update_arrange_actions(self):
+        """Enable the arrangement actions only when they have something to act on."""
+        count = len(self.scene.selectedItems())
+        for slot, action in self.arrange_actions.items():
+            action.setEnabled(count >= (2 if slot == self.on_align_cards else 1))
+
     def on_bring_to_front(self):
         """Bring selected card to front"""
         items = self.scene.selectedItems()
@@ -865,8 +890,14 @@ class CanvasTab(BaseTab):
 
         circle_arrange.triggered.connect(lambda: arrange_items_in_circle(items))
 
-        # Show the menu at the cursor position
-        menu.exec(QCursor.pos())
+        menu.exec(self.align_menu_anchor())
+
+    def align_menu_anchor(self):
+        """Global position for the align menu: just below its toolbar button."""
+        button = self.toolbar.widgetForAction(self.arrange_actions[self.on_align_cards])
+        if button is None:
+            return QCursor.pos()
+        return button.mapToGlobal(QPoint(0, button.height()))
 
     def update_tab_icon(self):
         """Update the tab with a canvas icon"""

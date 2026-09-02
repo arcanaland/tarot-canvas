@@ -1,3 +1,4 @@
+from PyQt6 import sip
 from PyQt6.QtCore import QObject, pyqtProperty
 
 
@@ -10,21 +11,32 @@ class CardAnimationController(QObject):
         self._scale = 1.0
         self.card_item = None
 
+    def _live_card_item(self):
+        """Stub to handle if the card was deleted on the C++ side"""
+        if self.card_item is None:
+            return None
+        if sip.isdeleted(self.card_item):
+            self.card_item = None
+            return None
+        return self.card_item
+
     def _get_rotation(self):
         return self._rotation
 
     def _set_rotation(self, angle):
         self._rotation = angle
-        if self.card_item:
-            self.card_item.setRotation(angle)
+        item = self._live_card_item()
+        if item is not None:
+            item.setRotation(angle)
 
     def _get_scale(self):
         return self._scale
 
     def _set_scale(self, scale):
         self._scale = scale
-        if self.card_item:
-            self.card_item.setScale(scale)
+        item = self._live_card_item()
+        if item is not None:
+            item.setScale(scale)
 
     # Define properties for QPropertyAnimation
     rotation = pyqtProperty(float, _get_rotation, _set_rotation)
