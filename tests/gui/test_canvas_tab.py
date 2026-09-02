@@ -1,4 +1,4 @@
-from PyQt6.QtCore import QEvent, QPoint, QPointF, Qt
+from PyQt6.QtCore import QEvent, QPoint, QPointF, QSettings, Qt
 from PyQt6.QtGui import QEnterEvent, QMouseEvent, QPixmap
 from PyQt6.QtWidgets import QApplication
 
@@ -18,6 +18,7 @@ def add_cards(tab, count):
 
 
 def make_tab(qtbot):
+    QSettings("ArcanaLand", "TarotCanvas").setValue("appearance/enable_animations", False)
     tab = CanvasTab()
     qtbot.addWidget(tab)
     tab.show()

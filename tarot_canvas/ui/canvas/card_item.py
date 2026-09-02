@@ -1,5 +1,6 @@
 import random
 
+from PyQt6 import sip
 from PyQt6.QtCore import (
     QEasingCurve,
     QPropertyAnimation,
@@ -125,6 +126,8 @@ class DraggableCardItem(QGraphicsPixmapItem):
 
     def start_animations(self):
         """Start the wobble animations."""
+        if sip.isdeleted(self):
+            return  # the card was deleted while its start was still queued
         self.rotation_anim.setLoopCount(-1)  # Loop indefinitely
         self.rotation_anim.start()
         # self.scale_anim.start()
@@ -150,6 +153,13 @@ class DraggableCardItem(QGraphicsPixmapItem):
         super().mouseReleaseEvent(event)
         # Small delay before resuming animation
         QTimer.singleShot(200, self.resume_animations)
+
+    def itemChange(self, change, value):
+        """Stop animating once the card leaves the canvas."""
+        if change == QGraphicsPixmapItem.GraphicsItemChange.ItemSceneChange and value is None:
+            self.rotation_anim.stop()
+            self.scale_anim.stop()
+        return super().itemChange(change, value)
 
     def mouseDoubleClickEvent(self, event):
         """Handle double click events to open a card view tab"""
