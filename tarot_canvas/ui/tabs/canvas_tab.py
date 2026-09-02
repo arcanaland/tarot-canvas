@@ -402,8 +402,7 @@ class CanvasTab(BaseTab):
             self.toolbar.addAction(action)
             self.arrange_actions[slot] = action
 
-        # These do nothing without a selection, so let the toolbar say so rather than
-        # swallowing the click.
+        # Grey out the arrangement buttons unless you select multiple cards
         self.scene.selectionChanged.connect(self.update_arrange_actions)
         self.update_arrange_actions()
 
