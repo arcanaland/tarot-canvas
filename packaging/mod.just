@@ -1,3 +1,14 @@
+# `dbus-run-session` spawns a private session bus, which activates a SECOND
+# xdg-document-portal. That portal mounts over /run/user/$UID/doc and takes the
+# mount down when the private session exits — leaving the real user service
+# running but unmounted, so every flatpak on the machine then dies with
+# "bwrap: Can't find source path /run/user/$UID/doc/by-app/...".
+#
+# Verified 2026-09-02: one build with dbus-run-session took the mount from 1 to 0
+# and left the unit `failed`; the same build without it left the mount intact and
+# succeeded. So spawn a bus only when there genuinely is not one, i.e. in CI.
+dbus := if env('DBUS_SESSION_BUS_ADDRESS', '') == '' { 'dbus-run-session --' } else { '' }
+
 deps:
   #!/bin/bash
   set -euo pipefail
@@ -19,19 +30,15 @@ validate:
   flatpak run --command=appstreamcli org.flatpak.Builder validate --explain land.arcana.TarotCanvas.appdata.xml
 
 build:
-  dbus-run-session -- flatpak run org.flatpak.Builder --user --force-clean build-dir land.arcana.TarotCanvas.yml
+  {{dbus}} flatpak run org.flatpak.Builder --user --force-clean build-dir land.arcana.TarotCanvas.yml
 
 install:
-  dbus-run-session -- flatpak run org.flatpak.Builder --user --install --force-clean build-dir land.arcana.TarotCanvas.yml
+  {{dbus}} flatpak run org.flatpak.Builder --user --install --force-clean build-dir land.arcana.TarotCanvas.yml
 
-# Pinned to //master so the ref is never resolved by chance when a second branch
-# (e.g. a Flathub test build) is installed.
-
-# Build, install and run the production-ID build.
 run: install
   flatpak run land.arcana.TarotCanvas//master
 
-# --- development build (RFC-012) -------------------------------------------
+# --- development build (ADR-014) -------------------------------------------
 # The devel build carries its own app ID, so it gets its own ~/.var/app tree,
 # desktop entry and icon, and installs side by side with production.
 
@@ -39,27 +46,24 @@ run: install
 gen-devel:
   ./gen-devel.sh
 
-# No repo export, no branch, no entry in `flatpak list`, nothing to confuse with
-# an installed build.
-#
-# NOTE: --run applies build-time permissions, NOT the manifest's finish-args.
-# Anything that depends on the real sandbox — the reference-deck download behind
-# --share=network, portal access, --device=dri — must be tested via `devel-install`
-# or the test proves nothing.
+# --run applies build-time permissions, NOT the manifest's finish-args. Anything
+# depending on the real sandbox — the reference-deck download behind --share=network,
+# portal access, --device=dri — must be tested with `devel-install` or it proves
+# nothing. Note --run takes the command positionally after the manifest, and must not
+# be combined with --force-clean, which would wipe the tree being run from.
 
 # Fast inner loop: run the devel build straight out of the build tree.
-devel-run: gen-devel
-  dbus-run-session -- flatpak run org.flatpak.Builder --user --force-clean \
-    build-devel devel/land.arcana.TarotCanvas.yml --run tarot-canvas
+devel-run: devel-build
+  flatpak run org.flatpak.Builder --run build-devel devel/land.arcana.TarotCanvas.yml tarot-canvas
 
 # Build the devel build without installing it.
 devel-build: gen-devel
-  dbus-run-session -- flatpak run org.flatpak.Builder --user --force-clean \
+  {{dbus}} flatpak run org.flatpak.Builder --user --force-clean \
     build-devel devel/land.arcana.TarotCanvas.yml
 
 # Build and install the devel build, side by side with production.
 devel-install: gen-devel
-  dbus-run-session -- flatpak run org.flatpak.Builder --user --install --force-clean \
+  {{dbus}} flatpak run org.flatpak.Builder --user --install --force-clean \
     build-devel devel/land.arcana.TarotCanvas.yml
 
 # Build, install and run the devel build.
