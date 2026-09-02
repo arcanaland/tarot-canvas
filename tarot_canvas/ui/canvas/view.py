@@ -1,6 +1,6 @@
 from contextlib import contextmanager
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QEvent, Qt
 from PyQt6.QtGui import QPainter
 from PyQt6.QtWidgets import QApplication, QGraphicsView
 
@@ -20,6 +20,24 @@ class PannableGraphicsView(QGraphicsView):
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
         self._panning = False
         self._last_mouse_pos = None
+        self._pointer_pos = None
+
+    def pointer_scene_pos(self):
+        """Scene position of the pointer, or None when it is not over the canvas.
+
+        Tracked from the events themselves rather than read from QCursor.pos(), which
+        on Wayland is only ever the last position Qt happened to observe.
+        """
+        if self._pointer_pos is None:
+            return None
+        return self.mapToScene(self._pointer_pos)
+
+    def viewportEvent(self, event):
+        if event.type() == QEvent.Type.Enter:
+            self._pointer_pos = event.position().toPoint()
+        elif event.type() == QEvent.Type.Leave:
+            self._pointer_pos = None
+        return super().viewportEvent(event)
 
     def _visible_scene_rect(self):
         return self.mapToScene(self.viewport().rect()).boundingRect()
@@ -104,6 +122,7 @@ class PannableGraphicsView(QGraphicsView):
 
     def mouseMoveEvent(self, event):
         """Handle mouse movement for panning or default behavior"""
+        self._pointer_pos = event.pos()
         if self._panning and self._last_mouse_pos:
             # Calculate how much to pan
             delta = event.pos() - self._last_mouse_pos

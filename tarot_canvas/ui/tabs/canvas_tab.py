@@ -497,6 +497,16 @@ class CanvasTab(BaseTab):
         # Log what deck we drew from
         print(f"Drew card from {deck_to_use.get_name()} deck")
 
+    def cascade_from_occupied(self, pos, step=20, limit=20):
+        """Nudge pos clear of a card already sitting there, as duplicating does.
+        """
+        occupied = {(round(item.pos().x()), round(item.pos().y())) for item in self.scene.items()}
+        for _ in range(limit):
+            if (round(pos.x()), round(pos.y())) not in occupied:
+                break
+            pos = QPointF(pos.x() + step, pos.y() + step)
+        return pos
+
     def add_specific_card(self, card, card_deck=None, is_reversed=False):
         """Add a specific card to the canvas, optionally reversed"""
         # Load the card image
@@ -543,16 +553,17 @@ class CanvasTab(BaseTab):
             for selected_item in self.scene.selectedItems():
                 selected_item.setSelected(False)
 
-            # Get the center of the viewport
-            view_center = self.view.mapToScene(self.view.viewport().rect().center())
-
-            # Add a slight random offset (±50 pixels) to avoid exact center placement
-            offset_x = random.randint(-50, 50)
-            offset_y = random.randint(-50, 50)
-            view_center = QPointF(view_center.x() + offset_x, view_center.y() + offset_y)
-            card_item.setPos(
-                view_center.x() - pixmap.width() / 2, view_center.y() - pixmap.height() / 2
-            )
+            # Place under the pointer (or middle of the view if it's in Narnia)
+            target = self.view.pointer_scene_pos()
+            if target is None:
+                target = self.view.mapToScene(self.view.viewport().rect().center())
+                # slight nudge
+                target = QPointF(
+                    target.x() + random.randint(-50, 50), target.y() + random.randint(-50, 50)
+                )
+            pos = QPointF(target.x() - pixmap.width() / 2, target.y() - pixmap.height() / 2)
+            pos = self.cascade_from_occupied(pos)
+            card_item.setPos(pos)
 
             # Add the card to the scene
             self.scene.addItem(card_item)
