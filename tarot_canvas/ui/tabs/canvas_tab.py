@@ -286,8 +286,6 @@ class CanvasTab(BaseTab):
         self.create_shortcut("Ctrl+0", self.on_reset_view, "Reset View")
         self.create_shortcut("Ctrl+F", self.on_fit_view, "Fit All in View")
 
-        # F, not F11: F11 fullscreens the window with its chrome intact. This hides
-        # the chrome, so it stays scoped to the canvas that has focus.
         fullscreen = self.create_shortcut("F", self.on_toggle_fullscreen, "Fullscreen Canvas")
         fullscreen.setShortcutContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
 
