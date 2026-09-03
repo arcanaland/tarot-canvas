@@ -29,6 +29,7 @@ class EsotericaManager:
 
         # Look for all .toml files recursively in the esoterica directory
         toml_files = list(Path(esoterica_dir).glob("**/*.toml"))
+        logger.debug(f"Found: {','.join(esoterica_dir)}")
 
         if not toml_files:
             logger.warning(f"No .toml files found in {esoterica_dir} (including subdirectories)")
@@ -40,12 +41,11 @@ class EsotericaManager:
                     f"Found {len(current_dir_files)} .toml files in current directory, attempting to load"
                 )
                 for file_path in current_dir_files:
-                    if "tarot-for-change" in file_path.name:
-                        try:
-                            logger.info(f"Attempting to load: {file_path}")
-                            self._load_source(file_path)
-                        except Exception as e:
-                            logger.error(f"Error loading esoterica source {file_path}: {e}")
+                    try:
+                        logger.info(f"Attempting to load: {file_path}")
+                        self._load_source(file_path)
+                    except Exception as e:
+                        logger.error(f"Error loading esoterica source {file_path}: {e}")
 
         # Process all files found in the esoterica directory and its subdirectories
         for file_path in toml_files:
