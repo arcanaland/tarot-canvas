@@ -92,6 +92,10 @@
       </description>
     </release>
   </releases>
+  <branding>
+    <color type="primary" scheme_preference="light">#d9c0fa</color>
+    <color type="primary" scheme_preference="dark">#af7faf</color>
+  </branding>
   <url type="homepage">https://github.com/arcanaland/tarot-canvas</url>
   <url type="bugtracker">https://github.com/arcanaland/tarot-canvas/issues</url>
   <recommends>
