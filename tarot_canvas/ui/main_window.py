@@ -5,6 +5,7 @@ from pathlib import Path
 from PyQt6.QtCore import QEvent, QObject, Qt, pyqtSignal
 from PyQt6.QtGui import QAction, QActionGroup, QIcon, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
+    QWIDGETSIZE_MAX,
     QApplication,
     QFileDialog,
     QHBoxLayout,
@@ -72,6 +73,10 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Tarot Canvas")
         self.setWindowIcon(QIcon(str(ICON_PATH)))
         self.setGeometry(100, 100, 950, 600)
+
+        # The canvas tab currently fullscreened, and the chrome state to put back
+        self.canvas_fullscreen_tab = None
+        self._pre_fullscreen = None
 
         # Initialize theme manager
         self.theme_manager = ThemeManager.get_instance()
@@ -148,11 +153,13 @@ class MainWindow(QMainWindow):
 
         view_menu.addSeparator()
 
-        fullscreen_action = QAction("&Fullscreen", self)
-        fullscreen_action.setShortcut("F11")
-        fullscreen_action.setCheckable(True)
-        fullscreen_action.triggered.connect(self.toggle_fullscreen)
-        view_menu.addAction(fullscreen_action)
+        self.fullscreen_canvas_action = QAction("&Fullscreen", self)
+        self.fullscreen_canvas_action.setShortcut("F11")
+        self.fullscreen_canvas_action.setStatusTip("Fullscreen the canvas (F11 or F)")
+        self.fullscreen_canvas_action.setCheckable(True)
+        self.fullscreen_canvas_action.triggered.connect(self.toggle_canvas_fullscreen)
+        view_menu.addAction(self.fullscreen_canvas_action)
+        self.addAction(self.fullscreen_canvas_action)
 
         # Add Theme submenu
         theme_menu = QMenu("&Theme", self)
@@ -246,6 +253,8 @@ class MainWindow(QMainWindow):
         self.tab_widget = QTabWidget()
         self.tab_widget.setTabsClosable(True)
         self.tab_widget.tabCloseRequested.connect(self.close_tab)
+
+        self.tab_widget.currentChanged.connect(self.on_tab_changed)
         self.tab_widget.setMovable(True)
 
         # Create search button and put it in the tab corner
@@ -348,6 +357,7 @@ class MainWindow(QMainWindow):
     def new_canvas_tab(self):
         canvas_tab = CanvasTab()
         canvas_tab.navigation_requested.connect(self.handle_tab_navigation)
+        canvas_tab.fullscreen_requested.connect(self.toggle_canvas_fullscreen)
         self.close_welcome_tab()
         tab_index = self.tab_widget.addTab(canvas_tab, "Canvas")
         self.tab_widget.setCurrentWidget(canvas_tab)
@@ -557,11 +567,64 @@ class MainWindow(QMainWindow):
             if isinstance(tab, CanvasTab):
                 tab.apply_background_settings()
 
-    def toggle_fullscreen(self, checked):
-        if checked:
-            self.showFullScreen()
+    def on_tab_changed(self, _index):
+        if self.canvas_fullscreen_tab is not None:
+            self.exit_canvas_fullscreen()
+
+    def toggle_canvas_fullscreen(self):
+        """Toggle a chrome-free fullscreen showing only the canvas and its toolbar"""
+        if self.canvas_fullscreen_tab is not None:
+            self.exit_canvas_fullscreen()
+            return
+        tab = self.tab_widget.currentWidget()
+        if isinstance(tab, CanvasTab):
+            self.enter_canvas_fullscreen(tab)
         else:
-            self.showNormal()
+            self.fullscreen_canvas_action.setChecked(False)
+
+    def enter_canvas_fullscreen(self, tab):
+        self.canvas_fullscreen_tab = tab
+        self._pre_fullscreen = {
+            "window_fullscreen": self.isFullScreen(),
+            "explorer_visible": self.card_explorer.isVisible(),
+            "splitter_sizes": self.main_splitter.sizes(),
+            "tab_max_height": tab.maximumHeight(),
+            "margins": self.centralWidget().layout().contentsMargins(),
+        }
+
+        self.menuBar().setVisible(False)
+        self.tab_widget.tabBar().setVisible(False)
+        self.card_explorer.setVisible(False)
+        self.centralWidget().layout().setContentsMargins(0, 0, 0, 0)
+        # CanvasTab caps itself at 800px tall (see ensure_window_bounds); that cap
+        # would letterbox the canvas on any screen taller than that.
+        tab.setMaximumHeight(QWIDGETSIZE_MAX)
+
+        if not self.isFullScreen():
+            self.showFullScreen()
+        self.fullscreen_canvas_action.setChecked(True)
+        tab.sync_fullscreen_action()
+
+    def exit_canvas_fullscreen(self):
+        tab = self.canvas_fullscreen_tab
+        state = self._pre_fullscreen
+        self.canvas_fullscreen_tab = None
+        self._pre_fullscreen = None
+
+        self.menuBar().setVisible(True)
+        self.tab_widget.tabBar().setVisible(True)
+        if state:
+            self.card_explorer.setVisible(state["explorer_visible"])
+            self.main_splitter.setSizes(state["splitter_sizes"])
+            self.centralWidget().layout().setContentsMargins(state["margins"])
+            tab.setMaximumHeight(state["tab_max_height"])
+            # Only undo our own fullscreen: the window manager may have put the
+            # window fullscreen independently, and that is not ours to revert.
+            if not state["window_fullscreen"]:
+                self.showNormal()
+
+        self.fullscreen_canvas_action.setChecked(False)
+        tab.sync_fullscreen_action()
 
     def toggle_card_explorer(self, checked):
         """Toggle visibility of the card explorer panel"""
