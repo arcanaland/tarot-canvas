@@ -89,7 +89,7 @@ class CanvasTab(BaseTab):
         # Set a more conservative scene rect size
         self.scene.setSceneRect(QRectF(-500, -500, 1000, 1000))
 
-        # Use our custom view with shift+drag panning
+        # Use our custom view with middle-drag and shift+drag panning
         self.view = PannableGraphicsView(self.scene)
 
         # Apply background from settings

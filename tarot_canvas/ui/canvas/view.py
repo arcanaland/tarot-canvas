@@ -14,7 +14,7 @@ class PannableGraphicsView(QGraphicsView):
         self.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
-        self._panning = False
+        self._pan_button = None
         self._last_mouse_pos = None
         self._pointer_pos = None
 
@@ -102,11 +102,19 @@ class PannableGraphicsView(QGraphicsView):
         super().showEvent(event)
         self.grow_scene_rect()
 
+    def _starts_pan(self, event):
+        if event.button() == Qt.MouseButton.MiddleButton:
+            return True
+        return bool(
+            event.button() == Qt.MouseButton.LeftButton
+            and event.modifiers() & Qt.KeyboardModifier.ShiftModifier
+        )
+
     def mousePressEvent(self, event):
-        """Override mouse press to implement shift+drag panning"""
-        if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+        """Override mouse press to implement middle-drag and shift+drag panning"""
+        if self._pan_button is None and self._starts_pan(event):
             # Start panning mode
-            self._panning = True
+            self._pan_button = event.button()
             self._last_mouse_pos = event.pos()
             # An override beats the per-item cursors set by DraggableCardItem,
             # which would otherwise show a grab hand while panning over a card.
@@ -119,7 +127,7 @@ class PannableGraphicsView(QGraphicsView):
     def mouseMoveEvent(self, event):
         """Handle mouse movement for panning or default behavior"""
         self._pointer_pos = event.pos()
-        if self._panning and self._last_mouse_pos:
+        if self._pan_button is not None and self._last_mouse_pos:
             # Calculate how much to pan
             delta = event.pos() - self._last_mouse_pos
             self._last_mouse_pos = event.pos()
@@ -137,10 +145,12 @@ class PannableGraphicsView(QGraphicsView):
 
     def mouseReleaseEvent(self, event):
         """Handle mouse release for ending panning or default behavior"""
-        if self._panning:
-            self._panning = False
+        if event.button() == self._pan_button:
+            self._pan_button = None
             self._last_mouse_pos = None
             QApplication.restoreOverrideCursor()
+            event.accept()
+        elif self._pan_button is not None:
             event.accept()
         else:
             super().mouseReleaseEvent(event)

@@ -121,3 +121,104 @@ def test_repeated_draws_cascade_instead_of_stacking(qtbot, minimal_deck):
 
     positions = [tab.add_specific_card(minimal_deck.get_random_card()).pos() for _ in range(3)]
     assert len({(p.x(), p.y()) for p in positions}) == 3
+
+
+def send_mouse(tab, kind, pos, button, buttons=None, modifiers=Qt.KeyboardModifier.NoModifier):
+    view = tab.view
+    QApplication.sendEvent(
+        view.viewport(),
+        QMouseEvent(
+            kind,
+            QPointF(pos),
+            QPointF(view.viewport().mapToGlobal(pos)),
+            button,
+            button if buttons is None else buttons,
+            modifiers,
+        ),
+    )
+
+
+def drag(tab, button, start, end, modifiers=Qt.KeyboardModifier.NoModifier):
+    send_mouse(tab, QMouseEvent.Type.MouseButtonPress, start, button, modifiers=modifiers)
+    send_mouse(
+        tab, QMouseEvent.Type.MouseMove, end, Qt.MouseButton.NoButton, button, modifiers=modifiers
+    )
+    send_mouse(tab, QMouseEvent.Type.MouseButtonRelease, end, button, Qt.MouseButton.NoButton)
+
+
+def view_centre(tab):
+    return tab.view.mapToScene(tab.view.viewport().rect().center())
+
+
+def test_middle_drag_pans_the_view(qtbot):
+    tab = make_tab(qtbot)
+    before = view_centre(tab)
+
+    drag(tab, Qt.MouseButton.MiddleButton, QPoint(200, 150), QPoint(120, 100))
+
+    after = view_centre(tab)
+    # Dragging the canvas up and left moves the camera down and right by the same amount
+    assert abs((after.x() - before.x()) - 80) <= 1
+    assert abs((after.y() - before.y()) - 50) <= 1
+
+
+def test_middle_drag_pans_over_a_card(qtbot):
+    tab = make_tab(qtbot)
+    add_cards(tab, 1)
+    card = only_card(tab)
+    card.setPos(tab.view.mapToScene(QPoint(200, 150)))
+    before = card.pos()
+
+    drag(tab, Qt.MouseButton.MiddleButton, QPoint(200, 150), QPoint(120, 100))
+
+    assert card.pos() == before, "panning must not drag the card under the pointer"
+
+
+def test_shift_left_drag_still_pans(qtbot):
+    tab = make_tab(qtbot)
+    before = view_centre(tab)
+
+    drag(
+        tab,
+        Qt.MouseButton.LeftButton,
+        QPoint(200, 150),
+        QPoint(120, 100),
+        Qt.KeyboardModifier.ShiftModifier,
+    )
+
+    assert abs((view_centre(tab).x() - before.x()) - 80) <= 1
+
+
+def test_panning_leaves_no_override_cursor_behind(qtbot):
+    tab = make_tab(qtbot)
+    depth = 0 if QApplication.overrideCursor() is None else 1
+
+    # A stray left click mid-pan must not end the pan or strand the cursor
+    send_mouse(
+        tab, QMouseEvent.Type.MouseButtonPress, QPoint(200, 150), Qt.MouseButton.MiddleButton
+    )
+    send_mouse(
+        tab,
+        QMouseEvent.Type.MouseButtonPress,
+        QPoint(200, 150),
+        Qt.MouseButton.LeftButton,
+        Qt.MouseButton.MiddleButton | Qt.MouseButton.LeftButton,
+    )
+    send_mouse(
+        tab,
+        QMouseEvent.Type.MouseButtonRelease,
+        QPoint(200, 150),
+        Qt.MouseButton.LeftButton,
+        Qt.MouseButton.MiddleButton,
+    )
+    assert tab.view._pan_button == Qt.MouseButton.MiddleButton
+
+    send_mouse(
+        tab,
+        QMouseEvent.Type.MouseButtonRelease,
+        QPoint(200, 150),
+        Qt.MouseButton.MiddleButton,
+        Qt.MouseButton.NoButton,
+    )
+    assert tab.view._pan_button is None
+    assert (0 if QApplication.overrideCursor() is None else 1) == depth

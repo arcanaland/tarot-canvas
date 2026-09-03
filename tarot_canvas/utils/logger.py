@@ -29,6 +29,7 @@ class TarotLogger:
         cls._logger.setLevel(logging.DEBUG)
 
         # Create log directory if it doesn't exist
+        log_dir = get_data_directory("tarot-canvas/logs")
         log_dir.mkdir(parents=True, exist_ok=True)
 
         # Clean up old log files (older than 24 hours)
