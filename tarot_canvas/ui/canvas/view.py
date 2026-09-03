@@ -144,8 +144,7 @@ class PannableGraphicsView(QGraphicsView):
             super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
-        """Handle mouse release for ending panning or default behavior
-        """
+        """Handle mouse release for ending panning or default behavior"""
         if event.button() == self._pan_button:
             self._pan_button = None
             self._last_mouse_pos = None
