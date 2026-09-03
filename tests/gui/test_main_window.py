@@ -36,7 +36,6 @@ def test_canvas_fullscreen_hides_chrome_and_puts_it_back(qtbot):
     assert not window.menuBar().isVisible()
     assert not window.tab_widget.tabBar().isVisible()
     assert not window.card_explorer.isVisible()
-    # The tab's own 800px cap would letterbox the canvas on a taller screen
     assert tab.maximumHeight() > max_height_before
     assert tab.fullscreen_action.isChecked()
 

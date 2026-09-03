@@ -153,17 +153,12 @@ class MainWindow(QMainWindow):
 
         view_menu.addSeparator()
 
-        # F11 is window-scope so it works from anywhere; "F" is bound on the canvas
-        # itself (canvas_tab.py) so the letter stays typeable everywhere else.
         self.fullscreen_canvas_action = QAction("&Fullscreen", self)
         self.fullscreen_canvas_action.setShortcut("F11")
         self.fullscreen_canvas_action.setStatusTip("Fullscreen the canvas (F11 or F)")
         self.fullscreen_canvas_action.setCheckable(True)
         self.fullscreen_canvas_action.triggered.connect(self.toggle_canvas_fullscreen)
         view_menu.addAction(self.fullscreen_canvas_action)
-        # Fullscreen hides the menu bar, and a hidden menu bar's actions stop
-        # answering their shortcuts — F11 would be dead exactly when it is the way
-        # out. Owning the action on the window too keeps it live.
         self.addAction(self.fullscreen_canvas_action)
 
         # Add Theme submenu
@@ -258,8 +253,7 @@ class MainWindow(QMainWindow):
         self.tab_widget = QTabWidget()
         self.tab_widget.setTabsClosable(True)
         self.tab_widget.tabCloseRequested.connect(self.close_tab)
-        # Leaving the canvas leaves its fullscreen: the chrome that gets you back
-        # is exactly the chrome fullscreen hides.
+
         self.tab_widget.currentChanged.connect(self.on_tab_changed)
         self.tab_widget.setMovable(True)
 
