@@ -50,6 +50,28 @@
     </screenshot>
   </screenshots>
   <releases>
+    <!--
+        <release version="X.Y.Z" date="YYYY-MM-DD" type="stable">
+          <description>
+            <p>A line introducing the release.</p>
+            <ul>
+              <li>A change.</li>
+              <li>Another change.</li>
+            </ul>
+          </description>
+        </release>
+    -->
+    <release version="1.3.0" date="2026-09-02" type="stable">
+      <description>
+        <p>Various improvements to canvas view.</p>
+        <ul>
+          <li>Allow infinite expansion and panning.</li>
+          <li>Introduce a full-screen mode.</li>
+          <li>Improve circle arrangement.</li>
+          <li>Allow middle-click to pan.</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.2.2" date="2026-08-25" type="stable">
       <description>
         <p>Updating Flathub metadata.</p>

@@ -29,6 +29,25 @@ lint:
 fmt:
   uv run ruff format tarot_canvas tests
 
+# phase 1: bump the version but don't commit
+[group('release')]
+release-prepare VERSION="":
+  ./scripts/release.sh prepare {{VERSION}}
+
+# phase 2: commit the bump + tag
+[group('release')]
+release-tag:
+  ./scripts/release.sh tag
+
+# Releasing is two phases now; this recipe only says so.
 [group('release')]
 release VERSION="":
-  ./scripts/release.sh {{VERSION}}
+  #!/bin/bash
+  echo "Releasing is two phases:"
+  echo
+  echo "  just release-prepare {{VERSION}}"
+  echo "  <add the <release> entry to packaging/land.arcana.TarotCanvas.appdata.xml>"
+  echo "  just release-tag"
+  echo
+  echo "The notes template is the XML comment at the top of <releases>."
+  exit 1
