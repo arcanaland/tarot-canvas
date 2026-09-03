@@ -19,32 +19,34 @@ author = "Jane Doe"
 schema_version = "1.0"
 ```
 
-// deck1.webp
+<img width="1958" height="1382" alt="deck1" src="https://github.com/user-attachments/assets/8ac38498-a75a-4001-afc7-fbdc645d7592" />
 
 For this example, I will be using images from Kathryn Isabelle Lawrence's [ascii-tarot](https://github.com/lawreka/ascii-tarot).
 
 Place major arcana images in a folder called `major_arcana` and name them as a two-digit number. For example, The Fool:
 
-// fool.webp
+<img height="500" alt="00" src="https://github.com/user-attachments/assets/d2936f1a-a5f7-4444-94a4-0f6ee5f9909a" />
 
 Place it in `major_arcana/00.png`.
 
-// deck2.webp
+<img width="1958" height="1382" alt="deck2" src="https://github.com/user-attachments/assets/a3691cff-238b-4e23-8abc-98054ee994e3" />
 
 Another example of The World:
 
-// world.webp
+<img height="500" alt="21" src="https://github.com/user-attachments/assets/5e4400e3-1ca8-4802-961c-5c29fa92a982" />
 
 Place it in `major_arcana/21.png`.
 
-// deck3.webp
+<img width="1958" height="1382" alt="deck3" src="https://github.com/user-attachments/assets/9d2d6ce4-edcb-4722-973c-13cfb57c0f95" />
 
 For the minor arcana, create a folder named `minor_arcana` with subfolders `wands`, `cups`, `swords`, and `pentacles`. For example:
 
-// deck4.webp
+<img width="2114" height="1622" alt="deck4" src="https://github.com/user-attachments/assets/b32ab530-60d7-4053-89d0-0b9aa0a223bd" />
+
+Follow the example of `minor_arcana/cups/ace.png` and `minor_arcana/swords/three.png` for the rest of the cards.
 
 > [!NOTE]
-> Version 1 of the Tarot Deck Specification is availble at [Arcana Land](https://github.com/arcanaland/specifications/blob/deck%2Fv1.0/DECK.md). A [version 2 draft](https://github.com/arcanaland/specifications/blob/deck-v2/DECK.md) is currently in development.
+> The full [Tarot Deck Specification](https://github.com/arcanaland/specifications/blob/deck%2Fv1.0/DECK.md) is available and is currently at version 1. A major revision for [version 2 draft](https://github.com/arcanaland/specifications/blob/deck-v2/DECK.md) is currently underway.
 
 
 ## Adding Your Own Esoterica
