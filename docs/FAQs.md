@@ -2,6 +2,51 @@
 
 ## Making Your Own Tarot Deck
 
+Creating a Tarot deck consists of putting your card images into a certain folder structure with a TOML file at the top.
+
+This section will walk-through creating a tarot deck step-by-step using KDE Plasma.
+
+Open Dolphin and navigate to `~/.var/app/land.arcana.TarotCanvas/data/tarot/decks`. Create a directory called `my-tarot-deck` (or name it whatever).
+
+The create a new TOML file called `deck.toml` and fill it out:
+
+```toml
+[deck]
+id = "my-tarot-deck"
+name = "My Tarot Deck"
+version = "1.0"
+author = "Jane Doe"
+schema_version = "1.0"
+```
+
+// deck1.webp
+
+For this example, I will be using images from Kathryn Isabelle Lawrence's [ascii-tarot](https://github.com/lawreka/ascii-tarot).
+
+Place major arcana images in a folder called `major_arcana` and name them as a two-digit number. For example, The Fool:
+
+// fool.webp
+
+Place it in `major_arcana/00.png`.
+
+// deck2.webp
+
+Another example of The World:
+
+// world.webp
+
+Place it in `major_arcana/21.png`.
+
+// deck3.webp
+
+For the minor arcana, create a folder named `minor_arcana` with subfolders `wands`, `cups`, `swords`, and `pentacles`. For example:
+
+// deck4.webp
+
+> [!NOTE]
+> Version 1 of the Tarot Deck Specification is availble at [Arcana Land](https://github.com/arcanaland/specifications/blob/deck%2Fv1.0/DECK.md). A [version 2 draft](https://github.com/arcanaland/specifications/blob/deck-v2/DECK.md) is currently in development.
+
+
 ## Adding Your Own Esoterica
 
 Tarot Canvas currently only supports a very narrow set of esoterica notes.
