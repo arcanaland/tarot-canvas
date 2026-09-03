@@ -15,6 +15,7 @@ packaging/devel/
 .coverage
 
 WIP/
+docs/*.webp
 
 agents/
 .claude
