@@ -1,12 +1,3 @@
-# `dbus-run-session` spawns a private session bus, which activates a SECOND
-# xdg-document-portal. That portal mounts over /run/user/$UID/doc and takes the
-# mount down when the private session exits — leaving the real user service
-# running but unmounted, so every flatpak on the machine then dies with
-# "bwrap: Can't find source path /run/user/$UID/doc/by-app/...".
-#
-# Verified 2026-09-02: one build with dbus-run-session took the mount from 1 to 0
-# and left the unit `failed`; the same build without it left the mount intact and
-# succeeded. So spawn a bus only when there genuinely is not one, i.e. in CI.
 dbus := if env('DBUS_SESSION_BUS_ADDRESS', '') == '' { 'dbus-run-session --' } else { '' }
 
 deps:
@@ -38,19 +29,8 @@ install:
 run: install
   flatpak run land.arcana.TarotCanvas//master
 
-# --- development build (ADR-014) -------------------------------------------
-# The devel build carries its own app ID, so it gets its own ~/.var/app tree,
-# desktop entry and icon, and installs side by side with production.
-
-# Regenerate packaging/devel/ from the production manifest.
 gen-devel:
   ./gen-devel.sh
-
-# --run applies build-time permissions, NOT the manifest's finish-args. Anything
-# depending on the real sandbox — the reference-deck download behind --share=network,
-# portal access, --device=dri — must be tested with `devel-install` or it proves
-# nothing. Note --run takes the command positionally after the manifest, and must not
-# be combined with --force-clean, which would wipe the tree being run from.
 
 # Fast inner loop: run the devel build straight out of the build tree.
 devel-run: devel-build
@@ -61,7 +41,7 @@ devel-build: gen-devel
   {{dbus}} flatpak run org.flatpak.Builder --user --force-clean \
     build-devel devel/land.arcana.TarotCanvas.yml
 
-# Build and install the devel build, side by side with production.
+# Build and install the devel build
 devel-install: gen-devel
   {{dbus}} flatpak run org.flatpak.Builder --user --install --force-clean \
     build-devel devel/land.arcana.TarotCanvas.yml
@@ -70,15 +50,8 @@ devel-install: gen-devel
 devel: devel-install
   flatpak run land.arcana.TarotCanvas.Devel//master
 
-# Remove the installed devel build.
 devel-uninstall:
   flatpak uninstall --user -y land.arcana.TarotCanvas.Devel || true
-
-# Exercises the first-launch path, including the reference-deck download.
-
-# Wipe the devel build's state, leaving production's untouched.
-devel-reset:
-  rm -rf ~/.var/app/land.arcana.TarotCanvas.Devel
 
 gen-modules:
   #!/bin/bash

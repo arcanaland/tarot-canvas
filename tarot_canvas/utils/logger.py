@@ -29,10 +29,6 @@ class TarotLogger:
         cls._logger.setLevel(logging.DEBUG)
 
         # Create log directory if it doesn't exist
-        # Per-build, via XDG_DATA_HOME (RFC-012). Resolves to the same directory
-        # as the old hardcode for production and for `just run`; a devel build gets
-        # its own, so its 24h cleanup below cannot unlink production's logs.
-        log_dir = get_data_directory("tarot-canvas/logs")
         log_dir.mkdir(parents=True, exist_ok=True)
 
         # Clean up old log files (older than 24 hours)

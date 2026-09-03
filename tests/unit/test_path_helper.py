@@ -1,10 +1,3 @@
-"""Paths are partitioned per app ID (RFC-012).
-
-These pin the property that made the devel-build split possible: the code reads
-XDG_DATA_HOME rather than hardcoding the production app ID, so a build published
-under any other ID lands in its own directory.
-"""
-
 from pathlib import Path
 
 import pytest
@@ -14,7 +7,7 @@ from tarot_canvas.utils import path_helper
 
 @pytest.fixture
 def flatpak_env(monkeypatch, tmp_path):
-    """Simulate a Flatpak sandbox with the app-ID-derived XDG_DATA_HOME it sets."""
+    """Simulate a Flatpak sandbox."""
 
     def _apply(app_id):
         data = tmp_path / ".var" / "app" / app_id / "data"
@@ -45,7 +38,7 @@ def test_devel_and_production_decks_do_not_share_a_write_path(flatpak_env):
 
 
 def test_external_deck_library_stays_shared_under_flatpak(flatpak_env):
-    """The read-only escape hatch is deliberately common to every build."""
+    """The read-only escape hatch."""
     flatpak_env("land.arcana.TarotCanvas.Devel")
     assert path_helper.get_decks_directory()[-1] == path_helper.EXTERNAL_DECKS_PATH
 
@@ -64,7 +57,6 @@ def test_outside_flatpak_there_is_no_external_path(monkeypatch, tmp_path):
 
 
 def test_host_default_matches_the_documented_location(monkeypatch):
-    """Non-Flatpak decks must stay at ~/.local/share/tarot/decks (RFC-012 §1)."""
     monkeypatch.setattr(path_helper.os.path, "exists", lambda p: False)
     monkeypatch.setattr(path_helper, "xdg_data_home", lambda: Path.home() / ".local/share")
 
