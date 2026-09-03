@@ -2,6 +2,8 @@ import math
 
 from PyQt6.QtCore import QPointF
 
+DEFAULT_CIRCLE_GAP_RATIO = 0.15
+
 
 def align_items_horizontally(items, alignment):
     """Align items horizontally"""
@@ -119,38 +121,47 @@ def distribute_items_vertically(items):
         item.setPos(item.pos().x(), item.pos().y() + offset_y)
 
 
-def arrange_items_in_circle(items):
+def solve_circle_radius(width, height, count, gap=None):
+    """Smallest radius at which `count` upright width x height cards do not overlap."""
+    if count < 2:
+        return 0.0
+
+    if gap is None:
+        gap = DEFAULT_CIRCLE_GAP_RATIO * min(width, height)
+
+    need_x = width + gap
+    need_y = height + gap
+    step = 2 * math.pi / count
+    half_chord = math.sin(step / 2)
+
+    radius = 0.0
+    for i in range(count):
+        phi = i * step + step / 2  # bisector of the pair (i, i + 1)
+        reach = max(abs(math.sin(phi)) / need_x, abs(math.cos(phi)) / need_y)
+        radius = max(radius, 1.0 / (2 * half_chord * reach))
+    return radius
+
+
+def arrange_items_in_circle(items, gap=None):
     """Arrange items in a circle while preserving their upright/reversed orientation"""
     if not items:
         return
 
-    # Calculate the center point of all items
-    center_x = sum(item.sceneBoundingRect().center().x() for item in items) / len(items)
-    center_y = sum(item.sceneBoundingRect().center().y() for item in items) / len(items)
-    center = QPointF(center_x, center_y)
+    card_width = max(item.boundingRect().width() for item in items)
+    card_height = max(item.boundingRect().height() for item in items)
 
-    # Calculate a reasonable radius based on card size and item count
-    # Use the first card's size as a reference
-    card_width = items[0].sceneBoundingRect().width()
-    card_height = items[0].sceneBoundingRect().height()
+    centers = [item.pos() + item.boundingRect().center() for item in items]
+    center = QPointF(
+        sum(p.x() for p in centers) / len(centers),
+        sum(p.y() for p in centers) / len(centers),
+    )
 
-    # Radius should be large enough to prevent overlap
-    min_dimension = min(card_width, card_height)
-    radius = max(200, min_dimension * len(items) / (2 * math.pi))
+    radius = solve_circle_radius(card_width, card_height, len(items), gap)
 
-    # Place items around the circle
     for i, item in enumerate(items):
-        # Calculate angle for this item (distribute evenly around the circle)
         angle = (i / len(items)) * 2 * math.pi
-
-        # Calculate new position
-        new_x = center.x() + radius * math.cos(angle)
-        new_y = center.y() + radius * math.sin(angle)
-
-        # Center the card on this position
-        item_rect = item.sceneBoundingRect()
-        offset_x = new_x - item_rect.center().x()
-        offset_y = new_y - item_rect.center().y()
-
-        # Set the new position
-        item.setPos(item.pos().x() + offset_x, item.pos().y() + offset_y)
+        target = QPointF(
+            center.x() + radius * math.cos(angle),
+            center.y() + radius * math.sin(angle),
+        )
+        item.setPos(target - item.boundingRect().center())
