@@ -45,6 +45,11 @@ For the minor arcana, create a folder named `minor_arcana` with subfolders `wand
 
 Follow the example of `minor_arcana/cups/ace.webp` and `minor_arcana/swords/three.webp` for the rest of the cards.
 
+<img width="2126" height="1572" alt="canvas" src="https://github.com/user-attachments/assets/81b92702-afb9-40dc-962f-9254254e85be" />
+
+You should now be able use the canvas with "My Custom Tarot" selected in the Card Explorer's dropdown. Summoning random cards will then draw from your personal deck.
+
+
 > [!NOTE]
 > The full [Tarot Deck Specification](https://github.com/arcanaland/specifications/blob/deck%2Fv1.0/DECK.md) is available and is currently at version 1. A major revision for [version 2 draft](https://github.com/arcanaland/specifications/blob/deck-v2/DECK.md) is currently underway.
 
