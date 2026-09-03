@@ -5,12 +5,16 @@ from PyQt6.QtCore import (
     QEasingCurve,
     QPropertyAnimation,
     QSequentialAnimationGroup,
-    QSettings,
     Qt,
     QTimer,
 )
 from PyQt6.QtWidgets import QGraphicsPixmapItem
 
+from tarot_canvas.settings import (
+    ANIMATIONS_ENABLED_DEFAULT,
+    ANIMATIONS_ENABLED_KEY,
+    get_settings,
+)
 from tarot_canvas.ui.canvas.animations import CardAnimationController
 
 
@@ -77,8 +81,8 @@ class DraggableCardItem(QGraphicsPixmapItem):
         self.scale_anim.setEasingCurve(QEasingCurve.Type.InOutSine)
 
         # Start animations with slight delay unless the user disabled them
-        settings = QSettings("ArcanaLand", "TarotCanvas")
-        if settings.value("appearance/enable_animations", True, type=bool):
+        settings = get_settings()
+        if settings.value(ANIMATIONS_ENABLED_KEY, ANIMATIONS_ENABLED_DEFAULT, type=bool):
             QTimer.singleShot(random.randint(0, 1000), self.start_animations)
 
     def setup_wobble_animation_with_intensity(

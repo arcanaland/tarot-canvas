@@ -1,7 +1,8 @@
-from PyQt6.QtCore import QEvent, QPoint, QPointF, QSettings, Qt
+from PyQt6.QtCore import QEvent, QPoint, QPointF, Qt
 from PyQt6.QtGui import QEnterEvent, QMouseEvent, QPixmap
 from PyQt6.QtWidgets import QApplication
 
+from tarot_canvas.settings import ANIMATIONS_ENABLED_KEY, get_settings
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 
@@ -18,7 +19,9 @@ def add_cards(tab, count):
 
 
 def make_tab(qtbot):
-    QSettings("ArcanaLand", "TarotCanvas").setValue("appearance/enable_animations", False)
+    settings = get_settings()
+    settings.setValue(ANIMATIONS_ENABLED_KEY, False)
+    settings.sync()
     tab = CanvasTab()
     qtbot.addWidget(tab)
     tab.show()
