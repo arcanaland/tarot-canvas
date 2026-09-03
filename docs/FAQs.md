@@ -37,3 +37,4 @@ text = "These are my permanent notes for the Ten of Cups."
 
 Save this file as `~/.var/app/land.arcana.TarotCanvas/data/tarot/esoterica/references/my_file.toml`.
 
+[!](https://github.com/user-attachments/assets/35b3c96c-4757-404a-b08f-015c8af62df1)
