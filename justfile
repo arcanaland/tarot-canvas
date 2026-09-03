@@ -1,4 +1,13 @@
+[private]
+default:
+  @just --list --list-submodules
+
 mod flatpak 'packaging/mod.just'
+
+# Build+install+run in the flatpak
+[group('dev')]
+devel:
+  @just flatpak devel
 
 [group('dev')]
 run:

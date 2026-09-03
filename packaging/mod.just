@@ -1,3 +1,5 @@
+dbus := if env('DBUS_SESSION_BUS_ADDRESS', '') == '' { 'dbus-run-session --' } else { '' }
+
 deps:
   #!/bin/bash
   set -euo pipefail
@@ -19,13 +21,37 @@ validate:
   flatpak run --command=appstreamcli org.flatpak.Builder validate --explain land.arcana.TarotCanvas.appdata.xml
 
 build:
-  dbus-run-session -- flatpak run org.flatpak.Builder --user --force-clean build-dir land.arcana.TarotCanvas.yml
+  {{dbus}} flatpak run org.flatpak.Builder --user --force-clean build-dir land.arcana.TarotCanvas.yml
 
 install:
-  dbus-run-session -- flatpak run org.flatpak.Builder --user --install --force-clean build-dir land.arcana.TarotCanvas.yml
+  {{dbus}} flatpak run org.flatpak.Builder --user --install --force-clean build-dir land.arcana.TarotCanvas.yml
 
 run: install
-  flatpak run land.arcana.TarotCanvas
+  flatpak run land.arcana.TarotCanvas//master
+
+gen-devel:
+  ./gen-devel.sh
+
+# Fast inner loop: run the devel build straight out of the build tree.
+devel-run: devel-build
+  flatpak run org.flatpak.Builder --run build-devel devel/land.arcana.TarotCanvas.yml tarot-canvas
+
+# Build the devel build without installing it.
+devel-build: gen-devel
+  {{dbus}} flatpak run org.flatpak.Builder --user --force-clean \
+    build-devel devel/land.arcana.TarotCanvas.yml
+
+# Build and install the devel build
+devel-install: gen-devel
+  {{dbus}} flatpak run org.flatpak.Builder --user --install --force-clean \
+    build-devel devel/land.arcana.TarotCanvas.yml
+
+# Build, install and run the devel build.
+devel: devel-install
+  flatpak run land.arcana.TarotCanvas.Devel//master
+
+devel-uninstall:
+  flatpak uninstall --user -y land.arcana.TarotCanvas.Devel || true
 
 gen-modules:
   #!/bin/bash

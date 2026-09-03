@@ -1,8 +1,8 @@
 import datetime
 import logging
-import os
-from pathlib import Path
 from typing import ClassVar
+
+from tarot_canvas.utils.path_helper import get_data_directory
 
 
 class TarotLogger:
@@ -29,7 +29,6 @@ class TarotLogger:
         cls._logger.setLevel(logging.DEBUG)
 
         # Create log directory if it doesn't exist
-        log_dir = Path(os.path.expanduser("~/.local/share/tarot-canvas/logs"))
         log_dir.mkdir(parents=True, exist_ok=True)
 
         # Clean up old log files (older than 24 hours)
