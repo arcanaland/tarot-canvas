@@ -15,6 +15,7 @@ sed \
   -e "s|^app-id: ${PROD_ID}\$|app-id: ${DEVEL_ID}|" \
   -e "s|packaging/${PROD_ID}\.desktop|packaging/${OUT}/${PROD_ID}.desktop|" \
   -e "s|packaging/${PROD_ID}\.appdata\.xml|packaging/${OUT}/${PROD_ID}.appdata.xml|" \
+  -e "s|packaging/icon\.svg|packaging/${OUT}/icon.svg|" \
   -e "s|share/applications/${PROD_ID}\.desktop|share/applications/${DEVEL_ID}.desktop|" \
   -e "s|apps/${PROD_ID}\.svg|apps/${DEVEL_ID}.svg|" \
   -e "s|share/metainfo/${PROD_ID}\.metainfo\.xml|share/metainfo/${DEVEL_ID}.metainfo.xml|" \
@@ -31,6 +32,8 @@ sed -e "s|<id>${PROD_ID}</id>|<id>${DEVEL_ID}</id>|" \
   -e "s|>${PROD_ID}\.desktop<|>${DEVEL_ID}.desktop<|" \
   -e "0,/<name>Tarot Canvas<\/name>/s||<name>Tarot Canvas (Devel)</name>|" \
   "${PROD_ID}.appdata.xml" >"${OUT}/${PROD_ID}.appdata.xml"
+
+./gen-devel-icon.py icon.svg "${OUT}/icon.svg"
 
 fail() {
   echo "gen-devel.sh: $1" >&2
@@ -51,7 +54,7 @@ for d in "share/applications/${DEVEL_ID}.desktop" \
 done
 for s in "packaging/${OUT}/${PROD_ID}.desktop" \
   "packaging/${OUT}/${PROD_ID}.appdata.xml" \
-  "packaging/icon.svg"; do
+  "packaging/${OUT}/icon.svg"; do
   grep -q "install -Dm644 ${s} " "${OUT}/${PROD_ID}.yml" || fail "install source ${s} is wrong"
 done
 #
