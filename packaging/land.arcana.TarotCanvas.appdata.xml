@@ -56,6 +56,16 @@
           </description>
         </release>
     -->
+    <release version="1.3.1" date="2026-09-03" type="stable">
+      <description>
+        <p>Introduced a new icon based on the Eight of Cups.</p>
+        <p>Small fixes to card view.</p>
+        <ul>
+          <li>Fixed card clipping in art panel.</li>
+          <li>Fixed missing card details in main content panel.</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.3.0" date="2026-09-02" type="stable">
       <description>
         <p>Various improvements to canvas view.</p>
