@@ -1,7 +1,7 @@
 import os
 
 from PyQt6.QtGui import QIcon
-from PyQt6.QtWidgets import QComboBox, QHBoxLayout, QPushButton, QWidget
+from PyQt6.QtWidgets import QComboBox, QHBoxLayout, QPushButton, QSizePolicy, QWidget
 
 
 class DeckSwitcher(QWidget):
@@ -29,6 +29,11 @@ class DeckSwitcher(QWidget):
 
         # Deck selection combo box
         self.deck_combo = QComboBox()
+        self.deck_combo.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
+        )
+        self.deck_combo.setMinimumContentsLength(6)
+        self.deck_combo.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
         self.deck_combo.currentIndexChanged.connect(self.on_deck_selected)
         layout.addWidget(self.deck_combo, 1)  # Give combo box stretch priority
 

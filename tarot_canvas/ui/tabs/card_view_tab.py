@@ -1,12 +1,13 @@
 import os
 from typing import ClassVar
 
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import QEvent, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QScrollArea,
+    QSizePolicy,
     QSplitter,
     QTabWidget,
     QVBoxLayout,
@@ -22,10 +23,30 @@ from tarot_canvas.ui.tabs.card_view.notes_tab import NotesTab
 from tarot_canvas.ui.tabs.card_view.overview_tab import OverviewTab
 
 
+def device_pixel_fit(source_size, available_width, available_height, dpr):
+    """Device-pixel size at which to render `source_size` into a logical-pixel box.
+
+    Widget geometry is in logical pixels, but on a scaled display the label paints
+    width * dpr real pixels. Scaling a card to the logical size therefore hands Qt a
+    pixmap it has to upscale at paint time, which is what makes the card look soft --
+    at 200% it threw away half the resolution the source file already has.
+
+    Caller must tag the result with setDevicePixelRatio(dpr) so layout still sees the
+    logical size. The 1.0 cap keeps us from interpolating past one source pixel per
+    device pixel.
+    """
+    width_scale = available_width * dpr / source_size.width()
+    height_scale = available_height * dpr / source_size.height()
+    scale = min(width_scale, height_scale, 1.0)
+    return (
+        max(1, round(source_size.width() * scale)),
+        max(1, round(source_size.height() * scale)),
+    )
+
+
 class CardViewTab(BaseTab):
     # Signal to notify the main window that we want to navigate
     navigation_requested = pyqtSignal(str, object)
-    resized = pyqtSignal()  # Signal to handle resize events
 
     # Define color mapping for card types and suits
     COLOR_MAP: ClassVar[dict] = {
@@ -36,6 +57,9 @@ class CardViewTab(BaseTab):
         "pentacles": "#4caf50",  # Green for Pentacles
         "default": "#9e9e9e",  # Gray for unknown
     }
+
+    # Smallest the image pane may become.
+    MIN_IMAGE_PANE_WIDTH = 120
 
     def __init__(self, card=None, deck=None, source_tab_id=None, parent=None):
         super().__init__(parent)
@@ -82,7 +106,8 @@ class CardViewTab(BaseTab):
 
         self.image_label = QLabel()
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.image_label.setMinimumWidth(200)
+        self.image_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self.image_label.setMinimumSize(1, 1)
 
         # Add image to inner container with stretches for vertical centering
         image_inner_layout.addStretch(1)
@@ -100,6 +125,8 @@ class CardViewTab(BaseTab):
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setWidget(image_container)
+        self.scroll_area.setMinimumWidth(self.MIN_IMAGE_PANE_WIDTH)
+        self.scroll_area.viewport().installEventFilter(self)
 
         # Load and display the image
         self.load_image()
@@ -138,17 +165,16 @@ class CardViewTab(BaseTab):
 
         splitter.addWidget(info_widget)
 
-        # Set initial splitter sizes
+        # Set initial splitter sizes, and keep that 40/60 split as the window resizes
         splitter.setSizes([int(self.width() * 0.4), int(self.width() * 0.6)])
+        splitter.setStretchFactor(0, 4)
+        splitter.setStretchFactor(1, 6)
 
         # Add splitter to main layout
         main_layout.addWidget(splitter)
 
         # Set the main layout
         self.layout.addLayout(main_layout)
-
-        # Connect resize event to update image size
-        self.resized.connect(self.resize_image)
 
     def load_image(self):
         """Load and initially display the card image"""
@@ -176,31 +202,25 @@ class CardViewTab(BaseTab):
         if not hasattr(self, "scroll_area") or not self.scroll_area:
             return
 
-        # Calculate available space (account for reduced padding)
-        available_width = (
-            self.scroll_area.width() - 20
-        )  # Reduced from 40 to 20 (5px padding on each side)
-        available_height = self.scroll_area.height() - 20
+        # Measure the viewport: the scroll area's own width includes the frame and
+        # any scrollbar, and scaling to it is what makes the card overflow its pane.
+        viewport = self.scroll_area.viewport()
+        available_width = viewport.width() - 20  # 5px container padding each side
+        available_height = viewport.height() - 20 - self.deck_switcher_height()
 
-        # Get original image dimensions
-        pixmap_width = self.original_pixmap.width()
-        pixmap_height = self.original_pixmap.height()
+        dpr = viewport.devicePixelRatioF()
+
+        if available_width <= 0 or available_height <= 0:
+            return
 
         # Use reasonable default if dimensions are 0
-        if pixmap_width <= 0 or pixmap_height <= 0:
+        if self.original_pixmap.width() <= 0 or self.original_pixmap.height() <= 0:
             self.image_label.setPixmap(self.original_pixmap)
             return
 
-        # Calculate scaling factor
-        width_scale = available_width / pixmap_width
-        height_scale = available_height / pixmap_height
-
-        # Use smaller scale to ensure image fits
-        scale = min(width_scale, height_scale, 1.0)  # Don't scale up images larger than original
-
-        # Apply scaling
-        new_width = int(pixmap_width * scale)
-        new_height = int(pixmap_height * scale)
+        new_width, new_height = device_pixel_fit(
+            self.original_pixmap.size(), available_width, available_height, dpr
+        )
 
         # Create scaled pixmap
         scaled_pixmap = self.original_pixmap.scaled(
@@ -210,13 +230,26 @@ class CardViewTab(BaseTab):
             Qt.TransformationMode.SmoothTransformation,
         )
 
+        scaled_pixmap.setDevicePixelRatio(dpr)
+
         # Apply to label
         self.image_label.setPixmap(scaled_pixmap)
 
-    def resizeEvent(self, event):
-        """Handle resize events"""
-        super().resizeEvent(event)
-        self.resized.emit()
+    def deck_switcher_height(self):
+        """Vertical space the deck switcher takes from the image, if it is shown"""
+        if not hasattr(self, "deck_switcher") or not self.deck_switcher.isVisible():
+            return 0
+        return self.deck_switcher.sizeHint().height()
+
+    def eventFilter(self, obj, event):
+        """Rescale the card whenever the scroll area's viewport changes size"""
+        if (
+            hasattr(self, "scroll_area")
+            and obj is self.scroll_area.viewport()
+            and event.type() in (QEvent.Type.Resize, QEvent.Type.DevicePixelRatioChange)
+        ):
+            self.resize_image()
+        return super().eventFilter(obj, event)
 
     def update_tab_name(self):
         """Update the tab name and add color dot based on card type/suit"""
