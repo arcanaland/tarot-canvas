@@ -23,10 +23,13 @@ class OverviewTab(QWidget):
         self.info_grid = None
 
         # Minor arcana specific
+        self.suit_label = None
         self.suit_value = None
+        self.rank_label = None
         self.rank_value = None
 
         # Major arcana specific
+        self.number_label = None
         self.number_value = None
 
         # Description
@@ -80,29 +83,29 @@ class OverviewTab(QWidget):
         # Create all possible fields for both card types, hide the ones we don't need
 
         # Create suit and rank fields (for minor arcana)
-        suit_label = QLabel("Suit:")
-        suit_label.setStyleSheet("font-weight: bold;")
-        suit_label.setObjectName("suit_label")
+        self.suit_label = QLabel("Suit:")
+        self.suit_label.setStyleSheet("font-weight: bold;")
+        self.suit_label.setObjectName("suit_label")
         self.suit_value = QLabel()
         self.suit_value.setObjectName("suit_value")
-        self.info_grid.addWidget(suit_label, 1, 0, Qt.AlignmentFlag.AlignTop)
+        self.info_grid.addWidget(self.suit_label, 1, 0, Qt.AlignmentFlag.AlignTop)
         self.info_grid.addWidget(self.suit_value, 1, 1, Qt.AlignmentFlag.AlignTop)
 
-        rank_label = QLabel("Rank:")
-        rank_label.setStyleSheet("font-weight: bold;")
-        rank_label.setObjectName("rank_label")
+        self.rank_label = QLabel("Rank:")
+        self.rank_label.setStyleSheet("font-weight: bold;")
+        self.rank_label.setObjectName("rank_label")
         self.rank_value = QLabel()
         self.rank_value.setObjectName("rank_value")
-        self.info_grid.addWidget(rank_label, 2, 0, Qt.AlignmentFlag.AlignTop)
+        self.info_grid.addWidget(self.rank_label, 2, 0, Qt.AlignmentFlag.AlignTop)
         self.info_grid.addWidget(self.rank_value, 2, 1, Qt.AlignmentFlag.AlignTop)
 
         # Create number field (for major arcana)
-        number_label = QLabel("Number:")
-        number_label.setStyleSheet("font-weight: bold;")
-        number_label.setObjectName("number_label")
+        self.number_label = QLabel("Number:")
+        self.number_label.setStyleSheet("font-weight: bold;")
+        self.number_label.setObjectName("number_label")
         self.number_value = QLabel()
         self.number_value.setObjectName("number_value")
-        self.info_grid.addWidget(number_label, 3, 0, Qt.AlignmentFlag.AlignTop)
+        self.info_grid.addWidget(self.number_label, 3, 0, Qt.AlignmentFlag.AlignTop)
         self.info_grid.addWidget(self.number_value, 3, 1, Qt.AlignmentFlag.AlignTop)
 
         # Add deck (always present)
@@ -192,41 +195,22 @@ class OverviewTab(QWidget):
         if self.type_value:
             self.type_value.setText(card["type"].replace("_", " ").title())
 
-        # Show/hide appropriate fields based on card type
-        if card["type"] == "minor_arcana":
-            # Show minor arcana fields
-            if self.suit_value and self.rank_value:
-                suit_name = card.get("display_suit", card["suit"].capitalize())
-                rank_name = card.get("display_rank", card["rank"].capitalize())
-                self.suit_value.setText(suit_name)
-                self.rank_value.setText(rank_name)
+        # Show/hide the per-type rows. Only the individual label/value widgets are
+        # toggled: every one of them is parented to info_frame, so touching
+        # parentWidget() here would hide the whole information block.
+        is_minor = card["type"] == "minor_arcana"
+        is_major = card["type"] == "major_arcana"
 
-                # Make them visible
-                self.suit_value.parentWidget().setVisible(True)
-                self.suit_value.setVisible(True)
-                self.rank_value.parentWidget().setVisible(True)
-                self.rank_value.setVisible(True)
+        if is_minor:
+            self.suit_value.setText(card.get("display_suit", card["suit"].capitalize()))
+            self.rank_value.setText(card.get("display_rank", card["rank"].capitalize()))
+        elif is_major:
+            self.number_value.setText(str(card["number"]))
 
-            # Hide major arcana fields
-            if self.number_value:
-                self.number_value.parentWidget().setVisible(False)
-                self.number_value.setVisible(False)
-
-        elif card["type"] == "major_arcana":
-            # Show major arcana fields
-            if self.number_value:
-                self.number_value.setText(str(card["number"]))
-
-                # Make it visible
-                self.number_value.parentWidget().setVisible(True)
-                self.number_value.setVisible(True)
-
-            # Hide minor arcana fields
-            if self.suit_value and self.rank_value:
-                self.suit_value.parentWidget().setVisible(False)
-                self.suit_value.setVisible(False)
-                self.rank_value.parentWidget().setVisible(False)
-                self.rank_value.setVisible(False)
+        for widget in (self.suit_label, self.suit_value, self.rank_label, self.rank_value):
+            widget.setVisible(is_minor)
+        for widget in (self.number_label, self.number_value):
+            widget.setVisible(is_major)
 
         # Update deck link
         self.update_deck_link()

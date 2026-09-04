@@ -3,7 +3,7 @@
   <!--Created with jdAppStreamEdit 9.2-->
   <id>land.arcana.TarotCanvas</id>
   <name>Tarot Canvas</name>
-  <summary>Desktop application for viewing and exploring tarot decks</summary>
+  <summary>Explore and arrange tarot decks</summary>
   <developer id="land.arcana">
     <name>Adam Fidel</name>
   </developer>
@@ -11,12 +11,11 @@
   <project_license>MIT</project_license>
   <update_contact>adam@arcana.land</update_contact>
   <description>
-    <p>Tarot Canvas is an application for viewing and exploring tarot decks. It supports decks that are compliant with the Tarot Deck Specification v1.0.</p>
-    <p>Features include:</p>
+    <p>Tarot Canvas is a digital home for your personal tarot collection.</p>
     <ul>
-      <li>Explore tarot deck imagery, metadata and esoterica (corrospondences and other occult or divinatory information)</li>
-      <li>Includes the traditional Rider-Waite-Smith deck and supports any deck following Arcana Land's tarot deck specification</li>
-      <li>Provides a playground canvas where you can place and arrange tarot cards from any deck</li>
+      <li>Explore tarot deck imagery, metadata and esoterica.</li>
+      <li>Place and arrange tarot cards from any deck on a virtual canvas.</li>
+      <li>Create and add your own decks by following the standard tarot deck format.</li>
     </ul>
   </description>
   <screenshots>
@@ -29,12 +28,12 @@
       <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/deck-view.webp</image>
     </screenshot>
     <screenshot>
-      <caption>View of your library of tarot decks</caption>
-      <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/library-view.webp</image>
-    </screenshot>
-    <screenshot>
       <caption>A canvas of cards</caption>
       <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/canvas-view.webp</image>
+    </screenshot>
+    <screenshot>
+      <caption>View of your library of tarot decks</caption>
+      <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/library-view.webp</image>
     </screenshot>
     <screenshot>
       <caption>Support for custom esoterica and passages</caption>
@@ -43,10 +42,6 @@
     <screenshot>
       <caption>Take custom notes attached to cards</caption>
       <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/notes-view.webp</image>
-    </screenshot>
-    <screenshot>
-      <caption>View the same card across multiple decks</caption>
-      <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/strength-art.webp</image>
     </screenshot>
   </screenshots>
   <releases>
@@ -93,12 +88,14 @@
       </description>
     </release>
   </releases>
+  <branding>
+    <color type="primary" scheme_preference="light">#d9c0fa</color>
+    <color type="primary" scheme_preference="dark">#af7faf</color>
+  </branding>
   <url type="homepage">https://github.com/arcanaland/tarot-canvas</url>
   <url type="bugtracker">https://github.com/arcanaland/tarot-canvas/issues</url>
-  <requires>
-    <control>pointing</control>
-  </requires>
   <recommends>
+    <control>pointing</control>
     <control>keyboard</control>
   </recommends>
   <!-- Although the app doesn't bundle any decks, the RWS deck is fetched by
