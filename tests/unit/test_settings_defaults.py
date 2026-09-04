@@ -1,23 +1,13 @@
-import re
-
-from tarot_canvas.ui.tabs import canvas_tab
-from tarot_canvas.ui.windows import preferences_dialog
-
-
-def test_background_style_default_agrees():
-    dialog_default = re.search(
-        r'settings\.value\("appearance/background_style", "([^"]+)"',
-        _source(preferences_dialog),
-    ).group(1)
-
-    canvas_default = re.search(
-        r'settings\.value\("appearance/background_style", "([^"]+)"',
-        _source(canvas_tab),
-    ).group(1)
-
-    assert dialog_default == canvas_default
+from tarot_canvas.settings import (
+    ANIMATION_INTENSITY_DEFAULT,
+    ANIMATIONS_ENABLED_DEFAULT,
+    BACKGROUND_COLOR_DEFAULT,
+    BACKGROUND_STYLE_DEFAULT,
+)
 
 
-def _source(module):
-    with open(module.__file__) as f:
-        return f.read()
+def test_shared_settings_defaults():
+    assert BACKGROUND_STYLE_DEFAULT == "Gradient"
+    assert BACKGROUND_COLOR_DEFAULT == "#1e1432"
+    assert ANIMATIONS_ENABLED_DEFAULT is True
+    assert ANIMATION_INTENSITY_DEFAULT == 50

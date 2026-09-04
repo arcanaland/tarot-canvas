@@ -1,8 +1,9 @@
 from PyQt6 import sip
-from PyQt6.QtCore import QAbstractAnimation, QSettings
+from PyQt6.QtCore import QAbstractAnimation
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import QGraphicsScene
 
+from tarot_canvas.settings import ANIMATIONS_ENABLED_KEY, get_settings
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
 
 
@@ -14,7 +15,9 @@ def make_card():
 
 def test_animation_does_not_drive_a_deleted_card(qtbot):
     """A tick after the card's C++ side is gone must not raise into the event loop."""
-    QSettings("ArcanaLand", "TarotCanvas").setValue("appearance/enable_animations", False)
+    settings = get_settings()
+    settings.setValue(ANIMATIONS_ENABLED_KEY, False)
+    settings.sync()
     card = make_card()
     controller = card.anim_controller
 
@@ -29,7 +32,9 @@ def test_animation_does_not_drive_a_deleted_card(qtbot):
 
 
 def test_removing_a_card_from_the_scene_stops_its_animation(qtbot):
-    QSettings("ArcanaLand", "TarotCanvas").setValue("appearance/enable_animations", True)
+    settings = get_settings()
+    settings.setValue(ANIMATIONS_ENABLED_KEY, True)
+    settings.sync()
     card = make_card()
     scene = QGraphicsScene()
     scene.addItem(card)

@@ -2,7 +2,7 @@ import os
 import random
 from pathlib import Path
 
-from PyQt6.QtCore import QPoint, QPointF, QRectF, QSettings, QSize, Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import QPoint, QPointF, QRectF, QSize, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import (
     QAction,
     QBrush,
@@ -28,6 +28,17 @@ from PyQt6.QtWidgets import (
 )
 
 from tarot_canvas.models.deck_manager import deck_manager
+from tarot_canvas.settings import (
+    ANIMATION_INTENSITY_DEFAULT,
+    ANIMATION_INTENSITY_KEY,
+    ANIMATIONS_ENABLED_DEFAULT,
+    ANIMATIONS_ENABLED_KEY,
+    BACKGROUND_COLOR_DEFAULT,
+    BACKGROUND_COLOR_KEY,
+    BACKGROUND_STYLE_DEFAULT,
+    BACKGROUND_STYLE_KEY,
+    get_settings,
+)
 
 # Import the refactored components
 from tarot_canvas.ui.canvas import (
@@ -133,22 +144,26 @@ class CanvasTab(BaseTab):
 
     def apply_background_settings(self):
         """Apply background settings from preferences"""
-        settings = QSettings("ArcanaLand", "TarotCanvas")
+        settings = get_settings()
 
-        # Get the background style preference
-        bg_style = settings.value("appearance/background_style", "Checkerboard")
+        bg_style = settings.value(BACKGROUND_STYLE_KEY, BACKGROUND_STYLE_DEFAULT)
 
         if bg_style == "Checkerboard":
             self.create_purple_checkerboard_background()
         elif bg_style == "Gradient":
             self.create_gradient_background()
         elif bg_style == "Solid Color":
-            bg_color = settings.value("appearance/background_color", "#1E1432")
+            bg_color = settings.value(BACKGROUND_COLOR_KEY, BACKGROUND_COLOR_DEFAULT)
             self.create_solid_color_background(bg_color)
 
         # Apply animation settings
-        enable_animations = settings.value("appearance/enable_animations", True, type=bool)
-        animation_intensity = settings.value("appearance/animation_intensity", 50, type=int)
+        enable_animations = settings.value(
+            ANIMATIONS_ENABLED_KEY, ANIMATIONS_ENABLED_DEFAULT, type=bool
+        )
+
+        animation_intensity = settings.value(
+            ANIMATION_INTENSITY_KEY, ANIMATION_INTENSITY_DEFAULT, type=int
+        )
 
         # Update all card animations
         self.update_card_animations(enable_animations, animation_intensity)
