@@ -2,8 +2,15 @@ import os
 from importlib.resources import files
 from pathlib import Path
 
-from PyQt6.QtCore import QEvent, QObject, Qt, pyqtSignal
-from PyQt6.QtGui import QAction, QActionGroup, QIcon, QKeySequence, QShortcut
+from PyQt6.QtCore import QEvent, QObject, Qt, QUrl, pyqtSignal
+from PyQt6.QtGui import (
+    QAction,
+    QActionGroup,
+    QDesktopServices,
+    QIcon,
+    QKeySequence,
+    QShortcut,
+)
 from PyQt6.QtWidgets import (
     QWIDGETSIZE_MAX,
     QApplication,
@@ -220,12 +227,18 @@ class MainWindow(QMainWindow):
         log_viewer_action.triggered.connect(self.show_log_viewer)
         tools_menu.addAction(log_viewer_action)
 
-        # About menu
-        about_menu = menu_bar.addMenu("&About")
+        # Help menu
+        help_menu = menu_bar.addMenu("&Help")
+
+        faq_action = QAction("&Frequently Asked Questions", self)
+        faq_action.triggered.connect(self.show_faqs)
+        help_menu.addAction(faq_action)
+
+        help_menu.addSeparator()
 
         about_action = QAction("&About Tarot Canvas", self)
         about_action.triggered.connect(self.show_about)
-        about_menu.addAction(about_action)
+        help_menu.addAction(about_action)
 
     def init_ui(self):
         # Create main layout
@@ -719,6 +732,12 @@ class MainWindow(QMainWindow):
         # Add it to the tab widget
         self.tab_widget.addTab(card_tab, card.get("name", "Card"))
         self.tab_widget.setCurrentWidget(card_tab)
+
+    def show_faqs(self):
+        """Open the online FAQ document in the user's browser"""
+        QDesktopServices.openUrl(
+            QUrl("https://github.com/arcanaland/tarot-canvas/blob/main/docs/FAQs.md")
+        )
 
     def show_about(self):
         about_text = (

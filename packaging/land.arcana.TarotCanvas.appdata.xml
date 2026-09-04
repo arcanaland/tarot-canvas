@@ -104,6 +104,7 @@
   </branding>
   <url type="homepage">https://github.com/arcanaland/tarot-canvas</url>
   <url type="bugtracker">https://github.com/arcanaland/tarot-canvas/issues</url>
+  <url type="faq">https://github.com/arcanaland/tarot-canvas/blob/main/docs/FAQs.md</url>
   <recommends>
     <control>pointing</control>
     <control>keyboard</control>
