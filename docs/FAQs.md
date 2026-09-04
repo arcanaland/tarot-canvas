@@ -1,6 +1,12 @@
 # Frequently Asked Questions
 
-## Making Your Own Tarot Deck
+## Where Can I Get Other Tarot Decks?
+
+Arcana Land provides a small number of free tarot decks (as of 2026, three) in our [Reference Deck Collection](https://github.com/arcanaland/reference-decks/releases). The installation instructions are included at that link.
+
+There are only a handful of tarot decks in existence that are verifiably free from copyright issues. Because of this, we are only able to provide a small sample of decks that are permissively licensed. For other decks, you can create your own using the next section.
+
+## How Do I Make My Own Deck?
 
 Creating a Tarot deck consists of putting your card images into a certain folder structure with a TOML file at the top.
 
@@ -54,7 +60,7 @@ You should now be able use the canvas with "My Custom Tarot" selected in the Car
 > The full [Tarot Deck Specification](https://github.com/arcanaland/specifications/blob/deck%2Fv1.0/DECK.md) is available and is currently at version 1. A major revision for [version 2 draft](https://github.com/arcanaland/specifications/blob/deck-v2/DECK.md) is currently underway.
 
 
-## Adding Your Own Esoterica
+## How Do I Add My Own Esoterica
 
 Tarot Canvas currently only supports a very narrow set of esoterica notes.
 
