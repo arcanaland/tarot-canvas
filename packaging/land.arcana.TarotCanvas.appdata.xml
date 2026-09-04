@@ -28,12 +28,12 @@
       <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/deck-view.webp</image>
     </screenshot>
     <screenshot>
-      <caption>View of your library of tarot decks</caption>
-      <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/library-view.webp</image>
-    </screenshot>
-    <screenshot>
       <caption>A canvas of cards</caption>
       <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/canvas-view.webp</image>
+    </screenshot>
+    <screenshot>
+      <caption>View of your library of tarot decks</caption>
+      <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/library-view.webp</image>
     </screenshot>
     <screenshot>
       <caption>Support for custom esoterica and passages</caption>
@@ -42,10 +42,6 @@
     <screenshot>
       <caption>Take custom notes attached to cards</caption>
       <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/notes-view.webp</image>
-    </screenshot>
-    <screenshot>
-      <caption>View the same card across multiple decks</caption>
-      <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/strength-art.webp</image>
     </screenshot>
   </screenshots>
   <releases>
