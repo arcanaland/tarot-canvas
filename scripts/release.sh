@@ -6,6 +6,7 @@ set -e
 #   ./scripts/release.sh prepare X.Y.Z   bump the version, then stop
 #   <hand-author the <release> entry in the appdata XML>
 #   ./scripts/release.sh tag             check the notes, commit, tag
+#   ./scripts/release.sh push            push branch + tag together
 #
 # The split exists because release notes are prose: they are written by hand, in
 # the branch, and reviewed in the PR diff like everything else. This script never
@@ -28,6 +29,7 @@ usage() {
   cat <<'EOF'
 usage: release.sh prepare [X.Y.Z]   bump pyproject.toml + _version.py, then stop
        release.sh tag               validate notes, commit the bump, create the tag
+       release.sh push              push the branch and the tag, atomically
 
 Between the two, add a <release> entry for the new version to
 packaging/land.arcana.TarotCanvas.appdata.xml. The template is in an XML comment
@@ -46,6 +48,34 @@ release_block() {
 
 require_repo_root() {
   [ -f "$APPDATA" ] || die "run this from the repository root ($APPDATA not found)"
+}
+
+# The release branch must contain everything on the remote. If it does not, the
+# tag we are about to create sits on a commit that will be rewritten by the
+# rebase, and a pushed tag would be stranded off origin/main forever.
+require_up_to_date() {
+  BRANCH=$(git rev-parse --abbrev-ref HEAD)
+  [ "$BRANCH" != "HEAD" ] || die "detached HEAD -- check out the release branch first."
+
+  echo "== fetching origin..."
+  git fetch --quiet origin || die "could not fetch origin."
+
+  UPSTREAM="origin/$BRANCH"
+  if ! git rev-parse --verify --quiet "$UPSTREAM" >/dev/null; then
+    echo -e "${YELLOW}== note: no $UPSTREAM yet, nothing to be behind${NC}"
+    return
+  fi
+
+  BEHIND=$(git rev-list --count "HEAD..$UPSTREAM")
+  if [ "$BEHIND" -ne 0 ]; then
+    die "$BRANCH is behind $UPSTREAM by $BEHIND commit(s).
+   Something landed on the remote since you started this release.
+   Rebase onto it and start the release over from 'prepare':
+
+       git rebase $UPSTREAM
+
+   Do not tag or push until this branch contains $UPSTREAM."
+  fi
 }
 
 # ---------------------------------------------------------------- prepare ----
@@ -105,6 +135,7 @@ phase_prepare() {
 
 phase_tag() {
   require_repo_root
+  require_up_to_date
 
   VERSION=$(uv version --short)
   echo -e "== releasing version: ${YELLOW}$VERSION${NC}"
@@ -160,6 +191,17 @@ phase_tag() {
   echo ""
 
   TAG_NAME="v$VERSION"
+
+  # A tag already on the remote is not ours to silently recreate: it may be what
+  # Flathub built from. Stop and make the operator deal with it explicitly.
+  if git ls-remote --tags --exit-code origin "refs/tags/$TAG_NAME" >/dev/null 2>&1; then
+    die "$TAG_NAME already exists on origin.
+   If that tag is wrong, delete it deliberately before re-releasing:
+
+       git push origin :refs/tags/$TAG_NAME
+       git tag -d $TAG_NAME"
+  fi
+
   if git tag -l | grep -q "^$TAG_NAME$"; then
     echo -e "${RED}== tag $TAG_NAME already exists!${NC}"
     echo -n "Delete existing tag and recreate? (y/N): "
@@ -192,9 +234,40 @@ phase_tag() {
 
   echo -e "${GREEN}== tag $TAG_NAME created${NC}"
   echo ""
-  echo "Next step is to push:"
-  echo -e "   ${YELLOW}git push origin main"
-  echo -e "   git push origin $TAG_NAME${NC}"
+  echo "Next step is to push both refs together:"
+  echo ""
+  echo -e "   ${YELLOW}./scripts/release.sh push${NC}"
+}
+
+# ------------------------------------------------------------------- push ----
+
+phase_push() {
+  require_repo_root
+  require_up_to_date
+
+  VERSION=$(uv version --short)
+  TAG_NAME="v$VERSION"
+  BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+  git rev-parse --verify --quiet "refs/tags/$TAG_NAME" >/dev/null \
+    || die "no local tag $TAG_NAME -- run './scripts/release.sh tag' first."
+
+  # The tag must be on the branch we are pushing, or we would publish a tag
+  # pointing off into space.
+  if ! git merge-base --is-ancestor "$TAG_NAME^{commit}" HEAD; then
+    die "$TAG_NAME is not an ancestor of $BRANCH -- it is a leftover from an
+   earlier attempt. Delete it and re-tag."
+  fi
+
+  echo -e "== pushing ${YELLOW}$BRANCH${NC} and ${YELLOW}$TAG_NAME${NC} to origin"
+
+  # --atomic is the whole point: if the branch is refused, the tag does not go
+  # either. Pushing them as two commands leaves a tag stranded off the branch.
+  git push --atomic origin "$BRANCH" "refs/tags/$TAG_NAME" \
+    || die "push refused -- nothing was published, including the tag.
+   Rebase onto origin/$BRANCH and start over from 'prepare'."
+
+  echo -e "${GREEN}== pushed $BRANCH and $TAG_NAME${NC}"
 }
 
 # ------------------------------------------------------------------- main ----
@@ -206,6 +279,9 @@ case "${1:-}" in
     ;;
   tag)
     phase_tag
+    ;;
+  push)
+    phase_push
     ;;
   -h | --help | help | "")
     usage

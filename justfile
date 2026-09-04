@@ -39,15 +39,20 @@ release-prepare VERSION="":
 release-tag:
   ./scripts/release.sh tag
 
-# Releasing is two phases now; this recipe only says so.
+# phase 3: push the branch and the tag atomically
+[group('release')]
+release-push:
+  ./scripts/release.sh push
+
 [group('release')]
 release VERSION="":
   #!/bin/bash
-  echo "Releasing is two phases:"
+  echo "Releasing is three phases:"
   echo
   echo "  just release-prepare {{VERSION}}"
   echo "  <add the <release> entry to packaging/land.arcana.TarotCanvas.appdata.xml>"
   echo "  just release-tag"
+  echo "  just release-push"
   echo
   echo "The notes template is the XML comment at the top of <releases>."
   exit 1

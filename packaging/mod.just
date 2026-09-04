@@ -68,3 +68,8 @@ gen-modules:
     --yaml --checker-data --cleanup scripts requests xdg-base-dirs poetry-core
 
   rm -rf "${TEMP_DIR}"
+
+# Check the Flathub app-listing quality guidelines that can be checked locally.
+# Pass --remote to also print Flathub's live verdicts.
+quality *ARGS:
+  ../scripts/flathub_quality.py {{ARGS}}
