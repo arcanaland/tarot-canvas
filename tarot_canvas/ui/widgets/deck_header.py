@@ -40,6 +40,7 @@ from tarot_canvas.settings import (
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.cover_cache import CoverCache
 from tarot_canvas.ui.library.deck_model import deck_cover_path
+from tarot_canvas.ui.widgets.tag_chips import TagChips, normalized_tags
 
 TITLE_SCALE = 1.3
 SUBTITLE_SCALE = 0.85
@@ -310,9 +311,14 @@ class DeckHeader(QWidget):
         form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.FieldsStayAtSizeHint)
 
         self.detail_labels = {}
-        for label, value, key in detail_rows(self.deck.get_metadata_fields()):
+        fields = self.deck.get_metadata_fields()
+        for label, value, key in detail_rows(fields):
             name = QLabel(f"{label}:")
             name.setForegroundRole(QPalette.ColorRole.PlaceholderText)
+
+            if key == "tags":
+                form.addRow(name, self._build_tag_chips(fields.get("tags")))
+                continue
 
             field = QLabel()
             field.setWordWrap(True)
@@ -330,6 +336,16 @@ class DeckHeader(QWidget):
             self.detail_labels[key] = field
         details.setMaximumWidth(self.measure() + self.details_label_measure())
         return details
+
+    def _build_tag_chips(self, raw):
+        """Tags are the one multi-valued field here, so they get chips, not a sentence."""
+        chips = TagChips(normalized_tags(raw), self.measure())
+        chips.setFixedWidth(self.measure())
+        # Same reason the text rows measure their own heights: `heightForWidth` does not
+        # survive these nested layouts.
+        chips.setMinimumHeight(chips.heightForWidth(self.measure()))
+        self.detail_labels["tags"] = chips
+        return chips
 
     # -- content ----------------------------------------------------------
 

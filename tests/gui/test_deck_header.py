@@ -19,6 +19,7 @@ from tarot_canvas.ui.widgets.deck_header import (
     cover_size,
     wrapped_height,
 )
+from tarot_canvas.ui.widgets.tag_chips import TagChips
 
 DESCRIPTION = (
     "The classic Rider-Waite-Smith tarot deck, first published in 1909 and illustrated "
@@ -155,6 +156,16 @@ def test_a_website_that_is_not_a_url_stays_plain_text(qtbot):
     widget.set_expanded(True)
     assert widget.detail_labels["website"].text() == "usgamesinc.com"
     assert not widget.detail_labels["website"].openExternalLinks()
+
+
+def test_tags_are_chips_rather_than_a_comma_joined_sentence(header):
+    """The one multi-valued field in the form; a sentence read as prose it is not."""
+    header.set_expanded(True)
+    chips = header.detail_labels["tags"]
+    assert isinstance(chips, TagChips)
+    assert chips.tags == ("traditional", "classic")
+    assert chips.width() == header.measure()
+    assert chips.minimumHeight() >= chips.chip_height()
 
 
 def test_absent_fields_are_omitted_rather_than_shown_empty(qtbot):
