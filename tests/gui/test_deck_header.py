@@ -1,12 +1,16 @@
 """The inline deck header that replaced the modal deck-info dialog."""
 
 import pytest
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont, QPalette
+from PyQt6.QtCore import QPoint, Qt
+from PyQt6.QtGui import QColor, QFont, QPalette
 from PyQt6.QtWidgets import QApplication, QLabel
 
 from tarot_canvas.settings import DECK_HEADER_EXPANDED_KEY, get_settings
 from tarot_canvas.ui.widgets.deck_header import (
+    BANNER_PADDING,
+    BANNER_SCRIM_ALPHA,
+    BANNER_SUBTEXT,
+    BANNER_TEXT,
     DeckHeader,
     cover_size,
     wrapped_height,
@@ -212,6 +216,103 @@ def test_no_hardcoded_colours_or_font_families(header):
 
 def test_secondary_text_comes_from_the_palette(header):
     assert header.subtitle_label.foregroundRole() == QPalette.ColorRole.PlaceholderText
+
+
+# -- the expanded banner ---------------------------------------------------
+
+
+def relative_luminance(colour):
+    """WCAG 2.1 relative luminance of an opaque sRGB colour."""
+    channels = []
+    for value in (colour.redF(), colour.greenF(), colour.blueF()):
+        channels.append(value / 12.92 if value <= 0.04045 else ((value + 0.055) / 1.055) ** 2.4)
+    red, green, blue = channels
+    return 0.2126 * red + 0.7152 * green + 0.0722 * blue
+
+
+def contrast_ratio(one, two):
+    lighter, darker = sorted((relative_luminance(one), relative_luminance(two)), reverse=True)
+    return (lighter + 0.05) / (darker + 0.05)
+
+
+@pytest.fixture
+def banner_header(qtbot, minimal_deck):
+    """The fixture deck has real card art, so it renders a banner; the stub does not."""
+    widget = shown(qtbot, minimal_deck)
+    widget.set_expanded(True)
+    return widget
+
+
+def test_the_banner_is_bounded_to_the_title_and_subtitle(banner_header):
+    """Option 3: only two labels ever sit on non-palette colour."""
+    rect = banner_header.banner_rect()
+    assert rect.width() == banner_header.width()
+    subtitle_bottom = banner_header.subtitle_label.mapTo(
+        banner_header, QPoint(0, banner_header.subtitle_label.height())
+    ).y()
+    assert subtitle_bottom <= rect.height() < banner_header.height()
+
+
+def test_the_form_clears_the_banner_edge(banner_header):
+    """Adam's nit: the form used to start exactly where the band ended."""
+    band = banner_header.banner_rect().height()
+    first = next(iter(banner_header.detail_labels.values()))
+    assert first.mapTo(banner_header, QPoint(0, 0)).y() - band >= BANNER_PADDING
+
+
+def test_the_banner_is_padded_more_than_the_collapsed_strip(banner_header):
+    """The strip is tight on purpose; the band needs room to read as a band."""
+    assert banner_header.layout().contentsMargins().top() == BANNER_PADDING
+    assert banner_header.title_label.mapTo(banner_header, QPoint(0, 0)).y() == BANNER_PADDING
+    banner_header.set_expanded(False)
+    # Collapsed the column is centred against the cover, so only the margin is comparable.
+    assert banner_header.layout().contentsMargins().top() < BANNER_PADDING
+
+
+def test_there_is_no_banner_until_the_panel_is_expanded(banner_header):
+    banner_header.set_expanded(False)
+    assert banner_header.banner_rect().isEmpty()
+    banner_header.set_expanded(True)
+    assert not banner_header.banner_rect().isEmpty()
+
+
+def test_a_deck_with_no_cover_gets_no_banner_and_keeps_palette_text(header):
+    """The stub deck's cards carry no image, which is the no-cover path."""
+    header.set_expanded(True)
+    assert header.banner_rect().isEmpty()
+    assert header.subtitle_label.foregroundRole() == QPalette.ColorRole.PlaceholderText
+
+
+def test_the_banner_guarantees_a_contrast_floor():
+    """Why fixed light text on the banner is defensible rather than a palette violation.
+
+    The scrim is opaque black at `BANNER_SCRIM_ALPHA`, so no channel of the composited
+    banner can exceed `255 - BANNER_SCRIM_ALPHA` whatever artwork the deck ships. The
+    contrast floor is therefore a property of that constant, not of the deck.
+    """
+    brightest = QColor(*(3 * [255 - BANNER_SCRIM_ALPHA]))
+    assert contrast_ratio(BANNER_TEXT, brightest) >= 4.5
+    assert contrast_ratio(QColor(BANNER_SUBTEXT.rgb()), brightest) >= 4.5
+
+
+def test_the_rendered_banner_respects_that_bound(banner_header):
+    pixmap = banner_header._banner_pixmap(banner_header.banner_rect().size())
+    image = pixmap.toImage()
+    peak = max(
+        max(QColor(image.pixel(x, y)).getRgb()[:3])
+        for y in range(0, image.height(), 4)
+        for x in range(0, image.width(), 8)
+    )
+    assert peak <= 255 - BANNER_SCRIM_ALPHA
+
+
+def test_the_banner_text_is_restored_to_the_palette_on_collapse(banner_header):
+    assert banner_header.title_label.palette().color(QPalette.ColorRole.WindowText) == BANNER_TEXT
+    banner_header.set_expanded(False)
+    assert banner_header.subtitle_label.foregroundRole() == QPalette.ColorRole.PlaceholderText
+    assert banner_header.title_label.palette().color(
+        QPalette.ColorRole.WindowText
+    ) == QPalette().color(QPalette.ColorRole.WindowText)
 
 
 def test_the_title_scales_with_the_system_font(qtbot):

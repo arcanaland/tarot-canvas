@@ -120,23 +120,26 @@ class MainWindow(QMainWindow):
         # File menu
         file_menu = menu_bar.addMenu("&File")
 
-        new_menu = QMenu("&New", self)
-        file_menu.addMenu(new_menu)
+        # New Buttons
+        self.new_canvas_action = QAction("New &Canvas", self)
+        self.new_canvas_action.setShortcut("Ctrl+N")
+        self.new_canvas_action.setIcon(QIcon.fromTheme("document-new"))
+        self.new_canvas_action.triggered.connect(self.new_canvas_tab)
+        file_menu.addAction(self.new_canvas_action)
 
-        new_canvas_action = QAction("&Canvas", self)
-        new_canvas_action.setShortcut("Ctrl+N")
-        new_canvas_action.triggered.connect(self.new_canvas_tab)
-        new_menu.addAction(new_canvas_action)
+        self.new_library_action = QAction("New &Library View", self)
+        self.new_library_action.setShortcut("Ctrl+L")
+        self.new_library_action.setIcon(QIcon.fromTheme("view-list-icons"))
+        self.new_library_action.triggered.connect(self.new_library_tab)
+        file_menu.addAction(self.new_library_action)
 
-        new_card_view_action = QAction("&Card View", self)
-        new_card_view_action.setShortcut("Ctrl+T")
-        new_card_view_action.triggered.connect(self.new_card_view_tab)
-        new_menu.addAction(new_card_view_action)
+        self.new_card_view_action = QAction("New C&ard View", self)
+        self.new_card_view_action.setShortcut("Ctrl+T")
+        self.new_card_view_action.setIcon(QIcon.fromTheme("card"))
+        self.new_card_view_action.triggered.connect(self.new_card_view_tab)
+        file_menu.addAction(self.new_card_view_action)
 
-        new_library_action = QAction("&Library View", self)
-        new_library_action.setShortcut("Ctrl+L")
-        new_library_action.triggered.connect(self.new_library_tab)
-        new_menu.addAction(new_library_action)
+        file_menu.addSeparator()
 
         open_action = QAction("&Open Deck", self)
         open_action.setShortcut("Ctrl+O")
@@ -292,6 +295,31 @@ class MainWindow(QMainWindow):
         self.tab_widget.currentChanged.connect(self.on_tab_changed)
         self.tab_widget.setMovable(True)
 
+        # A "+" on the tab bar, as every tabbed app has: one click opens the default
+        # new tab, the arrow picks another kind. The menu is the same three QActions the
+        # File menu holds, so the two can never drift.
+        new_tab_button = QToolButton()
+        new_tab_button.setAutoRaise(True)
+        new_tab_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+        new_tab_button.setDefaultAction(self.new_library_action)
+        # setDefaultAction adopts the action's text and icon, which would put "New
+        # Library View" on the tab bar. The button is a "+"; the menu carries the words.
+        new_tab_icon = QIcon.fromTheme("tab-new", QIcon.fromTheme("list-add"))
+        new_tab_button.setIcon(new_tab_icon)
+        if new_tab_icon.isNull():
+            # No icon theme (a bare session, or the offscreen platform in tests).
+            new_tab_button.setText("+")
+            new_tab_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+        else:
+            new_tab_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        new_tab_button.setToolTip("New tab (Ctrl+L)")
+
+        new_tab_menu = QMenu(new_tab_button)
+        new_tab_menu.addAction(self.new_library_action)
+        new_tab_menu.addAction(self.new_canvas_action)
+        new_tab_menu.addAction(self.new_card_view_action)
+        new_tab_button.setMenu(new_tab_menu)
+
         # Create search button and put it in the tab corner
         search_button = QToolButton()
         search_button.setIcon(
@@ -316,8 +344,14 @@ class MainWindow(QMainWindow):
             }
         """)
 
-        # Add the search button to the right corner of the tab widget
-        self.tab_widget.setCornerWidget(search_button, Qt.Corner.TopRightCorner)
+        # Both corner buttons share one container; Qt allows a single widget per corner.
+        corner = QWidget()
+        corner_layout = QHBoxLayout(corner)
+        corner_layout.setContentsMargins(0, 0, 0, 0)
+        corner_layout.setSpacing(0)
+        corner_layout.addWidget(new_tab_button)
+        corner_layout.addWidget(search_button)
+        self.tab_widget.setCornerWidget(corner, Qt.Corner.TopRightCorner)
 
         right_layout.addWidget(self.tab_widget)
 

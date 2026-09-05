@@ -1,6 +1,7 @@
 """The deck view page: an inline header where a modal dialog used to be."""
 
 import pytest
+from PyQt6.QtCore import QPoint
 from PyQt6.QtGui import QPalette
 from PyQt6.QtWidgets import QApplication, QDialog, QLabel
 
@@ -28,6 +29,28 @@ def test_nothing_in_the_deck_view_opens_a_dialog(tab):
     assert not hasattr(tab, "show_deck_info")
     assert not hasattr(module, "DeckInfoDialog")
     assert tab.findChildren(QDialog) == []
+
+
+def test_the_header_reaches_the_edges_of_the_view(tab, qtbot):
+    """The banner is a page header; an inset would make it read as a floating bar."""
+    qtbot.addWidget(tab)
+    tab.resize(900, 600)
+    tab.show()
+    qtbot.waitExposed(tab)
+    header = tab.findChildren(DeckHeader)[0]
+    assert header.mapTo(tab, QPoint(0, 0)).x() == 0
+    assert header.mapTo(tab, QPoint(0, 0)).y() == 0
+
+
+def test_the_sections_take_back_the_margin_the_header_gave_up(tab, qtbot):
+    """With the tab flush, section titles would otherwise sit against the window edge."""
+    qtbot.addWidget(tab)
+    tab.resize(900, 600)
+    tab.show()
+    qtbot.waitExposed(tab)
+    titles = [label for label in tab.findChildren(QLabel) if label.text() == "Major Arcana"]
+    assert titles, "the fixture deck renders a Major Arcana section"
+    assert titles[0].mapTo(tab, QPoint(0, 0)).x() == module.SECTION_MARGIN
 
 
 def test_section_titles_use_the_system_font(tab):
