@@ -4,6 +4,7 @@ from PyQt6.QtCore import QSize, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QIcon, QPalette
 from PyQt6.QtWidgets import (
     QApplication,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QScrollArea,
@@ -15,10 +16,15 @@ from PyQt6.QtWidgets import (
 from tarot_canvas.models.deck import TarotDeck
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.tabs.base_tab import BaseTab
+from tarot_canvas.ui.widgets import deck_header
 from tarot_canvas.ui.widgets.card_thumbnail import CardThumbnail
 from tarot_canvas.ui.widgets.deck_header import DeckHeader
 
 SECTION_TITLE_SCALE = 1.15
+
+#: Side margin for everything below the header. Matches the header's own content margin,
+#: so section titles line up with the deck's cover rather than sitting inboard of it.
+SECTION_MARGIN = deck_header.EDGE_MARGIN
 
 
 class CardScrollArea(QScrollArea):
@@ -84,28 +90,42 @@ class DeckViewTab(BaseTab):
         # Also emit the signal as a backup mechanism
         self.title_changed.emit(self.deck.get_name())
 
+        # Flush to the tab, as `library_tab.py` already does — the banner is a page
+        # header and the base tab's default margin would inset it from every edge.
+        self.layout.setContentsMargins(0, 0, 0, 0)
+
         # Main content widget with vertical layout
         content = QWidget()
         main_layout = QVBoxLayout(content)
         main_layout.setSpacing(15)
+        # No margin here: the header's banner is a page header and has to reach the
+        # view's edges, or it reads as a bar floating 21px in from every side. The
+        # sections below take the margin back for themselves.
+        main_layout.setContentsMargins(0, 0, 0, 0)
 
         # Deck-level header, inline at the top of the page (not a modal dialog)
         self.header = DeckHeader(self.deck, parent=content)
         main_layout.addWidget(self.header)
 
-        self.add_major_arcana_journey(main_layout)
+        sections = QVBoxLayout()
+        sections.setContentsMargins(SECTION_MARGIN, 0, SECTION_MARGIN, SECTION_MARGIN)
+        sections.setSpacing(main_layout.spacing())
+        self.add_major_arcana_journey(sections)
 
         # Add Minor Arcana sections
-        self.add_minor_arcana_sections(main_layout)
+        self.add_minor_arcana_sections(sections)
 
         # The card rows have a fixed height, so without this the scroll area's slack
         # lands on the section titles and pushes them off their rows.
-        main_layout.addStretch()
+        sections.addStretch()
+        main_layout.addLayout(sections)
 
         # Add the content to a scroll area
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setWidget(content)
+        # The frame would put a line between the banner and the tab bar.
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
 
         self.layout.addWidget(scroll)
 

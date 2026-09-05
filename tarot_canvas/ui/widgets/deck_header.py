@@ -11,8 +11,15 @@ tallest thing in the collapsed strip by a factor of two, and the header would be
 the empty column beside it.
 """
 
-from PyQt6.QtCore import QDate, QLocale, QRect, Qt
-from PyQt6.QtGui import QFontMetrics, QPalette
+from PyQt6.QtCore import QDate, QLocale, QPoint, QRect, QSize, Qt
+from PyQt6.QtGui import (
+    QColor,
+    QFontMetrics,
+    QImageReader,
+    QPainter,
+    QPalette,
+    QPixmap,
+)
 from PyQt6.QtWidgets import (
     QApplication,
     QFormLayout,
@@ -64,6 +71,43 @@ DETAIL_FIELDS = (
 
 #: Keys whose values are dates and are rendered in the reader's locale.
 DATE_KEYS = ("created_date", "updated_date")
+
+#: Vertical padding inside the banner, above the title and below the subtitle. Larger
+#: than the collapsed strip's, which stays tight on purpose — a banner needs to read as
+#: a band with room in it, where the collapsed strip is only an identity line.
+BANNER_PADDING = 2 * units.LARGE_SPACING
+
+#: Gap between the banner's bottom edge and the first row of the detail form. Without it
+#: the form starts exactly where the band ends, since the band's own bottom padding is
+#: measured from the subtitle.
+DETAILS_GAP = 2 * units.LARGE_SPACING
+
+#: Side margin for the header's content. Everything below the header in the deck view
+#: uses the same value, so the cover's edge and the section titles line up.
+EDGE_MARGIN = 2 * units.LARGE_SPACING
+
+#: Width, in pixels, the cover is decoded to before being scaled back up. This is the
+#: blur: a box filter at this radius would cost a convolution per repaint, where a
+#: smooth upscale from a tiny decode costs one `QImageReader` call, cached.
+BANNER_SAMPLE_WIDTH = 24
+
+#: Opacity of the black scrim composited over the blurred cover, out of 255. This is
+#: what makes the banner safe to put fixed light text on: the scrim bounds the result to
+#: at most `255 - BANNER_SCRIM_ALPHA` per channel whatever the deck's artwork is, so the
+#: contrast floor against `BANNER_TEXT` is a property of this constant, not of the deck.
+#: See `test_the_banner_guarantees_a_contrast_floor`.
+BANNER_SCRIM_ALPHA = 165
+
+#: Text on the banner. Not palette-derived, deliberately: the scrim above owns the
+#: backdrop's luminance, so the active colour scheme is the wrong source here — under a
+#: light scheme its text colour would be dark-on-dark. Everything outside the banner
+#: stays palette-derived.
+BANNER_TEXT = QColor(255, 255, 255)
+BANNER_SUBTEXT = QColor(255, 255, 255, 190)
+
+#: The HIG asks for a contrasting outline on anything overlaid on the content area, or
+#: it blends into the background under a dark scheme (`hig/displaying_content.md:62`).
+BANNER_OUTLINE = QColor(255, 255, 255, 64)
 
 
 def cover_size(expanded):
@@ -162,6 +206,7 @@ class DeckHeader(QWidget):
         self.deck = deck
         self._cover_cache = cover_cache or CoverCache(capacity=8)
         self._settings = settings if settings is not None else get_settings()
+        self._banner_pixmaps = {}
 
         self._build()
         self._restore_expanded()
@@ -172,9 +217,10 @@ class DeckHeader(QWidget):
         # Hug the content: the deck view gives its vertical slack to the card rows.
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(
-            units.LARGE_SPACING, units.LARGE_SPACING, units.LARGE_SPACING, units.LARGE_SPACING
-        )
+        # Wider at the sides than top and bottom: the banner bleeds to the view's edges,
+        # so this margin is all that keeps the title off them, while the vertical margin
+        # still has the separator and the card rows below to breathe against.
+        outer.setContentsMargins(EDGE_MARGIN, units.LARGE_SPACING, EDGE_MARGIN, units.LARGE_SPACING)
         outer.setSpacing(units.LARGE_SPACING)
 
         self.row = QHBoxLayout()
@@ -250,7 +296,7 @@ class DeckHeader(QWidget):
         column.addWidget(self.subtitle_label)
 
         self.details_widget = self._build_details()
-        column.addSpacing(units.LARGE_SPACING)
+        column.addSpacing(BANNER_PADDING + DETAILS_GAP)
         column.addWidget(self.details_widget)
         return column
 
@@ -332,6 +378,96 @@ class DeckHeader(QWidget):
         self._settings.setValue(DECK_HEADER_EXPANDED_KEY, bool(expanded))
         self._apply_expanded(expanded)
 
+    # -- banner -----------------------------------------------------------
+
+    def banner_rect(self):
+        """The strip the banner occupies, empty when there is no banner to draw.
+
+        Bounded to the title and subtitle: the detail form below keeps the active colour
+        scheme's own background, so only two labels ever sit on non-palette colour.
+        """
+        if not self.is_expanded() or not self._cover_path:
+            return QRect()
+        bottom = self.subtitle_label.mapTo(self, QPoint(0, self.subtitle_label.height())).y()
+        return QRect(0, 0, self.width(), bottom + BANNER_PADDING)
+
+    def _banner_pixmap(self, size):
+        """The cover, blurred and scrimmed, filling `size`. None if it cannot be read."""
+        ratio = self.devicePixelRatioF()
+        key = (size.width(), size.height(), round(ratio, 3))
+        if key in self._banner_pixmaps:
+            return self._banner_pixmaps[key]
+
+        pixmap = self._render_banner(size, ratio)
+        # One deck, a handful of widths as the window is resized.
+        if len(self._banner_pixmaps) >= 16:
+            self._banner_pixmaps.clear()
+        self._banner_pixmaps[key] = pixmap
+        return pixmap
+
+    def _render_banner(self, size, ratio):
+        reader = QImageReader(str(self._cover_path))
+        reader.setAutoTransform(True)
+        source = reader.size()
+        if not source.isValid() or source.isEmpty():
+            return None
+
+        height = max(1, round(BANNER_SAMPLE_WIDTH * source.height() / source.width()))
+        reader.setScaledSize(QSize(BANNER_SAMPLE_WIDTH, height))
+        image = reader.read()
+        if image.isNull():
+            return None
+
+        # Upscaling the tiny decode smoothly is the blur; expanding rather than fitting
+        # keeps the strip filled, at the price of cropping a portrait cover hard — which
+        # at this radius is a wash of the deck's colour rather than a picture of a card.
+        device = QSize(max(1, round(size.width() * ratio)), max(1, round(size.height() * ratio)))
+        image = image.scaled(
+            device,
+            Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        offset = QPoint(
+            max(0, (image.width() - device.width()) // 2),
+            max(0, (image.height() - device.height()) // 2),
+        )
+        image = image.copy(QRect(offset, device))
+
+        pixmap = QPixmap.fromImage(image)
+        pixmap.setDevicePixelRatio(ratio)
+
+        painter = QPainter(pixmap)
+        painter.fillRect(pixmap.rect(), QColor(0, 0, 0, BANNER_SCRIM_ALPHA))
+        painter.end()
+        return pixmap
+
+    def paintEvent(self, event):
+        rect = self.banner_rect()
+        if not rect.isEmpty():
+            pixmap = self._banner_pixmap(rect.size())
+            if pixmap is not None:
+                painter = QPainter(self)
+                painter.drawPixmap(rect, pixmap)
+                painter.setPen(BANNER_OUTLINE)
+                painter.drawLine(rect.bottomLeft(), rect.bottomRight())
+                painter.end()
+        super().paintEvent(event)
+
+    def _apply_banner_text(self, on_banner):
+        """Light text while the two labels sit on the banner, palette colours otherwise."""
+        for label, colour, role in (
+            (self.title_label, BANNER_TEXT, QPalette.ColorRole.WindowText),
+            (self.subtitle_label, BANNER_SUBTEXT, QPalette.ColorRole.PlaceholderText),
+        ):
+            if on_banner:
+                palette = QPalette()
+                palette.setColor(QPalette.ColorRole.WindowText, colour)
+                label.setForegroundRole(QPalette.ColorRole.WindowText)
+                label.setPalette(palette)
+            else:
+                label.setPalette(QPalette())
+                label.setForegroundRole(role)
+
     def _apply_expanded(self, expanded):
         expanded = bool(expanded)
         self.details_widget.setVisible(expanded and bool(self.detail_labels))
@@ -346,3 +482,8 @@ class DeckHeader(QWidget):
             self.text_container,
             Qt.AlignmentFlag.AlignTop if expanded else Qt.AlignmentFlag.AlignVCenter,
         )
+        banner = expanded and bool(self._cover_path)
+        self._apply_banner_text(banner)
+        padding = BANNER_PADDING if banner else units.LARGE_SPACING
+        self.layout().setContentsMargins(EDGE_MARGIN, padding, EDGE_MARGIN, padding)
+        self.update()
