@@ -1,12 +1,12 @@
 # Frequently Asked Questions
 
-## Where Can I Get Other Tarot Decks?
+## 1. Where Can I Get Other Tarot Decks?
 
 Arcana Land provides a small number of free tarot decks (as of 2026, three) in our [Reference Deck Collection](https://github.com/arcanaland/reference-decks/releases). The installation instructions are included at that link.
 
-There are only a handful of tarot decks in existence that are verifiably free from copyright issues. Because of this, we are only able to provide a small sample of decks that are permissively licensed. For other decks, you can create your own using the next section.
+There are only a handful of tarot decks in existence that are verifiably free from copyright claim. Because of this, we are only able to provide a small sample of decks that are permissively licensed. For other decks, you can create your own by following the next section.
 
-## How Do I Make My Own Deck?
+## 2. How Do I Make My Own Deck?
 
 Creating a Tarot deck consists of putting your card images into a certain folder structure with a TOML file at the top.
 
@@ -53,14 +53,17 @@ Follow the example of `minor_arcana/cups/ace.webp` and `minor_arcana/swords/thre
 
 <img width="2126" height="1572" alt="canvas" src="https://github.com/user-attachments/assets/81b92702-afb9-40dc-962f-9254254e85be" />
 
-You should now be able use the canvas with "My Custom Tarot" selected in the Card Explorer's dropdown. Summoning random cards will then draw from your personal deck.
+You should now be able use the canvas view with "My Custom Tarot" selected in the Card Explorer's dropdown. Summoning random cards will then draw from your personal deck.
 
+
+> [!TIP]
+> Refer to the full [Tarot Deck Specification](https://github.com/arcanaland/specifications/blob/deck%2Fv1.0/DECK.md) (v1) for more details about the file and directory format. Note that a major revision for [version 2](https://github.com/arcanaland/specifications/blob/deck-v2/DECK.md) is currently under development.
 
 > [!NOTE]
-> The full [Tarot Deck Specification](https://github.com/arcanaland/specifications/blob/deck%2Fv1.0/DECK.md) is available and is currently at version 1. A major revision for [version 2 draft](https://github.com/arcanaland/specifications/blob/deck-v2/DECK.md) is currently underway.
+> I personally scan my decks using an app that I am developing called [deckle](https://github.com/arcanaland/deckle). It is a command-line tool that handles the scanning, physical jig creation, image cropping, deskeweing and cataloging. It is pre-alpha, but if you are technical and adventurous, it may be of interest.
 
 
-## How Do I Add My Own Esoterica
+## 3. How Do I Add My Own Esoterica?
 
 Tarot Canvas currently only supports a very narrow set of esoterica notes.
 
