@@ -36,7 +36,7 @@ LIBRARY_RECENT_KEY = "library/recent"
 LIBRARY_RECENT_LIMIT = 50
 
 DECK_HEADER_EXPANDED_KEY = "deck_view/header_expanded"
-DECK_HEADER_EXPANDED_DEFAULT = False
+DECK_HEADER_EXPANDED_DEFAULT = True
 
 
 def get_recent_decks():

@@ -3,6 +3,7 @@ from tarot_canvas.settings import (
     ANIMATIONS_ENABLED_DEFAULT,
     BACKGROUND_COLOR_DEFAULT,
     BACKGROUND_STYLE_DEFAULT,
+    DECK_HEADER_EXPANDED_DEFAULT,
 )
 
 
@@ -11,3 +12,4 @@ def test_shared_settings_defaults():
     assert BACKGROUND_COLOR_DEFAULT == "#1e1432"
     assert ANIMATIONS_ENABLED_DEFAULT is True
     assert ANIMATION_INTENSITY_DEFAULT == 50
+    assert DECK_HEADER_EXPANDED_DEFAULT is True

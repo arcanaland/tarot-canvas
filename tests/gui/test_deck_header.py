@@ -5,7 +5,11 @@ from PyQt6.QtCore import QPoint, Qt
 from PyQt6.QtGui import QColor, QFont, QPalette
 from PyQt6.QtWidgets import QApplication, QLabel
 
-from tarot_canvas.settings import DECK_HEADER_EXPANDED_KEY, get_settings
+from tarot_canvas.settings import (
+    DECK_HEADER_EXPANDED_DEFAULT,
+    DECK_HEADER_EXPANDED_KEY,
+    get_settings,
+)
 from tarot_canvas.ui.widgets.deck_header import (
     BANNER_PADDING,
     BANNER_SCRIM_ALPHA,
@@ -80,7 +84,7 @@ def make_deck(**overrides):
 
 
 @pytest.fixture(autouse=True)
-def collapsed_by_default():
+def no_stored_disclosure():
     """Qt resolves the QSettings path once per process, so the file outlives a test."""
     get_settings().remove(DECK_HEADER_EXPANDED_KEY)
     yield
@@ -116,8 +120,15 @@ def test_the_version_is_a_detail_rather_than_part_of_the_identity(header):
     assert field_text(header, "version") == "1.1"
 
 
-def test_details_are_hidden_until_disclosed(header):
-    assert not header.is_expanded()
+def test_a_fresh_install_opens_expanded(header):
+    """Confirmed better on a fresh install: nothing else advertises what Details holds."""
+    assert DECK_HEADER_EXPANDED_DEFAULT is True
+    assert header.is_expanded()
+    assert header.details_widget.isVisibleTo(header)
+
+
+def test_details_are_hidden_once_the_disclosure_is_closed(header):
+    header.set_expanded(False)
     assert not header.details_widget.isVisibleTo(header)
     header.set_expanded(True)
     assert header.details_widget.isVisibleTo(header)
@@ -170,19 +181,19 @@ def test_a_deck_with_nothing_to_disclose_shows_no_details(qtbot):
 
 def test_the_disclosure_state_persists(qtbot):
     first = shown(qtbot)
-    assert not first.is_expanded()
-    first.set_expanded(True)
-    assert get_settings().value(DECK_HEADER_EXPANDED_KEY, False, type=bool)
+    assert first.is_expanded()
+    first.set_expanded(False)
+    assert not get_settings().value(DECK_HEADER_EXPANDED_KEY, True, type=bool)
 
     second = shown(qtbot)
-    assert second.is_expanded()
-    assert second.details_widget.isVisibleTo(second)
+    assert not second.is_expanded()
+    assert not second.details_widget.isVisibleTo(second)
 
 
 def test_the_arrow_follows_the_disclosure(header):
-    assert header.details_button.arrowType() == Qt.ArrowType.RightArrow
-    header.set_expanded(True)
     assert header.details_button.arrowType() == Qt.ArrowType.DownArrow
+    header.set_expanded(False)
+    assert header.details_button.arrowType() == Qt.ArrowType.RightArrow
 
 
 def test_the_description_leads_the_disclosure_rather_than_being_elided(header):
@@ -194,14 +205,17 @@ def test_the_description_leads_the_disclosure_rather_than_being_elided(header):
 
 
 def test_the_cover_shrinks_when_collapsed(header):
-    collapsed = header.cover_label.height()
-    header.set_expanded(True)
-    assert header.cover_label.height() > collapsed
     assert (header.cover_label.width(), header.cover_label.height()) == cover_size(True)
+    header.set_expanded(False)
+    assert (header.cover_label.width(), header.cover_label.height()) == cover_size(False)
+    assert header.cover_label.height() < cover_size(True)[1]
 
 
 def test_the_collapsed_header_is_not_mostly_cover(header):
     """The nit that prompted the redesign: dead space beside a full-size cover."""
+    header.set_expanded(False)
+    # The hidden form still counts toward the hint until the layout re-runs.
+    header.layout().activate()
     assert header.sizeHint().height() < cover_size(True)[1]
 
 

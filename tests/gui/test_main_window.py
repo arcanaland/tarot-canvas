@@ -232,11 +232,11 @@ def test_the_tab_bar_has_a_new_tab_button(qtbot):
     buttons = corner.findChildren(QToolButton)
     new_tab = next(b for b in buttons if b.menu() is not None)
 
-    assert new_tab.defaultAction() is window.new_library_action
+    assert new_tab.defaultAction() is window.new_canvas_action
     assert new_tab.popupMode() == QToolButton.ToolButtonPopupMode.MenuButtonPopup
     assert new_tab.menu().actions() == [
-        window.new_library_action,
         window.new_canvas_action,
+        window.new_library_action,
         window.new_card_view_action,
     ]
 
@@ -245,10 +245,12 @@ def test_the_new_tab_button_actually_opens_a_tab(qtbot):
     """The button's default action is the shared QAction, so triggering it is the click."""
     window = MainWindow()
     qtbot.addWidget(window)
+    window.new_canvas_action.trigger()
+    # The new-tab helpers close the Welcome tab as they open, so the count is unchanged.
+    assert isinstance(window.tab_widget.currentWidget(), CanvasTab)
+
     window.new_library_action.trigger()
-    # `new_library_tab` closes the Welcome tab as it opens, so the count is unchanged.
     assert isinstance(window.tab_widget.currentWidget(), LibraryTab)
-    assert window.tab_widget.tabText(window.tab_widget.currentIndex()) == "Library"
 
 
 def test_the_search_button_is_still_reachable(qtbot):

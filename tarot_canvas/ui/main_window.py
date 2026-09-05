@@ -301,9 +301,11 @@ class MainWindow(QMainWindow):
         new_tab_button = QToolButton()
         new_tab_button.setAutoRaise(True)
         new_tab_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
-        new_tab_button.setDefaultAction(self.new_library_action)
+        # Canvas, not Library: most people have exactly one deck, so a new tab is far
+        # more often somewhere to lay cards out than another shelf to look at.
+        new_tab_button.setDefaultAction(self.new_canvas_action)
         # setDefaultAction adopts the action's text and icon, which would put "New
-        # Library View" on the tab bar. The button is a "+"; the menu carries the words.
+        # Canvas" on the tab bar. The button is a "+"; the menu carries the words.
         new_tab_icon = QIcon.fromTheme("tab-new", QIcon.fromTheme("list-add"))
         new_tab_button.setIcon(new_tab_icon)
         if new_tab_icon.isNull():
@@ -312,11 +314,11 @@ class MainWindow(QMainWindow):
             new_tab_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
         else:
             new_tab_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
-        new_tab_button.setToolTip("New tab (Ctrl+L)")
+        new_tab_button.setToolTip("New tab (Ctrl+N)")
 
         new_tab_menu = QMenu(new_tab_button)
-        new_tab_menu.addAction(self.new_library_action)
         new_tab_menu.addAction(self.new_canvas_action)
+        new_tab_menu.addAction(self.new_library_action)
         new_tab_menu.addAction(self.new_card_view_action)
         new_tab_button.setMenu(new_tab_menu)
 
