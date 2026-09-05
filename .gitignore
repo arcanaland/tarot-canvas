@@ -16,6 +16,7 @@ packaging/devel/
 
 WIP/
 docs/*.webp
+vendor/
 
 agents/
 .claude

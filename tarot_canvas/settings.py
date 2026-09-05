@@ -1,3 +1,6 @@
+import json
+import time
+
 from PyQt6.QtCore import QSettings
 
 SETTINGS_ORGANIZATION = "ArcanaLand"
@@ -21,3 +24,47 @@ ANIMATION_INTENSITY_DEFAULT = 50
 
 def get_settings():
     return QSettings(SETTINGS_ORGANIZATION, SETTINGS_APPLICATION)
+
+
+LIBRARY_DENSITY_KEY = "library/density"
+LIBRARY_DENSITY_DEFAULT = "medium"
+
+LIBRARY_SORT_KEY = "library/sort"
+LIBRARY_SORT_DEFAULT = "name"
+
+LIBRARY_RECENT_KEY = "library/recent"
+LIBRARY_RECENT_LIMIT = 50
+
+
+def get_recent_decks():
+    """Mapping of deck path -> last-opened epoch seconds."""
+    raw = get_settings().value(LIBRARY_RECENT_KEY, "", type=str)
+    if not raw:
+        return {}
+    try:
+        recent = json.loads(raw)
+    except (ValueError, TypeError):
+        return {}
+    if not isinstance(recent, dict):
+        return {}
+    return {str(path): float(when) for path, when in recent.items() if _is_number(when)}
+
+
+def record_deck_opened(deck_path, when=None):
+    """Remember that `deck_path` was opened, for the library's recency sort."""
+    if not deck_path:
+        return
+    recent = get_recent_decks()
+    recent[str(deck_path)] = float(when if when is not None else time.time())
+    if len(recent) > LIBRARY_RECENT_LIMIT:
+        keep = sorted(recent.items(), key=lambda item: item[1], reverse=True)
+        recent = dict(keep[:LIBRARY_RECENT_LIMIT])
+    get_settings().setValue(LIBRARY_RECENT_KEY, json.dumps(recent))
+
+
+def _is_number(value):
+    try:
+        float(value)
+    except (TypeError, ValueError):
+        return False
+    return True

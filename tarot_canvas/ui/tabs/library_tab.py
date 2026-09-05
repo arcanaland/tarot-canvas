@@ -1,109 +1,53 @@
-import os
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QFont, QIcon, QPixmap
+from PyQt6.QtCore import QItemSelectionModel, QSize, Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
+    QAbstractItemView,
+    QComboBox,
     QFrame,
-    QGridLayout,
+    QHBoxLayout,
     QLabel,
-    QPushButton,
-    QScrollArea,
-    QVBoxLayout,
+    QLineEdit,
+    QListView,
+    QToolButton,
     QWidget,
 )
 
 from tarot_canvas.models.deck_manager import deck_manager
+from tarot_canvas.settings import (
+    LIBRARY_DENSITY_DEFAULT,
+    LIBRARY_DENSITY_KEY,
+    LIBRARY_SORT_DEFAULT,
+    LIBRARY_SORT_KEY,
+    get_settings,
+    record_deck_opened,
+)
+from tarot_canvas.ui.library import units
+from tarot_canvas.ui.library.deck_delegate import DeckDelegate
+from tarot_canvas.ui.library.deck_model import (
+    SORT_AUTHOR,
+    SORT_COUNT,
+    SORT_NAME,
+    SORT_RECENT,
+    DeckFilterProxyModel,
+    DeckListModel,
+    DeckRole,
+)
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 
+SORT_CHOICES = [
+    ("Name", SORT_NAME),
+    ("Author", SORT_AUTHOR),
+    ("Card count", SORT_COUNT),
+    ("Recently opened", SORT_RECENT),
+]
 
-class DeckCard(QFrame):
-    """Card-like widget to represent a deck in the library grid"""
-
-    clicked = pyqtSignal(object)  # Signal emitted when clicked, passes the deck
-    double_clicked = pyqtSignal(object)  # Signal for double-click
-
-    def __init__(self, deck, parent=None):
-        super().__init__(parent)
-        self.deck = deck
-        self.setFrameShape(QFrame.Shape.StyledPanel)
-        self.setMinimumSize(220, 280)
-        self.setMaximumSize(220, 280)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
-
-        # Add basic hover effect
-        self.setStyleSheet("""
-            DeckCard {
-                border: 1px solid #aaa;
-                border-radius: 8px;
-                background-color: rgba(40, 40, 40, 0.15);
-            }
-            DeckCard:hover {
-                background-color: rgba(80, 80, 80, 0.25);
-                border: 1px solid #ccc;
-            }
-        """)
-
-        self.setup_ui()
-
-    def setup_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 10, 10, 10)
-
-        # Try to get card back or first card as thumbnail
-        thumbnail_path = self.get_deck_thumbnail()
-        image_label = QLabel()
-        image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        if thumbnail_path and os.path.exists(thumbnail_path):
-            pixmap = QPixmap(thumbnail_path)
-            # Set a fixed height for the image while maintaining aspect ratio
-            pixmap = pixmap.scaledToHeight(180, Qt.TransformationMode.SmoothTransformation)
-            image_label.setPixmap(pixmap)
-        else:
-            image_label.setText("No Preview")
-            image_label.setStyleSheet("background-color: #333; color: white; padding: 40px;")
-            image_label.setFixedSize(120, 180)
-
-        # Deck name
-        name_label = QLabel(self.deck.get_name())
-        name_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
-        name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        name_label.setWordWrap(True)
-
-        # Deck info
-        cards_count = len(self.deck._cards)
-        creator = self.deck._metadata.get("deck", {}).get("author", "Unknown")
-        info_label = QLabel(f"{cards_count} cards • {creator}")
-        info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        layout.addWidget(image_label, alignment=Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(name_label)
-        layout.addWidget(info_label)
-
-    def get_deck_thumbnail(self):
-        """Get a thumbnail image for the deck (first major arcana)"""
-        major_arcana = self.deck.get_cards_by_type("major_arcana")
-        if major_arcana:
-            # Try to get The Fool (0) or any first card
-            for card in major_arcana:
-                if card.get("number") == 0 and card.get("image"):
-                    return card.get("image")
-
-            # If no Fool, just use the first card with an image
-            for card in major_arcana:
-                if card.get("image"):
-                    return card.get("image")
-
-        return None
-
-    def mousePressEvent(self, event):
-        self.clicked.emit(self.deck)
-        super().mousePressEvent(event)
-
-    def mouseDoubleClickEvent(self, event):
-        self.double_clicked.emit(self.deck)
-        super().mouseDoubleClickEvent(event)
+DENSITY_CHOICES = [
+    ("Small", units.DENSITY_SMALL),
+    ("Medium", units.DENSITY_MEDIUM),
+    ("Large", units.DENSITY_LARGE),
+]
 
 
 class LibraryTab(BaseTab):
@@ -111,78 +55,151 @@ class LibraryTab(BaseTab):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.settings = get_settings()
         self.setup_ui()
 
         # Set the tab icon after a short delay to ensure the tab is added
         QTimer.singleShot(100, self.update_tab_icon)
 
     def setup_ui(self):
-        main_layout = QVBoxLayout()
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.setSpacing(0)
 
-        # Create scrollable area for the deck grid
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.model = DeckListModel(deck_manager.get_all_decks(), parent=self)
+        self.proxy_model = DeckFilterProxyModel(self)
+        self.proxy_model.setSourceModel(self.model)
 
-        # Container widget for the grid
-        container = QWidget()
-        self.grid_layout = QGridLayout(container)
-        self.grid_layout.setSpacing(20)
+        self.layout.addWidget(self._build_header())
+        self.layout.addWidget(self._build_view())
+        self.empty_label = QLabel()
+        self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.empty_label.setEnabled(False)
+        self.layout.addWidget(self.empty_label)
 
-        # Populate the grid with deck cards
-        self.populate_deck_grid()
+        self._restore_settings()
+        self._update_empty_state()
 
-        scroll.setWidget(container)
-        main_layout.addWidget(scroll)
+    def _build_header(self):
+        header = QWidget()
+        row = QHBoxLayout(header)
+        row.setContentsMargins(
+            units.LARGE_SPACING, units.LARGE_SPACING, units.LARGE_SPACING, units.LARGE_SPACING
+        )
+        row.setSpacing(units.LARGE_SPACING)
 
-        # Add browser button
-        browser_button = QPushButton("Browse for Additional Decks...")
-        browser_button.clicked.connect(self.browse_for_deck)
-        main_layout.addWidget(browser_button, alignment=Qt.AlignmentFlag.AlignCenter)
+        self.search_field = QLineEdit()
+        self.search_field.setPlaceholderText("Search decks…")
+        self.search_field.setClearButtonEnabled(True)
+        self.search_field.addAction(
+            QIcon.fromTheme("search"), QLineEdit.ActionPosition.LeadingPosition
+        )
+        self.search_field.textChanged.connect(self.on_search_changed)
+        row.addWidget(self.search_field, 1)
 
-        self.layout.addLayout(main_layout)
+        self.sort_combo = QComboBox()
+        for label, key in SORT_CHOICES:
+            self.sort_combo.addItem(label, key)
+        self.sort_combo.setToolTip("Sort decks")
+        self.sort_combo.currentIndexChanged.connect(self.on_sort_changed)
+        row.addWidget(self.sort_combo)
 
-    def populate_deck_grid(self):
-        """Populate the grid with deck cards"""
-        # Clear existing items
-        while self.grid_layout.count():
-            item = self.grid_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+        self.density_combo = QComboBox()
+        for label, key in DENSITY_CHOICES:
+            self.density_combo.addItem(label, key)
+        self.density_combo.setToolTip("Cover size")
+        self.density_combo.currentIndexChanged.connect(self.on_density_changed)
+        row.addWidget(self.density_combo)
 
-        # Get all available decks
-        decks = deck_manager.get_all_decks()
+        self.add_deck_button = QToolButton()
+        self.add_deck_button.setText("Add Deck…")
+        self.add_deck_button.setIcon(QIcon.fromTheme("list-add"))
+        self.add_deck_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.add_deck_button.clicked.connect(self.browse_for_deck)
+        row.addWidget(self.add_deck_button)
 
-        # Calculate the number of columns based on parent width
-        if self.parent():
-            parent_width = self.parent().width()
-            columns = max(1, min(4, parent_width // 250))  # Adjust based on card width
-        else:
-            columns = 3  # Default
+        return header
 
-        # Add the deck cards to the grid
-        row, col = 0, 0
-        for deck in decks:
-            deck_card = DeckCard(deck)
-            # Connect to selection handler for single-click (selection only)
-            deck_card.clicked.connect(lambda d: self.deck_selected.emit(d))
-            # Connect double-click to open the deck
-            deck_card.double_clicked.connect(self.on_deck_selected)
+    def _build_view(self):
+        self.view = QListView()
+        self.view.setModel(self.proxy_model)
+        self.delegate = DeckDelegate(self.view)
+        self.view.setItemDelegate(self.delegate)
 
-            self.grid_layout.addWidget(deck_card, row, col)
+        self.view.setViewMode(QListView.ViewMode.IconMode)
+        self.view.setFlow(QListView.Flow.LeftToRight)
+        self.view.setWrapping(True)
+        self.view.setResizeMode(QListView.ResizeMode.Adjust)
+        self.view.setMovement(QListView.Movement.Static)
+        self.view.setUniformItemSizes(True)
+        self.view.setSpacing(units.LARGE_SPACING)
+        self.view.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
+        self.view.setMouseTracking(True)
 
-            # Move to the next column or row
-            col += 1
-            if col >= columns:
-                col = 0
-                row += 1
+        self.view.setFrameShape(QFrame.Shape.NoFrame)
+        self.view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.view.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
 
-        # Add spacer to make sure cards align to the top
-        self.grid_layout.setRowStretch(row + 1, 1)
+        self.view.activated.connect(self.on_deck_activated)
+        self.view.selectionModel().currentChanged.connect(self.on_current_changed)
+        self.proxy_model.modelReset.connect(self._update_empty_state)
+        self.proxy_model.rowsInserted.connect(self._update_empty_state)
+        self.proxy_model.rowsRemoved.connect(self._update_empty_state)
+
+        return self.view
+
+    # -- settings ---------------------------------------------------------
+
+    def _restore_settings(self):
+        density = self.settings.value(LIBRARY_DENSITY_KEY, LIBRARY_DENSITY_DEFAULT, type=str)
+        index = self.density_combo.findData(density)
+        self.density_combo.setCurrentIndex(index if index >= 0 else 1)
+
+        sort_key = self.settings.value(LIBRARY_SORT_KEY, LIBRARY_SORT_DEFAULT, type=str)
+        index = self.sort_combo.findData(sort_key)
+        self.sort_combo.setCurrentIndex(index if index >= 0 else 0)
+
+        # setCurrentIndex only emits when the index actually moves, so apply
+        # both explicitly rather than relying on the signals above.
+        self._apply_density(self.density_combo.currentData())
+        self.proxy_model.set_sort_key(self.sort_combo.currentData())
+
+    def _apply_density(self, density):
+        if self.delegate.set_density(density):
+            self.view.setGridSize(QSize())
+            self.view.reset()
+            self.view.scheduleDelayedItemsLayout()
+
+    # -- slots ------------------------------------------------------------
+
+    def on_search_changed(self, text):
+        self.proxy_model.setFilterFixedString(text)
+        self._update_empty_state()
+
+    def on_sort_changed(self):
+        key = self.sort_combo.currentData()
+        self.proxy_model.set_sort_key(key)
+        self.settings.setValue(LIBRARY_SORT_KEY, key)
+
+    def on_density_changed(self):
+        density = self.density_combo.currentData()
+        self._apply_density(density)
+        self.settings.setValue(LIBRARY_DENSITY_KEY, density)
+
+    def on_current_changed(self, current, _previous):
+        deck = current.data(DeckRole) if current.isValid() else None
+        if deck is not None:
+            self.deck_selected.emit(deck)
+
+    def on_deck_activated(self, index):
+        deck = index.data(DeckRole)
+        if deck is not None:
+            self.on_deck_selected(deck)
 
     def on_deck_selected(self, deck):
-        """Handle deck selection (double-click opens the deck)"""
-        # Open a new tab with the selected deck
+        """Open the deck in a new tab."""
+        record_deck_opened(deck.deck_path)
+        self.proxy_model.refresh_recent()
 
         main_window = self.window()
         if hasattr(main_window, "new_deck_view_tab"):
@@ -190,46 +207,71 @@ class LibraryTab(BaseTab):
 
     def browse_for_deck(self):
         """Open file dialog to browse for additional decks"""
-
         main_window = self.window()
         if hasattr(main_window, "open_deck"):
             main_window.open_deck()
 
-    def resizeEvent(self, event):
-        """Handle resize events to adjust the grid layout"""
-        # Re-populate the grid when the tab is resized
-        self.populate_deck_grid()
-        super().resizeEvent(event)
+    def refresh(self):
+        """Reload the deck list, keeping the selected deck selected if it survives."""
+        selected = self.current_deck()
+        self.model.set_decks(deck_manager.get_all_decks())
+        self.proxy_model.refresh_recent()
+        if selected is not None:
+            self.select_deck_path(selected.deck_path)
+        self._update_empty_state()
+
+    def current_deck(self):
+        index = self.view.currentIndex()
+        return index.data(DeckRole) if index.isValid() else None
+
+    def select_deck_path(self, deck_path):
+        for row in range(self.proxy_model.rowCount()):
+            index = self.proxy_model.index(row, 0)
+            deck = index.data(DeckRole)
+            if deck is not None and deck.deck_path == deck_path:
+                self.view.selectionModel().setCurrentIndex(
+                    index, QItemSelectionModel.SelectionFlag.ClearAndSelect
+                )
+                return True
+        return False
+
+    def _update_empty_state(self):
+        empty = self.proxy_model.rowCount() == 0
+        if empty:
+            self.empty_label.setText(
+                "No decks match your search."
+                if self.model.rowCount()
+                else "No decks installed yet. Use Add Deck… to install one."
+            )
+        self.empty_label.setVisible(empty)
+        self.view.setVisible(not empty)
 
     def update_tab_icon(self):
         """Update the tab with a library icon"""
         parent = self.parent()
-        if parent:
-            # Find the tab widget that contains this widget
-            tab_widget = None
-            parent_widget = parent
+        if not parent:
+            return
 
-            # Try to find a parent that has setTabIcon method
-            while parent_widget and not tab_widget:
-                if hasattr(parent_widget, "setTabIcon"):
-                    tab_widget = parent_widget
-                    break
-                parent_widget = parent_widget.parent()
+        # Try to find a parent that has setTabIcon method
+        tab_widget = None
+        parent_widget = parent
+        while parent_widget and not tab_widget:
+            if hasattr(parent_widget, "setTabIcon"):
+                tab_widget = parent_widget
+                break
+            parent_widget = parent_widget.parent()
 
-            # If we found a tab widget, update the tab icon
-            if tab_widget:
-                index = tab_widget.indexOf(self)
-                if index >= 0:
-                    # Create and set the bookmarks icon from theme or fallback
-                    icon = QIcon.fromTheme(
-                        "folder-bookmarks",
-                        QIcon(
-                            str(
-                                Path(__file__).parent.parent.parent
-                                / "resources"
-                                / "icons"
-                                / "bookmarks.png"
-                            )
-                        ),
-                    )
-                    tab_widget.setTabIcon(index, icon)
+        if not tab_widget:
+            return
+
+        index = tab_widget.indexOf(self)
+        if index < 0:
+            return
+
+        icon = QIcon.fromTheme(
+            "folder-bookmarks",
+            QIcon(
+                str(Path(__file__).parent.parent.parent / "resources" / "icons" / "bookmarks.png")
+            ),
+        )
+        tab_widget.setTabIcon(index, icon)
