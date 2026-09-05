@@ -37,13 +37,11 @@ def test_the_view_draws_no_frame_of_its_own(library):
 
 
 def test_no_stylesheet_hardcodes_colours(library):
-    """The `#aaa` border was the bulk of the high-contrast complaint."""
     assert library.styleSheet() == ""
     assert library.view.styleSheet() == ""
 
 
 def test_the_grid_is_not_capped_at_four_columns(library):
-    """Wide windows used to leave dead space rather than show more decks."""
     assert library.view.resizeMode() == QListView.ResizeMode.Adjust
     assert library.view.isWrapping()
 

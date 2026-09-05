@@ -32,8 +32,6 @@ LIBRARY_DENSITY_DEFAULT = "medium"
 LIBRARY_SORT_KEY = "library/sort"
 LIBRARY_SORT_DEFAULT = "name"
 
-# JSON object mapping deck path -> last-opened epoch seconds. Stored as a blob
-# because deck paths contain "/", which QSettings reads as a group separator.
 LIBRARY_RECENT_KEY = "library/recent"
 LIBRARY_RECENT_LIMIT = 50
 

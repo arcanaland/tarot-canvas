@@ -80,8 +80,6 @@ class LibraryTab(BaseTab):
         self._update_empty_state()
 
     def _build_header(self):
-        """The HIG puts add-content controls on a header above the view, not
-        on a button floating in dead space below it."""
         header = QWidget()
         row = QHBoxLayout(header)
         row.setContentsMargins(
@@ -137,14 +135,11 @@ class LibraryTab(BaseTab):
         self.view.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
         self.view.setMouseTracking(True)
-        # No frame anywhere: the cover art is self-delimiting, and the HIG asks
-        # for no unnecessary frames around content views.
+
         self.view.setFrameShape(QFrame.Shape.NoFrame)
         self.view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.view.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
 
-        # `activated` fires on whichever gesture the user's system setting says
-        # opens an item, so single- vs double-click follows the desktop for free.
         self.view.activated.connect(self.on_deck_activated)
         self.view.selectionModel().currentChanged.connect(self.on_current_changed)
         self.proxy_model.modelReset.connect(self._update_empty_state)

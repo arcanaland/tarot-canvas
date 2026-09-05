@@ -1,4 +1,4 @@
-"""A list model over the loaded decks, plus the proxy that searches and sorts it."""
+"""A list model over the loaded decks"""
 
 from PyQt6.QtCore import QAbstractListModel, QSortFilterProxyModel, Qt
 
@@ -21,11 +21,7 @@ UNKNOWN_AUTHOR = "Unknown"
 
 
 def deck_cover_path(deck):
-    """The Fool if the deck has one, else any major arcana card with art.
-
-    The art style is the browsing criterion, so a face card is a better cover
-    than a card back. Matches what the old `DeckCard` did, kept deliberately.
-    """
+    """The Fool if the deck has one, else any major arcana card with art."""
     major_arcana = deck.get_cards_by_type("major_arcana")
     for card in major_arcana:
         if card.get("number") == 0 and card.get("image"):
@@ -41,11 +37,6 @@ def deck_author(deck):
 
 
 def is_majors_only(deck):
-    """True for a deck that has major arcana and no minor arcana at all.
-
-    Only the clean case is labelled: a deck carrying majors plus a partial suit
-    gets a plain count, on the grounds that a wrong label is worse than none.
-    """
     return bool(deck.get_cards_by_type("major_arcana")) and not deck.get_cards_by_type(
         "minor_arcana"
     )
@@ -62,8 +53,6 @@ def deck_subtitle(deck, abbreviated=False):
 
 
 class DeckListModel(QAbstractListModel):
-    """Flat list of decks. Takes the decks it is given; never loads any itself."""
-
     def __init__(self, decks=None, parent=None):
         super().__init__(parent)
         self._decks = list(decks or [])
@@ -104,7 +93,7 @@ class DeckListModel(QAbstractListModel):
 
 
 class DeckFilterProxyModel(QSortFilterProxyModel):
-    """Case-insensitive search over name and author, plus the four sort orders."""
+    """Case-insensitive search over name and author."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -123,7 +112,6 @@ class DeckFilterProxyModel(QSortFilterProxyModel):
         self.sort(0, self.sort_order())
 
     def sort_order(self):
-        """Recency reads newest-first; every other key reads A-Z / smallest-first."""
         if self._sort_key == SORT_RECENT:
             return Qt.SortOrder.DescendingOrder
         return Qt.SortOrder.AscendingOrder
@@ -155,10 +143,10 @@ class DeckFilterProxyModel(QSortFilterProxyModel):
     def _compare_with_name_tiebreak(self, left_value, right_value, left, right):
         if left_value == right_value:
             name_order = self._name_of(left) < self._name_of(right)
-            # A descending sort inverts every comparison, so flip the tiebreak
-            # too and names still read A-Z within an equal group.
+
             if self.sort_order() == Qt.SortOrder.DescendingOrder:
                 return not name_order
+
             return name_order
         return left_value < right_value
 

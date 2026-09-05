@@ -9,7 +9,6 @@ from tarot_canvas.ui.library.deck_delegate import DeckDelegate
 from tarot_canvas.ui.library.deck_model import DeckListModel
 from tests.unit.test_library_model import fake_deck
 
-# Aspect ratios that real decks actually ship
 CARD_SIZES = [(600, 1024), (1140, 1140), (2420, 1400)]
 
 
@@ -106,7 +105,7 @@ def test_cover_decodes_at_device_pixels_on_hidpi(tmp_path, qapp):
 
     assert retina.devicePixelRatio() == 2.0
     assert retina.width() == pytest.approx(normal.width() * 2, abs=2)
-    # Logical size is unchanged, so layout does not move on a HiDPI screen.
+    # Logical size is unchanged
     assert retina.width() / retina.devicePixelRatio() == pytest.approx(normal.width(), abs=1)
 
 
@@ -209,8 +208,6 @@ def test_hover_is_painted_but_weaker_than_selection(qapp, tmp_path):
 
 
 def test_the_cell_follows_the_colour_scheme(qapp, tmp_path):
-    """The whole point of the redesign: no hardcoded #aaa, so a dark scheme and a
-    light scheme paint differently without the view knowing which is which."""
     delegate = DeckDelegate()
     model = model_with_cover(tmp_path)
 

@@ -1,10 +1,3 @@
-"""Kirigami's standard units, as plain pixel constants.
-
-The KDE HIG measures everything in these; keeping them named here means the
-delegate reads like the guideline it implements and there are no bare numbers
-scattered through the paint code.
-"""
-
 SMALL_SPACING = 4
 LARGE_SPACING = 8
 GRID_UNIT = 18

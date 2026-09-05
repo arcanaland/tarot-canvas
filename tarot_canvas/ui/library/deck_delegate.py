@@ -1,5 +1,3 @@
-"""Paints one deck cell: cover, title, subtitle — all in palette colours."""
-
 from dataclasses import dataclass
 
 from PyQt6.QtCore import QRect, QSize, Qt
@@ -10,9 +8,6 @@ from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.cover_cache import CoverCache
 from tarot_canvas.ui.library.deck_model import CoverPathRole, SubtitleRole
 
-# Alpha applied to palette colours. Everything the delegate draws is derived
-# from QPalette, so the view follows the user's colour scheme in both light and
-# dark without a single hex literal in this file.
 HOVER_ALPHA = 38  # ~15% Highlight behind a hovered cell
 COVER_BORDER_ALPHA = 26  # ~10% Text as the cover hairline
 PLACEHOLDER_WELL_ALPHA = 20
@@ -24,8 +19,6 @@ PLACEHOLDER_ICON_FRACTION = 0.4
 
 @dataclass(frozen=True)
 class CellLayout:
-    """Sub-rects of one cell. Pure geometry, so it is testable without a painter."""
-
     cover: QRect
     title: QRect
     subtitle: QRect
@@ -42,7 +35,6 @@ class DeckDelegate(QStyledItemDelegate):
         return self._density
 
     def set_density(self, density):
-        """Returns True when the density actually changed, so the view can relayout."""
         if density not in units.DENSITIES:
             density = units.DENSITY_MEDIUM
         if density == self._density:
@@ -57,7 +49,7 @@ class DeckDelegate(QStyledItemDelegate):
 
     def title_font(self, base=None, selected=False):
         font = QFont(base or QApplication.font())
-        # The HIG asks for bold on the selected grid item, and only there.
+        # The HIG asks for bold only on the selected item
         font.setBold(selected)
         return font
 
@@ -73,11 +65,6 @@ class DeckDelegate(QStyledItemDelegate):
     # -- geometry ---------------------------------------------------------
 
     def _layout(self, option):
-        """Sub-rects for a cell occupying `option.rect`.
-
-        One helper owns all the arithmetic so the paint path stays a
-        transcription of it, and so the geometry can be unit-tested.
-        """
         cover = self.cover_size()
         title_height = QFontMetrics(self.title_font(option.font)).height()
         subtitle_height = QFontMetrics(self.subtitle_font(option.font)).height()
@@ -172,6 +159,7 @@ class DeckDelegate(QStyledItemDelegate):
             round(pixmap.width() / pixmap.devicePixelRatio()),
             round(pixmap.height() / pixmap.devicePixelRatio()),
         )
+
         # Bottom-aligned inside the well, so titles sit the same distance under
         # the artwork whatever aspect ratio the deck's cards happen to be.
         art.moveCenter(well.center())
@@ -185,7 +173,7 @@ class DeckDelegate(QStyledItemDelegate):
         painter.drawRoundedRect(art, units.COVER_RADIUS, units.COVER_RADIUS)
 
     def _paint_placeholder(self, painter, well, palette):
-        """A well the same footprint as real art, so rows never lose alignment."""
+        """A well the same footprint as real art"""
         ground = QColor(palette.text().color())
         ground.setAlpha(PLACEHOLDER_WELL_ALPHA)
         painter.setPen(Qt.PenStyle.NoPen)

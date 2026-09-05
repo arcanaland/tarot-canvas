@@ -5,12 +5,7 @@ from PyQt6.QtGui import QImageReader, QPixmap
 
 
 class CoverCache:
-    """Cache of cover pixmaps keyed by (path, well size, device pixel ratio).
-
-    Decoding goes through `QImageReader.setScaledSize()` so a 2400px source is
-    never fully decoded just to paint a 216px cell. A miss that fails to decode
-    is cached as `None`, so a broken file is not retried on every repaint.
-    """
+    """Cache of cover pixmaps keyed by (path, well size, device pixel ratio)."""
 
     def __init__(self, capacity=256):
         self._capacity = capacity
@@ -20,7 +15,6 @@ class CoverCache:
         self._pixmaps.clear()
 
     def get(self, path, well_size, device_pixel_ratio=1.0):
-        """Cover for `path` fitted inside `well_size`, or None if undecodable."""
         key = (path, well_size.width(), well_size.height(), round(device_pixel_ratio, 3))
         if key in self._pixmaps:
             return self._pixmaps[key]
