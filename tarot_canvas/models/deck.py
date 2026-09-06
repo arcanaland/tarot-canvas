@@ -371,6 +371,59 @@ class TarotDeck:
         """Get the description of the deck."""
         return self._metadata.get("deck", {}).get("description", "")
 
+    def get_metadata_fields(self):
+        """The whole `[deck]` table, as read from deck.toml."""
+        fields = self._metadata.get("deck", {})
+        return dict(fields) if isinstance(fields, dict) else {}
+
+    def _deck_field(self, key):
+        """A `[deck]` scalar, or None when the deck.toml omits it."""
+        value = self._metadata.get("deck", {}).get(key)
+        return value if value not in (None, "") else None
+
+    def get_author(self):
+        """Get the author of the deck, or None."""
+        return self._deck_field("author")
+
+    def get_license(self):
+        """Get the licence the deck is distributed under, or None."""
+        return self._deck_field("license")
+
+    def get_attribution(self):
+        """Get the attribution string a CC-BY-style licence requires, or None."""
+        return self._deck_field("attribution")
+
+    def get_publisher(self):
+        """Get the publisher of the deck, or None."""
+        return self._deck_field("publisher")
+
+    def get_website(self):
+        """Get the deck's website, or None."""
+        return self._deck_field("website")
+
+    def get_deck_id(self):
+        """Get the deck's spec identifier, or None."""
+        return self._deck_field("id")
+
+    def get_schema_version(self):
+        """Get the deck-spec schema version the deck declares, or None."""
+        return self._deck_field("schema_version")
+
+    def get_created_date(self):
+        """Get the deck's creation date, or None."""
+        return self._deck_field("created_date")
+
+    def get_updated_date(self):
+        """Get the date the deck was last updated, or None."""
+        return self._deck_field("updated_date")
+
+    def get_tags(self):
+        """Get the deck's tags as a tuple; empty when the deck.toml omits them."""
+        tags = self._metadata.get("deck", {}).get("tags")
+        if not isinstance(tags, list | tuple):
+            return ()
+        return tuple(str(tag) for tag in tags if str(tag))
+
     def get_card_backs(self):
         """Get available card back images and the default back."""
         if self._card_backs is None:

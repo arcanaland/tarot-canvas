@@ -1,12 +1,12 @@
 from pathlib import Path
 
 from PyQt6.QtCore import QSize, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QFont, QIcon
+from PyQt6.QtGui import QIcon, QPalette
 from PyQt6.QtWidgets import (
-    QDialog,
+    QApplication,
+    QFrame,
     QHBoxLayout,
     QLabel,
-    QPushButton,
     QScrollArea,
     QTabWidget,
     QVBoxLayout,
@@ -14,8 +14,14 @@ from PyQt6.QtWidgets import (
 )
 
 from tarot_canvas.models.deck import TarotDeck
+from tarot_canvas.ui.library import units
 from tarot_canvas.ui.tabs.base_tab import BaseTab
+from tarot_canvas.ui.widgets import deck_header
 from tarot_canvas.ui.widgets.card_thumbnail import CardThumbnail
+from tarot_canvas.ui.widgets.deck_header import DeckHeader
+
+SECTION_TITLE_SCALE = 1.15
+SECTION_MARGIN = deck_header.EDGE_MARGIN
 
 
 class CardScrollArea(QScrollArea):
@@ -28,58 +34,6 @@ class CardScrollArea(QScrollArea):
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         # Set fixed height to ensure all cards are fully visible
         self.setFixedHeight(height)
-
-
-class DeckInfoDialog(QDialog):
-    """Dialog to display deck metadata"""
-
-    def __init__(self, deck, parent=None):
-        super().__init__(parent)
-        self.deck = deck
-        self.setWindowTitle(f"About {deck.get_name()}")
-        self.setMinimumWidth(400)
-        self.setup_ui()
-
-    def setup_ui(self):
-        layout = QVBoxLayout(self)
-
-        # Deck Title
-        title_label = QLabel(self.deck.get_name())
-        title_label.setFont(QFont("Arial", 16, QFont.Weight.Bold))
-        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        creator_info = self.deck._metadata.get("deck", {}).get("author", "Unknown")
-        creator_label = QLabel(f"Created by: {creator_info}")
-
-        # Version
-        version = self.deck.get_version()
-        version_label = QLabel(f"Version: {version}")
-
-        # Card count
-        card_count = len(self.deck._cards)
-        count_label = QLabel(f"Card count: {card_count}")
-
-        # Description (if available)
-        description = self.deck.get_description()
-        if description:
-            desc_label = QLabel(description)
-            desc_label.setWordWrap(True)
-            desc_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
-
-        # Close button
-        close_button = QPushButton("Close")
-        close_button.clicked.connect(self.accept)
-
-        # Add widgets to layout
-        layout.addWidget(title_label)
-        layout.addWidget(creator_label)
-        layout.addWidget(version_label)
-        layout.addWidget(count_label)
-        if description:
-            layout.addWidget(QLabel(""))  # Spacer
-            layout.addWidget(desc_label)
-        layout.addStretch()
-        layout.addWidget(close_button)
 
 
 class DeckViewTab(BaseTab):
@@ -133,48 +87,48 @@ class DeckViewTab(BaseTab):
         # Also emit the signal as a backup mechanism
         self.title_changed.emit(self.deck.get_name())
 
+        self.layout.setContentsMargins(0, 0, 0, 0)
+
         # Main content widget with vertical layout
         content = QWidget()
         main_layout = QVBoxLayout(content)
         main_layout.setSpacing(15)
+        main_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Add the Major Arcana journey with deck info button
-        self.add_major_arcana_journey(main_layout)
+        # Deck-level header at the top of the page
+        self.header = DeckHeader(self.deck, parent=content)
+        main_layout.addWidget(self.header)
+
+        sections = QVBoxLayout()
+        sections.setContentsMargins(SECTION_MARGIN, 0, SECTION_MARGIN, SECTION_MARGIN)
+        sections.setSpacing(main_layout.spacing())
+        self.add_major_arcana_journey(sections)
 
         # Add Minor Arcana sections
-        self.add_minor_arcana_sections(main_layout)
+        self.add_minor_arcana_sections(sections)
+
+        sections.addStretch()
+        main_layout.addLayout(sections)
 
         # Add the content to a scroll area
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setWidget(content)
 
+        # The frame would put a line between the banner and the tab bar.
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+
         self.layout.addWidget(scroll)
 
-    def show_deck_info(self):
-        """Show the deck information dialog"""
-        dialog = DeckInfoDialog(self.deck, self)
-        dialog.exec()
+    def section_title(self, text):
+        """A section heading in the system font, scaled rather than hardcoded."""
+        label = QLabel(text)
+        label.setFont(units.scaled_font(QApplication.font(), SECTION_TITLE_SCALE, bold=True))
+        return label
 
     def add_major_arcana_journey(self, layout):
         """Add the Major Arcana journey section"""
-        # Create a header with section title and info button
-        header_layout = QHBoxLayout()
-
-        # Section title
-        journey_title = QLabel("Major Arcana")
-        journey_title.setFont(QFont("Arial", 14, QFont.Weight.Bold))
-
-        # Info button
-        info_button = QPushButton("Deck Info")
-        info_button.setMaximumWidth(100)
-        info_button.clicked.connect(self.show_deck_info)
-
-        header_layout.addWidget(journey_title)
-        header_layout.addStretch()
-        header_layout.addWidget(info_button)
-
-        layout.addLayout(header_layout)
+        layout.addWidget(self.section_title("Major Arcana"))
 
         # Get Major Arcana cards
         major_arcana = self.deck.get_cards_by_type("major_arcana")
@@ -214,7 +168,10 @@ class DeckViewTab(BaseTab):
             if exclusion_reason:
                 note_label = QLabel(f"Note: {exclusion_reason}")
                 note_label.setWordWrap(True)
-                note_label.setStyleSheet("font-style: italic; color: #666;")
+                note_font = QApplication.font()
+                note_font.setItalic(True)
+                note_label.setFont(note_font)
+                note_label.setForegroundRole(QPalette.ColorRole.PlaceholderText)
                 layout.addWidget(note_label)
 
         for suit in suits:
@@ -227,10 +184,7 @@ class DeckViewTab(BaseTab):
             # Get display name for the suit
             display_suit = self.deck.get_display_suit_name(suit)
 
-            # Section title
-            suit_title = QLabel(f"{display_suit}")
-            suit_title.setFont(QFont("Arial", 14, QFont.Weight.Bold))
-            layout.addWidget(suit_title)
+            layout.addWidget(self.section_title(display_suit))
 
             # Sort cards by rank (numeric order for numbered cards, then court cards)
             rank_order = {

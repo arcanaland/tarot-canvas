@@ -1,3 +1,5 @@
+from PyQt6.QtGui import QFont
+
 SMALL_SPACING = 4
 LARGE_SPACING = 8
 GRID_UNIT = 18
@@ -25,3 +27,16 @@ def cover_size(density):
     """(width, height) of the cover well at the given density."""
     width = COVER_WIDTHS.get(density, COVER_WIDTHS[DENSITY_MEDIUM])
     return width, round(width * COVER_ASPECT)
+
+
+def scaled_font(base, scale=1.0, bold=None):
+    """A copy of `base` at `scale` times its size, in whatever unit it uses."""
+    font = QFont(base)
+    if scale != 1.0:
+        if font.pointSizeF() > 0:
+            font.setPointSizeF(font.pointSizeF() * scale)
+        else:
+            font.setPixelSize(max(1, round(font.pixelSize() * scale)))
+    if bold is not None:
+        font.setBold(bold)
+    return font

@@ -1,8 +1,9 @@
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QApplication, QTabWidget
+from PyQt6.QtWidgets import QApplication, QTabWidget, QToolButton
 
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
+from tarot_canvas.ui.tabs.library_tab import LibraryTab
 from tests.conftest import MINIMAL_DECK_PATH
 
 
@@ -196,3 +197,65 @@ def test_middle_click_closes_exactly_one_tab(qtbot):
     assert window.tab_widget.indexOf(doomed) == -1
     assert window.tab_widget.indexOf(survivor) != -1
 
+
+def file_menu(window):
+    return window.menuBar().actions()[0].menu()
+
+
+def test_opening_a_tab_takes_no_drill_down(qtbot):
+    """The New submenu is gone: three items did not earn a level of navigation."""
+    window = MainWindow()
+    qtbot.addWidget(window)
+    actions = file_menu(window).actions()
+    assert not any(action.menu() for action in actions), "File has no submenus"
+
+    labels = [action.text() for action in actions if not action.isSeparator()]
+    assert labels[:3] == ["New &Canvas", "New &Library View", "New C&ard View"]
+
+
+def test_the_new_tab_shortcuts_survived_the_flattening(qtbot):
+    window = MainWindow()
+    qtbot.addWidget(window)
+    shortcuts = {
+        action.text(): action.shortcut().toString() for action in file_menu(window).actions()
+    }
+    assert shortcuts["New &Library View"] == "Ctrl+L"
+    assert shortcuts["New &Canvas"] == "Ctrl+N"
+    assert shortcuts["New C&ard View"] == "Ctrl+T"
+
+
+def test_the_tab_bar_has_a_new_tab_button(qtbot):
+    """What every tabbed app has: one click for the default tab, an arrow for the rest."""
+    window = MainWindow()
+    qtbot.addWidget(window)
+    corner = window.tab_widget.cornerWidget(Qt.Corner.TopRightCorner)
+    buttons = corner.findChildren(QToolButton)
+    new_tab = next(b for b in buttons if b.menu() is not None)
+
+    assert new_tab.defaultAction() is window.new_canvas_action
+    assert new_tab.popupMode() == QToolButton.ToolButtonPopupMode.MenuButtonPopup
+    assert new_tab.menu().actions() == [
+        window.new_canvas_action,
+        window.new_library_action,
+        window.new_card_view_action,
+    ]
+
+
+def test_the_new_tab_button_actually_opens_a_tab(qtbot):
+    """The button's default action is the shared QAction, so triggering it is the click."""
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.new_canvas_action.trigger()
+    # The new-tab helpers close the Welcome tab as they open, so the count is unchanged.
+    assert isinstance(window.tab_widget.currentWidget(), CanvasTab)
+
+    window.new_library_action.trigger()
+    assert isinstance(window.tab_widget.currentWidget(), LibraryTab)
+
+
+def test_the_search_button_is_still_reachable(qtbot):
+    """It shared the corner with nothing before; now it shares a container."""
+    window = MainWindow()
+    qtbot.addWidget(window)
+    corner = window.tab_widget.cornerWidget(Qt.Corner.TopRightCorner)
+    assert len(corner.findChildren(QToolButton)) == 2

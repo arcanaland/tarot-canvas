@@ -120,23 +120,26 @@ class MainWindow(QMainWindow):
         # File menu
         file_menu = menu_bar.addMenu("&File")
 
-        new_menu = QMenu("&New", self)
-        file_menu.addMenu(new_menu)
+        # New Buttons
+        self.new_canvas_action = QAction("New &Canvas", self)
+        self.new_canvas_action.setShortcut("Ctrl+N")
+        self.new_canvas_action.setIcon(QIcon.fromTheme("document-new"))
+        self.new_canvas_action.triggered.connect(self.new_canvas_tab)
+        file_menu.addAction(self.new_canvas_action)
 
-        new_canvas_action = QAction("&Canvas", self)
-        new_canvas_action.setShortcut("Ctrl+N")
-        new_canvas_action.triggered.connect(self.new_canvas_tab)
-        new_menu.addAction(new_canvas_action)
+        self.new_library_action = QAction("New &Library View", self)
+        self.new_library_action.setShortcut("Ctrl+L")
+        self.new_library_action.setIcon(QIcon.fromTheme("view-list-icons"))
+        self.new_library_action.triggered.connect(self.new_library_tab)
+        file_menu.addAction(self.new_library_action)
 
-        new_card_view_action = QAction("&Card View", self)
-        new_card_view_action.setShortcut("Ctrl+T")
-        new_card_view_action.triggered.connect(self.new_card_view_tab)
-        new_menu.addAction(new_card_view_action)
+        self.new_card_view_action = QAction("New C&ard View", self)
+        self.new_card_view_action.setShortcut("Ctrl+T")
+        self.new_card_view_action.setIcon(QIcon.fromTheme("card"))
+        self.new_card_view_action.triggered.connect(self.new_card_view_tab)
+        file_menu.addAction(self.new_card_view_action)
 
-        new_library_action = QAction("&Library View", self)
-        new_library_action.setShortcut("Ctrl+L")
-        new_library_action.triggered.connect(self.new_library_tab)
-        new_menu.addAction(new_library_action)
+        file_menu.addSeparator()
 
         open_action = QAction("&Open Deck", self)
         open_action.setShortcut("Ctrl+O")
@@ -292,6 +295,26 @@ class MainWindow(QMainWindow):
         self.tab_widget.currentChanged.connect(self.on_tab_changed)
         self.tab_widget.setMovable(True)
 
+        # + on the tab bar
+        new_tab_button = QToolButton()
+        new_tab_button.setAutoRaise(True)
+        new_tab_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+        new_tab_button.setDefaultAction(self.new_canvas_action)
+        new_tab_icon = QIcon.fromTheme("tab-new", QIcon.fromTheme("list-add"))
+        new_tab_button.setIcon(new_tab_icon)
+        if new_tab_icon.isNull():
+            new_tab_button.setText("+")
+            new_tab_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+        else:
+            new_tab_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        new_tab_button.setToolTip("New tab (Ctrl+N)")
+
+        new_tab_menu = QMenu(new_tab_button)
+        new_tab_menu.addAction(self.new_canvas_action)
+        new_tab_menu.addAction(self.new_library_action)
+        new_tab_menu.addAction(self.new_card_view_action)
+        new_tab_button.setMenu(new_tab_menu)
+
         # Create search button and put it in the tab corner
         search_button = QToolButton()
         search_button.setIcon(
@@ -316,17 +339,21 @@ class MainWindow(QMainWindow):
             }
         """)
 
-        # Add the search button to the right corner of the tab widget
-        self.tab_widget.setCornerWidget(search_button, Qt.Corner.TopRightCorner)
+        # shared corner container with the + and search
+        corner = QWidget()
+        corner_layout = QHBoxLayout(corner)
+        corner_layout.setContentsMargins(0, 0, 0, 0)
+        corner_layout.setSpacing(0)
+        corner_layout.addWidget(new_tab_button)
+        corner_layout.addWidget(search_button)
+        self.tab_widget.setCornerWidget(corner, Qt.Corner.TopRightCorner)
 
         right_layout.addWidget(self.tab_widget)
 
         # Add the right container to the splitter
         self.main_splitter.addWidget(right_container)
 
-        # Set appropriate sizes for splitter
-        width = self.width()
-        self.main_splitter.setSizes([int(width * 0.2), int(width * 0.8)])
+        self.size_splitter_to_explorer()
 
         main_layout.addWidget(self.main_splitter)
 
@@ -409,7 +436,6 @@ class MainWindow(QMainWindow):
 
         # Store initial tab name for reference
         tab.original_tab_name = self.tab_widget.tabText(tab_index)
-
 
     def show_tab_rename_dialog(self, tab_index):
         """Show a dialog to rename the tab at the given index"""
@@ -666,13 +692,17 @@ class MainWindow(QMainWindow):
         self.fullscreen_canvas_action.setChecked(False)
         tab.sync_fullscreen_action()
 
+    def size_splitter_to_explorer(self):
+        """Give the explorer its content width only"""
+        explorer_width = self.card_explorer.preferred_width()
+        total = self.main_splitter.width() or self.width()
+        self.main_splitter.setSizes([explorer_width, max(total - explorer_width, 1)])
+
     def toggle_card_explorer(self, checked):
         """Toggle visibility of the card explorer panel"""
         if checked:
             self.card_explorer.show()
-            # Adjust splitter sizes to show explorer with reasonable width
-            width = self.main_splitter.width()
-            self.main_splitter.setSizes([int(width * 0.2), int(width * 0.8)])
+            self.size_splitter_to_explorer()
         else:
             self.card_explorer.hide()
             # Collapse explorer completely
