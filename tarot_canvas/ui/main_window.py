@@ -295,21 +295,14 @@ class MainWindow(QMainWindow):
         self.tab_widget.currentChanged.connect(self.on_tab_changed)
         self.tab_widget.setMovable(True)
 
-        # A "+" on the tab bar, as every tabbed app has: one click opens the default
-        # new tab, the arrow picks another kind. The menu is the same three QActions the
-        # File menu holds, so the two can never drift.
+        # + on the tab bar
         new_tab_button = QToolButton()
         new_tab_button.setAutoRaise(True)
         new_tab_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
-        # Canvas, not Library: most people have exactly one deck, so a new tab is far
-        # more often somewhere to lay cards out than another shelf to look at.
         new_tab_button.setDefaultAction(self.new_canvas_action)
-        # setDefaultAction adopts the action's text and icon, which would put "New
-        # Canvas" on the tab bar. The button is a "+"; the menu carries the words.
         new_tab_icon = QIcon.fromTheme("tab-new", QIcon.fromTheme("list-add"))
         new_tab_button.setIcon(new_tab_icon)
         if new_tab_icon.isNull():
-            # No icon theme (a bare session, or the offscreen platform in tests).
             new_tab_button.setText("+")
             new_tab_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
         else:
@@ -346,7 +339,7 @@ class MainWindow(QMainWindow):
             }
         """)
 
-        # Both corner buttons share one container; Qt allows a single widget per corner.
+        # shared corner container with the + and search
         corner = QWidget()
         corner_layout = QHBoxLayout(corner)
         corner_layout.setContentsMargins(0, 0, 0, 0)

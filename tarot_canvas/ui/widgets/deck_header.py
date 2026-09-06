@@ -1,16 +1,3 @@
-"""The deck-level header shown inline at the top of a deck view tab.
-
-Replaces the modal "Deck Info" dialog. Collapsed, the header is an identity strip —
-cover, title, subtitle — carrying the same grammar as the library delegate, so a deck
-reads as the same object in the grid and in its own tab. `Details` discloses the rest of
-the `[deck]` table, led by the description and then licence and attribution, since those
-are the ones a deck's licence may actually oblige the app to surface.
-
-The cover shrinks with the disclosure: at the library's own cover size it would be the
-tallest thing in the collapsed strip by a factor of two, and the header would be mostly
-the empty column beside it.
-"""
-
 from PyQt6.QtCore import QDate, QLocale, QPoint, QRect, QSize, Qt
 from PyQt6.QtGui import (
     QColor,
@@ -45,17 +32,12 @@ from tarot_canvas.ui.widgets.tag_chips import TagChips, normalized_tags
 TITLE_SCALE = 1.3
 SUBTITLE_SCALE = 0.85
 
-#: The HIG's ~85-character measure, applied to the detail values.
 MEASURE_CHARACTERS = 85
 
-#: Cover-well width when collapsed, in grid units. Expanded, the well is the library's
-#: own small cover.
 COLLAPSED_COVER_UNITS = 3
 
-#: `[deck]` keys the collapsed rows already show, so the details form omits them.
 COLLAPSED_KEYS = ("name", "author")
 
-#: Keys rendered in this order, with these labels, ahead of the generic tail.
 DETAIL_FIELDS = (
     ("description", "Description"),
     ("license", "License"),
@@ -70,49 +52,19 @@ DETAIL_FIELDS = (
     ("schema_version", "Schema version"),
 )
 
-#: Keys whose values are dates and are rendered in the reader's locale.
 DATE_KEYS = ("created_date", "updated_date")
-
-#: Vertical padding inside the banner, above the title and below the subtitle. Larger
-#: than the collapsed strip's, which stays tight on purpose — a banner needs to read as
-#: a band with room in it, where the collapsed strip is only an identity line.
 BANNER_PADDING = 2 * units.LARGE_SPACING
-
-#: Gap between the banner's bottom edge and the first row of the detail form. Without it
-#: the form starts exactly where the band ends, since the band's own bottom padding is
-#: measured from the subtitle.
 DETAILS_GAP = 2 * units.LARGE_SPACING
-
-#: Side margin for the header's content. Everything below the header in the deck view
-#: uses the same value, so the cover's edge and the section titles line up.
 EDGE_MARGIN = 2 * units.LARGE_SPACING
-
-#: Width, in pixels, the cover is decoded to before being scaled back up. This is the
-#: blur: a box filter at this radius would cost a convolution per repaint, where a
-#: smooth upscale from a tiny decode costs one `QImageReader` call, cached.
 BANNER_SAMPLE_WIDTH = 24
-
-#: Opacity of the black scrim composited over the blurred cover, out of 255. This is
-#: what makes the banner safe to put fixed light text on: the scrim bounds the result to
-#: at most `255 - BANNER_SCRIM_ALPHA` per channel whatever the deck's artwork is, so the
-#: contrast floor against `BANNER_TEXT` is a property of this constant, not of the deck.
-#: See `test_the_banner_guarantees_a_contrast_floor`.
 BANNER_SCRIM_ALPHA = 165
-
-#: Text on the banner. Not palette-derived, deliberately: the scrim above owns the
-#: backdrop's luminance, so the active colour scheme is the wrong source here — under a
-#: light scheme its text colour would be dark-on-dark. Everything outside the banner
-#: stays palette-derived.
 BANNER_TEXT = QColor(255, 255, 255)
 BANNER_SUBTEXT = QColor(255, 255, 255, 190)
-
-#: The HIG asks for a contrasting outline on anything overlaid on the content area, or
-#: it blends into the background under a dark scheme (`hig/displaying_content.md:62`).
 BANNER_OUTLINE = QColor(255, 255, 255, 64)
 
 
 def cover_size(expanded):
-    """(width, height) of the cover well in the given disclosure state."""
+    """(width, height) of the cover well."""
     if expanded:
         return units.cover_size(units.DENSITY_SMALL)
     width = COLLAPSED_COVER_UNITS * units.GRID_UNIT
@@ -120,47 +72,38 @@ def cover_size(expanded):
 
 
 def format_value(value):
-    """Render one `[deck]` value as a display string, or None if it has no scalar form."""
     if value is None or isinstance(value, bool):
         return None if value is None else ("Yes" if value else "No")
+
     if isinstance(value, list | tuple):
         parts = [format_value(item) for item in value]
         parts = [part for part in parts if part]
         return ", ".join(parts) if parts else None
+
+    # skip sub-tables
     if isinstance(value, dict):
-        # Sub-tables (`[deck.excluded_cards]`) have their own surfaces; a flattened
-        # dump here would be noise.
         return None
+
     text = str(value).strip()
     return text or None
 
 
 def format_date(text):
-    """An ISO-8601 date in the reader's locale, or `text` unchanged if it is not one.
-
-    Deck dates are `YYYY-MM-DD` strings in practice, but TOML also permits a bare date
-    literal and nothing stops a deck writing a partial date, so anything QDate rejects
-    is passed through as the deck wrote it.
-    """
     date = QDate.fromString(text, Qt.DateFormat.ISODate)
+
     if not date.isValid():
         return text
 
     locale = QLocale.system()
-    # The locale's own long form, minus the weekday: en_US spells it "dddd, MMMM d,
-    # yyyy", and "Wednesday" says nothing useful about a deck published in 1909.
     pattern = locale.dateFormat(QLocale.FormatType.LongFormat)
+
     for weekday in ("dddd, ", ", dddd", "dddd ", " dddd", "dddd"):
         pattern = pattern.replace(weekday, "")
+
     return locale.toString(date, pattern.strip()) or text
 
 
 def detail_rows(fields):
-    """(label, value, key) triples for the details form, in display order.
-
-    Known keys come first in `DETAIL_FIELDS` order; anything else the deck declares
-    follows under its raw key, so a deck using a field this app predates still shows it.
-    """
     rows = []
     named = set()
     for key, label in DETAIL_FIELDS:
@@ -182,12 +125,6 @@ def detail_rows(fields):
 
 
 def wrapped_height(text, font, width):
-    """The height `text` needs when word-wrapped to `width`.
-
-    Measured directly rather than left to `heightForWidth`, which does not propagate
-    reliably through the nested box layouts this header is built from — the symptom is
-    a long licence or attribution clipped to one line.
-    """
     if not text or width <= 0:
         return 0
     metrics = QFontMetrics(font)
@@ -200,8 +137,6 @@ def _is_link(value):
 
 
 class DeckHeader(QWidget):
-    """Cover, title and subtitle for one deck, with the rest behind `Details`."""
-
     def __init__(self, deck, parent=None, cover_cache=None, settings=None):
         super().__init__(parent)
         self.deck = deck
@@ -215,12 +150,8 @@ class DeckHeader(QWidget):
     # -- construction -----------------------------------------------------
 
     def _build(self):
-        # Hug the content: the deck view gives its vertical slack to the card rows.
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
         outer = QVBoxLayout(self)
-        # Wider at the sides than top and bottom: the banner bleeds to the view's edges,
-        # so this margin is all that keeps the title off them, while the vertical margin
-        # still has the separator and the card rows below to breathe against.
         outer.setContentsMargins(EDGE_MARGIN, units.LARGE_SPACING, EDGE_MARGIN, units.LARGE_SPACING)
         outer.setSpacing(units.LARGE_SPACING)
 
@@ -228,9 +159,6 @@ class DeckHeader(QWidget):
         self.row.setSpacing(units.LARGE_SPACING)
         self.row.addWidget(self._build_cover(), 0, Qt.AlignmentFlag.AlignTop)
 
-        # The text column is shorter than the cover when collapsed; it is aligned within
-        # the row rather than stretched, so `_apply_expanded` can centre it against the
-        # cover instead of leaving a hole under it.
         self.text_container = QWidget()
         self.text_container.setLayout(self._build_text_column())
         self.row.addWidget(self.text_container, 1)
@@ -338,11 +266,8 @@ class DeckHeader(QWidget):
         return details
 
     def _build_tag_chips(self, raw):
-        """Tags are the one multi-valued field here, so they get chips, not a sentence."""
         chips = TagChips(normalized_tags(raw), self.measure())
         chips.setFixedWidth(self.measure())
-        # Same reason the text rows measure their own heights: `heightForWidth` does not
-        # survive these nested layouts.
         chips.setMinimumHeight(chips.heightForWidth(self.measure()))
         self.detail_labels["tags"] = chips
         return chips
@@ -350,11 +275,6 @@ class DeckHeader(QWidget):
     # -- content ----------------------------------------------------------
 
     def subtitle_text(self):
-        """`author · N cards` — whichever of the two the deck actually declares.
-
-        The version is a detail row: on the identity line it was a third of what the
-        deck appeared to be, and every deck in the wild declares `1.0` or thereabouts.
-        """
         parts = []
         author = self.deck.get_author()
         if author:
@@ -372,7 +292,6 @@ class DeckHeader(QWidget):
         return widest + 2 * units.LARGE_SPACING
 
     def measure(self):
-        """The HIG's ~85-character line length, in pixels at the current font."""
         return MEASURE_CHARACTERS * max(1, QFontMetrics(QApplication.font()).averageCharWidth())
 
     def is_expanded(self):
@@ -386,8 +305,6 @@ class DeckHeader(QWidget):
             DECK_HEADER_EXPANDED_KEY, DECK_HEADER_EXPANDED_DEFAULT, type=bool
         )
         self.details_button.setChecked(bool(stored))
-        # setChecked is a no-op when the stored value matches the default, so apply the
-        # dependent state unconditionally.
         self._apply_expanded(self.details_button.isChecked())
 
     def _on_toggled(self, expanded):
@@ -397,14 +314,11 @@ class DeckHeader(QWidget):
     # -- banner -----------------------------------------------------------
 
     def banner_rect(self):
-        """The strip the banner occupies, empty when there is no banner to draw.
-
-        Bounded to the title and subtitle: the detail form below keeps the active colour
-        scheme's own background, so only two labels ever sit on non-palette colour.
-        """
         if not self.is_expanded() or not self._cover_path:
             return QRect()
+
         bottom = self.subtitle_label.mapTo(self, QPoint(0, self.subtitle_label.height())).y()
+
         return QRect(0, 0, self.width(), bottom + BANNER_PADDING)
 
     def _banner_pixmap(self, size):
@@ -415,7 +329,6 @@ class DeckHeader(QWidget):
             return self._banner_pixmaps[key]
 
         pixmap = self._render_banner(size, ratio)
-        # One deck, a handful of widths as the window is resized.
         if len(self._banner_pixmaps) >= 16:
             self._banner_pixmaps.clear()
         self._banner_pixmaps[key] = pixmap
@@ -434,9 +347,7 @@ class DeckHeader(QWidget):
         if image.isNull():
             return None
 
-        # Upscaling the tiny decode smoothly is the blur; expanding rather than fitting
-        # keeps the strip filled, at the price of cropping a portrait cover hard — which
-        # at this radius is a wash of the deck's colour rather than a picture of a card.
+        # upscale the tiny decode smoothly (blur)
         device = QSize(max(1, round(size.width() * ratio)), max(1, round(size.height() * ratio)))
         image = image.scaled(
             device,
@@ -447,6 +358,7 @@ class DeckHeader(QWidget):
             max(0, (image.width() - device.width()) // 2),
             max(0, (image.height() - device.height()) // 2),
         )
+
         image = image.copy(QRect(offset, device))
 
         pixmap = QPixmap.fromImage(image)

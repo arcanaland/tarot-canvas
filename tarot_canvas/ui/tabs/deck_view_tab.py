@@ -21,9 +21,6 @@ from tarot_canvas.ui.widgets.card_thumbnail import CardThumbnail
 from tarot_canvas.ui.widgets.deck_header import DeckHeader
 
 SECTION_TITLE_SCALE = 1.15
-
-#: Side margin for everything below the header. Matches the header's own content margin,
-#: so section titles line up with the deck's cover rather than sitting inboard of it.
 SECTION_MARGIN = deck_header.EDGE_MARGIN
 
 
@@ -90,20 +87,15 @@ class DeckViewTab(BaseTab):
         # Also emit the signal as a backup mechanism
         self.title_changed.emit(self.deck.get_name())
 
-        # Flush to the tab, as `library_tab.py` already does — the banner is a page
-        # header and the base tab's default margin would inset it from every edge.
         self.layout.setContentsMargins(0, 0, 0, 0)
 
         # Main content widget with vertical layout
         content = QWidget()
         main_layout = QVBoxLayout(content)
         main_layout.setSpacing(15)
-        # No margin here: the header's banner is a page header and has to reach the
-        # view's edges, or it reads as a bar floating 21px in from every side. The
-        # sections below take the margin back for themselves.
         main_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Deck-level header, inline at the top of the page (not a modal dialog)
+        # Deck-level header at the top of the page
         self.header = DeckHeader(self.deck, parent=content)
         main_layout.addWidget(self.header)
 
@@ -115,8 +107,6 @@ class DeckViewTab(BaseTab):
         # Add Minor Arcana sections
         self.add_minor_arcana_sections(sections)
 
-        # The card rows have a fixed height, so without this the scroll area's slack
-        # lands on the section titles and pushes them off their rows.
         sections.addStretch()
         main_layout.addLayout(sections)
 
@@ -124,6 +114,7 @@ class DeckViewTab(BaseTab):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setWidget(content)
+
         # The frame would put a line between the banner and the tab bar.
         scroll.setFrameShape(QFrame.Shape.NoFrame)
 
