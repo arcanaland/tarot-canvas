@@ -1,5 +1,3 @@
-"""The `[deck]` accessors the deck header reads, and its field-selection logic."""
-
 from tarot_canvas.ui.widgets.deck_header import (
     DETAIL_FIELDS,
     detail_rows,
@@ -9,7 +7,6 @@ from tarot_canvas.ui.widgets.deck_header import (
 
 
 def test_reference_style_fields_are_all_exposed(minimal_deck):
-    """A deck.toml that omits a field yields None, not a KeyError or an empty string."""
     assert minimal_deck.get_name() == "Minimal Test Deck"
     assert minimal_deck.get_version() == "1.0.0"
     for accessor in (
@@ -82,7 +79,6 @@ def test_the_description_leads_the_form_and_the_version_is_in_it():
 
 
 def test_dates_are_rendered_in_the_readers_locale():
-    """ISO is a wire format; a deck page is read by a person."""
     rows = dict((key, value) for _, value, key in detail_rows({"created_date": "1909-12-01"}))
     assert rows["created_date"] != "1909-12-01"
     assert "1909" in rows["created_date"]
@@ -90,19 +86,16 @@ def test_dates_are_rendered_in_the_readers_locale():
 
 
 def test_a_date_qt_cannot_parse_is_passed_through_as_written(qapp):
-    """The spec does not forbid a partial date, and TOML permits a bare date literal."""
     assert format_date("1909") == "1909"
     assert format_date("sometime in 1909") == "sometime in 1909"
     assert format_date("2025-05-04") != "2025-05-04"
 
 
 def test_the_formatted_date_carries_no_weekday(qapp):
-    """A weekday is noise on a publication date, and Qt's en_US long form includes one."""
     assert "day," not in format_date("1909-12-01")
 
 
 def test_unknown_keys_render_generically_after_the_known_ones():
-    """A reference implementation shows a field it predates rather than dropping it."""
     rows = detail_rows({"license": "CC0", "aspect_ratio": 0.569, "future_key": "x"})
     assert rows == [
         ("License", "CC0", "license"),
