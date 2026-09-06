@@ -360,9 +360,7 @@ class MainWindow(QMainWindow):
         # Add the right container to the splitter
         self.main_splitter.addWidget(right_container)
 
-        # Set appropriate sizes for splitter
-        width = self.width()
-        self.main_splitter.setSizes([int(width * 0.2), int(width * 0.8)])
+        self.size_splitter_to_explorer()
 
         main_layout.addWidget(self.main_splitter)
 
@@ -702,13 +700,17 @@ class MainWindow(QMainWindow):
         self.fullscreen_canvas_action.setChecked(False)
         tab.sync_fullscreen_action()
 
+    def size_splitter_to_explorer(self):
+        """Give the explorer its content width only"""
+        explorer_width = self.card_explorer.preferred_width()
+        total = self.main_splitter.width() or self.width()
+        self.main_splitter.setSizes([explorer_width, max(total - explorer_width, 1)])
+
     def toggle_card_explorer(self, checked):
         """Toggle visibility of the card explorer panel"""
         if checked:
             self.card_explorer.show()
-            # Adjust splitter sizes to show explorer with reasonable width
-            width = self.main_splitter.width()
-            self.main_splitter.setSizes([int(width * 0.2), int(width * 0.8)])
+            self.size_splitter_to_explorer()
         else:
             self.card_explorer.hide()
             # Collapse explorer completely

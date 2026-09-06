@@ -62,13 +62,28 @@ class CardExplorerPanel(QWidget):
 
         self.deck_selector = QComboBox()
         self.deck_selector.currentIndexChanged.connect(self.on_deck_changed)
+        self.deck_selector.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
+        )
+        self.deck_selector.setMinimumContentsLength(10)
         deck_layout.addWidget(self.deck_selector, 1)  # 1 = stretch factor
 
         layout.addLayout(deck_layout)
 
-        # Set initial size
-        self.setMinimumWidth(200)
         self.setMaximumWidth(300)
+
+    def preferred_width(self):
+        """Width at which the widest row in the card list fits without eliding."""
+        tree = self.tree_view
+        width = tree.sizeHintForColumn(0)
+        width += 2 * tree.frameWidth()
+
+        # the scrollbar is a permanent fixture
+        width += tree.verticalScrollBar().sizeHint().width()
+        margins = self.layout().contentsMargins()
+        width += margins.left() + margins.right()
+
+        return min(max(width, self.minimumSizeHint().width()), self.maximumWidth())
 
     def populate_deck_selector(self):
         """Fill the deck selector dropdown with available decks"""
