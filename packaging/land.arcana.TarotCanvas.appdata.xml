@@ -56,6 +56,18 @@
           </description>
         </release>
     -->
+    <release version="1.4.0" date="2026-09-06" type="stable">
+      <description>
+        <p>Redesigned the Library View and Deck View.</p>
+        <ul>
+          <li>Reworked Library View to follow KDE's Human Interface Guidelines.</li>
+          <li>Reworked the deck metadata panel in the Deck View.</li>
+          <li>Added instructions for adding custom decks and esoterica.</li>
+          <li>Added a "New Tab" button to the tab bar.</li>
+          <li>Middle-clicking a tab now closes it.</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.3.1" date="2026-09-03" type="stable">
       <description>
         <p>Introduced a new icon based on the Eight of Cups.</p>
