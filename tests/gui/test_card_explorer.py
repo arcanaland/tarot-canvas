@@ -1,5 +1,4 @@
 from PyQt6.QtGui import QFontMetrics
-from PyQt6.QtWidgets import QComboBox
 
 from tarot_canvas.ui.components.card_explorer import CardExplorerPanel
 
@@ -35,8 +34,6 @@ def test_preferred_width_stays_within_the_panels_own_bounds(qtbot):
 
     assert explorer.minimumSizeHint().width() <= explorer.preferred_width()
     assert explorer.preferred_width() <= explorer.maximumWidth()
-
-
 
 
 def test_preferred_width_follows_the_selected_deck(qtbot):

@@ -444,7 +444,6 @@ class MainWindow(QMainWindow):
         # Store initial tab name for reference
         tab.original_tab_name = self.tab_widget.tabText(tab_index)
 
-
     def show_tab_rename_dialog(self, tab_index):
         """Show a dialog to rename the tab at the given index"""
         tab = self.tab_widget.widget(tab_index)
