@@ -1,8 +1,11 @@
+import shutil
+
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication, QTabWidget
 
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
+from tests.conftest import MINIMAL_DECK_PATH
 
 
 def test_main_window_opens_with_welcome_tab(qtbot):
@@ -120,3 +123,45 @@ def test_f11_on_a_non_canvas_tab_does_nothing(qtbot):
     assert window.canvas_fullscreen_tab is None
     assert window.menuBar().isVisible()
     assert not window.fullscreen_canvas_action.isChecked()
+
+
+def test_opening_the_same_deck_twice_reuses_its_tab(qtbot):
+    window = MainWindow()
+    qtbot.addWidget(window)
+
+    first = window.new_deck_view_tab(deck_path=str(MINIMAL_DECK_PATH))
+    count_after_first = window.tab_widget.count()
+    window.new_canvas_tab()
+    window.tab_widget.setCurrentIndex(window.tab_widget.count() - 1)
+
+    second = window.new_deck_view_tab(deck_path=str(MINIMAL_DECK_PATH))
+
+    assert second is first
+    assert window.tab_widget.count() == count_after_first + 1  # only the canvas tab
+    assert window.tab_widget.currentWidget() is first
+
+
+def test_the_same_deck_reached_by_a_path_object_reuses_its_tab(qtbot):
+    """The reference deck is a Path for some reason."""
+    window = MainWindow()
+    qtbot.addWidget(window)
+
+    first = window.new_deck_view_tab(deck_path=str(MINIMAL_DECK_PATH))
+    second = window.new_deck_view_tab(deck_path=MINIMAL_DECK_PATH)
+
+    assert second is first
+
+
+def test_a_deck_link_from_a_card_view_reuses_the_open_deck_tab(qtbot):
+    window = MainWindow()
+    qtbot.addWidget(window)
+
+    first = window.new_deck_view_tab(deck_path=str(MINIMAL_DECK_PATH))
+    count_before = window.tab_widget.count()
+    window.new_canvas_tab()
+    window.tab_widget.setCurrentIndex(window.tab_widget.count() - 1)
+
+    window.handle_tab_navigation("open_deck_view", {"deck_path": str(MINIMAL_DECK_PATH)})
+
+    assert window.tab_widget.count() == count_before + 1
+    assert window.tab_widget.currentWidget() is first

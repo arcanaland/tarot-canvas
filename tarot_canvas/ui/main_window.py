@@ -443,23 +443,7 @@ class MainWindow(QMainWindow):
             self.tab_widget.setCurrentWidget(card_tab)
 
         elif action == "open_deck_view":
-            # Extract the data
             deck_path = data.get("deck_path")
-            source_tab_id = data.get("source_tab_id")
-
-            # Check if a tab for this deck already exists
-            for i in range(self.tab_widget.count()):
-                tab = self.tab_widget.widget(i)
-                if (
-                    hasattr(tab, "deck_path")
-                    and tab.deck_path == deck_path
-                    and isinstance(tab, DeckViewTab)
-                ):
-                    # Tab exists, just select it
-                    self.tab_widget.setCurrentWidget(tab)
-                    return
-
-            # Create a new deck view tab
             self.new_deck_view_tab(deck_path=deck_path)
 
         elif action == "navigate":
@@ -471,7 +455,34 @@ class MainWindow(QMainWindow):
                     self.tab_widget.setCurrentWidget(tab)
                     break
 
+    @staticmethod
+    def _deck_path_key(deck_path):
+        """Normalized form of a deck path, for comparing tabs."""
+        if not deck_path:
+            return None
+
+        return os.path.normcase(os.path.realpath(os.fspath(deck_path)))
+
+    def find_deck_view_tab(self, deck_path):
+        """The open DeckViewTab or None."""
+        key = self._deck_path_key(deck_path)
+
+        if key is None:
+            return None
+
+        for i in range(self.tab_widget.count()):
+            tab = self.tab_widget.widget(i)
+            if isinstance(tab, DeckViewTab) and self._deck_path_key(tab.deck_path) == key:
+                return tab
+
+        return None
+
     def new_deck_view_tab(self, deck_path=None):
+        existing = self.find_deck_view_tab(deck_path)
+        if existing is not None:
+            self.tab_widget.setCurrentWidget(existing)
+            return existing
+
         # Try to create the deck tab
         try:
             deck_tab = DeckViewTab(deck_path=deck_path)
