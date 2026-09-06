@@ -45,14 +45,17 @@ ICON_PATH = files("tarot_canvas.resources.icons").joinpath("icon.png")
 
 
 class TabBarEventFilter(QObject):
-    """Event filter to detect double-clicks on tab bar for renaming"""
-
     rename_tab_requested = pyqtSignal(int)  # Signal with tab index
+    close_tab_requested = pyqtSignal(int)  # Signal with tab index
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._middle_press_index = -1
 
     def eventFilter(self, obj, event):
         """Filter events for the tab bar"""
+        tab_bar = obj
         if event.type() == QEvent.Type.MouseButtonDblClick:
-            tab_bar = obj
             # Get the tab index that was double-clicked
             for i in range(tab_bar.count()):
                 if tab_bar.tabRect(i).contains(event.pos()):
@@ -62,6 +65,20 @@ class TabBarEventFilter(QObject):
                     if hasattr(tab, "id") and tab.id.startswith("canvas_"):
                         self.rename_tab_requested.emit(i)
                     break
+        elif (
+            event.type() == QEvent.Type.MouseButtonPress
+            and event.button() == Qt.MouseButton.MiddleButton
+        ):
+            self._middle_press_index = tab_bar.tabAt(event.position().toPoint())
+            return True  # See the release branch
+        elif (
+            event.type() == QEvent.Type.MouseButtonRelease
+            and event.button() == Qt.MouseButton.MiddleButton
+        ):
+            pressed, self._middle_press_index = self._middle_press_index, -1
+            if pressed != -1 and tab_bar.tabAt(event.position().toPoint()) == pressed:
+                self.close_tab_requested.emit(pressed)
+            return True
         return False  # Always pass the event on
 
 
@@ -267,6 +284,11 @@ class MainWindow(QMainWindow):
         self.tab_widget.setTabsClosable(True)
         self.tab_widget.tabCloseRequested.connect(self.close_tab)
 
+        self.tab_bar_filter = TabBarEventFilter(self)
+        self.tab_widget.tabBar().installEventFilter(self.tab_bar_filter)
+        self.tab_bar_filter.rename_tab_requested.connect(self.show_tab_rename_dialog)
+        self.tab_bar_filter.close_tab_requested.connect(self.close_tab)
+
         self.tab_widget.currentChanged.connect(self.on_tab_changed)
         self.tab_widget.setMovable(True)
 
@@ -388,12 +410,6 @@ class MainWindow(QMainWindow):
         # Store initial tab name for reference
         tab.original_tab_name = self.tab_widget.tabText(tab_index)
 
-        # Install event filter on tab bar
-        if not hasattr(self, "tab_bar_filter"):
-            self.tab_bar_filter = TabBarEventFilter(self)
-            self.tab_widget.tabBar().installEventFilter(self.tab_bar_filter)
-            # Connect rename signal
-            self.tab_bar_filter.rename_tab_requested.connect(self.show_tab_rename_dialog)
 
     def show_tab_rename_dialog(self, tab_index):
         """Show a dialog to rename the tab at the given index"""

@@ -1,5 +1,3 @@
-import shutil
-
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication, QTabWidget
 
@@ -165,3 +163,36 @@ def test_a_deck_link_from_a_card_view_reuses_the_open_deck_tab(qtbot):
 
     assert window.tab_widget.count() == count_before + 1
     assert window.tab_widget.currentWidget() is first
+
+
+def make_shown_window(qtbot):
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.show()
+    qtbot.waitExposed(window)
+    return window
+
+
+def middle_click(qtbot, tab_bar, index, release_index=None):
+    """Press and release the middle button over tabs."""
+    press = tab_bar.tabRect(index).center()
+    release = tab_bar.tabRect(index if release_index is None else release_index).center()
+    qtbot.mousePress(tab_bar, Qt.MouseButton.MiddleButton, pos=press)
+    qtbot.mouseRelease(tab_bar, Qt.MouseButton.MiddleButton, pos=release)
+
+
+def test_middle_click_closes_exactly_one_tab(qtbot):
+    window = make_shown_window(qtbot)
+    for _ in range(4):
+        window.new_canvas_tab()
+    tab_bar = window.tab_widget.tabBar()
+    count_before = window.tab_widget.count()
+    doomed = window.tab_widget.widget(1)
+    survivor = window.tab_widget.widget(2)
+
+    middle_click(qtbot, tab_bar, 1)
+
+    assert window.tab_widget.count() == count_before - 1
+    assert window.tab_widget.indexOf(doomed) == -1
+    assert window.tab_widget.indexOf(survivor) != -1
+
