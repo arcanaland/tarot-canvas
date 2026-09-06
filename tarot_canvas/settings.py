@@ -15,6 +15,9 @@ BACKGROUND_STYLE_DEFAULT = "Gradient"
 BACKGROUND_COLOR_KEY = "appearance/background_color"
 BACKGROUND_COLOR_DEFAULT = "#1e1432"
 
+# Unread as of the canvas render-correctness change: the wobble these controlled is gone
+# and the preferences controls with it. Both keys are retained deliberately — stored user
+# values are the migration input for the motion level that replaces them.
 ANIMATIONS_ENABLED_KEY = "appearance/enable_animations"
 ANIMATIONS_ENABLED_DEFAULT = True
 

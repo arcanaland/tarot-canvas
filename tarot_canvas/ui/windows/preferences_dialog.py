@@ -1,23 +1,17 @@
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
-    QCheckBox,
     QColorDialog,
     QComboBox,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
     QPushButton,
-    QSlider,
     QVBoxLayout,
     QWidget,
 )
 
 from tarot_canvas.settings import (
-    ANIMATION_INTENSITY_DEFAULT,
-    ANIMATION_INTENSITY_KEY,
-    ANIMATIONS_ENABLED_DEFAULT,
-    ANIMATIONS_ENABLED_KEY,
     BACKGROUND_COLOR_DEFAULT,
     BACKGROUND_COLOR_KEY,
     BACKGROUND_STYLE_DEFAULT,
@@ -78,18 +72,6 @@ class PreferencesDialog(QDialog):
         self.bg_color_btn.clicked.connect(self.select_bg_color)
         layout.addRow("Background Color:", self.bg_color_btn)
 
-        # Card animation options
-        self.animation_check = QCheckBox("Enable card animations")
-        layout.addRow("", self.animation_check)
-
-        # Animation intensity
-        self.animation_slider = QSlider(Qt.Orientation.Horizontal)
-        self.animation_slider.setMinimum(0)
-        self.animation_slider.setMaximum(100)
-        self.animation_slider.setTickInterval(10)
-        self.animation_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
-        layout.addRow("Animation Intensity:", self.animation_slider)
-
         # Enable the color picker only when "Solid Color" is selected
         self.bg_combo.currentIndexChanged.connect(self.update_color_button_state)
 
@@ -131,13 +113,6 @@ class PreferencesDialog(QDialog):
             f"background-color: {bg_color.name()}; color: {'white' if bg_color.lightness() < 128 else 'black'};"
         )
 
-        self.animation_check.setChecked(
-            settings.value(ANIMATIONS_ENABLED_KEY, ANIMATIONS_ENABLED_DEFAULT, type=bool)
-        )
-        self.animation_slider.setValue(
-            settings.value(ANIMATION_INTENSITY_KEY, ANIMATION_INTENSITY_DEFAULT, type=int)
-        )
-
         # Update dependent states
         self.update_color_button_state()
 
@@ -151,9 +126,6 @@ class PreferencesDialog(QDialog):
             BACKGROUND_COLOR_KEY,
             getattr(self, "bg_color", QColor(BACKGROUND_COLOR_DEFAULT)).name(),
         )
-
-        settings.setValue(ANIMATIONS_ENABLED_KEY, self.animation_check.isChecked())
-        settings.setValue(ANIMATION_INTENSITY_KEY, self.animation_slider.value())
 
         theme_type = ThemeType.SYSTEM
         if self.theme_combo.currentText() == "Light":

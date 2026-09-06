@@ -29,10 +29,6 @@ from PyQt6.QtWidgets import (
 
 from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.settings import (
-    ANIMATION_INTENSITY_DEFAULT,
-    ANIMATION_INTENSITY_KEY,
-    ANIMATIONS_ENABLED_DEFAULT,
-    ANIMATIONS_ENABLED_KEY,
     BACKGROUND_COLOR_DEFAULT,
     BACKGROUND_COLOR_KEY,
     BACKGROUND_STYLE_DEFAULT,
@@ -156,18 +152,6 @@ class CanvasTab(BaseTab):
             bg_color = settings.value(BACKGROUND_COLOR_KEY, BACKGROUND_COLOR_DEFAULT)
             self.create_solid_color_background(bg_color)
 
-        # Apply animation settings
-        enable_animations = settings.value(
-            ANIMATIONS_ENABLED_KEY, ANIMATIONS_ENABLED_DEFAULT, type=bool
-        )
-
-        animation_intensity = settings.value(
-            ANIMATION_INTENSITY_KEY, ANIMATION_INTENSITY_DEFAULT, type=int
-        )
-
-        # Update all card animations
-        self.update_card_animations(enable_animations, animation_intensity)
-
     def create_gradient_background(self):
         """Create a gradient background for the canvas"""
         center = QPointF(0, 0)
@@ -213,32 +197,6 @@ class CanvasTab(BaseTab):
 
         pattern_brush = QBrush(pixmap)
         self.view.setBackgroundBrush(pattern_brush)
-
-    def update_card_animations(self, enable, intensity):
-        """Update all card animations based on settings"""
-        # Scale intensity from 0-100 to appropriate animation values
-        rotation_amplitude = intensity * 0.016  # 0 to 1.6 degrees
-        scale_amplitude = 1.0 + (intensity * 0.0004)  # 1.0 to 1.04
-
-        # Get all card items in the scene
-        for item in self.scene.items():
-            if isinstance(item, DraggableCardItem) and hasattr(item, "rotation_anim"):
-                # Stop any existing animation
-                item.rotation_anim.stop()
-
-                if enable:
-                    # Get current rotation/state
-                    base_rotation = item.rotation()
-                    if hasattr(item, "anim_controller"):
-                        item.anim_controller._rotation = base_rotation
-
-                    # Set up animation with new intensity
-                    item.setup_wobble_animation_with_intensity(
-                        base_rotation, rotation_amplitude, scale_amplitude
-                    )
-
-                    # Start the animation
-                    item.start_animations()
 
     def ensure_window_bounds(self):
         """Ensure the window stays within screen boundaries"""
@@ -582,16 +540,9 @@ class CanvasTab(BaseTab):
             initial_rotation = 180 if is_reversed else 0
             card_item.setRotation(initial_rotation)
 
-            # Update the animation controller's base rotation
-            if hasattr(card_item, "anim_controller"):
-                card_item.anim_controller._rotation = initial_rotation
-
             # Update the card's data to reflect its reversed status
             if card_item.card_data:
                 card_item.card_data["reversed"] = is_reversed
-
-            # Setup wobble animation with the correct base rotation
-            card_item.setup_wobble_animation(base_rotation=initial_rotation)
 
             # Deselect any currently selected cards
             for selected_item in self.scene.selectedItems():
@@ -675,10 +626,6 @@ class CanvasTab(BaseTab):
         items = self.scene.selectedItems()
         for item in items:
             if isinstance(item, DraggableCardItem):
-                # First, stop all animations that might override our rotation
-                if hasattr(item, "rotation_anim"):
-                    item.rotation_anim.stop()
-
                 # Toggle between normal and reversed position (180° rotation)
                 current_rotation = item.rotation()
 
@@ -691,18 +638,10 @@ class CanvasTab(BaseTab):
                 # Set the new rotation directly
                 item.setRotation(new_rotation)
 
-                # Update the base rotation in the animation controller
-                if hasattr(item, "anim_controller"):
-                    item.anim_controller._rotation = new_rotation
-
                 # Update the card's internal state to reflect reversed status
                 if hasattr(item, "card_data") and item.card_data:
                     # Toggle the reversed flag (create if it doesn't exist)
                     item.card_data["reversed"] = new_rotation == 180
-
-                # Now restart the animation with the new base rotation
-                if hasattr(item, "setup_wobble_animation"):
-                    item.setup_wobble_animation(base_rotation=new_rotation)
 
     def on_delete_card(self):
         """Remove the selected card from canvas"""
