@@ -33,6 +33,8 @@ from tarot_canvas.settings import (
     BACKGROUND_COLOR_KEY,
     BACKGROUND_STYLE_DEFAULT,
     BACKGROUND_STYLE_KEY,
+    MOTION_LEVEL_DEFAULT,
+    get_motion_level,
     get_settings,
 )
 
@@ -46,6 +48,12 @@ from tarot_canvas.ui.canvas import (
     arrange_items_in_circle,
     distribute_items_horizontally,
     distribute_items_vertically,
+)
+from tarot_canvas.ui.canvas.motion import (
+    AMBIENT_GAIN_FLOOR,
+    MotionClock,
+    approach,
+    system_animations_enabled,
 )
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 
@@ -66,6 +74,17 @@ class CanvasTab(BaseTab):
 
         # Add a maximum size constraint to prevent excessive expansion
         self.setMaximumHeight(800)  # Set a reasonable maximum height
+
+        # One timebase for every card on this canvas, running only while the tab is
+        # visible. Per-tab rather than app-global: that is what makes the visibility
+        # gate natural, and an idle window genuinely idle.
+        self.motion_clock = MotionClock(self)
+        self.ambient_gain = 0.0
+        # Both are answers to questions that cost real time — a QSettings read and a
+        # synchronous D-Bus round trip — so they are sampled when something might have
+        # changed them, never on the tick.
+        self.motion_level = MOTION_LEVEL_DEFAULT
+        self.desktop_wants_animation = True
 
         # Setup the UI with size-constrained components
         self.setup_ui()
@@ -151,6 +170,77 @@ class CanvasTab(BaseTab):
         elif bg_style == "Solid Color":
             bg_color = settings.value(BACKGROUND_COLOR_KEY, BACKGROUND_COLOR_DEFAULT)
             self.create_solid_color_background(bg_color)
+
+        self.refresh_motion_settings()
+        if self.motion_is_enabled() and self.isVisible():
+            self.motion_clock.subscribe(self._advance_motion)
+        else:
+            self.motion_clock.unsubscribe(self._advance_motion)
+            self.settle_ambient()
+
+    # Motion
+    def refresh_motion_settings(self):
+        """Re-sample the two expensive inputs to the motion gates.
+
+        Called when the tab becomes visible and when preferences are applied — not on the
+        tick, where a QSettings read and a blocking D-Bus call sixty times a second would
+        cost more than the motion they gate.
+        """
+        self.motion_level = get_motion_level()
+        self.desktop_wants_animation = system_animations_enabled()
+
+    def motion_is_enabled(self):
+        """Whether this canvas runs its clock at all."""
+        return self.motion_level != "Off"
+
+    def ambient_is_allowed(self):
+        """Whether the ambient tier may play right now.
+
+        Ambient motion is the vestibular trigger and the cognitive tax, so it yields to
+        anything suggesting the user is not watching this canvas: another tab in front,
+        another window focused, a desktop asking for reduced motion.
+        """
+        return (
+            self.motion_level == "Full"
+            and self.desktop_wants_animation
+            and self.isVisible()
+            and self.window().isActiveWindow()
+        )
+
+    def _advance_motion(self, t, dt):
+        """Drive every card on this canvas for one frame.
+
+        The clock hands us time and nothing else; the scene owns the items, so a card
+        destroyed underneath us simply stops being visited.
+        """
+        self.ambient_gain = approach(
+            self.ambient_gain, 1.0 if self.ambient_is_allowed() else 0.0, 8.0, dt
+        )
+        # approach() is asymptotic and never lands on zero. Without this a canvas that has
+        # faded out holds a permanent fraction-of-a-degree tilt and repaints for it forever.
+        if self.ambient_gain < AMBIENT_GAIN_FLOOR:
+            self.ambient_gain = 0.0
+        for item in self.scene.items():
+            if isinstance(item, DraggableCardItem):
+                item.advance_motion(t, dt, self.ambient_gain)
+
+    def settle_ambient(self):
+        """Put every card flat. Used when the clock stops, so nothing freezes mid-breath."""
+        self.ambient_gain = 0.0
+        for item in self.scene.items():
+            if isinstance(item, DraggableCardItem):
+                item.settle_ambient()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.refresh_motion_settings()
+        if self.motion_is_enabled():
+            self.motion_clock.subscribe(self._advance_motion)
+
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        self.motion_clock.unsubscribe(self._advance_motion)
+        self.settle_ambient()
 
     def create_gradient_background(self):
         """Create a gradient background for the canvas"""
@@ -537,8 +627,7 @@ class CanvasTab(BaseTab):
             card_item = DraggableCardItem(pixmap, card, self)
 
             # Set initial rotation based on reversed status
-            initial_rotation = 180 if is_reversed else 0
-            card_item.setRotation(initial_rotation)
+            card_item.set_orient(180 if is_reversed else 0)
 
             # Update the card's data to reflect its reversed status
             if card_item.card_data:
@@ -619,7 +708,7 @@ class CanvasTab(BaseTab):
         items = self.scene.selectedItems()
         for item in items:
             if isinstance(item, DraggableCardItem):
-                item.setRotation((item.rotation() + 90) % 360)
+                item.set_orient(item.orient + 90)
 
     def on_flip_card(self):
         """Flip the selected card upside down (to indicate reversed position in Tarot)"""
@@ -627,7 +716,7 @@ class CanvasTab(BaseTab):
         for item in items:
             if isinstance(item, DraggableCardItem):
                 # Toggle between normal and reversed position (180° rotation)
-                current_rotation = item.rotation()
+                current_rotation = item.orient
 
                 # If close to upright (0°), flip to reversed (180°)
                 # If close to reversed (180°), flip to upright (0°)
@@ -636,7 +725,7 @@ class CanvasTab(BaseTab):
                     new_rotation = 180
 
                 # Set the new rotation directly
-                item.setRotation(new_rotation)
+                item.set_orient(new_rotation)
 
                 # Update the card's internal state to reflect reversed status
                 if hasattr(item, "card_data") and item.card_data:

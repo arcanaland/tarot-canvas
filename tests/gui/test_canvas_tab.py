@@ -2,6 +2,7 @@ from PyQt6.QtCore import QEvent, QPoint, QPointF, Qt
 from PyQt6.QtGui import QEnterEvent, QMouseEvent, QPixmap
 from PyQt6.QtWidgets import QApplication
 
+from tarot_canvas.settings import MOTION_LEVEL_KEY, get_settings
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 
@@ -15,6 +16,18 @@ def add_cards(tab, count):
         item.setPos(i * 150, 0)
         tab.scene.addItem(item)
         item.setSelected(True)
+
+
+def set_motion_level(level):
+    """State the precondition rather than inherit it.
+
+    QSettings is not reliably isolated between tests in this suite (the 2-arg QSettings
+    resolves a NativeFormat path once per process), so any test whose behaviour depends
+    on the motion level has to set it.
+    """
+    settings = get_settings()
+    settings.setValue(MOTION_LEVEL_KEY, level)
+    settings.sync()
 
 
 def make_tab(qtbot):
@@ -221,3 +234,121 @@ def test_panning_leaves_no_override_cursor_behind(qtbot):
     )
     assert tab.view._pan_button is None
     assert (0 if QApplication.overrideCursor() is None else 1) == depth
+
+
+def test_the_motion_clock_follows_the_tab_visibility(qtbot):
+    """An idle window must genuinely idle: no visible canvas, no timer."""
+    set_motion_level("Full")
+    tab = make_tab(qtbot)
+    assert tab.motion_clock.is_running()
+
+    tab.hide()
+    assert not tab.motion_clock.is_running()
+
+    tab.show()
+    qtbot.waitExposed(tab)
+    assert tab.motion_clock.is_running()
+
+
+def test_the_motion_clock_stays_off_when_motion_is_off(qtbot):
+    set_motion_level("Off")
+    tab = make_tab(qtbot)
+    assert not tab.motion_clock.is_running()
+
+
+def test_ambient_stays_shut_while_the_canvas_is_hidden(qtbot):
+    set_motion_level("Full")
+    tab = make_tab(qtbot)
+    tab.hide()
+    assert not tab.ambient_is_allowed()
+
+
+def test_cards_hold_an_identity_transform_while_ambient_is_gated(qtbot):
+    """A gated canvas is inert, not merely slow: no tilt, no drift, and so no repaints.
+
+    The gate is shut here because an offscreen test window is never the active one, which
+    is the same path a backgrounded window takes.
+    """
+    set_motion_level("Full")
+    tab = make_tab(qtbot)
+    add_cards(tab, 3)
+    cards = [i for i in tab.scene.items() if isinstance(i, DraggableCardItem)]
+
+    for _ in range(10):
+        tab._advance_motion(0.5, 1.0 / 60.0)
+
+    assert tab.ambient_gain == 0.0  # snapped, not merely small
+    assert all(card.transform().isIdentity() for card in cards)
+
+
+def test_cards_drift_once_ambient_is_allowed(qtbot):
+    """The complement of the test above, and the only automated check that drift exists."""
+    set_motion_level("Full")
+    tab = make_tab(qtbot)
+    add_cards(tab, 3)
+    cards = [i for i in tab.scene.items() if isinstance(i, DraggableCardItem)]
+
+    for card in cards:
+        card.advance_motion(0.0, 1.0 / 60.0, 1.0)
+    first = [card.transform() for card in cards]
+    assert not any(transform.isIdentity() for transform in first)
+    assert not any(transform.isAffine() for transform in first)  # tilt, not a 2-D spin
+
+    # Different cards, different phases: they must not move as one block.
+    for card in cards:
+        card.advance_motion(2.0, 1.0 / 60.0, 1.0)
+    deltas = [
+        card.transform().dx() - transform.dx() for card, transform in zip(cards, first, strict=True)
+    ]
+    assert len(set(deltas)) == len(deltas)
+
+
+def test_a_hidden_canvas_is_left_flat_rather_than_frozen_mid_breath(qtbot):
+    set_motion_level("Full")
+    tab = make_tab(qtbot)
+    add_cards(tab, 2)
+    cards = [i for i in tab.scene.items() if isinstance(i, DraggableCardItem)]
+    for card in cards:
+        card.advance_motion(1.0, 1.0 / 60.0, 1.0)
+
+    tab.hide()
+
+    assert all(card.transform().isIdentity() for card in cards)
+
+
+def test_flip_and_rotate_drive_the_orient_channel(qtbot):
+    set_motion_level("Full")
+    tab = make_tab(qtbot)
+    add_cards(tab, 1)
+    card = next(i for i in tab.scene.items() if isinstance(i, DraggableCardItem))
+
+    tab.on_flip_card()
+    assert card.orient == 180
+    assert card.card_data["reversed"] is True
+    assert not card.transform().isIdentity()  # the channel really reaches the transform
+
+    tab.on_flip_card()
+    assert card.orient == 0
+    assert card.card_data["reversed"] is False
+
+    tab.on_rotate_card()
+    assert card.orient == 90
+    tab.on_rotate_card()
+    tab.on_rotate_card()
+    tab.on_rotate_card()
+    assert card.orient == 0  # wraps rather than accumulating
+
+
+def test_applying_preferences_starts_and_stops_the_clock(qtbot):
+    """The gate is re-sampled when preferences are applied, not polled on the tick."""
+    set_motion_level("Full")
+    tab = make_tab(qtbot)
+    assert tab.motion_clock.is_running()
+
+    set_motion_level("Off")
+    tab.apply_background_settings()
+    assert not tab.motion_clock.is_running()
+
+    set_motion_level("Full")
+    tab.apply_background_settings()
+    assert tab.motion_clock.is_running()

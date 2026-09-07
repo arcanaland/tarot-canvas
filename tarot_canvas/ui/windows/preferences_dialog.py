@@ -16,11 +16,22 @@ from tarot_canvas.settings import (
     BACKGROUND_COLOR_KEY,
     BACKGROUND_STYLE_DEFAULT,
     BACKGROUND_STYLE_KEY,
+    MOTION_LEVEL_KEY,
     THEME_DEFAULT,
     THEME_KEY,
+    get_motion_level,
     get_settings,
 )
 from tarot_canvas.utils.theme_manager import ThemeManager, ThemeType
+
+# The stored motion level, and what the user is shown for it. The stored side is RFC-024's
+# Off/Reactive/Full ladder; the shown side says what each one does rather than naming a
+# tier. Ordered least to most, so the list reads as a dial.
+MOTION_LEVEL_LABELS = (
+    ("Off", "None"),
+    ("Reactive", "Response only"),
+    ("Full", "Full"),
+)
 
 
 class PreferencesDialog(QDialog):
@@ -67,6 +78,14 @@ class PreferencesDialog(QDialog):
         self.bg_combo.addItems(["Checkerboard", "Gradient", "Solid Color"])
         layout.addRow("Canvas Background:", self.bg_combo)
 
+        # Canvas motion. This replaces the enable/intensity pair the wobble had: a linear
+        # amplitude knob is not the control people want, and the tier that survives a
+        # reduced-motion preference is the reactive one, not a quieter ambient one.
+        self.motion_combo = QComboBox()
+        for level, label in MOTION_LEVEL_LABELS:
+            self.motion_combo.addItem(label, level)
+        layout.addRow("Canvas Motion:", self.motion_combo)
+
         # Background color button (enabled only for solid color)
         self.bg_color_btn = QPushButton("Select Color")
         self.bg_color_btn.clicked.connect(self.select_bg_color)
@@ -107,6 +126,13 @@ class PreferencesDialog(QDialog):
         if bg_index >= 0:
             self.bg_combo.setCurrentIndex(bg_index)
 
+        # get_motion_level rather than a raw read: it also runs the one-time migration of
+        # the retired enable/intensity pair, so the dialog opens showing what the canvas is
+        # actually doing rather than a default the canvas never saw.
+        motion_index = self.motion_combo.findData(get_motion_level(settings))
+        if motion_index >= 0:
+            self.motion_combo.setCurrentIndex(motion_index)
+
         bg_color = QColor(settings.value(BACKGROUND_COLOR_KEY, BACKGROUND_COLOR_DEFAULT))
         self.bg_color = bg_color
         self.bg_color_btn.setStyleSheet(
@@ -122,6 +148,7 @@ class PreferencesDialog(QDialog):
         # Appearance settings
         settings.setValue(THEME_KEY, self.theme_combo.currentText())
         settings.setValue(BACKGROUND_STYLE_KEY, self.bg_combo.currentText())
+        settings.setValue(MOTION_LEVEL_KEY, self.motion_combo.currentData())
         settings.setValue(
             BACKGROUND_COLOR_KEY,
             getattr(self, "bg_color", QColor(BACKGROUND_COLOR_DEFAULT)).name(),
