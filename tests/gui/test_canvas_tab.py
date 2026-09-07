@@ -273,12 +273,17 @@ def test_cards_hold_an_identity_transform_while_ambient_is_gated(qtbot):
     tab = make_tab(qtbot)
     add_cards(tab, 3)
     cards = [i for i in tab.scene.items() if isinstance(i, DraggableCardItem)]
+    # add_cards selects what it adds, and selection now carries a resting lift of its own
+    # — see test_selection_lifts_the_card_off_the_felt. Rest is the unselected state.
+    tab.scene.clearSelection()
 
-    for _ in range(10):
-        tab._advance_motion(0.5, 1.0 / 60.0)
+    for frame in range(120):
+        tab._advance_motion(0.5 + frame / 60.0, 1.0 / 60.0)
 
     assert tab.ambient_gain == 0.0  # snapped, not merely small
     assert all(card.transform().isIdentity() for card in cards)
+    # Exactly identity, so the snapshot stops changing and the repaints stop with it.
+    assert not any(card.advance_motion(3.0, 1.0 / 60.0, 0.0) for card in cards)
 
 
 def test_cards_drift_once_ambient_is_allowed(qtbot):
@@ -301,6 +306,105 @@ def test_cards_drift_once_ambient_is_allowed(qtbot):
         card.transform().dx() - transform.dx() for card, transform in zip(cards, first, strict=True)
     ]
     assert len(set(deltas)) == len(deltas)
+
+
+def test_every_card_gets_its_own_depth(qtbot):
+    """Cards used to share a z-value of 0 and fall back to insertion order.
+
+    That made "bring to front" a no-op for a second card — both landed on 100 — and left
+    no ordering for a shadow to sit inside, which is why a stacked card cast onto nothing.
+    """
+    tab = make_tab(qtbot)
+    add_cards(tab, 3)
+    cards = [i for i in tab.scene.items() if isinstance(i, DraggableCardItem)]
+    for card in cards:
+        card.setZValue(tab.take_top_z())
+    depths = [card.zValue() for card in cards]
+
+    assert len(set(depths)) == len(depths)
+
+
+def test_restacking_a_selection_keeps_its_internal_order(qtbot):
+    """Raising three cards together must not shuffle them relative to one another."""
+    tab = make_tab(qtbot)
+    add_cards(tab, 3)
+    cards = sorted(
+        (i for i in tab.scene.items() if isinstance(i, DraggableCardItem)),
+        key=lambda item: item.zValue(),
+    )
+    for depth, card in enumerate(cards, start=1):
+        card.setZValue(float(depth))
+        card.setSelected(True)
+
+    tab.on_bring_to_front()
+    assert [c.zValue() for c in cards] == sorted(c.zValue() for c in cards)
+
+    tab.on_send_to_back()
+    assert [c.zValue() for c in cards] == sorted(c.zValue() for c in cards)
+
+
+def test_a_raised_card_carries_its_shadow_with_it(qtbot):
+    """Raising a card must lift its shadow past the cards it now sits on top of."""
+    tab = make_tab(qtbot)
+    add_cards(tab, 2)
+    lower, upper = sorted(
+        (i for i in tab.scene.items() if isinstance(i, DraggableCardItem)),
+        key=lambda item: item.zValue(),
+    )
+
+    tab.scene.clearSelection()
+    lower.setSelected(True)
+    tab.on_bring_to_front()
+
+    assert lower.zValue() > upper.zValue()
+    assert lower.shadow.zValue() > upper.zValue()  # the shadow lands *on* the other card
+
+
+def test_reactive_is_no_longer_indistinguishable_from_off(qtbot):
+    """The middle rung of the ladder finally means something.
+
+    TASK-028 shipped the Off/Reactive/Full combo with nothing plugged into the reactive
+    tier, so two of its three entries behaved identically. Reactive keeps the clock and
+    the response to the pointer, and drops only the ambient drift.
+    """
+    set_motion_level("Reactive")
+    tab = make_tab(qtbot)
+
+    assert tab.motion_is_enabled()  # the clock runs
+    assert tab.reactive_is_allowed()  # cards answer the pointer
+    assert not tab.ambient_is_allowed()  # but nothing breathes
+
+    set_motion_level("Off")
+    tab.refresh_motion_settings()
+
+    assert not tab.motion_is_enabled()
+    assert not tab.reactive_is_allowed()
+
+
+def test_selection_lifts_the_card_off_the_felt(qtbot):
+    """Selection is reinforced by height rather than by a drawn outline.
+
+    Qt's own dashed rectangle is a flat annotation over a card that now has perspective,
+    and the corner brackets that would replace it cannot be painted from Python without
+    crashing this suite (TASK-028). A resting lift and the shadow separation that follows
+    from it say "picked up" without painting anything.
+    """
+    set_motion_level("Full")
+    tab = make_tab(qtbot)
+    add_cards(tab, 1)
+    card = next(i for i in tab.scene.items() if isinstance(i, DraggableCardItem))
+
+    card.setSelected(True)
+    for frame in range(120):
+        card.advance_motion(frame / 60.0, 1.0 / 60.0, 0.0)
+    lifted = card.motion.lift
+    assert lifted > 1.0
+
+    card.setSelected(False)
+    for frame in range(120):
+        card.advance_motion(frame / 60.0, 1.0 / 60.0, 0.0)
+    assert card.motion.lift == 1.0
+    assert card.transform().isIdentity()
 
 
 def test_a_hidden_canvas_is_left_flat_rather_than_frozen_mid_breath(qtbot):

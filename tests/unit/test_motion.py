@@ -2,19 +2,26 @@ import math
 import sys
 
 import pytest
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QTransform
+from PyQt6.QtCore import QPointF, Qt
+from PyQt6.QtGui import QPixmap, QTransform, qAlpha
 
 from tarot_canvas.ui.canvas.motion import (
     DRIFT_AMPLITUDE_PX,
+    LIFT_PLACED,
+    LIFT_REST,
     MAX_DT,
+    SHADOW_BLUR_PX,
     TILT_AMPLITUDE_DEG,
     AmbientDrift,
     MotionChannels,
     MotionClock,
     PinkOscillator,
+    Spring,
     approach,
+    build_contact_shadow,
     drift_phases,
+    rest,
+    shadow_geometry,
     system_animations_enabled,
 )
 
@@ -210,3 +217,117 @@ def test_drift_never_stalls_and_never_jumps():
 def test_drift_does_not_start_from_a_special_case_at_zero():
     """Cards are added while the clock is already running; t=0 must not be a home position."""
     assert any(abs(v) > 1e-6 for v in AmbientDrift("major_arcana/the_star").sample(0.0))
+
+
+# The reactive tier
+
+
+def test_the_spring_overshoots_once_and_then_stops_exactly():
+    """The whole reason `lift` gets a spring rather than approach(): a settle has weight.
+
+    approach() converges from one side by construction, which reads as the card being
+    lowered by machinery. The spring passes its target once and lands on it exactly — the
+    rest floor is what makes "exactly" true, and it is what stops an idle canvas repainting.
+    """
+    spring = Spring(LIFT_PLACED)
+    trace = [spring.advance(LIFT_REST, 1.0 / 60.0) for _ in range(240)]
+
+    assert min(trace) < LIFT_REST  # it went past
+    assert max(trace) <= LIFT_PLACED  # and not the other way first
+    assert trace[-1] == LIFT_REST  # exactly, not asymptotically
+    assert spring.velocity == 0.0
+
+
+def test_the_spring_settles_the_same_way_at_60hz_and_144hz():
+    """Substepping is what buys this; an explicit spring stepped at dt alone would not."""
+    slow = Spring(LIFT_PLACED)
+    fast = Spring(LIFT_PLACED)
+    for _ in range(30):
+        slow.advance(LIFT_REST, 1.0 / 60.0)
+    for _ in range(72):
+        fast.advance(LIFT_REST, 1.0 / 144.0)
+
+    assert slow.value == pytest.approx(fast.value, abs=1e-4)
+
+
+def test_the_spring_survives_a_stalled_event_loop():
+    """MAX_DT permits a 100 ms tick after a modal dialog. An unsubstepped spring explodes."""
+    spring = Spring(LIFT_PLACED)
+    for _ in range(50):
+        spring.advance(LIFT_REST, MAX_DT)
+
+    assert spring.value == pytest.approx(LIFT_REST, abs=1e-3)
+
+
+def test_rest_snaps_only_once_the_difference_stops_mattering():
+    assert rest(1.0 + 1e-9, 1.0) == 1.0
+    assert rest(1.5, 1.0) == 1.5
+
+
+def test_reactive_tilt_is_not_scaled_by_the_ambient_gain():
+    """RFC-024 rule 2 in one assertion: one gate scales one tier.
+
+    Hover and drag tilt the card too, so they get their own channels rather than borrowing
+    the ambient ones — otherwise gating ambient would silently gate the hover response as
+    well, and `Reactive` could not differ from `Off`.
+    """
+    ambient = MotionChannels(tilt_x=3.0, tilt_y=3.0)
+    reactive = MotionChannels(face_x=3.0, face_y=3.0)
+
+    assert ambient.compose(*CARD) == reactive.compose(*CARD)
+    assert not MotionChannels(face_x=3.0).compose(*CARD).isAffine()  # real perspective
+
+
+def test_face_and_tilt_sum_into_one_plane_rather_than_composing_twice():
+    combined = MotionChannels(tilt_y=1.0, face_y=2.0).compose(*CARD)
+
+    assert combined == MotionChannels(tilt_y=3.0).compose(*CARD)
+
+
+def test_the_tilt_signs_the_reactive_targets_are_written_against():
+    """Pinned because the hover and lean directions are derived from them.
+
+    Measured rather than assumed: `compose()` carries an extra projective term of its own,
+    so which edge recedes is a property of this composition and not of Qt's axis convention.
+    """
+    left, right = edge_heights(MotionChannels(tilt_y=3.0).compose(*CARD))
+    assert left < right  # tilt_y > 0 turns the left edge away
+
+    corners = [MotionChannels(tilt_x=3.0).compose(*CARD).map(QPointF(x, y)) for x, y in CORNERS]
+    top = math.dist((corners[0].x(), corners[0].y()), (corners[1].x(), corners[1].y()))
+    bottom = math.dist((corners[3].x(), corners[3].y()), (corners[2].x(), corners[2].y()))
+    assert top < bottom  # tilt_x > 0 turns the top edge away
+
+
+def test_orient_lag_leaves_the_composed_angle_untouched_at_the_moment_of_a_turn():
+    """A turn is a lag, not a jump: the display is continuous across `set_orient`."""
+    before = MotionChannels(orient=0.0).compose(*CARD)
+    after = MotionChannels(orient=90.0, orient_lag=-90.0).compose(*CARD)
+
+    assert before == after
+
+
+def test_the_contact_shadow_is_softer_and_larger_than_the_card_it_grounds():
+    pixmap = QPixmap(120, 200)
+    pixmap.fill(Qt.GlobalColor.black)
+
+    shadow = build_contact_shadow(pixmap)
+    image = shadow.toImage()
+
+    # Padded on every side, so the penumbra is not clipped at the silhouette's edge.
+    assert shadow.width() > pixmap.width()
+    assert shadow.height() > pixmap.height()
+    # Opaque in the middle, feathered at the border — a hard-edged copy would fail both.
+    assert qAlpha(image.pixel(image.width() // 2, image.height() // 2)) > 200
+    assert 0 < qAlpha(image.pixel(int(SHADOW_BLUR_PX * 0.6), image.height() // 2)) < 200
+    assert qAlpha(image.pixel(0, 0)) == 0
+
+
+def test_a_lifted_card_casts_a_wider_fainter_shadow_further_from_itself():
+    """Penumbra separation is the whole of what makes a card read as floating."""
+    resting = shadow_geometry(LIFT_REST)
+    lifted = shadow_geometry(LIFT_PLACED)
+
+    assert lifted[0] > resting[0]  # further
+    assert lifted[1] > resting[1]  # wider
+    assert lifted[2] < resting[2]  # fainter
