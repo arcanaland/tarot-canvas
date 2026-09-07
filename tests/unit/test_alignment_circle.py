@@ -114,18 +114,19 @@ def test_arrangement_is_centered_on_the_selection(qapp):
     assert sum(p.y() for p in centers) / len(centers) == pytest.approx(before_y, abs=1e-6)
 
 
-def test_measurement_ignores_the_wobble_transform(qapp):
+def test_measurement_ignores_item_transforms(qapp):
+    """Arrangement measures pos(), so a card's own rotation/scale must not move it."""
     plain = make_items(5, 300, 450)
     arrange_items_in_circle(plain)
     plain_positions = [(i.pos().x(), i.pos().y()) for i in plain]
 
-    wobbling = make_items(5, 300, 450)
-    for item in wobbling:
+    transformed = make_items(5, 300, 450)
+    for item in transformed:
         item.setTransformOriginPoint(150, 225)
         item.setRotation(0.8)
         item.setScale(1.02)
-    arrange_items_in_circle(wobbling)
+    arrange_items_in_circle(transformed)
 
-    for (px, py), item in zip(plain_positions, wobbling, strict=True):
+    for (px, py), item in zip(plain_positions, transformed, strict=True):
         assert item.pos().x() == pytest.approx(px)
         assert item.pos().y() == pytest.approx(py)
