@@ -80,6 +80,11 @@ class CanvasTab(BaseTab):
         # gate natural, and an idle window genuinely idle.
         self.motion_clock = MotionClock(self)
         self.ambient_gain = 0.0
+        # Every card gets its own depth, allocated from these. Cards used to share a
+        # z-value of 0 and fall back to insertion order, which made "bring to front"
+        # a no-op for a second card and left no order for a shadow to sit inside.
+        self._top_z = 0.0
+        self._bottom_z = 0.0
         # Both are answers to questions that cost real time — a QSettings read and a
         # synchronous D-Bus round trip — so they are sampled when something might have
         # changed them, never on the tick.
@@ -176,7 +181,7 @@ class CanvasTab(BaseTab):
             self.motion_clock.subscribe(self._advance_motion)
         else:
             self.motion_clock.unsubscribe(self._advance_motion)
-            self.settle_ambient()
+            self.settle_motion()
 
     # Motion
     def refresh_motion_settings(self):
@@ -191,6 +196,15 @@ class CanvasTab(BaseTab):
 
     def motion_is_enabled(self):
         """Whether this canvas runs its clock at all."""
+        return self.motion_level != "Off"
+
+    def reactive_is_allowed(self):
+        """Whether cards may answer the pointer. Asked by the cards themselves.
+
+        Unlike the ambient tier this survives a desktop asking for reduced motion: a brief
+        response to the user's own click is informative, where perpetual drift is the
+        vestibular trigger. It is also the whole difference between `Reactive` and `Off`.
+        """
         return self.motion_level != "Off"
 
     def ambient_is_allowed(self):
@@ -224,12 +238,12 @@ class CanvasTab(BaseTab):
             if isinstance(item, DraggableCardItem):
                 item.advance_motion(t, dt, self.ambient_gain)
 
-    def settle_ambient(self):
+    def settle_motion(self):
         """Put every card flat. Used when the clock stops, so nothing freezes mid-breath."""
         self.ambient_gain = 0.0
         for item in self.scene.items():
             if isinstance(item, DraggableCardItem):
-                item.settle_ambient()
+                item.settle_motion()
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -240,7 +254,7 @@ class CanvasTab(BaseTab):
     def hideEvent(self, event):
         super().hideEvent(event)
         self.motion_clock.unsubscribe(self._advance_motion)
-        self.settle_ambient()
+        self.settle_motion()
 
     def create_gradient_background(self):
         """Create a gradient background for the canvas"""
@@ -590,9 +604,23 @@ class CanvasTab(BaseTab):
         # Log what deck we drew from
         print(f"Drew card from {deck_to_use.get_name()} deck")
 
+    def take_top_z(self):
+        """The next depth above every card on the canvas."""
+        self._top_z += 1.0
+        return self._top_z
+
+    def take_bottom_z(self):
+        """The next depth below every card on the canvas."""
+        self._bottom_z -= 1.0
+        return self._bottom_z
+
     def cascade_from_occupied(self, pos, step=20, limit=20):
         """Nudge pos clear of a card already sitting there, as duplicating does."""
-        occupied = {(round(item.pos().x()), round(item.pos().y())) for item in self.scene.items()}
+        occupied = {
+            (round(item.pos().x()), round(item.pos().y()))
+            for item in self.scene.items()
+            if isinstance(item, DraggableCardItem)
+        }
         for _ in range(limit):
             if (round(pos.x()), round(pos.y())) not in occupied:
                 break
@@ -626,6 +654,10 @@ class CanvasTab(BaseTab):
             # Create a draggable card item
             card_item = DraggableCardItem(pixmap, card, self)
 
+            # A card dealt onto the canvas lands on top of what is already there, and its
+            # shadow follows it into that slot.
+            card_item.setZValue(self.take_top_z())
+
             # Set initial rotation based on reversed status
             card_item.set_orient(180 if is_reversed else 0)
 
@@ -654,6 +686,10 @@ class CanvasTab(BaseTab):
 
             # Select the newly added card
             card_item.setSelected(True)
+
+            # Arrive large and spring back, so the card reads as having been dealt onto
+            # the table rather than having always been there.
+            card_item.place_and_settle()
 
             reversed_status = "reversed" if is_reversed else "upright"
             print(f"Added card to canvas: {card['name']} ({reversed_status})")
@@ -746,16 +782,28 @@ class CanvasTab(BaseTab):
             action.setEnabled(count >= (2 if slot == self.on_align_cards else 1))
 
     def on_bring_to_front(self):
-        """Bring selected card to front"""
-        items = self.scene.selectedItems()
-        for item in items:
-            item.setZValue(100)  # High z-value
+        """Bring the selected cards to the front, keeping their order among themselves."""
+        self._restack(self.scene.selectedItems(), self.take_top_z)
 
     def on_send_to_back(self):
-        """Send selected card to back"""
-        items = self.scene.selectedItems()
-        for item in items:
-            item.setZValue(-100)  # Low z-value
+        """Send the selected cards to the back, keeping their order among themselves."""
+        self._restack(self.scene.selectedItems(), self.take_bottom_z, deepest_first=True)
+
+    def _restack(self, items, allocate, deepest_first=False):
+        """Give each of `items` a fresh depth, preserving their relative order.
+
+        Sorted first because raising a multi-selection must not shuffle it: two cards
+        brought to the front should arrive at the front in the order they already had.
+        `take_bottom_z` hands out *descending* depths, so sending to the back walks the
+        selection from the top down — otherwise the group would come out inverted.
+        """
+        cards = sorted(
+            (item for item in items if isinstance(item, DraggableCardItem)),
+            key=lambda item: item.zValue(),
+            reverse=deepest_first,
+        )
+        for card in cards:
+            card.setZValue(allocate())
 
     def on_align_cards(self):
         """Show alignment options for selected cards"""

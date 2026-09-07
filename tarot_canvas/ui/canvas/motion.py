@@ -22,7 +22,7 @@ import time
 from dataclasses import dataclass
 
 from PyQt6.QtCore import QObject, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QTransform
+from PyQt6.QtGui import QColor, QImage, QPainter, QPixmap, QTransform, qAlpha
 
 # ~60 Hz. Deliberately not vsync-locked: QGraphicsView gives us no frame callback, and the
 # resulting 16-vs-16.67 ms beat is a far smaller artifact than the ones it replaces.
@@ -72,6 +72,92 @@ DRIFT_AMPLITUDE_PX = 1.5
 # without a floor a faded-out canvas keeps a permanent sliver of tilt and repaints for it.
 AMBIENT_GAIN_FLOOR = 1e-3
 
+# The reactive tier. These are responses to the user's own action rather than ambient
+# motion, so they are the tier that survives a reduced-motion setting: a brief answer to a
+# click is informative, where perpetual drift is the vestibular trigger and the cognitive
+# tax. Everything here is fast enough to read as causation — under about 150 ms — which is
+# why the rates are an order of magnitude above the ambient ones.
+REACTIVE_RATE = 12.0
+# The hover punch and the rotate/flip sweep want to be visibly slower than the lift, or the
+# turn is over before the eye has followed it.
+SPIN_RATE = 9.0
+ORIENT_RATE = 8.0
+# The visual position chases the logical one at this rate; the gap between them *is* the
+# bank angle, so this doubles as the drag lean's time constant.
+LEAN_RATE = 12.0
+
+# How far the card face turns to follow the cursor across it, at the very edge. Balatro's
+# equivalent is far larger; a spread is read from directly above, where a small angle is
+# already unmistakable.
+HOVER_TILT_DEG = 6.0
+# Bank angle per pixel of lag behind the pointer, and the clamp. A drag at 600 px/s holds a
+# steady-state lag of 600/LEAN_RATE = 50 px, which is 8 degrees — the clamp is headroom for
+# a flick, not the working range.
+LEAN_DEG_PER_PX = 0.16
+LEAN_MAX_DEG = 10.0
+# Below this the visual position is simply snapped onto the logical one, so a card that has
+# stopped moving has a lean target of exactly zero rather than of something very small.
+LEAN_REST_PX = 1e-3
+
+# Scale targets, in ascending order of how far off the felt the card is. Press sits *below*
+# hover on purpose: the card is being pushed back down into the table.
+LIFT_REST = 1.0
+LIFT_SELECTED = 1.02
+LIFT_PRESSED = 1.02
+LIFT_HOVER = 1.04
+LIFT_DRAG = 1.06
+# Where a freshly drawn card arrives before settling.
+LIFT_PLACED = 1.15
+
+# How much the ambient tier is scaled back while the user is engaging with a card. Ambient
+# yields to intent — one number, which is what makes this calm rather than busy.
+AMBIENT_SCALE_HOVER = 0.2
+AMBIENT_SCALE_DRAG = 0.0
+
+# Reactive channels converge asymptotically just as the ambient gain does, so they need
+# the same floor for the same reason: without one a card that has finished settling holds a
+# ten-thousandth of a degree forever, `snapshot()` never repeats, and every card on an idle
+# canvas repaints sixty times a second to express nothing. With it, a card at rest composes
+# to *exactly* the identity transform.
+REACTIVE_REST_EPSILON = 1e-4
+REACTIVE_REST_VELOCITY = 1e-3
+
+# The lift spring. omega = sqrt(260) = 16.1 rad/s, so critical damping would be 32.2;
+# at 22 the ratio is about 0.68, which overshoots once by a few percent and is done inside
+# 300 ms. approach() is first-order and cannot overshoot at all, which is why lift alone
+# gets a spring: the settle is the whole point of the gesture.
+LIFT_STIFFNESS = 260.0
+LIFT_DAMPING = 22.0
+# The spring is integrated explicitly, so it is substepped rather than trusted with a dt
+# that MAX_DT allows to reach 100 ms.
+SPRING_MAX_STEP = 1.0 / 240.0
+
+# The contact shadow. Penumbra separation is what sells "floating", and it needs no ambient
+# motion at all to do it.
+# A card's shadow sits immediately beneath *that card* rather than beneath every card, so a
+# card stacked on another casts onto it — which is what a shadow is for. Half a z-unit down,
+# because the canvas allocates whole numbers to cards (see CanvasTab's stacking order) and
+# nothing may ever land between a card and its own shadow.
+#
+# Balatro does the opposite, two-passing each CardArea as {'shadow', 'card'} and suppressing
+# shadows outright for the deck and discard piles. That is an accommodation for a *fan* —
+# eight cards overlapping by 70%, where interleaving would band a shadow across every one of
+# them. A tarot spread is laid out with gaps and stacked only deliberately, so it wants the
+# Material Design reading instead: a surface casts onto whatever is below it.
+SHADOW_Z_OFFSET = -0.5
+SHADOW_DOWNSAMPLE = 8  # the blur is computed at 1/8 scale and scaled back up
+SHADOW_BLUR_PASSES = 3  # three box blurs approximate a gaussian closely enough
+SHADOW_BLUR_RADIUS = 1  # per pass, in downsampled pixels
+# How far the penumbra reaches, in card pixels: three passes of a radius-1 box at 1/8 scale
+# put its outermost non-zero sample exactly here. Derived rather than chosen, because the
+# silhouette is padded by this much and a pad smaller than the kernel clips the penumbra
+# into a hard edge — which is the one thing a contact shadow must not have.
+SHADOW_BLUR_PX = float(SHADOW_BLUR_RADIUS * SHADOW_BLUR_PASSES * SHADOW_DOWNSAMPLE)
+SHADOW_OPACITY = 0.5
+SHADOW_REST_OFFSET_PX = 4.0  # how far the shadow sits below a resting card
+SHADOW_LIFT_OFFSET_PX = 90.0  # additional offset per unit of lift above rest
+SHADOW_LIFT_SPREAD = 0.6  # how much of the lift the shadow itself takes as scale
+
 
 def approach(current, target, rate, dt):
     """Move `current` toward `target` by `rate`, independently of framerate.
@@ -107,32 +193,46 @@ class MotionChannels:
     # alignment, snapping and undo keep operating on the logical position.
     drift_x: float = 0.0
     drift_y: float = 0.0
+    # Perspective tilt in degrees, reactive tier: the face turning toward the cursor, and
+    # the bank angle of a drag. Summed with the ambient tilt rather than sharing it, so
+    # that `advance_motion` can scale one tier by the ambient gain without touching this
+    # one — which is the whole reason RFC-024 keeps the tiers on separate channels.
+    face_x: float = 0.0
+    face_y: float = 0.0
     # Z rotation in degrees, reactive tier: a brief response to the user's own action.
     spin: float = 0.0
+    # How far the *displayed* rotation still trails `orient`, in degrees, reactive tier.
+    # `set_orient` writes the logical angle at once and parks the difference here, so the
+    # card sweeps into its new orientation instead of teleporting while every caller that
+    # asks for `orient` still reads the exact value it set.
+    orient_lag: float = 0.0
     # Uniform scale, reactive tier.
     lift: float = 1.0
 
     def compose(self, width, height):
         """Fold every channel into one transform, about the card's centre."""
         cx, cy = width / 2.0, height / 2.0
+        tilt_x = self.tilt_x + self.face_x
+        tilt_y = self.tilt_y + self.face_y
+        spin = self.orient + self.orient_lag + self.spin
         t = QTransform()
         t.translate(cx + self.drift_x, cy + self.drift_y)
-        if self.tilt_x or self.tilt_y:
+        if tilt_x or tilt_y:
             t.setMatrix(
                 t.m11(),
                 t.m12(),
-                -EXTRA_PERSPECTIVE_PER_DEGREE * self.tilt_y,
+                -EXTRA_PERSPECTIVE_PER_DEGREE * tilt_y,
                 t.m21(),
                 t.m22(),
-                -EXTRA_PERSPECTIVE_PER_DEGREE * self.tilt_x,
+                -EXTRA_PERSPECTIVE_PER_DEGREE * tilt_x,
                 t.m31(),
                 t.m32(),
                 t.m33(),
             )
-            t.rotate(self.tilt_y, Qt.Axis.YAxis)
-            t.rotate(self.tilt_x, Qt.Axis.XAxis)
-        if self.orient or self.spin:
-            t.rotate(self.orient + self.spin)
+            t.rotate(tilt_y, Qt.Axis.YAxis)
+            t.rotate(tilt_x, Qt.Axis.XAxis)
+        if spin:
+            t.rotate(spin)
         if self.lift != 1.0:
             t.scale(self.lift, self.lift)
         t.translate(-cx, -cy)
@@ -146,9 +246,164 @@ class MotionChannels:
             self.tilt_y,
             self.drift_x,
             self.drift_y,
+            self.face_x,
+            self.face_y,
             self.spin,
+            self.orient_lag,
             self.lift,
         )
+
+
+class Spring:
+    """A damped harmonic oscillator, for the one channel that has to overshoot.
+
+    `approach()` is first-order: it converges from one side and never passes its target,
+    which is right for a tilt chasing the cursor and wrong for a card settling onto the
+    table. A settle that does not overshoot reads as the card being lowered by machinery;
+    one that overshoots once reads as weight.
+
+    Integrated semi-implicitly and substepped, because an explicit spring is only stable
+    while `stiffness * dt^2` stays small and `MAX_DT` permits a 100 ms tick after a modal
+    dialog or a suspend. Substepping makes the result framerate-independent as well.
+    """
+
+    __slots__ = ("value", "velocity", "stiffness", "damping")
+
+    def __init__(self, value=1.0, stiffness=LIFT_STIFFNESS, damping=LIFT_DAMPING):
+        self.value = value
+        self.velocity = 0.0
+        self.stiffness = stiffness
+        self.damping = damping
+
+    def snap(self, value, velocity=0.0):
+        """Place the spring, discarding whatever it was doing. Used to launch a settle."""
+        self.value = value
+        self.velocity = velocity
+
+    def advance(self, target, dt):
+        if dt <= 0.0:
+            return self.value
+        steps = max(1, math.ceil(dt / SPRING_MAX_STEP))
+        h = dt / steps
+        for _ in range(steps):
+            acceleration = -self.stiffness * (self.value - target) - self.damping * self.velocity
+            self.velocity += acceleration * h
+            self.value += self.velocity * h
+        if (
+            abs(self.value - target) < REACTIVE_REST_EPSILON
+            and abs(self.velocity) < REACTIVE_REST_VELOCITY
+        ):
+            self.snap(target)
+        return self.value
+
+
+def rest(value, target, epsilon=REACTIVE_REST_EPSILON):
+    """Snap a converging channel onto its target once the difference stops mattering."""
+    return target if abs(value - target) < epsilon else value
+
+
+def _box_blur(alpha, width, height, radius):
+    """One separable box blur over a flat alpha grid, as a sliding window.
+
+    Linear in the number of samples rather than in `samples * radius`: the window is
+    advanced by adding one sample and dropping another. That matters because this runs on
+    the UI thread when a card is dealt, and a quadratic version of it is the difference
+    between the shadow being free and being a visible hitch.
+    """
+    if radius < 1:
+        return alpha
+    for horizontal in (True, False):
+        source = alpha
+        alpha = [0] * (width * height)
+        outer, inner = (height, width) if horizontal else (width, height)
+        stride = 1 if horizontal else width
+        base_step = width if horizontal else 1
+        for o in range(outer):
+            base = o * base_step
+            window = sum(source[base + j * stride] for j in range(min(radius + 1, inner)))
+            count = min(radius + 1, inner)
+            for i in range(inner):
+                alpha[base + i * stride] = window // count
+                entering = i + radius + 1
+                leaving = i - radius
+                if entering < inner:
+                    window += source[base + entering * stride]
+                    count += 1
+                if leaving >= 0:
+                    window -= source[base + leaving * stride]
+                    count -= 1
+    return alpha
+
+
+def build_contact_shadow(pixmap):
+    """Bake a soft black silhouette of `pixmap`, once, with `SHADOW_BLUR_PX` of penumbra.
+
+    Deliberately not `QGraphicsDropShadowEffect`, which re-blurs on every paint and would
+    put a gaussian in the frame budget of every card on the canvas. The blur is computed on
+    an eighth-scale copy — about 2400 samples for a 300x500 card rather than 150,000, which
+    is the difference between a Python loop being free and being impossible — and scaled
+    back up smoothly. Downsampling before a blur is close to exact: the small image has
+    already lost the frequencies the blur was going to remove.
+
+    The result is padded by the blur radius on every side so the penumbra is not clipped,
+    and `shadow_offset()` accounts for that padding.
+    """
+    pad = int(round(SHADOW_BLUR_PX))
+    width = pixmap.width() + 2 * pad
+    height = pixmap.height() + 2 * pad
+    if width <= 0 or height <= 0:
+        return QPixmap()
+
+    silhouette = QImage(width, height, QImage.Format.Format_ARGB32)
+    silhouette.fill(0)
+    painter = QPainter(silhouette)
+    painter.drawPixmap(pad, pad, pixmap)
+    painter.end()
+
+    small_w = max(1, width // SHADOW_DOWNSAMPLE)
+    small_h = max(1, height // SHADOW_DOWNSAMPLE)
+    small = silhouette.scaled(
+        small_w,
+        small_h,
+        Qt.AspectRatioMode.IgnoreAspectRatio,
+        Qt.TransformationMode.SmoothTransformation,
+    )
+    alpha = [qAlpha(small.pixel(x, y)) for y in range(small_h) for x in range(small_w)]
+
+    for _ in range(SHADOW_BLUR_PASSES):
+        alpha = _box_blur(alpha, small_w, small_h, SHADOW_BLUR_RADIUS)
+
+    blurred = QImage(small_w, small_h, QImage.Format.Format_ARGB32)
+    blurred.fill(0)
+    for y in range(small_h):
+        row = y * small_w
+        for x in range(small_w):
+            blurred.setPixelColor(x, y, QColor(0, 0, 0, alpha[row + x]))
+
+    return QPixmap.fromImage(
+        blurred.scaled(
+            width,
+            height,
+            Qt.AspectRatioMode.IgnoreAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+    )
+
+
+def shadow_geometry(lift):
+    """`(offset_px, scale, opacity)` for a shadow under a card at this `lift`.
+
+    Height is encoded in the *separation* between card and shadow, not in the shadow's
+    darkness alone: a card pressed into the felt has a tight, dark contact shadow and a
+    lifted one has a wide, faint, displaced one. That relationship is the whole of what
+    makes the card read as floating rather than as merely scaled.
+    """
+    height = max(0.0, lift - LIFT_REST)
+    offset = SHADOW_REST_OFFSET_PX + height * SHADOW_LIFT_OFFSET_PX
+    scale = 1.0 + height * SHADOW_LIFT_SPREAD
+    # Further away is softer and fainter, but never so faint it stops grounding the card.
+    opacity = SHADOW_OPACITY * (1.0 - min(0.45, height * 3.0))
+    return offset, scale, opacity
 
 
 def drift_phases(seed_text, count):
