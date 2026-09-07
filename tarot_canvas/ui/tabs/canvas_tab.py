@@ -29,14 +29,12 @@ from PyQt6.QtWidgets import (
 
 from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.settings import (
-    ANIMATION_INTENSITY_DEFAULT,
-    ANIMATION_INTENSITY_KEY,
-    ANIMATIONS_ENABLED_DEFAULT,
-    ANIMATIONS_ENABLED_KEY,
     BACKGROUND_COLOR_DEFAULT,
     BACKGROUND_COLOR_KEY,
     BACKGROUND_STYLE_DEFAULT,
     BACKGROUND_STYLE_KEY,
+    MOTION_LEVEL_DEFAULT,
+    get_motion_level,
     get_settings,
 )
 
@@ -51,6 +49,12 @@ from tarot_canvas.ui.canvas import (
     distribute_items_horizontally,
     distribute_items_vertically,
 )
+from tarot_canvas.ui.canvas.motion import (
+    AMBIENT_GAIN_FLOOR,
+    MotionClock,
+    approach,
+    system_animations_enabled,
+)
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 
 
@@ -64,6 +68,26 @@ class CanvasTab(BaseTab):
         self.tab_name = "Canvas"  # Default tab name
 
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+        # One timebase for every card on this canvas, running only while the tab is
+        # visible. Per-tab rather than app-global: that is what makes the visibility
+        # gate natural, and an idle window genuinely idle.
+        self.motion_clock = MotionClock(self)
+        self.ambient_gain = 0.0
+        # Every card currently in the scene, maintained by DraggableCardItem.itemChange.
+        # The tick used to filter `self.scene.items()`, which builds and z-sorts a Python
+        # list of every item — cards and their shadows — once a frame for no reason.
+        self._cards = []
+        # Every card gets its own depth, allocated from these. Cards used to share a
+        # z-value of 0 and fall back to insertion order, which made "bring to front"
+        # a no-op for a second card and left no order for a shadow to sit inside.
+        self._top_z = 0.0
+        self._bottom_z = 0.0
+        # Both are answers to questions that cost real time — a QSettings read and a
+        # synchronous D-Bus round trip — so they are sampled when something might have
+        # changed them, never on the tick.
+        self.motion_level = MOTION_LEVEL_DEFAULT
+        self.desktop_wants_animation = True
 
         # Setup the UI with size-constrained components
         self.setup_ui()
@@ -150,17 +174,101 @@ class CanvasTab(BaseTab):
             bg_color = settings.value(BACKGROUND_COLOR_KEY, BACKGROUND_COLOR_DEFAULT)
             self.create_solid_color_background(bg_color)
 
-        # Apply animation settings
-        enable_animations = settings.value(
-            ANIMATIONS_ENABLED_KEY, ANIMATIONS_ENABLED_DEFAULT, type=bool
+        self.refresh_motion_settings()
+        if self.motion_is_enabled() and self.isVisible():
+            self.motion_clock.subscribe(self._advance_motion)
+        else:
+            self.motion_clock.unsubscribe(self._advance_motion)
+            self.settle_motion()
+
+    # Motion
+    def refresh_motion_settings(self):
+        """Re-sample the two expensive inputs to the motion gates.
+
+        Called when the tab becomes visible and when preferences are applied — not on the
+        tick, where a QSettings read and a blocking D-Bus call sixty times a second would
+        cost more than the motion they gate.
+        """
+        self.motion_level = get_motion_level()
+        self.desktop_wants_animation = system_animations_enabled()
+
+    def motion_is_enabled(self):
+        """Whether this canvas runs its clock at all."""
+        return self.motion_level != "Off"
+
+    def reactive_is_allowed(self):
+        """Whether cards may answer the pointer. Asked by the cards themselves.
+
+        Unlike the ambient tier this survives a desktop asking for reduced motion: a brief
+        response to the user's own click is informative, where perpetual drift is the
+        vestibular trigger. It is also the whole difference between `Reactive` and `Off`.
+        """
+        return self.motion_level != "Off"
+
+    def ambient_is_allowed(self):
+        """Whether the ambient tier may play right now.
+
+        Ambient motion is the vestibular trigger and the cognitive tax, so it yields to
+        anything suggesting the user is not watching this canvas: another tab in front,
+        another window focused, a desktop asking for reduced motion.
+        """
+        return (
+            self.motion_level == "Full"
+            and self.desktop_wants_animation
+            and self.isVisible()
+            and self.window().isActiveWindow()
         )
 
-        animation_intensity = settings.value(
-            ANIMATION_INTENSITY_KEY, ANIMATION_INTENSITY_DEFAULT, type=int
-        )
+    def cards(self):
+        """Every card on this canvas, in no particular order."""
+        return tuple(self._cards)
 
-        # Update all card animations
-        self.update_card_animations(enable_animations, animation_intensity)
+    def register_card(self, card):
+        """Called by a card when it enters this tab's scene."""
+        if card not in self._cards:
+            self._cards.append(card)
+
+    def unregister_card(self, card):
+        """Called by a card when it leaves this tab's scene."""
+        if card in self._cards:
+            self._cards.remove(card)
+
+    def _advance_motion(self, t, dt):
+        """Drive every card on this canvas for one frame.
+
+        The clock hands us time and nothing else. Cards register themselves as they enter
+        and leave the scene, so one destroyed underneath us simply stops being visited.
+        """
+        self.ambient_gain = approach(
+            self.ambient_gain, 1.0 if self.ambient_is_allowed() else 0.0, 8.0, dt
+        )
+        # approach() is asymptotic and never lands on zero. Without this a canvas that has
+        # faded out holds a permanent fraction-of-a-degree tilt and repaints for it forever.
+        if self.ambient_gain < AMBIENT_GAIN_FLOOR:
+            self.ambient_gain = 0.0
+        # Sampled once for the whole canvas rather than per card: it is the denominator of
+        # the per-card motion dead-band, which is specified in device pixels so that it
+        # stays below the threshold of visibility at every zoom.
+        view_scale = abs(self.view.transform().m11())
+        for card in self._cards:
+            card.advance_motion(t, dt, self.ambient_gain, view_scale)
+
+    def settle_motion(self):
+        """Put every card flat. Used when the clock stops, so nothing freezes mid-breath."""
+        self.ambient_gain = 0.0
+        for card in self._cards:
+            card.settle_motion()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.refresh_motion_settings()
+        if self.motion_is_enabled():
+            self.motion_clock.subscribe(self._advance_motion)
+
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        self.motion_clock.unsubscribe(self._advance_motion)
+        self.settle_motion()
 
     def create_gradient_background(self):
         """Create a gradient background for the canvas"""
@@ -207,32 +315,6 @@ class CanvasTab(BaseTab):
 
         pattern_brush = QBrush(pixmap)
         self.view.setBackgroundBrush(pattern_brush)
-
-    def update_card_animations(self, enable, intensity):
-        """Update all card animations based on settings"""
-        # Scale intensity from 0-100 to appropriate animation values
-        rotation_amplitude = intensity * 0.016  # 0 to 1.6 degrees
-        scale_amplitude = 1.0 + (intensity * 0.0004)  # 1.0 to 1.04
-
-        # Get all card items in the scene
-        for item in self.scene.items():
-            if isinstance(item, DraggableCardItem) and hasattr(item, "rotation_anim"):
-                # Stop any existing animation
-                item.rotation_anim.stop()
-
-                if enable:
-                    # Get current rotation/state
-                    base_rotation = item.rotation()
-                    if hasattr(item, "anim_controller"):
-                        item.anim_controller._rotation = base_rotation
-
-                    # Set up animation with new intensity
-                    item.setup_wobble_animation_with_intensity(
-                        base_rotation, rotation_amplitude, scale_amplitude
-                    )
-
-                    # Start the animation
-                    item.start_animations()
 
     def ensure_window_bounds(self):
         """Ensure the window stays within screen boundaries"""
@@ -537,9 +619,19 @@ class CanvasTab(BaseTab):
         # Log what deck we drew from
         print(f"Drew card from {deck_to_use.get_name()} deck")
 
+    def take_top_z(self):
+        """The next depth above every card on the canvas."""
+        self._top_z += 1.0
+        return self._top_z
+
+    def take_bottom_z(self):
+        """The next depth below every card on the canvas."""
+        self._bottom_z -= 1.0
+        return self._bottom_z
+
     def cascade_from_occupied(self, pos, step=20, limit=20):
         """Nudge pos clear of a card already sitting there, as duplicating does."""
-        occupied = {(round(item.pos().x()), round(item.pos().y())) for item in self.scene.items()}
+        occupied = {(round(card.pos().x()), round(card.pos().y())) for card in self._cards}
         for _ in range(limit):
             if (round(pos.x()), round(pos.y())) not in occupied:
                 break
@@ -573,20 +665,16 @@ class CanvasTab(BaseTab):
             # Create a draggable card item
             card_item = DraggableCardItem(pixmap, card, self)
 
-            # Set initial rotation based on reversed status
-            initial_rotation = 180 if is_reversed else 0
-            card_item.setRotation(initial_rotation)
+            # A card dealt onto the canvas lands on top of what is already there, and its
+            # shadow follows it into that slot.
+            card_item.setZValue(self.take_top_z())
 
-            # Update the animation controller's base rotation
-            if hasattr(card_item, "anim_controller"):
-                card_item.anim_controller._rotation = initial_rotation
+            # Set initial rotation based on reversed status
+            card_item.set_orient(180 if is_reversed else 0)
 
             # Update the card's data to reflect its reversed status
             if card_item.card_data:
                 card_item.card_data["reversed"] = is_reversed
-
-            # Setup wobble animation with the correct base rotation
-            card_item.setup_wobble_animation(base_rotation=initial_rotation)
 
             # Deselect any currently selected cards
             for selected_item in self.scene.selectedItems():
@@ -609,6 +697,10 @@ class CanvasTab(BaseTab):
 
             # Select the newly added card
             card_item.setSelected(True)
+
+            # Arrive large and spring back, so the card reads as having been dealt onto
+            # the table rather than having always been there.
+            card_item.place_and_settle()
 
             reversed_status = "reversed" if is_reversed else "upright"
             print(f"Added card to canvas: {card['name']} ({reversed_status})")
@@ -663,19 +755,15 @@ class CanvasTab(BaseTab):
         items = self.scene.selectedItems()
         for item in items:
             if isinstance(item, DraggableCardItem):
-                item.setRotation((item.rotation() + 90) % 360)
+                item.set_orient(item.orient + 90)
 
     def on_flip_card(self):
         """Flip the selected card upside down (to indicate reversed position in Tarot)"""
         items = self.scene.selectedItems()
         for item in items:
             if isinstance(item, DraggableCardItem):
-                # First, stop all animations that might override our rotation
-                if hasattr(item, "rotation_anim"):
-                    item.rotation_anim.stop()
-
                 # Toggle between normal and reversed position (180° rotation)
-                current_rotation = item.rotation()
+                current_rotation = item.orient
 
                 # If close to upright (0°), flip to reversed (180°)
                 # If close to reversed (180°), flip to upright (0°)
@@ -684,20 +772,12 @@ class CanvasTab(BaseTab):
                     new_rotation = 180
 
                 # Set the new rotation directly
-                item.setRotation(new_rotation)
-
-                # Update the base rotation in the animation controller
-                if hasattr(item, "anim_controller"):
-                    item.anim_controller._rotation = new_rotation
+                item.set_orient(new_rotation)
 
                 # Update the card's internal state to reflect reversed status
                 if hasattr(item, "card_data") and item.card_data:
                     # Toggle the reversed flag (create if it doesn't exist)
                     item.card_data["reversed"] = new_rotation == 180
-
-                # Now restart the animation with the new base rotation
-                if hasattr(item, "setup_wobble_animation"):
-                    item.setup_wobble_animation(base_rotation=new_rotation)
 
     def on_delete_card(self):
         """Remove the selected card from canvas"""
@@ -713,16 +793,28 @@ class CanvasTab(BaseTab):
             action.setEnabled(count >= (2 if slot == self.on_align_cards else 1))
 
     def on_bring_to_front(self):
-        """Bring selected card to front"""
-        items = self.scene.selectedItems()
-        for item in items:
-            item.setZValue(100)  # High z-value
+        """Bring the selected cards to the front, keeping their order among themselves."""
+        self._restack(self.scene.selectedItems(), self.take_top_z)
 
     def on_send_to_back(self):
-        """Send selected card to back"""
-        items = self.scene.selectedItems()
-        for item in items:
-            item.setZValue(-100)  # Low z-value
+        """Send the selected cards to the back, keeping their order among themselves."""
+        self._restack(self.scene.selectedItems(), self.take_bottom_z, deepest_first=True)
+
+    def _restack(self, items, allocate, deepest_first=False):
+        """Give each of `items` a fresh depth, preserving their relative order.
+
+        Sorted first because raising a multi-selection must not shuffle it: two cards
+        brought to the front should arrive at the front in the order they already had.
+        `take_bottom_z` hands out *descending* depths, so sending to the back walks the
+        selection from the top down — otherwise the group would come out inverted.
+        """
+        cards = sorted(
+            (item for item in items if isinstance(item, DraggableCardItem)),
+            key=lambda item: item.zValue(),
+            reverse=deepest_first,
+        )
+        for card in cards:
+            card.setZValue(allocate())
 
     def on_align_cards(self):
         """Show alignment options for selected cards"""

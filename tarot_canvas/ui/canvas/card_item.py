@@ -1,25 +1,55 @@
-import random
+from PyQt6.QtCore import QPointF, Qt
+from PyQt6.QtWidgets import QGraphicsItem, QGraphicsPixmapItem
 
-from PyQt6 import sip
-from PyQt6.QtCore import (
-    QEasingCurve,
-    QPropertyAnimation,
-    QSequentialAnimationGroup,
-    Qt,
-    QTimer,
+from tarot_canvas.ui.canvas.motion import (
+    AMBIENT_SCALE_DRAG,
+    AMBIENT_SCALE_HOVER,
+    HOVER_TILT_DEG,
+    LEAN_DEG_PER_PX,
+    LEAN_MAX_DEG,
+    LEAN_RATE,
+    LEAN_REST_PX,
+    LIFT_DRAG,
+    LIFT_HOVER,
+    LIFT_PLACED,
+    LIFT_PRESSED,
+    LIFT_REST,
+    LIFT_SELECTED,
+    MOTION_EPSILON_PX,
+    ORIENT_RATE,
+    REACTIVE_RATE,
+    SPIN_RATE,
+    AmbientDrift,
+    MotionChannels,
+    Spring,
+    approach,
+    max_corner_delta,
+    rest,
 )
-from PyQt6.QtWidgets import QGraphicsPixmapItem
 
-from tarot_canvas.settings import (
-    ANIMATIONS_ENABLED_DEFAULT,
-    ANIMATIONS_ENABLED_KEY,
-    get_settings,
-)
-from tarot_canvas.ui.canvas.animations import CardAnimationController
+# Degrees of Z rotation kicked into `spin` when the pointer first arrives over a card. It
+# decays straight back to zero, so this is an impulse rather than a state: the punch is the
+# card acknowledging the cursor, not a pose it holds.
+HOVER_PUNCH_DEG = 2.0
+
+
+def _clamp(value, limit):
+    return max(-limit, min(limit, value))
 
 
 class DraggableCardItem(QGraphicsPixmapItem):
-    """Enhanced draggable card item with wobble animation."""
+    """A card on the playground canvas: draggable, selectable, opens a card view.
+
+    The card's transform is owned entirely by `self.motion`: nothing here calls
+    `setRotation`, `setScale` or `setTransformOriginPoint`. Callers that want the card
+    turned — the reversed-180 state, the rotate-90 command — write the `orient` channel
+    and let `_apply_motion` compose it.
+
+    Input handlers here never touch a transform either. They write *targets*, and the
+    single clock walks every card once a frame to chase them. That is what keeps a hover
+    and a drag and the ambient drift from fighting over the same scalar, which is the bug
+    the previous wobble implementation could not get out from under.
+    """
 
     def __init__(self, pixmap, card_data, parent_tab=None):
         super().__init__(pixmap)
@@ -30,140 +60,323 @@ class DraggableCardItem(QGraphicsPixmapItem):
         self.setFlag(QGraphicsPixmapItem.GraphicsItemFlag.ItemSendsGeometryChanges)
         self.setAcceptHoverEvents(True)
         self.setCursor(Qt.CursorShape.OpenHandCursor)
-        self.setTransformOriginPoint(pixmap.width() / 2, pixmap.height() / 2)
+        # QGraphicsPixmapItem defaults to FastTransformation, and its paint() sets the
+        # SmoothPixmapTransform render hint from this mode — overwriting whatever the
+        # view asked for. A rotated card is resampled nearest-neighbour without this,
+        # which reads as horizontal shear bands crawling across the face.
+        self.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
 
-        # Create animation controller
-        self.anim_controller = CardAnimationController()
-        self.anim_controller.card_item = self
+        self.motion = MotionChannels()
+        # Seeded from the card rather than the object, so the Hermit breathes the same way
+        # every time it is drawn. Falls back to the name, then to nothing, rather than
+        # failing on a card_data that has no id.
+        self._drift = AmbientDrift(card_data.get("id") or card_data.get("name") or "")
+        self._applied = None
+        # The mapped corners of the last transform actually applied. The dead-band in
+        # `_apply_motion` measures against these rather than against the previous *frame*,
+        # so skipped sub-pixel deltas accumulate instead of being dropped.
+        self._applied_corners = None
+        # The view's zoom, so the dead-band can be specified in device pixels and still
+        # hold at 4x. Pushed in by the tab on each tick rather than read from
+        # `scene().views()` here, which would build a Python list per card per frame.
+        self._view_scale = 1.0
+        # The tab this card is currently listed with, so leaving a scene can undo exactly
+        # what joining it did.
+        self._registered_tab = None
 
-        # Set up wobble animation
-        self.setup_wobble_animation()
+        self._hovering = False
+        self._pressed = False
+        self._dragging = False
+        self._hover_face = (0.0, 0.0)
+        self._ambient_scale = 1.0
+        # The logical position the visual is chasing. The gap between them is never used to
+        # displace the card — that would read as input lag on a direct-manipulation drag —
+        # only to derive the bank angle, which is RFC-024's "one subtraction".
+        self._visual_pos = QPointF(self.pos())
+        self._lift = Spring(LIFT_REST)
+        self._apply_motion()
 
-    def setup_wobble_animation(self, base_rotation=0):
-        """Set up wobble animation with slight rotation changes."""
-        # Stop any existing animation
-        if hasattr(self, "rotation_anim") and self.rotation_anim:
-            self.rotation_anim.stop()
+    # Motion state
+    @property
+    def orient(self):
+        """The card's logical rotation in degrees — what `rotation()` used to hold."""
+        return self.motion.orient
 
-        # Create a sequential animation group for rotation
-        self.rotation_anim = QSequentialAnimationGroup()
+    def set_orient(self, degrees):
+        """Turn the card. Card state, not motion: no gate suppresses it.
 
-        # Create subtle rotation animations around the base rotation
-        rot1 = QPropertyAnimation(self.anim_controller, b"rotation")
-        rot1.setDuration(4000 + random.randint(-500, 500))  # Randomize duration slightly
-        rot1.setStartValue(base_rotation)
-        rot1.setEndValue(base_rotation + 0.8)  # Small rotation angle
-        rot1.setEasingCurve(QEasingCurve.Type.InOutSine)
+        The logical angle lands immediately, so `on_flip_card` still branches on an exact
+        value; what animates is `orient_lag`, the difference the display has yet to catch
+        up on, taken the short way round so a flip does not unwind through 359 degrees.
+        """
+        previous = self.motion.orient + self.motion.orient_lag
+        self.motion.orient = float(degrees) % 360
+        if self._reactive_allowed():
+            self.motion.orient_lag = (previous - self.motion.orient + 180.0) % 360.0 - 180.0
+        else:
+            self.motion.orient_lag = 0.0
+        self._apply_motion()
 
-        rot2 = QPropertyAnimation(self.anim_controller, b"rotation")
-        rot2.setDuration(2000 + random.randint(-500, 500))
-        rot2.setStartValue(base_rotation + 0.8)
-        rot2.setEndValue(base_rotation - 0.8)  # Small negative rotation
-        rot2.setEasingCurve(QEasingCurve.Type.InOutSine)
+    def place_and_settle(self):
+        """Arrive large and spring back. Called once, when the card is drawn onto the tab."""
+        if not self._reactive_allowed():
+            return
+        self._lift.snap(LIFT_PLACED)
+        self.motion.lift = LIFT_PLACED
+        self._apply_motion()
 
-        rot3 = QPropertyAnimation(self.anim_controller, b"rotation")
-        rot3.setDuration(2000 + random.randint(-500, 500))
-        rot3.setStartValue(base_rotation - 0.8)
-        rot3.setEndValue(base_rotation)  # Back to neutral
-        rot3.setEasingCurve(QEasingCurve.Type.InOutSine)
+    def _reactive_allowed(self):
+        """Whether the reactive tier may play.
 
-        # Add the animations to the sequence
-        self.rotation_anim.addAnimation(rot1)
-        self.rotation_anim.addAnimation(rot2)
-        self.rotation_anim.addAnimation(rot3)
+        Asked of the tab rather than cached, so there is no per-card flag to keep in step
+        with the preferences dialog. Reactive ignores the desktop's reduced-motion hint and
+        the window's focus on purpose: RFC-024's ladder keeps this tier under reduced
+        motion, and an unfocused window has no cursor over a card to respond to. A card
+        with no tab — every unit test that does not supply one — is simply inert.
+        """
+        tab = self.parent_tab
+        if tab is None or not hasattr(tab, "reactive_is_allowed"):
+            return False
+        return tab.reactive_is_allowed()
 
-        # Create a very subtle scale animation (keep this part the same)
-        self.scale_anim = QPropertyAnimation(self.anim_controller, b"scale")
-        self.scale_anim.setDuration(1500 + random.randint(-300, 300))
-        self.scale_anim.setStartValue(1.0)
-        self.scale_anim.setEndValue(1.02)  # Very slight scale up
-        self.scale_anim.setLoopCount(-1)  # Loop indefinitely
-        self.scale_anim.setEasingCurve(QEasingCurve.Type.InOutSine)
+    def _lift_target(self):
+        if self._dragging:
+            return LIFT_DRAG
+        if self._pressed:
+            return LIFT_PRESSED
+        if self._hovering:
+            return LIFT_HOVER
+        # Selection gets a resting lift rather than a drawn outline. Qt's own dashed
+        # rectangle clashes with the artwork and does not follow the card's perspective,
+        # and the corner brackets that would replace it cannot be painted from Python
+        # without crashing the suite (TASK-028). Height reads as selected on its own.
+        if self.isSelected():
+            return LIFT_SELECTED
+        return LIFT_REST
 
-        # Start animations with slight delay unless the user disabled them
-        settings = get_settings()
-        if settings.value(ANIMATIONS_ENABLED_KEY, ANIMATIONS_ENABLED_DEFAULT, type=bool):
-            QTimer.singleShot(random.randint(0, 1000), self.start_animations)
+    def _ambient_scale_target(self):
+        """Ambient yields to intent, in one number."""
+        if self._dragging:
+            return AMBIENT_SCALE_DRAG
+        if self._hovering:
+            return AMBIENT_SCALE_HOVER
+        return 1.0
 
-    def setup_wobble_animation_with_intensity(
-        self, base_rotation=0, rotation_amplitude=0.8, scale_amplitude=1.02
-    ):
-        """Set up wobble animation with custom intensity."""
-        # Stop any existing animation
-        if hasattr(self, "rotation_anim") and self.rotation_anim:
-            self.rotation_anim.stop()
+    def _face_target(self, dt):
+        """Where the reactive tilt is heading: banking into a drag, or facing the cursor.
 
-        # Create a sequential animation group for rotation
-        self.rotation_anim = QSequentialAnimationGroup()
+        The two are states of the same card and cannot both apply, so they compete for one
+        channel rather than summing into two.
+        """
+        position = self.pos()
+        self._visual_pos = QPointF(
+            approach(self._visual_pos.x(), position.x(), LEAN_RATE, dt),
+            approach(self._visual_pos.y(), position.y(), LEAN_RATE, dt),
+        )
+        # The same floor the reactive channels get, for the same reason: approach() closes
+        # the gap asymptotically, and a lean target of a ten-billionth of a degree still
+        # keeps every card on the canvas repainting for a drag that ended long ago.
+        if (
+            abs(position.x() - self._visual_pos.x()) < LEAN_REST_PX
+            and abs(position.y() - self._visual_pos.y()) < LEAN_REST_PX
+        ):
+            self._visual_pos = QPointF(position)
+        if self._dragging:
+            error = self.pos() - self._visual_pos
+            # The card ploughs: the leading edge digs into the felt and the trailing edge
+            # lifts. See _face_toward for why both axes are the *negative* of the
+            # displacement, and REPORTS/2026-09-07-drag-tilt-direction for why ploughing
+            # rather than banking is the right reading for a top-down spread.
+            return (
+                _clamp(-error.y() * LEAN_DEG_PER_PX, LEAN_MAX_DEG),
+                _clamp(-error.x() * LEAN_DEG_PER_PX, LEAN_MAX_DEG),
+            )
+        if self._hovering:
+            return self._hover_face
+        return (0.0, 0.0)
 
-        # Create subtle rotation animations around the base rotation
-        rot1 = QPropertyAnimation(self.anim_controller, b"rotation")
-        rot1.setDuration(4000 + random.randint(-500, 500))  # Randomize duration slightly
-        rot1.setStartValue(base_rotation)
-        rot1.setEndValue(base_rotation + rotation_amplitude)  # Configurable rotation angle
-        rot1.setEasingCurve(QEasingCurve.Type.InOutSine)
+    def advance_motion(self, t, dt, ambient_gain, view_scale=1.0):
+        """Advance one frame. Returns whether the card's transform actually changed.
 
-        rot2 = QPropertyAnimation(self.anim_controller, b"rotation")
-        rot2.setDuration(2000 + random.randint(-500, 500))
-        rot2.setStartValue(base_rotation + rotation_amplitude)
-        rot2.setEndValue(base_rotation - rotation_amplitude)  # Configurable negative rotation
-        rot2.setEasingCurve(QEasingCurve.Type.InOutSine)
+        Ambient channels (tilt, drift) are scaled by `ambient_gain` and reactive ones are
+        not, which is what makes the reduced-motion tiers a single gate rather than a
+        per-effect audit. At a gain of exactly zero the ambient channels land on exactly
+        zero, so `_apply_motion` finds an unchanged snapshot and a gated canvas costs no
+        repaints at all.
+        """
+        self._view_scale = view_scale
+        self._ambient_scale = approach(
+            self._ambient_scale, self._ambient_scale_target(), REACTIVE_RATE, dt
+        )
+        gain = ambient_gain * self._ambient_scale
+        tilt_x, tilt_y, drift_x, drift_y = self._drift.sample(t)
+        self.motion.tilt_x = tilt_x * gain
+        self.motion.tilt_y = tilt_y * gain
+        self.motion.drift_x = drift_x * gain
+        self.motion.drift_y = drift_y * gain
 
-        rot3 = QPropertyAnimation(self.anim_controller, b"rotation")
-        rot3.setDuration(2000 + random.randint(-500, 500))
-        rot3.setStartValue(base_rotation - rotation_amplitude)
-        rot3.setEndValue(base_rotation)  # Back to neutral
-        rot3.setEasingCurve(QEasingCurve.Type.InOutSine)
+        face_x, face_y = self._face_target(dt)
+        self.motion.face_x = rest(approach(self.motion.face_x, face_x, REACTIVE_RATE, dt), face_x)
+        self.motion.face_y = rest(approach(self.motion.face_y, face_y, REACTIVE_RATE, dt), face_y)
+        self.motion.spin = rest(approach(self.motion.spin, 0.0, SPIN_RATE, dt), 0.0)
+        self.motion.orient_lag = rest(approach(self.motion.orient_lag, 0.0, ORIENT_RATE, dt), 0.0)
+        self.motion.lift = self._lift.advance(self._lift_target(), dt)
+        return self._apply_motion()
 
-        # Add the animations to the sequence
-        self.rotation_anim.addAnimation(rot1)
-        self.rotation_anim.addAnimation(rot2)
-        self.rotation_anim.addAnimation(rot3)
+    def settle_motion(self):
+        """Bring every channel but the card's own orientation to rest, at once.
 
-        # Create a very subtle scale animation with configurable scale
-        self.scale_anim = QPropertyAnimation(self.anim_controller, b"scale")
-        self.scale_anim.setDuration(1500 + random.randint(-300, 300))
-        self.scale_anim.setStartValue(1.0)
-        self.scale_anim.setEndValue(scale_amplitude)  # Configurable scale
-        self.scale_anim.setLoopCount(-1)  # Loop indefinitely
-        self.scale_anim.setEasingCurve(QEasingCurve.Type.InOutSine)
+        Called when the clock stops. Both tiers are dropped, not just the ambient one: a
+        hidden tab freezes whatever gesture was in flight, and a card that comes back
+        half-lifted and still banking from a drag that ended two minutes ago is worse than
+        one that comes back flat. The hover and press flags go with them, since the pointer
+        is demonstrably somewhere else by the time this runs.
+        """
+        self._hovering = False
+        self._pressed = False
+        self._dragging = False
+        self._hover_face = (0.0, 0.0)
+        self._ambient_scale = 1.0
+        self._visual_pos = QPointF(self.pos())
+        self._lift.snap(LIFT_REST)
+        channels = self.motion
+        channels.tilt_x = channels.tilt_y = 0.0
+        channels.drift_x = channels.drift_y = 0.0
+        channels.face_x = channels.face_y = 0.0
+        channels.spin = channels.orient_lag = 0.0
+        channels.lift = LIFT_REST
+        return self._apply_motion()
 
-    def start_animations(self):
-        """Start the wobble animations."""
-        if sip.isdeleted(self):
-            return  # the card was deleted while its start was still queued
-        self.rotation_anim.setLoopCount(-1)  # Loop indefinitely
-        self.rotation_anim.start()
-        # self.scale_anim.start()
+    def _apply_motion(self):
+        """Compose the channels into the item's transform, if the card visibly moved.
 
-    def pause_animations(self):
-        """Pause animations (when card is being dragged)."""
-        self.rotation_anim.pause()
-        self.scale_anim.pause()
+        "Visibly" is the whole point. Gating on channel equality alone meant that any
+        change at all, however small, cost a full re-rasterisation of a transformed pixmap
+        — and the ambient tier's changes are *very* small: `DRIFT_BASE_HZ` is 0.05 Hz
+        sampled at 60 Hz, which moves a corner a median of 0.058 px per frame. The card was
+        being redrawn sixty times a second to move a sixteenth of a pixel, which is the
+        entire reason an idle canvas pinned a core.
 
-    def resume_animations(self):
-        """Resume animations after dragging stops."""
-        self.rotation_anim.resume()
-        self.scale_anim.resume()
+        So the test is the composed displacement instead, measured on the corners against
+        the last transform *actually applied*. Deltas below the threshold accumulate rather
+        than being dropped, so the drift arrives in whole steps and never falls behind.
+        """
+        snapshot = self.motion.snapshot()
+        if snapshot == self._applied:
+            return False
+        rect = self.boundingRect()
+        transform = self.motion.compose(rect.width(), rect.height())
+        corners = tuple(
+            transform.map(point) for point in self.motion.corners(rect.width(), rect.height())
+        )
+        if self._applied_corners is not None and not self.motion.at_rest():
+            # A dead-band in item coordinates would grow with the zoom, so it is specified
+            # in device pixels and divided back down. See MotionChannels.at_rest for why
+            # the resting state is exempt: the last step onto zero is the smallest one.
+            threshold = MOTION_EPSILON_PX / max(self._view_scale, 1e-6)
+            if max_corner_delta(self._applied_corners, corners) < threshold:
+                return False
+        self.setTransform(transform)
+        self._applied = snapshot
+        self._applied_corners = corners
+        return True
 
-    # Override these to pause/resume animations during drag
+    # Qt plumbing
+    def itemChange(self, change, value):
+        """Keep the tab's card list in step with the scene the card is in."""
+        if change == QGraphicsItem.GraphicsItemChange.ItemSceneHasChanged:
+            # The tab's tick iterates its own list of cards rather than filtering
+            # `scene.items()` — which builds and z-sorts a Python list of every item
+            # sixty times a second. Registering from here rather than from the call
+            # sites is deliberate: `addItem` and `removeItem` are called from half a
+            # dozen places and none of them should have to remember.
+            self._register_with_scene(value)
+        return super().itemChange(change, value)
+
+    def _register_with_scene(self, scene):
+        """Join or leave the card list of the tab that owns `scene`.
+
+        Keyed on the scene's owner rather than on `parent_tab`, which is an optional
+        constructor argument: a card put into a canvas's scene has to be driven by that
+        canvas's clock whether or not anyone remembered to pass the tab in. The tick's
+        correctness should follow from where the card *is*, not from how it was built.
+        """
+        if self._registered_tab is not None:
+            self._registered_tab.unregister_card(self)
+            self._registered_tab = None
+        owner = scene.parent() if scene is not None else None
+        if owner is not None and hasattr(owner, "register_card"):
+            owner.register_card(self)
+            self._registered_tab = owner
+
+    def begin_hover(self, point):
+        """The pointer arrived over the card at `point`, in item coordinates.
+
+        Split out from the event handler because a QGraphicsSceneHoverEvent cannot be
+        constructed from Python, so this is the only seam a test can reach.
+        """
+        first = not self._hovering
+        self._hovering = True
+        if first and self._reactive_allowed():
+            # A signed impulse from the card's own drift phase, so a row of cards does not
+            # all flick the same way when the pointer runs along it. It decays straight
+            # back to zero: the punch is an acknowledgement, not a pose the card holds.
+            self.motion.spin = HOVER_PUNCH_DEG * (1.0 if self._drift.sample(0.0)[0] >= 0 else -1.0)
+        self._hover_face = self._face_toward(point)
+
+    def end_hover(self):
+        self._hovering = False
+        self._hover_face = (0.0, 0.0)
+
+    def hoverEnterEvent(self, event):
+        self.begin_hover(event.pos())
+        super().hoverEnterEvent(event)
+
+    def hoverMoveEvent(self, event):
+        self.begin_hover(event.pos())
+        super().hoverMoveEvent(event)
+
+    def hoverLeaveEvent(self, event):
+        self.end_hover()
+        super().hoverLeaveEvent(event)
+
+    def _face_toward(self, point):
+        """Tilt so the side under the cursor dips away, as though the card were pressed.
+
+        **One rule, both axes: the tilt is the negative of the displacement.** Whether the
+        displacement is the cursor's offset from the card's centre (here) or the card's lag
+        behind the pointer (a drag), the side it points at is the side that goes down.
+        Deriving the four signs independently is what produced a card that dipped when
+        dragged downward and rose when dragged rightward.
+
+        Measured against this `compose()`: `tilt_y > 0` recedes the left edge and
+        `tilt_x > 0` recedes the top, so both terms come out negative.
+        """
+        rect = self.boundingRect()
+        if rect.width() <= 0 or rect.height() <= 0:
+            return (0.0, 0.0)
+        dx = (point.x() - rect.width() / 2.0) / (rect.width() / 2.0)
+        dy = (point.y() - rect.height() / 2.0) / (rect.height() / 2.0)
+        return (
+            _clamp(dy, 1.0) * -HOVER_TILT_DEG,
+            _clamp(dx, 1.0) * -HOVER_TILT_DEG,
+        )
+
     def mousePressEvent(self, event):
-        self.pause_animations()
+        self._pressed = True
+        self._visual_pos = QPointF(self.pos())
         self.setCursor(Qt.CursorShape.ClosedHandCursor)
         super().mousePressEvent(event)
 
+    def mouseMoveEvent(self, event):
+        self._dragging = True
+        super().mouseMoveEvent(event)
+
     def mouseReleaseEvent(self, event):
+        self._pressed = False
+        self._dragging = False
         self.setCursor(Qt.CursorShape.OpenHandCursor)
         super().mouseReleaseEvent(event)
-        # Small delay before resuming animation
-        QTimer.singleShot(200, self.resume_animations)
-
-    def itemChange(self, change, value):
-        """Stop animating once the card leaves the canvas."""
-        if change == QGraphicsPixmapItem.GraphicsItemChange.ItemSceneChange and value is None:
-            self.rotation_anim.stop()
-            self.scale_anim.stop()
-        return super().itemChange(change, value)
 
     def mouseDoubleClickEvent(self, event):
         """Handle double click events to open a card view tab"""
