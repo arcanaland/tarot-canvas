@@ -21,6 +21,26 @@ ANIMATIONS_ENABLED_DEFAULT = True
 ANIMATION_INTENSITY_KEY = "appearance/animation_intensity"
 ANIMATION_INTENSITY_DEFAULT = 50
 
+MOTION_LEVEL_KEY = "appearance/motion_level"
+MOTION_LEVEL_DEFAULT = "Full"
+MOTION_LEVELS = ("Off", "Reactive", "Full")
+
+
+def get_motion_level(settings=None):
+    """How much the canvas is allowed to move"""
+    settings = settings or get_settings()
+    stored = settings.value(MOTION_LEVEL_KEY)
+    if stored in MOTION_LEVELS:
+        return stored
+
+    level = MOTION_LEVEL_DEFAULT
+    if settings.contains(ANIMATIONS_ENABLED_KEY) or settings.contains(ANIMATION_INTENSITY_KEY):
+        enabled = settings.value(ANIMATIONS_ENABLED_KEY, ANIMATIONS_ENABLED_DEFAULT, type=bool)
+        intensity = settings.value(ANIMATION_INTENSITY_KEY, ANIMATION_INTENSITY_DEFAULT, type=int)
+        level = MOTION_LEVEL_DEFAULT if enabled and intensity > 0 else "Off"
+    settings.setValue(MOTION_LEVEL_KEY, level)
+    return level
+
 
 def get_settings():
     return QSettings(SETTINGS_ORGANIZATION, SETTINGS_APPLICATION)
