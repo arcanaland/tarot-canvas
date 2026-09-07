@@ -40,15 +40,15 @@ def fake_deck(name, author="Unknown", majors=3, minors=0, images=True, path=None
 def test_majors_only_deck_is_labelled():
     deck = fake_deck("Share The Magic", author="Lila Hunnisett", majors=22, minors=0)
     assert is_majors_only(deck)
-    assert deck_subtitle(deck) == "22 cards • majors only • Lila Hunnisett"
-    assert deck_subtitle(deck, abbreviated=True) == "22 cards • majors"
+    assert deck_subtitle(deck) == "Lila Hunnisett • majors only"
+    assert deck_subtitle(deck, abbreviated=True) == "Lila Hunnisett • majors"
 
 
-def test_partial_deck_gets_a_plain_count_not_a_wrong_label():
+def test_partial_deck_gets_no_label_rather_than_a_wrong_one():
     """Majors plus one suit is not 'majors only'; a wrong label is worse than none."""
     deck = fake_deck("Partial", majors=22, minors=14)
     assert not is_majors_only(deck)
-    assert deck_subtitle(deck) == "36 cards • Unknown"
+    assert deck_subtitle(deck) == "Unknown"
 
 
 def test_full_deck_is_not_labelled_majors_only():
@@ -80,7 +80,7 @@ def test_model_exposes_roles_the_delegate_paints(qapp):
     )
     index = model.index(0, 0)
     assert model.data(index) == "Rider-Waite-Smith"
-    assert model.data(index, SubtitleRole) == "78 cards • P. C. Smith"
+    assert model.data(index, SubtitleRole) == "P. C. Smith"
     assert model.data(index, AuthorRole) == "P. C. Smith"
     assert model.data(index, DeckRole).get_name() == "Rider-Waite-Smith"
 
