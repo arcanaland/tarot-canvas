@@ -15,9 +15,12 @@ from tarot_canvas.ui.canvas.motion import (
     LIFT_PRESSED,
     LIFT_REST,
     LIFT_SELECTED,
+    MOTION_EPSILON_PX,
     ORIENT_RATE,
     REACTIVE_RATE,
     SHADOW_BLUR_PX,
+    SHADOW_EPSILON_PX,
+    SHADOW_LIFT_EPSILON,
     SHADOW_Z_OFFSET,
     SPIN_RATE,
     AmbientDrift,
@@ -25,6 +28,7 @@ from tarot_canvas.ui.canvas.motion import (
     Spring,
     approach,
     build_contact_shadow,
+    max_corner_delta,
     rest,
     shadow_geometry,
 )
@@ -52,6 +56,10 @@ class ContactShadowItem(QGraphicsPixmapItem):
         super().__init__(pixmap)
         self.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
         self.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
+        # The shadow scales about its own centre and the pixmap never changes, so this is
+        # a constant. It used to be recomputed on every placement, which meant a QRectF
+        # and a QPointF allocated per card per frame to set the same value back.
+        self.setTransformOriginPoint(self.boundingRect().center())
 
 
 class DraggableCardItem(QGraphicsPixmapItem):
@@ -89,6 +97,20 @@ class DraggableCardItem(QGraphicsPixmapItem):
         # failing on a card_data that has no id.
         self._drift = AmbientDrift(card_data.get("id") or card_data.get("name") or "")
         self._applied = None
+        # The mapped corners of the last transform actually applied. The dead-band in
+        # `_apply_motion` measures against these rather than against the previous *frame*,
+        # so skipped sub-pixel deltas accumulate instead of being dropped.
+        self._applied_corners = None
+        # The view's zoom, so the dead-band can be specified in device pixels and still
+        # hold at 4x. Pushed in by the tab on each tick rather than read from
+        # `scene().views()` here, which would build a Python list per card per frame.
+        self._view_scale = 1.0
+        # What the shadow was last placed for, for the same accumulate-until-visible test.
+        self._shadow_pos = None
+        self._shadow_lift = None
+        # The tab this card is currently listed with, so leaving a scene can undo exactly
+        # what joining it did.
+        self._registered_tab = None
 
         self.shadow = ContactShadowItem(build_contact_shadow(pixmap))
         self._shadow_pad = float(round(SHADOW_BLUR_PX))
@@ -205,7 +227,7 @@ class DraggableCardItem(QGraphicsPixmapItem):
             return self._hover_face
         return (0.0, 0.0)
 
-    def advance_motion(self, t, dt, ambient_gain):
+    def advance_motion(self, t, dt, ambient_gain, view_scale=1.0):
         """Advance one frame. Returns whether the card's transform actually changed.
 
         Ambient channels (tilt, drift) are scaled by `ambient_gain` and reactive ones are
@@ -214,6 +236,7 @@ class DraggableCardItem(QGraphicsPixmapItem):
         zero, so `_apply_motion` finds an unchanged snapshot and a gated canvas costs no
         repaints at all.
         """
+        self._view_scale = view_scale
         self._ambient_scale = approach(
             self._ambient_scale, self._ambient_scale_target(), REACTIVE_RATE, dt
         )
@@ -257,15 +280,46 @@ class DraggableCardItem(QGraphicsPixmapItem):
         return self._apply_motion()
 
     def _apply_motion(self):
-        """Compose the channels into the item's transform, if any of them moved."""
+        """Compose the channels into the item's transform, if the card visibly moved.
+
+        "Visibly" is the whole point. Gating on channel equality alone meant that any
+        change at all, however small, cost a full re-rasterisation of a transformed pixmap
+        — and the ambient tier's changes are *very* small: `DRIFT_BASE_HZ` is 0.05 Hz
+        sampled at 60 Hz, which moves a corner a median of 0.058 px per frame. The card was
+        being redrawn sixty times a second to move a sixteenth of a pixel, which is the
+        entire reason an idle canvas pinned a core.
+
+        So the test is the composed displacement instead, measured on the corners against
+        the last transform *actually applied*. Deltas below the threshold accumulate rather
+        than being dropped, so the drift arrives in whole steps and never falls behind.
+        """
         snapshot = self.motion.snapshot()
         if snapshot == self._applied:
             return False
         rect = self.boundingRect()
-        self.setTransform(self.motion.compose(rect.width(), rect.height()))
+        transform = self.motion.compose(rect.width(), rect.height())
+        corners = tuple(
+            transform.map(point) for point in self.motion.corners(rect.width(), rect.height())
+        )
+        if self._applied_corners is not None and not self.motion.at_rest():
+            # A dead-band in item coordinates would grow with the zoom, so it is specified
+            # in device pixels and divided back down. See MotionChannels.at_rest for why
+            # the resting state is exempt: the last step onto zero is the smallest one.
+            threshold = MOTION_EPSILON_PX / max(self._view_scale, 1e-6)
+            if max_corner_delta(self._applied_corners, corners) < threshold:
+                return False
+        self.setTransform(transform)
         self._applied = snapshot
+        self._applied_corners = corners
         self._place_shadow()
         return True
+
+    def _refresh_view_scale(self):
+        """Re-read the zoom from the scene's view, for the paths the tick does not drive."""
+        scene = self.scene()
+        views = scene.views() if scene is not None else ()
+        if views:
+            self._view_scale = abs(views[0].transform().m11())
 
     def _place_shadow(self):
         """Put the shadow under the card for the current lift.
@@ -273,19 +327,37 @@ class DraggableCardItem(QGraphicsPixmapItem):
         The shadow stays flat — it never takes the card's tilt — and follows the visual
         drift, so a breathing card drags its own shadow with it rather than sliding across
         a pinned one.
+
+        It gets its own, coarser dead-band on top of the card's. The shadow is the largest
+        pixmap on the canvas and it draws through an opacity composite, so it is the most
+        expensive thing here to move — and being a blur with no edge, it is the least able
+        to show that it moved. Its scale and opacity depend only on `lift`, which is pinned
+        to exactly LIFT_REST whenever no gesture is in flight, so an ambient-only canvas
+        re-scales nothing at all and only ever nudges the position.
         """
-        offset, scale, opacity = shadow_geometry(self.motion.lift)
+        lift = self.motion.lift
+        offset, scale, opacity = shadow_geometry(lift)
         rect = self.boundingRect()
-        centre_x = self.pos().x() + rect.width() / 2.0 + self.motion.drift_x
-        centre_y = self.pos().y() + rect.height() / 2.0 + self.motion.drift_y + offset
         shadow_rect = self.shadow.boundingRect()
-        self.shadow.setPos(
-            centre_x - shadow_rect.width() / 2.0,
-            centre_y - shadow_rect.height() / 2.0,
+        x = self.pos().x() + (rect.width() - shadow_rect.width()) / 2.0 + self.motion.drift_x
+        y = (
+            self.pos().y()
+            + (rect.height() - shadow_rect.height()) / 2.0
+            + self.motion.drift_y
+            + offset
         )
-        self.shadow.setTransformOriginPoint(shadow_rect.center())
-        self.shadow.setScale(scale)
-        self.shadow.setOpacity(opacity)
+        threshold = SHADOW_EPSILON_PX / max(self._view_scale, 1e-6)
+        if (
+            self._shadow_pos is None
+            or abs(x - self._shadow_pos[0]) >= threshold
+            or abs(y - self._shadow_pos[1]) >= threshold
+        ):
+            self.shadow.setPos(x, y)
+            self._shadow_pos = (x, y)
+        if self._shadow_lift is None or abs(lift - self._shadow_lift) >= SHADOW_LIFT_EPSILON:
+            self.shadow.setScale(scale)
+            self.shadow.setOpacity(opacity)
+            self._shadow_lift = lift
 
     # Qt plumbing
     def itemChange(self, change, value):
@@ -295,15 +367,42 @@ class DraggableCardItem(QGraphicsPixmapItem):
                 value.addItem(self.shadow)
             elif self.shadow.scene() is not None:
                 self.shadow.scene().removeItem(self.shadow)
+            # The tab's tick iterates its own list of cards rather than filtering
+            # `scene.items()` — which builds and z-sorts a Python list of every item,
+            # shadows included, sixty times a second. Registering from here rather than
+            # from the call sites is the same reasoning as the shadow above: `addItem`
+            # and `removeItem` are called from half a dozen places and none of them
+            # should have to remember.
+            self._register_with_scene(value)
         elif change == QGraphicsItem.GraphicsItemChange.ItemZValueHasChanged:
             # Tracked through itemChange rather than by overriding setZValue, so it holds
             # however the card is restacked — including from Qt's own side.
             self.shadow.setZValue(self.zValue() + SHADOW_Z_OFFSET)
         elif change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
             # Also done on the tick, but the clock does not run at motion level Off, and a
-            # card dragged then must not leave its shadow behind.
+            # card dragged then must not leave its shadow behind. The tick is also what
+            # normally keeps `_view_scale` fresh, so re-read it here rather than let the
+            # shadow's dead-band be sized for the wrong zoom. Only the dragged card gets
+            # this, so it is nowhere near the hot path.
+            self._refresh_view_scale()
             self._place_shadow()
         return super().itemChange(change, value)
+
+    def _register_with_scene(self, scene):
+        """Join or leave the card list of the tab that owns `scene`.
+
+        Keyed on the scene's owner rather than on `parent_tab`, which is an optional
+        constructor argument: a card put into a canvas's scene has to be driven by that
+        canvas's clock whether or not anyone remembered to pass the tab in. The tick's
+        correctness should follow from where the card *is*, not from how it was built.
+        """
+        if self._registered_tab is not None:
+            self._registered_tab.unregister_card(self)
+            self._registered_tab = None
+        owner = scene.parent() if scene is not None else None
+        if owner is not None and hasattr(owner, "register_card"):
+            owner.register_card(self)
+            self._registered_tab = owner
 
     def begin_hover(self, point):
         """The pointer arrived over the card at `point`, in item coordinates.

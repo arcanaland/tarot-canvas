@@ -21,7 +21,7 @@ import math
 import time
 from dataclasses import dataclass
 
-from PyQt6.QtCore import QObject, Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import QObject, QPointF, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QColor, QImage, QPainter, QPixmap, QTransform, qAlpha
 
 # ~60 Hz. Deliberately not vsync-locked: QGraphicsView gives us no frame callback, and the
@@ -71,6 +71,32 @@ DRIFT_AMPLITUDE_PX = 1.5
 # Below this, a fading ambient gain is treated as off. approach() is asymptotic, so
 # without a floor a faded-out canvas keeps a permanent sliver of tilt and repaints for it.
 AMBIENT_GAIN_FLOOR = 1e-3
+
+# How far a card corner must travel before the card is worth re-rasterising, in *device*
+# pixels — divided by the view's zoom at the use site, since a dead-band in item
+# coordinates would become visible at 4x.
+#
+# This is the difference between the clock's rate and the motion's rate, and it is large.
+# DRIFT_BASE_HZ is 0.05: at a 60 Hz tick the ambient tier moves a 300x500 card's corner by
+# a median of 0.058 px per frame, p95 0.122, max 0.156 — the canvas was rasterising every
+# card sixty times a second to move each of them a sixteenth of a pixel. Gating on the
+# composed displacement instead of on channel equality cuts an idle canvas to ~13 repaints
+# per second per card at this threshold, and 0.25 px is below what a bilinear resample
+# resolves at 1x, so nothing about the motion looks different.
+#
+# The skipped deltas are *accumulated*, not dropped: the comparison is always against the
+# last transform actually applied, so drift never falls behind, it only arrives in steps.
+MOTION_EPSILON_PX = 0.25
+
+# The shadow gets a coarser band than the card. It is a blur with no edge to alias, it is
+# the largest pixmap on the canvas (padded by SHADOW_BLUR_PX on every side) and it draws
+# through an opacity composite, so it is the most expensive thing on the canvas to move and
+# the least able to show that it moved.
+SHADOW_EPSILON_PX = 1.0
+# Lift is the only input to the shadow's scale and opacity, and it is pinned to exactly
+# LIFT_REST whenever no gesture is in flight. Below this the shadow keeps the geometry it
+# has, so an ambient-only canvas re-scales nothing.
+SHADOW_LIFT_EPSILON = 1e-3
 
 # The reactive tier. These are responses to the user's own action rather than ambient
 # motion, so they are the tier that survives a reduced-motion setting: a brief answer to a
@@ -173,6 +199,25 @@ def approach(current, target, rate, dt):
     return current + (target - current) * (1.0 - math.exp(-rate * dt))
 
 
+def max_corner_delta(previous, current):
+    """The furthest any one corner moved between two sequences of mapped points.
+
+    The honest measure of "did this card visibly change": the composed transform mixes
+    rotation, scale, drift and a projective term, and no single channel's magnitude
+    predicts how far the pixels actually travelled. Four corners do, because every
+    transform here is a projectivity and a projectivity's maximum displacement over a
+    convex quad is attained at a vertex.
+    """
+    worst = 0.0
+    for before, after in zip(previous, current, strict=True):
+        dx = after.x() - before.x()
+        dy = after.y() - before.y()
+        distance = math.hypot(dx, dy)
+        if distance > worst:
+            worst = distance
+    return worst
+
+
 @dataclass
 class MotionChannels:
     """The named channels that compose into one card's transform.
@@ -237,6 +282,37 @@ class MotionChannels:
             t.scale(self.lift, self.lift)
         t.translate(-cx, -cy)
         return t
+
+    def at_rest(self):
+        """Whether every motion channel has landed and only `orient` is left.
+
+        The dead-band below has to be bypassed for exactly this state, or it becomes the
+        defect `AMBIENT_GAIN_FLOOR` exists to prevent: the last step onto zero is by
+        construction the *smallest* one, so a threshold that skipped it would leave a
+        faded-out or settled card holding a permanent sliver of tilt. Asking the channels
+        rather than tracking a flag means every path that converges — the gain floor,
+        `rest()`, `Spring.snap`, `settle_motion` — gets the bypass without knowing about it.
+        """
+        return (
+            self.tilt_x == 0.0
+            and self.tilt_y == 0.0
+            and self.drift_x == 0.0
+            and self.drift_y == 0.0
+            and self.face_x == 0.0
+            and self.face_y == 0.0
+            and self.spin == 0.0
+            and self.orient_lag == 0.0
+            and self.lift == LIFT_REST
+        )
+
+    def corners(self, width, height):
+        """The card's four corners, in item coordinates."""
+        return (
+            QPointF(0.0, 0.0),
+            QPointF(width, 0.0),
+            QPointF(width, height),
+            QPointF(0.0, height),
+        )
 
     def snapshot(self):
         """The channel values, for deciding whether a card needs a new transform."""

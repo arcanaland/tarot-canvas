@@ -80,6 +80,10 @@ class CanvasTab(BaseTab):
         # gate natural, and an idle window genuinely idle.
         self.motion_clock = MotionClock(self)
         self.ambient_gain = 0.0
+        # Every card currently in the scene, maintained by DraggableCardItem.itemChange.
+        # The tick used to filter `self.scene.items()`, which builds and z-sorts a Python
+        # list of every item — cards and their shadows — once a frame for no reason.
+        self._cards = []
         # Every card gets its own depth, allocated from these. Cards used to share a
         # z-value of 0 and fall back to insertion order, which made "bring to front"
         # a no-op for a second card and left no order for a shadow to sit inside.
@@ -221,11 +225,25 @@ class CanvasTab(BaseTab):
             and self.window().isActiveWindow()
         )
 
+    def cards(self):
+        """Every card on this canvas, in no particular order."""
+        return tuple(self._cards)
+
+    def register_card(self, card):
+        """Called by a card when it enters this tab's scene."""
+        if card not in self._cards:
+            self._cards.append(card)
+
+    def unregister_card(self, card):
+        """Called by a card when it leaves this tab's scene."""
+        if card in self._cards:
+            self._cards.remove(card)
+
     def _advance_motion(self, t, dt):
         """Drive every card on this canvas for one frame.
 
-        The clock hands us time and nothing else; the scene owns the items, so a card
-        destroyed underneath us simply stops being visited.
+        The clock hands us time and nothing else. Cards register themselves as they enter
+        and leave the scene, so one destroyed underneath us simply stops being visited.
         """
         self.ambient_gain = approach(
             self.ambient_gain, 1.0 if self.ambient_is_allowed() else 0.0, 8.0, dt
@@ -234,16 +252,18 @@ class CanvasTab(BaseTab):
         # faded out holds a permanent fraction-of-a-degree tilt and repaints for it forever.
         if self.ambient_gain < AMBIENT_GAIN_FLOOR:
             self.ambient_gain = 0.0
-        for item in self.scene.items():
-            if isinstance(item, DraggableCardItem):
-                item.advance_motion(t, dt, self.ambient_gain)
+        # Sampled once for the whole canvas rather than per card: it is the denominator of
+        # the per-card motion dead-band, which is specified in device pixels so that it
+        # stays below the threshold of visibility at every zoom.
+        view_scale = abs(self.view.transform().m11())
+        for card in self._cards:
+            card.advance_motion(t, dt, self.ambient_gain, view_scale)
 
     def settle_motion(self):
         """Put every card flat. Used when the clock stops, so nothing freezes mid-breath."""
         self.ambient_gain = 0.0
-        for item in self.scene.items():
-            if isinstance(item, DraggableCardItem):
-                item.settle_motion()
+        for card in self._cards:
+            card.settle_motion()
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -616,11 +636,7 @@ class CanvasTab(BaseTab):
 
     def cascade_from_occupied(self, pos, step=20, limit=20):
         """Nudge pos clear of a card already sitting there, as duplicating does."""
-        occupied = {
-            (round(item.pos().x()), round(item.pos().y()))
-            for item in self.scene.items()
-            if isinstance(item, DraggableCardItem)
-        }
+        occupied = {(round(card.pos().x()), round(card.pos().y())) for card in self._cards}
         for _ in range(limit):
             if (round(pos.x()), round(pos.y())) not in occupied:
                 break

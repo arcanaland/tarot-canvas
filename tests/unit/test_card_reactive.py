@@ -19,6 +19,8 @@ from tarot_canvas.ui.canvas.motion import (
     LIFT_PLACED,
     LIFT_PRESSED,
     LIFT_REST,
+    MOTION_EPSILON_PX,
+    max_corner_delta,
 )
 
 CARD_W, CARD_H = 120, 200
@@ -322,3 +324,100 @@ def test_the_shadow_tracks_the_card_even_with_the_clock_stopped(qapp, card):
     moved = item.shadow.pos() - before
     assert math.isclose(moved.x(), 400.0)
     assert math.isclose(moved.y(), 250.0)
+
+
+# The repaint dead-band, as the card applies it
+
+
+def test_ambient_drift_is_applied_in_visible_steps_rather_than_every_frame(card):
+    """The fix for the canvas pinning a core: sub-pixel changes do not re-rasterise.
+
+    Ambient motion moves a corner by well under a tenth of a pixel per frame, and every
+    one of those used to cost a full transformed-pixmap repaint.
+    """
+    item = card()
+    applied = sum(item.advance_motion(f * FRAME, FRAME, 1.0, 1.0) for f in range(600))
+    assert 0 < applied < 600 * 0.4
+
+
+def test_skipped_frames_accumulate_so_drift_never_falls_behind(card):
+    """The dead-band defers the repaint; it must not drop the motion.
+
+    Every comparison is against the last transform *applied*, so the gap between what the
+    channels say and what the card shows stays bounded by roughly one threshold. Comparing
+    against the previous frame instead would let the error integrate without limit.
+    """
+    item = card()
+    corners = item.motion.corners(CARD_W, CARD_H)
+    worst = 0.0
+    for frame in range(60 * 60):
+        item.advance_motion(frame * FRAME, FRAME, 1.0, 1.0)
+        ideal = item.motion.compose(CARD_W, CARD_H)
+        shown = item.transform()
+        worst = max(
+            worst,
+            max_corner_delta(
+                [ideal.map(point) for point in corners],
+                [shown.map(point) for point in corners],
+            ),
+        )
+    assert worst < 2 * MOTION_EPSILON_PX
+
+
+def test_the_dead_band_is_specified_in_device_pixels_so_it_shrinks_as_you_zoom_in(card):
+    """A threshold in item coordinates would become visible at 4x. This one does not."""
+    near, far = card(), card()
+    at_1x = sum(near.advance_motion(f * FRAME, FRAME, 1.0, 1.0) for f in range(600))
+    at_4x = sum(far.advance_motion(f * FRAME, FRAME, 1.0, 4.0) for f in range(600))
+    assert at_4x > at_1x
+
+
+def test_a_settling_card_lands_on_exactly_the_identity_transform(card):
+    """The one state the dead-band must never swallow.
+
+    The final step onto zero is by construction the smallest one, so a naive threshold
+    would leave a faded-out card holding a permanent sliver of tilt — and repainting for
+    it, which is the defect AMBIENT_GAIN_FLOOR exists to prevent.
+    """
+    item = card()
+    run(item, 60, ambient_gain=1.0)
+    assert not item.transform().isIdentity()
+
+    for frame in range(600):
+        item.advance_motion(frame * FRAME, FRAME, 0.0, 1.0)
+    assert item.transform().isIdentity()
+
+
+def test_a_hover_is_never_deferred(card):
+    """Reactive deltas are an order of magnitude above the band, so intent is immediate."""
+    item = card()
+    run(item, 30, ambient_gain=0.0)
+    before = item.transform()
+    item.begin_hover(QPointF(CARD_W - 1, 1))
+    assert item.advance_motion(1.0, FRAME, 0.0, 1.0)
+    assert item.transform() != before
+
+
+def test_the_shadow_keeps_its_scale_while_no_gesture_is_in_flight(card):
+    """Lift is pinned to exactly LIFT_REST at rest, so ambient drift re-scales nothing.
+
+    The shadow is the largest pixmap on the canvas and draws through an opacity composite,
+    so re-setting its geometry for a drift of a hundredth of a pixel was the most
+    expensive way the canvas had of expressing nothing.
+    """
+    item = card()
+    run(item, 120, ambient_gain=1.0)
+    scale, opacity = item.shadow.scale(), item.shadow.opacity()
+    run(item, 120, ambient_gain=1.0)
+    assert item.shadow.scale() == scale
+    assert item.shadow.opacity() == opacity
+
+
+def test_a_lifted_card_still_moves_its_shadow(card):
+    """The gate is on lift having changed, not on the shadow being cheap to skip."""
+    item = card()
+    resting = (item.shadow.scale(), item.shadow.opacity(), item.shadow.pos().y())
+    item.begin_hover(QPointF(CARD_W / 2, CARD_H / 2))
+    run(item, 60)
+    assert item.motion.lift == pytest.approx(LIFT_HOVER, abs=1e-3)
+    assert (item.shadow.scale(), item.shadow.opacity(), item.shadow.pos().y()) != resting

@@ -10,6 +10,7 @@ from tarot_canvas.ui.canvas.motion import (
     LIFT_PLACED,
     LIFT_REST,
     MAX_DT,
+    MOTION_EPSILON_PX,
     SHADOW_BLUR_PX,
     TILT_AMPLITUDE_DEG,
     AmbientDrift,
@@ -20,6 +21,7 @@ from tarot_canvas.ui.canvas.motion import (
     approach,
     build_contact_shadow,
     drift_phases,
+    max_corner_delta,
     rest,
     shadow_geometry,
     system_animations_enabled,
@@ -331,3 +333,48 @@ def test_a_lifted_card_casts_a_wider_fainter_shadow_further_from_itself():
     assert lifted[0] > resting[0]  # further
     assert lifted[1] > resting[1]  # wider
     assert lifted[2] < resting[2]  # fainter
+
+
+# The repaint dead-band
+
+
+def test_at_rest_is_true_only_when_every_motion_channel_has_landed():
+    channels = MotionChannels()
+    assert channels.at_rest()
+    # orient is card state, not motion: a reversed card is still at rest.
+    channels.orient = 180.0
+    assert channels.at_rest()
+    for name in ("tilt_x", "tilt_y", "drift_x", "drift_y", "face_x", "face_y", "spin"):
+        setattr(channels, name, 1e-9)
+        assert not channels.at_rest(), f"{name} left unaccounted for"
+        setattr(channels, name, 0.0)
+    channels.lift = LIFT_REST + 1e-9
+    assert not channels.at_rest()
+
+
+def test_max_corner_delta_measures_the_furthest_corner_not_the_average():
+    before = [QPointF(0, 0), QPointF(10, 0), QPointF(10, 10), QPointF(0, 10)]
+    after = [QPointF(0, 0), QPointF(10, 0), QPointF(13, 14), QPointF(0, 10)]
+    assert max_corner_delta(before, after) == pytest.approx(5.0)
+
+
+def test_ambient_drift_moves_a_card_far_less_than_a_pixel_per_frame():
+    """The premise the dead-band rests on, asserted rather than assumed.
+
+    If the drift constants are ever retuned upward this is the test that should fail
+    first, because it is the one that says the threshold is still invisible.
+    """
+    drift = AmbientDrift("major_arcana/hermit")
+    corners = MotionChannels().corners(300.0, 500.0)
+    previous = None
+    worst = 0.0
+    for frame in range(60 * 60):
+        tilt_x, tilt_y, drift_x, drift_y = drift.sample(frame / 60.0)
+        transform = MotionChannels(
+            tilt_x=tilt_x, tilt_y=tilt_y, drift_x=drift_x, drift_y=drift_y
+        ).compose(300.0, 500.0)
+        mapped = [transform.map(point) for point in corners]
+        if previous is not None:
+            worst = max(worst, max_corner_delta(previous, mapped))
+        previous = mapped
+    assert worst < MOTION_EPSILON_PX
