@@ -43,12 +43,10 @@ def is_majors_only(deck):
 
 
 def deck_subtitle(deck, abbreviated=False):
-    count = len(deck.get_all_cards())
-    parts = [f"{count} cards"]
+    parts = [deck_author(deck)]
     if is_majors_only(deck):
         parts.append("majors" if abbreviated else "majors only")
-    if not abbreviated:
-        parts.append(deck_author(deck))
+
     return " • ".join(parts)
 
 

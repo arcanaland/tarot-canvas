@@ -80,3 +80,34 @@ devel-uninstall:
 # Pass --remote to also print Flathub's live verdicts.
 quality *ARGS:
   ../scripts/flathub_quality.py {{ARGS}}
+
+# wipe installs from flathub build bot
+[private]
+buildbot-clean:
+  #!/bin/bash
+  set -euo pipefail
+
+  for remote in $(flatpak remotes --user --columns=name,url | awk '$2 ~ /build-repo/ {print $1}'); do
+    for ref in $(flatpak list --user --columns=application,origin,branch | awk -v r="$remote" '$2 == r {print $1"//"$3}'); do
+      echo "uninstalling ${ref} (from ${remote})"
+      flatpak uninstall --user -y "$ref"
+    done
+    if flatpak remotes --user --columns=name | grep -qx "$remote"; then
+      echo "removing remote ${remote}"
+      flatpak remote-delete --user --force "$remote"
+    fi
+  done
+
+# install a flathub build
+buildbot BUILD: buildbot-clean
+  #!/bin/bash
+  set -euo pipefail
+
+  case "{{BUILD}}" in
+    http*) URL="{{BUILD}}" ;;
+    *)     URL="https://dl.flathub.org/build-repo/{{BUILD}}/land.arcana.TarotCanvas.flatpakref" ;;
+  esac
+
+  flatpak install --user -y "$URL"
+  echo
+  echo "run it with: flatpak run land.arcana.TarotCanvas//test"

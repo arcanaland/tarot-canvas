@@ -801,7 +801,7 @@ class MainWindow(QMainWindow):
             "Tarot Canvas\n\n"
             f"Version: {__version__}\n"
             "A modern tarot exploration application.\n\n"
-            "© 2025 Arcana Land"
+            "© 2025-2026 Adam Fidel"
         )
         QMessageBox.about(self, "About Tarot Canvas", about_text)
 
