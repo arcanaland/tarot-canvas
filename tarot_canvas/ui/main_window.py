@@ -690,7 +690,14 @@ class MainWindow(QMainWindow):
         self.centralWidget().layout().setContentsMargins(0, 0, 0, 0)
 
         if not self.isFullScreen():
-            self.showFullScreen()
+            # setWindowState, not showFullScreen(): showFullScreen() clears the
+            # Maximized bit outright, so a window that was maximized on the way
+            # in has nothing left to go back to. OR-ing the flag on carries the
+            # rest of the state through fullscreen untouched.
+            self.setWindowState(self.windowState() | Qt.WindowState.WindowFullScreen)
+        # Hiding the explorer can leave focus nowhere in particular; put it in
+        # the tab so its own shortcuts (Esc, F, I) are live straight away.
+        tab.fullscreen_focus_widget().setFocus(Qt.FocusReason.OtherFocusReason)
         self.fullscreen_tab_action.setChecked(True)
         tab.on_fullscreen_changed()
 
@@ -709,13 +716,15 @@ class MainWindow(QMainWindow):
             tab.exit_fullscreen(state["tab_state"])
             # Only undo our own fullscreen: the window manager may have put the
             # window fullscreen independently, and that is not ours to revert.
-            # showNormal() would also drop a maximized window back to its
-            # restored geometry, so put maximized windows back as maximized.
+            # Clear just that one bit -- showNormal() would also drop a
+            # maximized window back to its small restored geometry -- and put
+            # the Maximized bit back explicitly, since a compositor is free to
+            # have dropped it while the window was fullscreen.
             if not state["window_fullscreen"]:
+                window_state = self.windowState() & ~Qt.WindowState.WindowFullScreen
                 if state["window_maximized"]:
-                    self.showMaximized()
-                else:
-                    self.showNormal()
+                    window_state |= Qt.WindowState.WindowMaximized
+                self.setWindowState(window_state)
 
         self.fullscreen_tab_action.setChecked(False)
         tab.on_fullscreen_changed()

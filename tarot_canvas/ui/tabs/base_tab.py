@@ -39,6 +39,17 @@ class BaseTab(QWidget):
     def on_fullscreen_changed(self):
         """Hook for keeping a tab-side affordance in step with the state."""
 
+    def fullscreen_focus_widget(self):
+        """The widget that should hold keyboard focus while fullscreen.
+
+        Fullscreen is usually entered from the menu or from the explorer, so
+        focus is outside the tab -- and the tab's shortcuts are scoped to it
+        (WidgetWithChildrenShortcut), so Esc and the bare letters would do
+        nothing until the user clicked into the tab. Tabs name the widget whose
+        scope those shortcuts live in.
+        """
+        return self
+
     def request_fullscreen_toggle(self):
         """Ask the main window to toggle fullscreen onto this tab.
 

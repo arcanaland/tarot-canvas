@@ -218,6 +218,11 @@ class CardViewTab(BaseTab):
             return
         self.image_view.reset_to_fit()
 
+    def fullscreen_focus_widget(self):
+        # The image view, not the tab: the bare-letter shortcuts are scoped
+        # there, and it is what the arrow keys and wheel should drive.
+        return self.image_view
+
     def supports_fullscreen(self):
         # setup_ui() bails before building the splitter when there is nothing to
         # show, and there is no point fullscreening a "No deck or card" label.

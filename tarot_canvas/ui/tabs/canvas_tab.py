@@ -341,6 +341,9 @@ class CanvasTab(BaseTab):
     def supports_fullscreen(self):
         return True
 
+    def fullscreen_focus_widget(self):
+        return self.view
+
     def on_toggle_fullscreen(self):
         """Toggle canvas fullscreen. No-op when the tab has no main window."""
         self.request_fullscreen_toggle()
