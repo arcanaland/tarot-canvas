@@ -677,6 +677,7 @@ class MainWindow(QMainWindow):
         self.fullscreen_tab = tab
         self._pre_fullscreen = {
             "window_fullscreen": self.isFullScreen(),
+            "window_maximized": self.isMaximized(),
             "explorer_visible": self.card_explorer.isVisible(),
             "splitter_sizes": self.main_splitter.sizes(),
             "margins": self.centralWidget().layout().contentsMargins(),
@@ -708,8 +709,13 @@ class MainWindow(QMainWindow):
             tab.exit_fullscreen(state["tab_state"])
             # Only undo our own fullscreen: the window manager may have put the
             # window fullscreen independently, and that is not ours to revert.
+            # showNormal() would also drop a maximized window back to its
+            # restored geometry, so put maximized windows back as maximized.
             if not state["window_fullscreen"]:
-                self.showNormal()
+                if state["window_maximized"]:
+                    self.showMaximized()
+                else:
+                    self.showNormal()
 
         self.fullscreen_tab_action.setChecked(False)
         tab.on_fullscreen_changed()

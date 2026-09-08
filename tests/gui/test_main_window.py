@@ -59,6 +59,20 @@ def test_canvas_fullscreen_hides_chrome_and_puts_it_back(qtbot):
     assert not window.fullscreen_tab_action.isChecked()
 
 
+def test_leaving_fullscreen_puts_a_maximized_window_back_as_maximized(qtbot):
+    """showNormal() would drop the window to its small restored geometry."""
+    window, tab = make_window_with_canvas(qtbot)
+    window.showMaximized()
+    qtbot.waitUntil(window.isMaximized)
+
+    tab.on_toggle_fullscreen()
+    assert window.isFullScreen()
+
+    tab.on_escape_pressed()
+    qtbot.waitUntil(window.isMaximized)
+    assert not window.isFullScreen()
+
+
 def test_the_canvas_grows_with_the_window(qtbot):
     """No height cap: a maximized window must not leave a gap under the canvas."""
     window, tab = make_window_with_canvas(qtbot)
