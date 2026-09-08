@@ -71,34 +71,31 @@ Essentially, you can create a "passage" per-card by manually adding a file with 
 
 ```toml
 [meta]
-id = "my-custom-esoterica"
 name = "My Custom Esoterica"
 author = "Jane Doe"
 
 
-[passages.major_arcana.00]
+[card."major_arcana.00".passages]
 text = "These are my permanent notes for The Fool."
 
 # ... the rest of the Major Arcana ...
 
-[passages.major_arcana.21]
+[card."major_arcana.21".passages]
 text = "These are my permanent notes for The World."
 
 # ... now the Minor Arcana ...
 
-
-[passages.minor_arcana.wands.ace]
+[card."minor_arcana.wands.ace".passages]
 text = "These are my permanent notes for the Ace of Wands."
 
 # ...
 
-[passages.minor_arcana.cups.ten]
+[card."minor_arcana.cups.ten".passages]
 text = "These are my permanent notes for the Ten of Cups."
 ```
 
-Save this file as `~/.var/app/land.arcana.TarotCanvas/data/tarot/esoterica/references/my_file.toml`.
+Save it as a `.toml` file in the folder at `~/.var/app/land.arcana.TarotCanvas/data/tarot/esoterica/`.
 
 ![Screenshot of the above esoterica file for The Fool](https://github.com/user-attachments/assets/35b3c96c-4757-404a-b08f-015c8af62df1)
-
 > [!NOTE]
 > The official [Esoterica Specification](https://github.com/arcanaland/specifications/blob/deck-v2/ESOTERICA.md) is still under development. Once it is finalized, support will be added to Tarot Canvas and the default corpus containing astrological, alchemical and esoteric knowledge ([McElroy esoterica pack](https://github.com/arcanaland/esoterica/releases/tag/mcelroy%2Fv0.5)) will be included out of the box.

@@ -61,3 +61,29 @@ def test_host_default_matches_the_documented_location(monkeypatch):
     monkeypatch.setattr(path_helper, "xdg_data_home", lambda: Path.home() / ".local/share")
 
     assert path_helper.get_decks_directory() == [Path.home() / ".local/share/tarot/decks"]
+
+
+def test_esoterica_shares_the_shape_of_decks(flatpak_env):
+    """The literal `references` segment is gone; the root is `tarot/esoterica`."""
+    data = flatpak_env("land.arcana.TarotCanvas")
+    assert path_helper.get_esoterica_directories() == [
+        data / "tarot/esoterica",
+        path_helper.EXTERNAL_ESOTERICA_PATH,
+    ]
+
+
+def test_devel_and_production_esoterica_do_not_share_a_write_path(flatpak_env):
+    flatpak_env("land.arcana.TarotCanvas")
+    prod_primary = path_helper.get_esoterica_directories()[0]
+
+    flatpak_env("land.arcana.TarotCanvas.Devel")
+    devel_primary = path_helper.get_esoterica_directories()[0]
+
+    assert prod_primary != devel_primary
+
+
+def test_outside_flatpak_esoterica_has_no_external_path(monkeypatch, tmp_path):
+    monkeypatch.setattr(path_helper.os.path, "exists", lambda p: False)
+    monkeypatch.setattr(path_helper, "xdg_data_home", lambda: tmp_path)
+
+    assert path_helper.get_esoterica_directories() == [tmp_path / "tarot/esoterica"]

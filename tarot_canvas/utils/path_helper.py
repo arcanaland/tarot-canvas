@@ -4,6 +4,7 @@ from pathlib import Path
 from xdg_base_dirs import xdg_data_home
 
 EXTERNAL_DECKS_PATH = Path(os.path.expanduser("~/.local/share/tarot/decks"))
+EXTERNAL_ESOTERICA_PATH = Path(os.path.expanduser("~/.local/share/tarot/esoterica"))
 
 
 def get_data_directory(app_specific_path=None):
@@ -27,5 +28,21 @@ def get_decks_directory():
 
     if os.path.exists("/.flatpak-info"):
         paths.append(EXTERNAL_DECKS_PATH)
+
+    return paths
+
+
+def get_esoterica_directories():
+    """
+    Returns all valid locations for esoterica sources, most specific first.
+
+    Mirrors get_decks_directory(): the primary location is per-build, and under
+    Flatpak the shared external library is appended as a secondary, read-only
+    location so .Devel and the release build do not need duplicate copies.
+    """
+    paths = [get_data_directory("tarot/esoterica")]
+
+    if os.path.exists("/.flatpak-info"):
+        paths.append(EXTERNAL_ESOTERICA_PATH)
 
     return paths
