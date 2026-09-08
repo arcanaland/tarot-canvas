@@ -1,13 +1,11 @@
 import os
 from typing import ClassVar
 
-from PyQt6.QtCore import QEvent, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QKeySequence, QPixmap, QShortcut
 from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
-    QScrollArea,
-    QSizePolicy,
     QSplitter,
     QTabWidget,
     QVBoxLayout,
@@ -21,27 +19,7 @@ from tarot_canvas.ui.tabs.card_view.deck_switcher import DeckSwitcher
 from tarot_canvas.ui.tabs.card_view.esoterica_tab import EsotericaTab
 from tarot_canvas.ui.tabs.card_view.notes_tab import NotesTab
 from tarot_canvas.ui.tabs.card_view.overview_tab import OverviewTab
-
-
-def device_pixel_fit(source_size, available_width, available_height, dpr):
-    """Device-pixel size at which to render `source_size` into a logical-pixel box.
-
-    Widget geometry is in logical pixels, but on a scaled display the label paints
-    width * dpr real pixels. Scaling a card to the logical size therefore hands Qt a
-    pixmap it has to upscale at paint time, which is what makes the card look soft --
-    at 200% it threw away half the resolution the source file already has.
-
-    Caller must tag the result with setDevicePixelRatio(dpr) so layout still sees the
-    logical size. The 1.0 cap keeps us from interpolating past one source pixel per
-    device pixel.
-    """
-    width_scale = available_width * dpr / source_size.width()
-    height_scale = available_height * dpr / source_size.height()
-    scale = min(width_scale, height_scale, 1.0)
-    return (
-        max(1, round(source_size.width() * scale)),
-        max(1, round(source_size.height() * scale)),
-    )
+from tarot_canvas.ui.widgets.zoomable_image_view import ZoomableImageView
 
 
 class CardViewTab(BaseTab):
@@ -93,40 +71,20 @@ class CardViewTab(BaseTab):
         # Create a splitter for image and information
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        # Left side - card image in a container with reduced padding
-        image_container = QWidget()
-        image_layout = QVBoxLayout(image_container)
-        # Reduce padding from 10px to 5px
+        # Left side - card image
+        self.image_container = QWidget()
+        image_layout = QVBoxLayout(self.image_container)
         image_layout.setContentsMargins(5, 5, 5, 5)
 
-        # Create an inner container to hold the image and allow vertical centering
-        image_inner_container = QWidget()
-        image_inner_layout = QVBoxLayout(image_inner_container)
-        image_inner_layout.setContentsMargins(0, 0, 0, 0)
+        self.image_view = ZoomableImageView(self)
+        image_layout.addWidget(self.image_view, 1)
 
-        self.image_label = QLabel()
-        self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.image_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-        self.image_label.setMinimumSize(1, 1)
-
-        # Add image to inner container with stretches for vertical centering
-        image_inner_layout.addStretch(1)
-        image_inner_layout.addWidget(self.image_label)
-        image_inner_layout.addStretch(1)
-
-        # Add the inner container to the main image layout
-        image_layout.addWidget(image_inner_container)
-
-        # Add deck switching controls
+        # The deck switcher is a sibling below the view, not a child of it, so it
+        # no longer has to be subtracted from the image's available height.
         self.deck_switcher = DeckSwitcher(self)
         image_layout.addWidget(self.deck_switcher)
 
-        # Create scroll area with proper sizing policy
-        self.scroll_area = QScrollArea()
-        self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setWidget(image_container)
-        self.scroll_area.setMinimumWidth(self.MIN_IMAGE_PANE_WIDTH)
-        self.scroll_area.viewport().installEventFilter(self)
+        self.image_container.setMinimumWidth(self.MIN_IMAGE_PANE_WIDTH)
 
         # Load and display the image
         self.load_image()
@@ -134,7 +92,9 @@ class CardViewTab(BaseTab):
         # Find compatible decks and update the deck switching UI
         self.deck_switcher.update_compatible_decks(self.card, self.deck, deck_manager)
 
-        splitter.addWidget(self.scroll_area)
+        self.setup_zoom_shortcuts()
+
+        splitter.addWidget(self.image_container)
 
         # Right side - tabbed card information
         info_widget = QWidget()
@@ -177,79 +137,30 @@ class CardViewTab(BaseTab):
         self.layout.addLayout(main_layout)
 
     def load_image(self):
-        """Load and initially display the card image"""
+        """Load the card image into the zoomable view"""
         if (
             self.card
             and "image" in self.card
             and self.card["image"]
             and os.path.exists(self.card["image"])
         ):
-            self.original_pixmap = QPixmap(self.card["image"])
-            # Display the image at original size first
-            self.image_label.setPixmap(self.original_pixmap)
-            # Then schedule a resize
-            QTimer.singleShot(50, self.resize_image)
+            self.image_view.set_pixmap(QPixmap(self.card["image"]))
         else:
-            self.image_label.setText("No image available")
-            self.original_pixmap = None
+            self.image_view.set_message("No image available")
 
-    def resize_image(self):
-        """Resize the image to fit the available space while maintaining aspect ratio"""
-        if not hasattr(self, "original_pixmap") or not self.original_pixmap:
-            return
-
-        # Get available width and height from scroll area
-        if not hasattr(self, "scroll_area") or not self.scroll_area:
-            return
-
-        # Measure the viewport: the scroll area's own width includes the frame and
-        # any scrollbar, and scaling to it is what makes the card overflow its pane.
-        viewport = self.scroll_area.viewport()
-        available_width = viewport.width() - 20  # 5px container padding each side
-        available_height = viewport.height() - 20 - self.deck_switcher_height()
-
-        dpr = viewport.devicePixelRatioF()
-
-        if available_width <= 0 or available_height <= 0:
-            return
-
-        # Use reasonable default if dimensions are 0
-        if self.original_pixmap.width() <= 0 or self.original_pixmap.height() <= 0:
-            self.image_label.setPixmap(self.original_pixmap)
-            return
-
-        new_width, new_height = device_pixel_fit(
-            self.original_pixmap.size(), available_width, available_height, dpr
-        )
-
-        # Create scaled pixmap
-        scaled_pixmap = self.original_pixmap.scaled(
-            new_width,
-            new_height,
-            Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation,
-        )
-
-        scaled_pixmap.setDevicePixelRatio(dpr)
-
-        # Apply to label
-        self.image_label.setPixmap(scaled_pixmap)
-
-    def deck_switcher_height(self):
-        """Vertical space the deck switcher takes from the image, if it is shown"""
-        if not hasattr(self, "deck_switcher") or not self.deck_switcher.isVisible():
-            return 0
-        return self.deck_switcher.sizeHint().height()
-
-    def eventFilter(self, obj, event):
-        """Rescale the card whenever the scroll area's viewport changes size"""
-        if (
-            hasattr(self, "scroll_area")
-            and obj is self.scroll_area.viewport()
-            and event.type() in (QEvent.Type.Resize, QEvent.Type.DevicePixelRatioChange)
-        ):
-            self.resize_image()
-        return super().eventFilter(obj, event)
+    def setup_zoom_shortcuts(self):
+        """Zoom bindings, scoped to this tab and matching the canvas's vocabulary"""
+        bindings = [
+            ("Ctrl++", self.image_view.zoom_in),
+            ("Ctrl+=", self.image_view.zoom_in),
+            ("Ctrl+-", self.image_view.zoom_out),
+            ("Ctrl+0", self.image_view.reset_to_fit),
+            ("Escape", self.image_view.reset_to_fit),
+        ]
+        for key, slot in bindings:
+            shortcut = QShortcut(QKeySequence(key), self)
+            shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+            shortcut.activated.connect(slot)
 
     def update_tab_name(self):
         """Update the tab name and add color dot based on card type/suit"""
@@ -314,14 +225,13 @@ class CardViewTab(BaseTab):
     def switch_to_deck(self, new_deck, new_card):
         """Switch to a different deck's version of the current card"""
         # Hide components during update
-        self.scroll_area.setVisible(False)
+        self.image_container.setVisible(False)
         self.info_tabs.setVisible(False)
 
         # Update the current deck and card
         self.deck = new_deck
         self.card = new_card
 
-        # Update the components
         self.load_image()
 
         # Update the overview tab with the new card and deck info
@@ -343,5 +253,5 @@ class CardViewTab(BaseTab):
         self.deck_switcher.update_compatible_decks(new_card, new_deck, self.deck_manager)
 
         # Show components again
-        self.scroll_area.setVisible(True)
+        self.image_container.setVisible(True)
         self.info_tabs.setVisible(True)

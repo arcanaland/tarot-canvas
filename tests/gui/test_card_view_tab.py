@@ -1,11 +1,11 @@
 import shutil
 
 import pytest
-from PyQt6.QtCore import QSize
-from PyQt6.QtGui import QColor, QPixmap
+from PyQt6.QtCore import QPoint, QPointF, Qt
+from PyQt6.QtGui import QColor, QMouseEvent, QPixmap
 
 from tarot_canvas.models.deck import TarotDeck
-from tarot_canvas.ui.tabs.card_view_tab import CardViewTab, device_pixel_fit
+from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tests.conftest import MINIMAL_DECK_PATH
 
 
@@ -40,34 +40,61 @@ def make_tab(qtbot, deck, width, height, deck_count=1, stub=None):
     return tab
 
 
+def double_click(view):
+    """Synthesise a left double-click at the center of the image."""
+    pos = QPointF(view.viewport().rect().center())
+    event = QMouseEvent(
+        QMouseEvent.Type.MouseButtonDblClick,
+        pos,
+        view.viewport().mapToGlobal(QPoint(int(pos.x()), int(pos.y()))).toPointF(),
+        Qt.MouseButton.LeftButton,
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+    )
+    view.mouseDoubleClickEvent(event)
+
+
+def rendered_rect(view):
+    """The image's on-screen rectangle, in viewport coordinates.
+
+    Rounded outwards from a float mapping, so compare it with a pixel of slack.
+    """
+    return view.mapFromScene(view.scene().sceneRect()).boundingRect()
+
+
+def fits_in_viewport(view):
+    viewport = view.viewport().rect()
+    return viewport.adjusted(-1, -1, 1, 1).contains(rendered_rect(view))
+
+
 @pytest.mark.parametrize("width", [1600, 1000, 700, 500])
 def test_image_pane_never_clips_its_contents(qtbot, big_image_deck, stub_deck_manager, width):
     """The card pane must shrink with the window instead of overflowing it."""
     tab = make_tab(qtbot, big_image_deck, width, 900, deck_count=2, stub=stub_deck_manager)
 
-    scroll_area = tab.scroll_area
-    assert scroll_area.horizontalScrollBar().maximum() == 0
-    assert scroll_area.widget().width() <= scroll_area.viewport().width()
+    view = tab.image_view
+    assert tab.image_container.width() <= tab.width()
+    assert fits_in_viewport(view)
 
 
 def test_card_is_scaled_to_fit_the_visible_pane(qtbot, big_image_deck, stub_deck_manager):
     tab = make_tab(qtbot, big_image_deck, 900, 900, deck_count=2, stub=stub_deck_manager)
 
-    viewport = tab.scroll_area.viewport()
-    pixmap = tab.image_label.pixmap()
-    assert pixmap.width() <= viewport.width()
-    assert pixmap.height() <= viewport.height()
-    # and the label is actually tall enough to draw it
-    assert tab.image_label.height() >= pixmap.height()
+    view = tab.image_view
+    assert view.is_at_fit()
+    assert fits_in_viewport(view)
+    assert view.horizontalScrollBar().maximum() == 0
+    assert view.verticalScrollBar().maximum() == 0
 
 
 def test_card_fills_a_wide_pane_without_waiting_for_a_resize(qtbot, big_image_deck):
-    """The first scale must use settled geometry, not the pre-layout size."""
     tab = make_tab(qtbot, big_image_deck, 1600, 1200)
 
-    viewport = tab.scroll_area.viewport()
-    pixmap = tab.image_label.pixmap()
-    assert pixmap.width() > viewport.width() * 0.8
+    view = tab.image_view
+    image = rendered_rect(view)
+    viewport = view.viewport().rect()
+    # a 600x900 card in a tall narrow pane is width-bound
+    assert image.width() > viewport.width() * 0.9
 
 
 def test_deck_switcher_does_not_pin_the_pane_wide(qtbot, big_image_deck, stub_deck_manager):
@@ -78,21 +105,84 @@ def test_deck_switcher_does_not_pin_the_pane_wide(qtbot, big_image_deck, stub_de
     assert tab.deck_switcher.minimumSizeHint().width() < CardViewTab.MIN_IMAGE_PANE_WIDTH
 
 
-@pytest.mark.parametrize("dpr", [1.0, 1.5, 2.0])
-def test_card_is_rendered_at_full_device_resolution(dpr):
-    """A scaled display must get dpr times as many real pixels, not the logical size."""
-    source = QSize(683, 1200)
-    width, height = device_pixel_fit(source, 300, 600, dpr)
+def test_zoom_never_shrinks_the_card_below_the_pane(qtbot, big_image_deck):
+    tab = make_tab(qtbot, big_image_deck, 1200, 900)
+    view = tab.image_view
 
-    # fills the box: 300x600 logical is width-bound for a 683x1200 card
-    assert width == pytest.approx(300 * dpr, abs=1)
-    assert width / height == pytest.approx(source.width() / source.height(), rel=0.01)
-    # and laying it out at its own dpr puts it back inside the pane
-    assert width / dpr <= 300
-    assert height / dpr <= 600
+    fit = view.fit_scale()
+    for _ in range(10):
+        view.zoom_out()
+
+    assert view.current_scale() == pytest.approx(fit)
+    assert view.is_at_fit()
 
 
-def test_card_is_never_interpolated_past_its_source_resolution():
-    """A card smaller than the pane stays 1:1 rather than being blown up."""
-    source = QSize(305, 527)
-    assert device_pixel_fit(source, 1200, 2000, 2.0) == (305, 527)
+def test_zoom_stops_at_four_times_native(qtbot, big_image_deck):
+    tab = make_tab(qtbot, big_image_deck, 1200, 900)
+    view = tab.image_view
+
+    for _ in range(40):
+        view.zoom_in()
+
+    assert view.current_scale() == pytest.approx(4.0 * view.native_scale())
+
+
+def test_double_click_toggles_between_fit_and_native(qtbot, big_image_deck):
+    tab = make_tab(qtbot, big_image_deck, 1200, 900)
+    view = tab.image_view
+    assert view.is_at_fit()
+
+    double_click(view)
+    assert view.current_scale() == pytest.approx(view.native_scale())
+    assert not view.is_at_fit()
+
+    double_click(view)
+    assert view.is_at_fit()
+
+
+def test_panning_cannot_leave_the_artwork(qtbot, big_image_deck):
+    tab = make_tab(qtbot, big_image_deck, 1200, 900)
+    view = tab.image_view
+    view.zoom_to(4.0 * view.native_scale())
+    assert view.can_pan()
+
+    for _ in range(20):
+        view.horizontalScrollBar().setValue(view.horizontalScrollBar().value() - 500)
+        view.verticalScrollBar().setValue(view.verticalScrollBar().value() - 500)
+
+    image = rendered_rect(view)
+    viewport = view.viewport().rect()
+    # panned as far as it goes: the image still covers the viewport
+    assert image.adjusted(-1, -1, 1, 1).contains(viewport)
+
+
+def test_the_pane_refits_when_it_is_resized(qtbot, big_image_deck):
+    tab = make_tab(qtbot, big_image_deck, 700, 900)
+    view = tab.image_view
+    narrow_fit = view.fit_scale()
+
+    tab.resize(1600, 900)
+    qtbot.waitUntil(lambda: view.fit_scale() > narrow_fit)
+
+    assert view.is_at_fit()
+    assert fits_in_viewport(view)
+
+
+def test_switching_decks_resets_the_zoom(qtbot, big_image_deck, stub_deck_manager):
+    tab = make_tab(qtbot, big_image_deck, 1200, 900, deck_count=2, stub=stub_deck_manager)
+    view = tab.image_view
+    view.zoom_to(4.0 * view.native_scale())
+    assert not view.is_at_fit()
+
+    tab.switch_to_deck(tab.deck, tab.card)
+
+    assert view.is_at_fit()
+
+
+def test_a_card_without_an_image(qtbot, big_image_deck):
+    tab = make_tab(qtbot, big_image_deck, 800, 900)
+    tab.card = dict(tab.card, image=None)
+    tab.load_image()
+
+    assert not tab.image_view.has_image()
+    assert not tab.image_view.can_pan()
