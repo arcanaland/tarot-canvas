@@ -1,3 +1,5 @@
+import html
+
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QFrame,
@@ -8,7 +10,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from tarot_canvas.models.esoterica import esoterica_manager
+from tarot_canvas.models.esoterica import get_esoterica_manager
 from tarot_canvas.utils.logger import logger
 
 
@@ -24,24 +26,21 @@ class PassageWidget(QFrame):
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
 
-        # Source metadata
-        source_meta = passage.get("source", {})
-        source_name = source_meta.get("name", "Unknown Source")
-        source_author = source_meta.get("author", "Unknown Author")
-
         # Header (book/source title)
-        header = QLabel(source_name)
+        header = QLabel(passage.source_name)
         header.setStyleSheet("font-size: 16px; font-weight: bold;")
         layout.addWidget(header)
 
-        # Author
-        author = QLabel(f"by {source_author}")
-        author.setStyleSheet("font-style: italic; color: #555;")
-        layout.addWidget(author)
+        # Author, only where the source declares one
+        if passage.author:
+            author = QLabel(f"by {passage.author}")
+            author.setStyleSheet("font-style: italic; color: #555;")
+            layout.addWidget(author)
 
-        # Text
-        text = passage.get("text", "")
-        html_text = text.replace("\n\n", "<p>").replace("\n", "<br>")
+        # Text. Escape first: this is a file the user dropped in a directory, and the
+        # label below renders rich text.
+        escaped = html.escape(passage.text)
+        html_text = escaped.replace("\n\n", "<p>").replace("\n", "<br>")
 
         text_label = QLabel()
         text_label.setWordWrap(True)
@@ -129,7 +128,7 @@ class EsotericaTab(QWidget):
         logger.debug(f"Looking for passages for card: {card_id}")
 
         # Get all passages for this card
-        passages = esoterica_manager.get_passages_for_card(card_id)
+        passages = get_esoterica_manager().get_passages_for_card(card_id)
 
         if not passages:
             logger.debug(f"No passages found for card: {card_id}")
