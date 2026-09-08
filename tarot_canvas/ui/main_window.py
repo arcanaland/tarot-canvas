@@ -183,8 +183,12 @@ class MainWindow(QMainWindow):
         view_menu.addSeparator()
 
         self.fullscreen_tab_action = QAction("&Fullscreen", self)
-        self.fullscreen_tab_action.setShortcut("F11")
-        self.fullscreen_tab_action.setStatusTip("Fullscreen the current tab (F11 or F)")
+        # Ctrl+Shift+F is KStandardShortcut::FullScreen, and the HIG asks for
+        # "modifier and alphanumeric keys; never just a function key, as these can
+        # be hard to access on laptops". F11 stays as an unadvertised alias for
+        # anyone arriving with browser muscle memory.
+        self.fullscreen_tab_action.setShortcuts([QKeySequence("Ctrl+Shift+F"), QKeySequence("F11")])
+        self.fullscreen_tab_action.setStatusTip("Fullscreen the current tab (Ctrl+Shift+F or F)")
         self.fullscreen_tab_action.setCheckable(True)
         self.fullscreen_tab_action.triggered.connect(self.toggle_tab_fullscreen)
         view_menu.addAction(self.fullscreen_tab_action)

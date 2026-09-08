@@ -19,6 +19,8 @@ from tarot_canvas.ui.tabs.card_view.deck_switcher import DeckSwitcher
 from tarot_canvas.ui.tabs.card_view.esoterica_tab import EsotericaTab
 from tarot_canvas.ui.tabs.card_view.notes_tab import NotesTab
 from tarot_canvas.ui.tabs.card_view.overview_tab import OverviewTab
+from tarot_canvas.ui.widgets.exit_fullscreen_button import ExitFullscreenButton
+from tarot_canvas.ui.widgets.toast import Toast
 from tarot_canvas.ui.widgets.zoomable_image_view import ZoomableImageView
 
 
@@ -78,6 +80,13 @@ class CardViewTab(BaseTab):
 
         self.image_view = ZoomableImageView(self)
         image_layout.addWidget(self.image_view, 1)
+
+        # Both float over the artwork rather than living in the layout, and
+        # both appear only in fullscreen -- see on_fullscreen_changed().
+        self.exit_fullscreen_button = ExitFullscreenButton(
+            self.image_view, self.request_fullscreen_toggle
+        )
+        self.toast = Toast(self.image_view)
 
         # The deck switcher is a sibling below the view, not a child of it, so it
         # no longer has to be subtracted from the image's available height.
@@ -176,7 +185,9 @@ class CardViewTab(BaseTab):
         self.image_view.reset_to_fit()
 
     def supports_fullscreen(self):
-        return True
+        # setup_ui() bails before building the splitter when there is nothing to
+        # show, and there is no point fullscreening a "No deck or card" label.
+        return self.card is not None and self.deck is not None
 
     def enter_fullscreen(self):
         """Show the artwork and nothing else: no info pane, no deck switcher"""
@@ -191,6 +202,21 @@ class CardViewTab(BaseTab):
         sizes, switcher_visible = state
         self.deck_switcher.setVisible(switcher_visible)
         self.splitter.setSizes(sizes)
+
+    def on_fullscreen_changed(self):
+        """Overlay the artwork only while fullscreen, never in the normal view.
+
+        Windowed, the card is the whole point of the pane and nothing should sit
+        on it; the View menu, Ctrl+Shift+F and F are the ways in. Fullscreen has
+        no chrome left, so it gets both a button and a one-off hint at the key
+        that does the same thing.
+        """
+        full = self.is_fullscreen()
+        self.exit_fullscreen_button.setVisible(full)
+        if full:
+            self.toast.show_message("Press Esc to exit fullscreen")
+        else:
+            self.toast.dismiss()
 
     def update_tab_name(self):
         """Update the tab name and add color dot based on card type/suit"""

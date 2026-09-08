@@ -200,6 +200,82 @@ def test_escape_still_resets_the_zoom_when_not_fullscreen(qtbot):
     assert window.fullscreen_tab is None
 
 
+def test_ctrl_shift_f_fullscreens_the_current_tab(qtbot):
+    """The KDE standard shortcut, and the one the HIG wants on a laptop."""
+    window, tab = make_window_with_card_view(qtbot)
+    window.activateWindow()
+    qtbot.waitUntil(lambda: window.isActiveWindow())
+
+    qtbot.keyClick(
+        window,
+        Qt.Key.Key_F,
+        Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier,
+    )
+    assert window.fullscreen_tab is tab
+
+    qtbot.keyClick(
+        window,
+        Qt.Key.Key_F,
+        Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier,
+    )
+    assert window.fullscreen_tab is None
+
+
+def test_nothing_overlays_the_artwork_until_fullscreen(qtbot):
+    """Windowed, the card owns the pane: no button, no toast on top of it."""
+    window, tab = make_window_with_card_view(qtbot)
+
+    assert not tab.exit_fullscreen_button.isVisible()
+    assert not tab.toast.isVisible()
+    assert window.fullscreen_tab is None
+
+
+def test_fullscreen_offers_a_button_and_a_hint_at_the_key(qtbot):
+    window, tab = make_window_with_card_view(qtbot)
+
+    window.toggle_tab_fullscreen()
+    assert tab.exit_fullscreen_button.isVisible()
+    assert tab.toast.isVisible()
+    assert "Esc" in tab.toast.text()
+    # the hint must sit beside the card, never over the artwork it interrupts
+    image = tab.image_view.image_viewport_rect()
+    qtbot.waitUntil(lambda: not tab.toast.geometry().intersects(image))
+
+    # the button is the way out for anyone who does not read the hint
+    qtbot.mouseClick(tab.exit_fullscreen_button, Qt.MouseButton.LeftButton)
+    assert window.fullscreen_tab is None
+    assert not tab.exit_fullscreen_button.isVisible()
+    # the hint described a mode that is over; it must not linger over the layout
+    assert not tab.toast.isVisible()
+
+
+def test_the_hint_fades_on_its_own(qtbot):
+    window, tab = make_window_with_card_view(qtbot)
+    window.toggle_tab_fullscreen()
+
+    tab.toast.show_message("Press Esc to exit fullscreen", hold_ms=10)
+    qtbot.waitUntil(lambda: not tab.toast.isVisible(), timeout=3000)
+    assert window.fullscreen_tab is tab  # fading the hint changes nothing else
+
+
+def test_the_exit_button_tracks_the_top_corner_of_the_image_view(qtbot):
+    window, tab = make_window_with_card_view(qtbot)
+    view, button = tab.image_view, tab.exit_fullscreen_button
+    window.toggle_tab_fullscreen()
+    qtbot.waitUntil(lambda: view.width() > 100)
+
+    def in_the_top_trailing_corner():
+        margin = button.MARGIN
+        return (
+            button.geometry().right() == view.width() - margin - 1
+            and button.geometry().top() == margin
+        )
+
+    qtbot.waitUntil(in_the_top_trailing_corner)
+    window.resize(1100, 800)
+    qtbot.waitUntil(in_the_top_trailing_corner)
+
+
 def test_switching_tabs_leaves_card_view_fullscreen(qtbot):
     window, tab = make_window_with_card_view(qtbot)
     tab.deck_switcher.setVisible(True)
