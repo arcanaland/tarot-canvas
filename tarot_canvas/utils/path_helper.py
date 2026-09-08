@@ -35,10 +35,6 @@ def get_decks_directory():
 def get_esoterica_directories():
     """
     Returns all valid locations for esoterica sources, most specific first.
-
-    Mirrors get_decks_directory(): the primary location is per-build, and under
-    Flatpak the shared external library is appended as a secondary, read-only
-    location so .Devel and the release build do not need duplicate copies.
     """
     paths = [get_data_directory("tarot/esoterica")]
 

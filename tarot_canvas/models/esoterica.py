@@ -1,19 +1,5 @@
 """
-Interim reader for esoterica sources.
-
-Structure comes from the draft Esoterica Specification; metadata does not. A file is a
-source if it parses as TOML and has a top-level `[card]` table, so the smallest working
-source is three lines:
-
-    [card."major_arcana.00".passages]
-    text = "These are my notes for The Fool."
-
-No `[meta]`, no identifier, no realm, no license, no version key. Nothing that is present
-is validated.
-
-This module is expected to become a thin call into the `arcana-tarot` bindings to
-libarcana, which is what will parse the structure above. Do not grow features here that
-the binding will have to unbuild.
+This module is expected to become a thin call into arcana-tarot once that is done
 """
 
 import os
@@ -24,9 +10,6 @@ from typing import NamedTuple
 from tarot_canvas.utils.logger import logger
 from tarot_canvas.utils.path_helper import get_esoterica_directories
 
-# Majors of `[meta].schema_version` this reader handles. A file that declares one we do
-# not is skipped loudly, because a supported-looking file that yields nothing is the
-# worst failure mode to diagnose.
 SUPPORTED_SCHEMA_MAJORS = {"1"}
 
 
@@ -39,7 +22,7 @@ class Passage(NamedTuple):
 
 
 def _read_source(path):
-    """Parse one file, or return None if it is not a source we read."""
+    """Parse one file, or return None if can't be parsed."""
     try:
         with open(path, "rb") as f:
             content = tomllib.load(f)
@@ -54,8 +37,6 @@ def _read_source(path):
     cards = content.get("card")
 
     if not isinstance(cards, dict):
-        # The one concession to the format break: name the file rather than silently
-        # finding nothing in it.
         if "passages" in content or "id" in meta:
             logger.warning(
                 f"{path}: this is the older esoterica format, which is no longer read. "
@@ -74,19 +55,14 @@ def _read_source(path):
         "path": path,
         "meta": meta,
         "cards": cards,
-        # A file with no [meta] at all is named for itself; a user never names a thing twice.
         "name": meta.get("name") or path.stem,
         "author": meta.get("author") or None,
     }
 
 
 class EsotericaManager:
-    """Loads esoterica sources and answers "what does anyone say about this card?"."""
-
     def __init__(self, roots=None):
-        # Keyed by path relative to the root it was found under. That key is private:
-        # it is not an identifier, must not be displayed, written to a file, or stored
-        # in a setting that outlives the file's path.
+        # Keyed by path relative to the root it was found under
         self.sources = {}
         self.load_sources(roots)
 
@@ -115,13 +91,6 @@ class EsotericaManager:
         logger.info(f"Loaded {len(self.sources)} esoterica sources")
 
     def get_passages_for_card(self, card_id):
-        """
-        Every source's text for a card, in root-then-path order.
-
-        `card_id` is a canonical ID such as "major_arcana.17" or
-        "minor_arcana.wands.ace"; a variant suffix is discarded, because variants of a
-        card denote the same meaning.
-        """
         canonical = str(card_id).split(":", 1)[0]
 
         passages = []
@@ -144,7 +113,6 @@ _manager = None
 
 
 def get_esoterica_manager():
-    """The shared manager, constructed on first use rather than at import."""
     global _manager
     if _manager is None:
         _manager = EsotericaManager()

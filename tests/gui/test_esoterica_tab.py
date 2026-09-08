@@ -50,9 +50,9 @@ def test_a_source_with_no_author_gets_no_author_line(qtbot):
 
 
 def test_a_declared_author_is_credited(qtbot):
-    widget = make_widget(qtbot, Passage("Tarot for Change", "Jessica Dore", "Body."))
+    widget = make_widget(qtbot, Passage("Example", "Jane Done", "Body."))
 
-    assert labels(widget) == ["Tarot for Change", "by Jessica Dore", "Body."]
+    assert labels(widget) == ["Example", "by Jane Done", "Body."]
 
 
 def test_two_sources_render_as_two_widgets_rather_than_merging(qtbot, stub_manager):
