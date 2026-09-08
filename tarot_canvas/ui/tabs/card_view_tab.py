@@ -69,7 +69,7 @@ class CardViewTab(BaseTab):
             return
 
         # Create a splitter for image and information
-        splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.splitter = splitter = QSplitter(Qt.Orientation.Horizontal)
 
         # Left side - card image
         self.image_container = QWidget()
@@ -155,12 +155,42 @@ class CardViewTab(BaseTab):
             ("Ctrl+=", self.image_view.zoom_in),
             ("Ctrl+-", self.image_view.zoom_out),
             ("Ctrl+0", self.image_view.reset_to_fit),
-            ("Escape", self.image_view.reset_to_fit),
+            ("Escape", self.on_escape_pressed),
         ]
         for key, slot in bindings:
             shortcut = QShortcut(QKeySequence(key), self)
             shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
             shortcut.activated.connect(slot)
+
+        # Bare F is scoped to the image view, not the tab: at tab scope it would
+        # eat the letter f in the notes editor. F11 remains the window-wide way in.
+        fullscreen = QShortcut(QKeySequence("F"), self.image_view)
+        fullscreen.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        fullscreen.activated.connect(self.request_fullscreen_toggle)
+
+    def on_escape_pressed(self):
+        """Leave fullscreen if in it, otherwise put the card back at fit"""
+        if self.is_fullscreen():
+            self.request_fullscreen_toggle()
+            return
+        self.image_view.reset_to_fit()
+
+    def supports_fullscreen(self):
+        return True
+
+    def enter_fullscreen(self):
+        """Show the artwork and nothing else: no info pane, no deck switcher"""
+        # isVisibleTo, not isVisible: the switcher hides itself when only one
+        # deck has the card, and that state must survive fullscreen either way
+        state = (self.splitter.sizes(), self.deck_switcher.isVisibleTo(self))
+        self.deck_switcher.setVisible(False)
+        self.splitter.setSizes([sum(state[0]), 0])
+        return state
+
+    def exit_fullscreen(self, state):
+        sizes, switcher_visible = state
+        self.deck_switcher.setVisible(switcher_visible)
+        self.splitter.setSizes(sizes)
 
     def update_tab_name(self):
         """Update the tab name and add color dot based on card type/suit"""
