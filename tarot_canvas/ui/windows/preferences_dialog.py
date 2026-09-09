@@ -1,34 +1,32 @@
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
+    QCheckBox,
     QColorDialog,
     QComboBox,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
     QPushButton,
+    QSlider,
     QVBoxLayout,
     QWidget,
 )
 
 from tarot_canvas.settings import (
+    ANIMATION_INTENSITY_DEFAULT,
+    ANIMATION_INTENSITY_KEY,
+    ANIMATIONS_ENABLED_DEFAULT,
+    ANIMATIONS_ENABLED_KEY,
     BACKGROUND_COLOR_DEFAULT,
     BACKGROUND_COLOR_KEY,
     BACKGROUND_STYLE_DEFAULT,
     BACKGROUND_STYLE_KEY,
-    MOTION_LEVEL_KEY,
     THEME_DEFAULT,
     THEME_KEY,
-    get_motion_level,
     get_settings,
 )
 from tarot_canvas.utils.theme_manager import ThemeManager, ThemeType
-
-MOTION_LEVEL_LABELS = (
-    ("Off", "None"),
-    ("Reactive", "Response only"),
-    ("Full", "Full"),
-)
 
 
 class PreferencesDialog(QDialog):
@@ -75,16 +73,22 @@ class PreferencesDialog(QDialog):
         self.bg_combo.addItems(["Checkerboard", "Gradient", "Solid Color"])
         layout.addRow("Canvas Background:", self.bg_combo)
 
-        # Canvas motion.
-        self.motion_combo = QComboBox()
-        for level, label in MOTION_LEVEL_LABELS:
-            self.motion_combo.addItem(label, level)
-        layout.addRow("Canvas Motion:", self.motion_combo)
-
         # Background color button (enabled only for solid color)
         self.bg_color_btn = QPushButton("Select Color")
         self.bg_color_btn.clicked.connect(self.select_bg_color)
         layout.addRow("Background Color:", self.bg_color_btn)
+
+        # Card animation options
+        self.animation_check = QCheckBox("Enable card animations")
+        layout.addRow("", self.animation_check)
+
+        # Animation intensity
+        self.animation_slider = QSlider(Qt.Orientation.Horizontal)
+        self.animation_slider.setMinimum(0)
+        self.animation_slider.setMaximum(100)
+        self.animation_slider.setTickInterval(10)
+        self.animation_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        layout.addRow("Animation Intensity:", self.animation_slider)
 
         # Enable the color picker only when "Solid Color" is selected
         self.bg_combo.currentIndexChanged.connect(self.update_color_button_state)
@@ -121,16 +125,20 @@ class PreferencesDialog(QDialog):
         if bg_index >= 0:
             self.bg_combo.setCurrentIndex(bg_index)
 
-        motion_index = self.motion_combo.findData(get_motion_level(settings))
-        if motion_index >= 0:
-            self.motion_combo.setCurrentIndex(motion_index)
-
         bg_color = QColor(settings.value(BACKGROUND_COLOR_KEY, BACKGROUND_COLOR_DEFAULT))
         self.bg_color = bg_color
         self.bg_color_btn.setStyleSheet(
             f"background-color: {bg_color.name()}; color: {'white' if bg_color.lightness() < 128 else 'black'};"
         )
 
+        self.animation_check.setChecked(
+            settings.value(ANIMATIONS_ENABLED_KEY, ANIMATIONS_ENABLED_DEFAULT, type=bool)
+        )
+        self.animation_slider.setValue(
+            settings.value(ANIMATION_INTENSITY_KEY, ANIMATION_INTENSITY_DEFAULT, type=int)
+        )
+
+        # Update dependent states
         self.update_color_button_state()
 
     def apply_settings(self):
@@ -139,11 +147,13 @@ class PreferencesDialog(QDialog):
         # Appearance settings
         settings.setValue(THEME_KEY, self.theme_combo.currentText())
         settings.setValue(BACKGROUND_STYLE_KEY, self.bg_combo.currentText())
-        settings.setValue(MOTION_LEVEL_KEY, self.motion_combo.currentData())
         settings.setValue(
             BACKGROUND_COLOR_KEY,
             getattr(self, "bg_color", QColor(BACKGROUND_COLOR_DEFAULT)).name(),
         )
+
+        settings.setValue(ANIMATIONS_ENABLED_KEY, self.animation_check.isChecked())
+        settings.setValue(ANIMATION_INTENSITY_KEY, self.animation_slider.value())
 
         theme_type = ThemeType.SYSTEM
         if self.theme_combo.currentText() == "Light":
