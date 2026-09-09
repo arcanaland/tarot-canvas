@@ -124,7 +124,7 @@ def test_schema_1_0_name_files_still_load(tmp_path):
 
 
 def test_artist_is_read_as_the_author_in_2_0(tmp_path):
-    """2.0 renamed `author` to `artist` (deck spec appendix B)."""
+    """2.0 renamed author to artist ."""
     from tarot_canvas.ui.library.deck_model import deck_author
 
     deck = _write_deck(
@@ -134,8 +134,84 @@ def test_artist_is_read_as_the_author_in_2_0(tmp_path):
         schema_version = "2.0"
         name = "Renamed"
         version = "1.0"
-        artist = "Kathryn Isabelle Lawrence"
+        artist = "Jane Doe"
         """,
     )
-    assert deck.get_author() == "Kathryn Isabelle Lawrence"
-    assert deck_author(deck) == "Kathryn Isabelle Lawrence"
+    assert deck.get_author() == "Jane Doe"
+    assert deck_author(deck) == "Jane Doe"
+
+
+def test_canonical_majors_need_no_declaration(tmp_path):
+    """Appendix C is the terminal step, so an RWS-seated deck restates nothing."""
+    deck = _write_deck(
+        tmp_path,
+        """
+        [deck]
+        schema_version = "2.0"
+        name = "Bare"
+        version = "1.0"
+        """,
+    )
+    by_id = {c["id"]: c for c in deck.get_all_cards()}
+    assert by_id["major_arcana.00"]["name"] == "The Fool"
+    assert by_id["major_arcana.13"]["name"] == "Death"
+    assert by_id["major_arcana.21"]["name"] == "The World"
+    assert by_id["minor_arcana.cups.ace"]["name"] == "Ace of Cups"
+
+
+def test_a_deck_name_outranks_the_canonical_one(tmp_path):
+    deck = _write_deck(
+        tmp_path,
+        """
+        [deck]
+        schema_version = "2.0"
+        name = "Own Words"
+        version = "1.0"
+
+        [cards]
+        "major_arcana.00" = { name = "Le Mat" }
+        """,
+    )
+    by_id = {c["id"]: c for c in deck.get_all_cards()}
+    assert by_id["major_arcana.00"]["name"] == "Le Mat"
+    assert by_id["major_arcana.01"]["name"] == "The Magician"  # still canonical
+
+
+def test_an_unnamed_face_is_not_given_a_canonical_name(tmp_path):
+    """`unnamed` truncates the chain, so no later step may invent a name."""
+    deck = _write_deck(
+        tmp_path,
+        """
+        [deck]
+        schema_version = "2.0"
+        name = "Untitled Death"
+        version = "1.0"
+
+        [cards]
+        "major_arcana.13" = { unnamed = true }
+        "major_arcana.04" = { unnamed = true, number = "IIII" }
+        """,
+    )
+    by_id = {c["id"]: c for c in deck.get_all_cards()}
+    assert by_id["major_arcana.13"]["name"] != "Death"
+    assert by_id["major_arcana.13"]["name"] == "13"
+    # A declared number is the better label for an untitled face.
+    assert by_id["major_arcana.04"]["name"] == "IIII"
+
+
+def test_a_supplied_name_is_used_where_the_face_prints_none(tmp_path):
+    """A name the deck has from the booklet, not one invented for it."""
+    deck = _write_deck(
+        tmp_path,
+        """
+        [deck]
+        schema_version = "2.0"
+        name = "Booklet"
+        version = "1.0"
+
+        [cards]
+        "major_arcana.13" = { unnamed = true, supplied_name = { text = "Time", lang = "en", source = "booklet" } }
+        """,
+    )
+    by_id = {c["id"]: c for c in deck.get_all_cards()}
+    assert by_id["major_arcana.13"]["name"] == "Time"

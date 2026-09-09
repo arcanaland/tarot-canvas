@@ -33,7 +33,6 @@ def deck_cover_path(deck):
 
 
 def deck_author(deck):
-    # 2.0 renamed `author` to `artist` (deck spec appendix B).
     fields = deck._metadata.get("deck", {})
     return fields.get("artist") or fields.get("author") or UNKNOWN_AUTHOR
 

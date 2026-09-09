@@ -109,18 +109,17 @@ def test_unlabelled_keys_are_not_rendered():
 def test_schema_2_0_deck_fields_are_shown_or_suppressed_deliberately():
     rows = detail_rows(
         {
-            "artist": "Kathryn Isabelle Lawrence",
-            "copyright": "Copyright (c) Kathryn Isabelle Lawrence 2020",
+            "artist": "Jane Doe",
+            "copyright": "Copyright (c)  Jane Doe 2026",
             "published_date": "2020",
-            "identifier": "land.arcana/deck/ascii-tarot-lawreka",
-            "packager": "Adam Fidel <adam@arcana.land>",
+            "identifier": "org.example/deck/example-tarot",
+            "packager": "John Doe",
             "pips": "scenic",
             "redistribution": "full",
             "license_files": ["LICENSE"],
         }
     )
     labels = [label for label, _, _ in rows]
-    # `artist` is the header subtitle, so it is not repeated as a row.
     assert labels == ["Copyright", "Published"]
 
 
