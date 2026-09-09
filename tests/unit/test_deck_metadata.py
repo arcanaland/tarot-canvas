@@ -95,13 +95,33 @@ def test_the_formatted_date_carries_no_weekday(qapp):
     assert "day," not in format_date("1909-12-01")
 
 
-def test_unknown_keys_render_generically_after_the_known_ones():
+def test_unlabelled_keys_are_not_rendered():
+    """A `[deck]` key we have no label for is one we do not present.
+
+    Schema 2.0 puts `identifier`, `packager`, `pips`, `redistribution`,
+    `derivation` and `license_files` in a table this widget renders in full,
+    and labelling them with their raw TOML key made the header a dump.
+    """
     rows = detail_rows({"license": "CC0", "aspect_ratio": 0.569, "future_key": "x"})
-    assert rows == [
-        ("License", "CC0", "license"),
-        ("aspect_ratio", "0.569", "aspect_ratio"),
-        ("future_key", "x", "future_key"),
-    ]
+    assert rows == [("License", "CC0", "license")]
+
+
+def test_schema_2_0_deck_fields_are_shown_or_suppressed_deliberately():
+    rows = detail_rows(
+        {
+            "artist": "Kathryn Isabelle Lawrence",
+            "copyright": "Copyright (c) Kathryn Isabelle Lawrence 2020",
+            "published_date": "2020",
+            "identifier": "land.arcana/deck/ascii-tarot-lawreka",
+            "packager": "Adam Fidel <adam@arcana.land>",
+            "pips": "scenic",
+            "redistribution": "full",
+            "license_files": ["LICENSE"],
+        }
+    )
+    labels = [label for label, _, _ in rows]
+    # `artist` is the header subtitle, so it is not repeated as a row.
+    assert labels == ["Copyright", "Published"]
 
 
 def test_every_declared_field_has_a_human_label():

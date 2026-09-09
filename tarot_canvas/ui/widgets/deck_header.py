@@ -36,23 +36,23 @@ MEASURE_CHARACTERS = 85
 
 COLLAPSED_COVER_UNITS = 3
 
-COLLAPSED_KEYS = ("name", "author")
-
 DETAIL_FIELDS = (
     ("description", "Description"),
     ("license", "License"),
+    ("copyright", "Copyright"),
     ("attribution", "Attribution"),
     ("publisher", "Publisher"),
     ("website", "Website"),
     ("created_date", "Created"),
     ("updated_date", "Updated"),
+    ("published_date", "Published"),
     ("tags", "Tags"),
     ("id", "Identifier"),
     ("version", "Version"),
     ("schema_version", "Schema version"),
 )
 
-DATE_KEYS = ("created_date", "updated_date")
+DATE_KEYS = ("created_date", "updated_date", "published_date")
 BANNER_PADDING = 2 * units.LARGE_SPACING
 DETAILS_GAP = 2 * units.LARGE_SPACING
 EDGE_MARGIN = 2 * units.LARGE_SPACING
@@ -104,23 +104,21 @@ def format_date(text):
 
 
 def detail_rows(fields):
+    """Rows for the fields we have a label for, in DETAIL_FIELDS order.
+
+    A `[deck]` key outside DETAIL_FIELDS is not presented. Labelling it with its
+    raw TOML key read as a defect against 1.0 decks and does not survive 2.0,
+    which adds `identifier`, `packager`, `pips`, `redistribution`, `derivation`
+    and `license_files` to a table this widget renders in full.
+    """
     rows = []
-    named = set()
     for key, label in DETAIL_FIELDS:
-        named.add(key)
         text = format_value(fields.get(key))
         if not text:
             continue
         if key in DATE_KEYS:
             text = format_date(text)
         rows.append((label, text, key))
-
-    for key, value in fields.items():
-        if key in named or key in COLLAPSED_KEYS:
-            continue
-        text = format_value(value)
-        if text:
-            rows.append((key, text, key))
     return rows
 
 

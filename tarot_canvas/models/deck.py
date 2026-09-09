@@ -98,6 +98,20 @@ class TarotDeck:
 
         return excluded, reason
 
+    def _card_entry(self, card_id):
+        """The `[cards."<id>"]` table for a card, or an empty dict.
+
+        Schema 2.0's source layer. A deck whose card names are printed on its
+        artwork declares them here rather than in a name file (deck spec 4.3,
+        7.2), so this is the fallback below `names/<tag>.toml` and above the
+        app's own composition.
+        """
+        cards = self._metadata.get("cards")
+        if not isinstance(cards, dict):
+            return {}
+        entry = cards.get(card_id)
+        return entry if isinstance(entry, dict) else {}
+
     def _load_all_cards(self):
         """Load all cards from the deck, respecting exclusions."""
         cards = []
@@ -137,9 +151,10 @@ class TarotDeck:
             card_id = f"major_arcana.{i:02d}"
 
             # Try to get name from localized names, fallback to default
-            name = "Unknown"
+            name = None
             if names and "major_arcana" in names and f"{i:02d}" in names["major_arcana"]:
                 name = names["major_arcana"][f"{i:02d}"]
+            name = name or self._card_entry(card_id).get("name") or "Unknown"
 
             # Find image for the card
             image_path = self._find_card_image_path("major_arcana", f"{i:02d}")
@@ -152,6 +167,7 @@ class TarotDeck:
                 and f"{i:02d}" in alt_texts["major_arcana"]
             ):
                 alt_text = alt_texts["major_arcana"][f"{i:02d}"]
+            alt_text = alt_text or self._card_entry(card_id).get("alt_text")
 
             cards.append(
                 {
@@ -196,7 +212,7 @@ class TarotDeck:
         card_id = f"minor_arcana.{suit}.{rank}"
 
         # Try to get name from localized names, fallback to default with display suit name
-        name = f"{rank.capitalize()} of {display_suit}"
+        name = None
         if (
             names
             and "minor_arcana" in names
@@ -204,6 +220,11 @@ class TarotDeck:
             and rank in names["minor_arcana"][suit]
         ):
             name = names["minor_arcana"][suit][rank]
+        name = (
+            name
+            or self._card_entry(card_id).get("name")
+            or f"{rank.capitalize()} of {display_suit}"
+        )
 
         # Find image for the card
         image_path = self._find_card_image_path(f"minor_arcana/{suit}", rank)
@@ -217,6 +238,7 @@ class TarotDeck:
             and rank in alt_texts["minor_arcana"][suit]
         ):
             alt_text = alt_texts["minor_arcana"][suit][rank]
+        alt_text = alt_text or self._card_entry(card_id).get("alt_text")
 
         return {
             "id": card_id,
@@ -237,7 +259,7 @@ class TarotDeck:
         display_court = self.get_display_court_name(court)
 
         # Try to get name from localized names, fallback to default with display names
-        name = f"{display_court} of {display_suit}"
+        name = None
         if (
             names
             and "minor_arcana" in names
@@ -245,6 +267,7 @@ class TarotDeck:
             and court in names["minor_arcana"][suit]
         ):
             name = names["minor_arcana"][suit][court]
+        name = name or self._card_entry(card_id).get("name") or f"{display_court} of {display_suit}"
 
         # Find image for the card
         image_path = self._find_card_image_path(f"minor_arcana/{suit}", court)
@@ -258,6 +281,7 @@ class TarotDeck:
             and court in alt_texts["minor_arcana"][suit]
         ):
             alt_text = alt_texts["minor_arcana"][suit][court]
+        alt_text = alt_text or self._card_entry(card_id).get("alt_text")
 
         return {
             "id": card_id,
@@ -275,7 +299,7 @@ class TarotDeck:
         """Find the best available image for a card."""
         # Check in preferred order: h1200, h2400, h750, scalable, ansi32
         for folder in ["h1200", "h2400", "h750", "scalable"]:
-            for ext in [".png", ".jpg", ".jpeg", ".svg"]:
+            for ext in [".png", ".webp", ".jpg", ".jpeg", ".svg"]:
                 path = os.path.join(self.deck_path, folder, card_type, f"{card_id}{ext}")
                 if os.path.exists(path):
                     return path
@@ -310,13 +334,31 @@ class TarotDeck:
         logger.warning(f"No image found for card: {card_type}/{card_id}")
         return None
 
+    @staticmethod
+    def _facet(data, facet):
+        """A name-file facet, flattened to the 1.0 shape this class indexes.
+
+        Schema 2.0 nests every name-file table under its facet and its entity
+        kind, so 1.0's `[major_arcana]` is now `[name.card.major_arcana]` and
+        `[alt_text.major_arcana]` is `[alt_text.card.major_arcana]` (deck spec
+        7.2, appendix B). Below `card` the shape is unchanged, so unwrapping
+        those two levels is the whole of the difference.
+        """
+        if not isinstance(data, dict):
+            return None
+        table = data.get(facet)
+        if isinstance(table, dict):  # 2.0
+            cards = table.get("card")
+            return cards if isinstance(cards, dict) else None
+        return data if facet == "name" else None  # 1.0
+
     def _load_localized_names(self, lang="en"):
         """Load localized names for cards."""
         if lang not in self._localized_names_cache:
             names_file = os.path.join(self.deck_path, "names", f"{lang}.toml")
             if os.path.exists(names_file):
                 with open(names_file, "rb") as f:
-                    self._localized_names_cache[lang] = tomllib.load(f)
+                    self._localized_names_cache[lang] = self._facet(tomllib.load(f), "name")
             else:
                 self._localized_names_cache[lang] = None
         return self._localized_names_cache[lang]
@@ -329,8 +371,9 @@ class TarotDeck:
             if os.path.exists(names_file):
                 with open(names_file, "rb") as f:
                     data = tomllib.load(f)
-                    # Extract alt_text section if it exists
-                    if "alt_text" in data:
+                    if "name" in data:  # 2.0: [alt_text.card.<kind>]
+                        alt_texts = self._facet(data, "alt_text")
+                    elif "alt_text" in data:  # 1.0: [alt_text.<kind>]
                         alt_texts = data["alt_text"]
             self._localized_alt_texts_cache[lang] = alt_texts
         return self._localized_alt_texts_cache[lang]
@@ -382,8 +425,12 @@ class TarotDeck:
         return value if value not in (None, "") else None
 
     def get_author(self):
-        """Get the author of the deck, or None."""
-        return self._deck_field("author")
+        """Get the author of the deck, or None.
+
+        Schema 2.0 renamed `author` to `artist` and split the role with `creator`
+        (deck spec appendix B). Read whichever one the deck declares.
+        """
+        return self._deck_field("artist") or self._deck_field("author")
 
     def get_license(self):
         """Get the licence the deck is distributed under, or None."""

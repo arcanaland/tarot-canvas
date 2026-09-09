@@ -7,3 +7,135 @@ def test_minimal_deck_loads_expected_cards(minimal_deck):
     names = {c["id"]: c["name"] for c in cards}
     assert names["major_arcana.00"] == "The Fool"
     assert names["major_arcana.01"] == "The Magician"
+
+
+def _write_deck(root, deck_toml, names=None, name_file="en.toml"):
+    """A deck directory with one major arcanum and one minor, image-less."""
+    (root / "h1200" / "major_arcana").mkdir(parents=True)
+    (root / "h1200" / "minor_arcana" / "cups").mkdir(parents=True)
+    (root / "deck.toml").write_text(deck_toml, encoding="utf-8")
+    if names is not None:
+        (root / "names").mkdir()
+        (root / "names" / name_file).write_text(names, encoding="utf-8")
+    from tarot_canvas.models.deck import TarotDeck
+
+    return TarotDeck(str(root))
+
+
+def test_cards_table_supplies_names_a_deck_prints_on_its_artwork(tmp_path):
+    """Schema 2.0 source layer: `[cards]` names, with no name file at all."""
+    deck = _write_deck(
+        tmp_path,
+        """
+        [deck]
+        schema_version = "2.0"
+        name = "Printed Names"
+        version = "1.0"
+
+        [cards."major_arcana.00"]
+        name = "Le Mat"
+        alt_text = "A wanderer at a cliff edge."
+
+        [cards."minor_arcana.cups.ace"]
+        name = "As de Coupe"
+        """,
+    )
+    by_id = {c["id"]: c for c in deck.get_all_cards()}
+    assert by_id["major_arcana.00"]["name"] == "Le Mat"
+    assert by_id["major_arcana.00"]["alt_text"] == "A wanderer at a cliff edge."
+    assert by_id["minor_arcana.cups.ace"]["name"] == "As de Coupe"
+    # A card the table does not name still composes from suit and rank.
+    assert by_id["minor_arcana.cups.two"]["name"] == "Two of Cups"
+
+
+def test_a_name_file_outranks_the_cards_table(tmp_path):
+    """The translation catalogue wins over the source layer (deck spec 7.2)."""
+    deck = _write_deck(
+        tmp_path,
+        """
+        [deck]
+        schema_version = "2.0"
+        name = "Both Layers"
+        version = "1.0"
+
+        [cards."major_arcana.00"]
+        name = "Le Mat"
+        """,
+        names="""
+        [name.card.major_arcana]
+        00 = "The Fool"
+        """,
+    )
+    by_id = {c["id"]: c for c in deck.get_all_cards()}
+    assert by_id["major_arcana.00"]["name"] == "The Fool"
+
+
+def test_schema_2_0_name_files_nest_under_their_facet(tmp_path):
+    """1.0's `[major_arcana]` is 2.0's `[name.card.major_arcana]`."""
+    deck = _write_deck(
+        tmp_path,
+        """
+        [deck]
+        schema_version = "2.0"
+        name = "Faceted"
+        version = "1.0"
+        """,
+        names="""
+        [name.card.major_arcana]
+        00 = "The Fool"
+
+        [name.card.minor_arcana.cups]
+        ace = "Ace of Chalices"
+
+        [alt_text.card.major_arcana]
+        00 = "A wanderer at a cliff edge."
+        """,
+    )
+    by_id = {c["id"]: c for c in deck.get_all_cards()}
+    assert by_id["major_arcana.00"]["name"] == "The Fool"
+    assert by_id["major_arcana.00"]["alt_text"] == "A wanderer at a cliff edge."
+    assert by_id["minor_arcana.cups.ace"]["name"] == "Ace of Chalices"
+
+
+def test_schema_1_0_name_files_still_load(tmp_path):
+    deck = _write_deck(
+        tmp_path,
+        """
+        [deck]
+        schema_version = "1.0"
+        name = "Legacy"
+        version = "1.0"
+        """,
+        names="""
+        [major_arcana]
+        00 = "The Fool"
+
+        [minor_arcana.cups]
+        ace = "Ace of Chalices"
+
+        [alt_text.major_arcana]
+        00 = "A wanderer at a cliff edge."
+        """,
+    )
+    by_id = {c["id"]: c for c in deck.get_all_cards()}
+    assert by_id["major_arcana.00"]["name"] == "The Fool"
+    assert by_id["major_arcana.00"]["alt_text"] == "A wanderer at a cliff edge."
+    assert by_id["minor_arcana.cups.ace"]["name"] == "Ace of Chalices"
+
+
+def test_artist_is_read_as_the_author_in_2_0(tmp_path):
+    """2.0 renamed `author` to `artist` (deck spec appendix B)."""
+    from tarot_canvas.ui.library.deck_model import deck_author
+
+    deck = _write_deck(
+        tmp_path,
+        """
+        [deck]
+        schema_version = "2.0"
+        name = "Renamed"
+        version = "1.0"
+        artist = "Kathryn Isabelle Lawrence"
+        """,
+    )
+    assert deck.get_author() == "Kathryn Isabelle Lawrence"
+    assert deck_author(deck) == "Kathryn Isabelle Lawrence"
