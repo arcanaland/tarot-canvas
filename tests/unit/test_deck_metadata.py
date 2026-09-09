@@ -96,12 +96,6 @@ def test_the_formatted_date_carries_no_weekday(qapp):
 
 
 def test_unlabelled_keys_are_not_rendered():
-    """A `[deck]` key we have no label for is one we do not present.
-
-    Schema 2.0 puts `identifier`, `packager`, `pips`, `redistribution`,
-    `derivation` and `license_files` in a table this widget renders in full,
-    and labelling them with their raw TOML key made the header a dump.
-    """
     rows = detail_rows({"license": "CC0", "aspect_ratio": 0.569, "future_key": "x"})
     assert rows == [("License", "CC0", "license")]
 

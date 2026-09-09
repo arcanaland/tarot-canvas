@@ -5,8 +5,6 @@ import tomllib
 
 from tarot_canvas.utils.logger import logger
 
-# Deck spec appendix C, the last step of major arcana name resolution (7.3).
-# Published under CC0 1.0 expressly so implementations can copy it.
 CANONICAL_MAJOR_ARCANA_NAMES = {
     "00": "The Fool",
     "01": "The Magician",
@@ -135,14 +133,7 @@ class TarotDeck:
         return entry if isinstance(entry, dict) else {}
 
     def _manifest_name(self, card_id):
-        """The manifest step of a card's name chain, and whether it truncates.
-
-        Returns `(name, truncated)`. `name` is the deck's own string for the
-        card, from `[cards].name` and then `supplied_name.text`, which cannot
-        both be present. `truncated` is the entry's `unnamed` flag: a face that
-        prints no title resolves through the name file and the manifest and
-        then stops, so no later step may invent a name for it (deck spec 7.3).
-        """
+        """The manifest step of a card's name chain and whether it truncates."""
         entry = self._card_entry(card_id)
         name = entry.get("name")
         if not name:
@@ -196,13 +187,9 @@ class TarotDeck:
                 name = names["major_arcana"][key]
             if not name:
                 name, truncated = self._manifest_name(card_id)
-                # Appendix C names the canonical majors, so a deck that seats
-                # them conventionally need not restate them. It is the terminal
-                # step: we do not borrow from the reference deck before it,
-                # because ours is RWS and names them identically, and borrowing
-                # carries the pattern condition of 6.7.6 we do not implement.
                 if not name and not truncated:
                     name = CANONICAL_MAJOR_ARCANA_NAMES.get(key)
+
                 # An untitled face keeps its number rather than gaining a name.
                 name = name or self._card_entry(card_id).get("number") or key
 
@@ -405,14 +392,7 @@ class TarotDeck:
         return data if facet == "name" else None
 
     def _name_file_tags(self, lang=None):
-        """Name-file tags to try, most preferred first (deck spec 7.2).
-
-        RFC 4647 Lookup: try the tag, then progressively shorter forms of it,
-        so `pt-BR` reads `names/pt-BR.toml` and then `names/pt.toml`. Where the
-        reader has stated no preference we begin at the deck's
-        `default_language`, which is what a deck whose words are not English
-        nominates. `en` is our own last resort, not a step the spec defines.
-        """
+        """Name-file language tags to try most preferred first"""
         requested = lang or self._deck_field("default_language")
         tags = []
         if requested:
