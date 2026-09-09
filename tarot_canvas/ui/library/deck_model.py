@@ -33,7 +33,8 @@ def deck_cover_path(deck):
 
 
 def deck_author(deck):
-    return deck._metadata.get("deck", {}).get("author", UNKNOWN_AUTHOR)
+    fields = deck._metadata.get("deck", {})
+    return fields.get("artist") or fields.get("author") or UNKNOWN_AUTHOR
 
 
 def is_majors_only(deck):

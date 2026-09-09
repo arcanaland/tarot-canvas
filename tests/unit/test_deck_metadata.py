@@ -95,13 +95,26 @@ def test_the_formatted_date_carries_no_weekday(qapp):
     assert "day," not in format_date("1909-12-01")
 
 
-def test_unknown_keys_render_generically_after_the_known_ones():
+def test_unlabelled_keys_are_not_rendered():
     rows = detail_rows({"license": "CC0", "aspect_ratio": 0.569, "future_key": "x"})
-    assert rows == [
-        ("License", "CC0", "license"),
-        ("aspect_ratio", "0.569", "aspect_ratio"),
-        ("future_key", "x", "future_key"),
-    ]
+    assert rows == [("License", "CC0", "license")]
+
+
+def test_schema_2_0_deck_fields_are_shown_or_suppressed_deliberately():
+    rows = detail_rows(
+        {
+            "artist": "Jane Doe",
+            "copyright": "Copyright (c)  Jane Doe 2026",
+            "published_date": "2020",
+            "identifier": "org.example/deck/example-tarot",
+            "packager": "John Doe",
+            "pips": "scenic",
+            "redistribution": "full",
+            "license_files": ["LICENSE"],
+        }
+    )
+    labels = [label for label, _, _ in rows]
+    assert labels == ["Copyright", "Published"]
 
 
 def test_every_declared_field_has_a_human_label():
