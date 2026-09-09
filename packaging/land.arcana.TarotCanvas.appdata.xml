@@ -59,8 +59,9 @@
     <release version="1.4.1" date="2026-09-08" type="development">
       <description>
         <ul>
-          <li>Initial support for custom esoterica with instructions.</li>
           <li>Add zoom for images in card view.</li>
+          <li>Initial support for custom esoterica with instructions.</li>
+          <li>Experimental partial support for decks packaged in new v2 format.</li>
         </ul>
       </description>
     </release>
