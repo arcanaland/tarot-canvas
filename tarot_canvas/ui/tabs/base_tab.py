@@ -15,14 +15,8 @@ class BaseTab(QWidget):
         self.layout.addWidget(placeholder)
 
     # -- fullscreen ------------------------------------------------------
-    #
-    # The main window owns the chrome-free mode (menu bar, tab bar, explorer,
-    # margins); a tab opts in here and collapses whatever chrome of its own it
-    # wants gone. Tabs that do not override supports_fullscreen() are simply
-    # never fullscreened, rather than being swept in by a type check.
 
     def supports_fullscreen(self):
-        """Whether this tab is worth showing chrome-free."""
         return False
 
     def enter_fullscreen(self):
@@ -40,23 +34,10 @@ class BaseTab(QWidget):
         """Hook for keeping a tab-side affordance in step with the state."""
 
     def fullscreen_focus_widget(self):
-        """The widget that should hold keyboard focus while fullscreen.
-
-        Fullscreen is usually entered from the menu or from the explorer, so
-        focus is outside the tab -- and the tab's shortcuts are scoped to it
-        (WidgetWithChildrenShortcut), so Esc and the bare letters would do
-        nothing until the user clicked into the tab. Tabs name the widget whose
-        scope those shortcuts live in.
-        """
+        """The widget that should hold keyboard focus while fullscreen."""
         return self
 
     def request_fullscreen_toggle(self):
-        """Ask the main window to toggle fullscreen onto this tab.
-
-        The tab asks its window rather than emitting a signal wired up at
-        creation time, so this works from every place a tab gets constructed,
-        and is a no-op for a tab that has no main window.
-        """
         window = self.window()
         if self.supports_fullscreen() and hasattr(window, "toggle_tab_fullscreen"):
             window.toggle_tab_fullscreen()

@@ -1,49 +1,37 @@
-from PyQt6.QtCore import QEvent, QSize, Qt
-from PyQt6.QtGui import QIcon
-from PyQt6.QtWidgets import QGraphicsOpacityEffect, QToolButton
+import math
+
+from PyQt6.QtCore import QEvent, QPoint, QRect, QSize, Qt
+from PyQt6.QtGui import QIcon, QPainter
+from PyQt6.QtWidgets import QStyle, QToolButton
+
+from tarot_canvas.ui.widgets.overlay_chrome import paint_surface, text_color
 
 
 class OverlayButton(QToolButton):
-    """A round icon button floating over a content view, in a corner column.
-
-    Used for fullscreen chrome, where the mode has collapsed every ordinary
-    control away. The KDE HIG sanctions the placement: a button "overlaid in a
-    fixed 'floating' position over a scrollable content view, especially an
-    image view" (hig/getting_input.md), with "a contrasting outline around the
-    edge" so it stays legible against a dark backdrop
-    (hig/displaying_content.md).
-
-    Buttons stack downwards by `row`, so everything fullscreen offers lives in
-    one column rather than being scattered around the edges.
-    """
+    """A round icon button floating over a content view in a corner."""
 
     MARGIN = 12
     GAP = 8
-    SIZE = 36
-    RESTING_OPACITY = 0.55
+    PADDING = 6
 
     def __init__(self, parent, icon_name, fallback, tooltip, on_click, row=0):
         super().__init__(parent)
         self.row = row
         self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
-        self.setIconSize(QSize(22, 22))
-        self.setFixedSize(self.SIZE, self.SIZE)
         self.setCursor(Qt.CursorShape.ArrowCursor)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.setToolTip(tooltip)
-        self.setStyleSheet(
-            "QToolButton { border: 1px solid rgba(255, 255, 255, 60);"
-            f" border-radius: {self.SIZE // 2}px; background: rgba(0, 0, 0, 130);"
-            " color: white; }"
-            "QToolButton:hover { background: rgba(0, 0, 0, 190); }"
-        )
+        # Sized off the style's icon metric, not a constant, so the button grows
+        # with the rest of the UI when the system font size does
+        # (hig/accessibility.md asks us to check that case).
+        icon_size = self.style().pixelMetric(QStyle.PixelMetric.PM_ToolBarIconSize, None, self)
+        self.setIconSize(QSize(icon_size, icon_size))
+        # The icon is a square inside a circle, so the padding has to clear the
+        # inscribed square (side d/sqrt(2)), not the bounding box. Sizing as if
+        # it were a square button leaves the glyph almost touching the rim.
+        self.size_px = math.ceil(icon_size * math.sqrt(2)) + 2 * self.PADDING
+        self.setFixedSize(self.size_px, self.size_px)
         self.set_icon(icon_name, fallback)
-
-        # Child widgets have no windowOpacity of their own; an opacity effect is
-        # the only way to make one sit back without repainting it by hand.
-        self._opacity = QGraphicsOpacityEffect(self)
-        self._opacity.setOpacity(self.RESTING_OPACITY)
-        self.setGraphicsEffect(self._opacity)
 
         self.clicked.connect(on_click)
 
@@ -55,7 +43,12 @@ class OverlayButton(QToolButton):
 
     def set_icon(self, icon_name, fallback):
         """Icons say what the next press does, not what state we are in."""
-        icon = QIcon.fromTheme(icon_name)
+        # hig/icons: at 22px, ask for symbolic. It is only a preference -- the
+        # theme decides -- but without the suffix Breeze may hand back the
+        # full-colour variant, whose filled slabs fight the artwork underneath.
+        icon = QIcon.fromTheme(f"{icon_name}-symbolic")
+        if icon.isNull():
+            icon = QIcon.fromTheme(icon_name)
         self.setIcon(icon)
         # Breeze may be absent (bare test environments, non-KDE sessions); an
         # empty round button would be an invisible control.
@@ -74,7 +67,7 @@ class OverlayButton(QToolButton):
             x = self.MARGIN
         else:
             x = parent.width() - self.width() - self.MARGIN
-        self.move(x, self.MARGIN + self.row * (self.SIZE + self.GAP))
+        self.move(x, self.MARGIN + self.row * (self.size_px + self.GAP))
 
     def eventFilter(self, watched, event):
         if watched is self.parentWidget() and event.type() in (
@@ -85,12 +78,44 @@ class OverlayButton(QToolButton):
             self.raise_()
         return super().eventFilter(watched, event)
 
+    def paintEvent(self, event):
+        """Draw the disc ourselves rather than asking a stylesheet for one.
+
+        Setting any stylesheet on a QToolButton hands the whole widget to
+        QStyleSheetStyle, which drops every state the sheet does not itself
+        redeclare -- the pressed state included, which is why the sheet version
+        gave no feedback on click. Painting it is also the only way to get an
+        antialiased disc: Qt draws a QSS `border-radius` as four edges plus four
+        corner arcs, and a translucent rim composites twice at each seam.
+        """
+        painter = QPainter(self)
+        active = self.underMouse() or self.isDown()
+        paint_surface(self, painter, active=active)
+
+        if self.icon().isNull():
+            painter.setPen(text_color(self))
+            painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, self.text())
+        else:
+            mode = QIcon.Mode.Active if active else QIcon.Mode.Normal
+            self.icon().paint(painter, self.icon_rect(), Qt.AlignmentFlag.AlignCenter, mode)
+
+    def icon_rect(self):
+        """Where the glyph goes -- iconSize, centred, NOT the whole button.
+
+        QIcon.paint scales to whatever rect it is given, so passing self.rect()
+        silently overrides setIconSize and draws a glyph the full width of the
+        disc, hard against the rim.
+        """
+        rect = QRect(QPoint(0, 0), self.iconSize())
+        rect.moveCenter(self.rect().center())
+        return rect
+
     def enterEvent(self, event):
-        self._opacity.setOpacity(1.0)
+        self.update()
         super().enterEvent(event)
 
     def leaveEvent(self, event):
-        self._opacity.setOpacity(self.RESTING_OPACITY)
+        self.update()
         super().leaveEvent(event)
 
     def setVisible(self, visible):

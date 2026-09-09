@@ -1,5 +1,8 @@
 from PyQt6.QtCore import QEasingCurve, QEvent, QPoint, QPropertyAnimation, Qt, QTimer
+from PyQt6.QtGui import QPainter, QPalette
 from PyQt6.QtWidgets import QGraphicsOpacityEffect, QLabel
+
+from tarot_canvas.ui.widgets.overlay_chrome import paint_surface, text_color
 
 
 class Toast(QLabel):
@@ -16,15 +19,23 @@ class Toast(QLabel):
     HOLD_MS = 2200
     FADE_MS = 400
     OPACITY = 0.85
+    RADIUS = 6
 
     def __init__(self, parent):
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.setStyleSheet(
-            "QLabel { border: 1px solid rgba(255, 255, 255, 60); border-radius: 6px;"
-            " background: rgba(0, 0, 0, 170); color: white; padding: 8px 16px; }"
-        )
+        # Contents margins rather than a stylesheet `padding`: QLabel already
+        # counts them in sizeHint and lays the text out inside them, so
+        # adjustSize() keeps working with no sheet in play.
+        self.setContentsMargins(16, 8, 16, 8)
+        # We are a child of the image view and inherit its palette, but this is
+        # chrome on top of the content, so take the window's foreground -- the
+        # same colour paint_surface derives its fill and rim from.
+        self.setForegroundRole(QPalette.ColorRole.WindowText)
+        palette = self.palette()
+        palette.setColor(QPalette.ColorRole.WindowText, text_color(self))
+        self.setPalette(palette)
 
         self._opacity = QGraphicsOpacityEffect(self)
         self._opacity.setOpacity(self.OPACITY)
@@ -88,6 +99,17 @@ class Toast(QLabel):
             x = max(0, (parent.width() - self.width()) // 2)
             position = QPoint(x, parent.height() - self.height() - self.MARGIN)
         self.move(position)
+
+    def paintEvent(self, event):
+        """Same antialiased, palette-derived surface the overlay buttons use.
+
+        See overlay_chrome for why this is painted rather than styled.
+        """
+        painter = QPainter(self)
+        paint_surface(self, painter, radius=self.RADIUS)
+        painter.end()
+        # QLabel draws the text inside our contents rect, on top of the surface.
+        super().paintEvent(event)
 
     def _start_fade(self):
         self._fade.setStartValue(self._opacity.opacity())
