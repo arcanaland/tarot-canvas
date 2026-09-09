@@ -1,5 +1,12 @@
 dbus := if env('DBUS_SESSION_BUS_ADDRESS', '') == '' { 'dbus-run-session --' } else { '' }
 
+flathub_repo := 'flathub/land.arcana.TarotCanvas'
+
+# Where the Flathub checkout lives. Not in this repo: it is a different repo with a
+# different owner, and Flathub's copy of python3-modules.yaml is the canonical one.
+flathub_checkout := env('FLATHUB_CHECKOUT', \
+  env('XDG_CACHE_HOME', home_dir() / '.cache') / 'tarot-canvas' / 'flathub')
+
 [private]
 gen-devel:
   ./gen-devel.sh
@@ -111,3 +118,47 @@ buildbot BUILD: buildbot-clean
   flatpak install --user -y "$URL"
   echo
   echo "run it with: flatpak run land.arcana.TarotCanvas//test"
+ 
+# Open a Flathub PR
+submit:
+  #!/bin/bash
+  set -euo pipefail
+
+  CHECKOUT="{{flathub_checkout}}"
+  VERSION=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' ../tarot_canvas/_version.py)
+  BRANCH="update-${VERSION}"
+
+  echo "== version:  ${VERSION}"
+  echo "== checkout: ${CHECKOUT}"
+
+  if [ -d "${CHECKOUT}/.git" ]; then
+    git -C "${CHECKOUT}" fetch --quiet origin
+  else
+    mkdir -p "$(dirname "${CHECKOUT}")"
+    git clone --quiet "https://github.com/{{flathub_repo}}.git" "${CHECKOUT}"
+  fi
+
+  git -C "${CHECKOUT}" config user.name "$(git config user.name)"
+  git -C "${CHECKOUT}" config user.email "$(git config user.email)"
+
+  git -C "${CHECKOUT}" checkout --quiet -B "${BRANCH}" origin/master
+
+  podman run --rm \
+    -v "${CHECKOUT}:/run/host/repo:Z" \
+    -e GITHUB_TOKEN="$(gh auth token)" \
+    ghcr.io/flathub-infra/flatpak-external-data-checker \
+    --update --commit-only --commit-to-current-branch \
+    /run/host/repo/land.arcana.TarotCanvas.yml
+
+  if git -C "${CHECKOUT}" diff --quiet origin/master HEAD; then
+    echo "== manifest already current for ${VERSION}; no PR opened"
+    exit 0
+  fi
+
+  git -C "${CHECKOUT}" --no-pager log --oneline origin/master..HEAD
+  git -C "${CHECKOUT}" push --quiet -u origin "${BRANCH}"
+
+  gh pr create -R {{flathub_repo}} \
+    --base master --head "${BRANCH}" \
+    --title "Update tarot-canvas to ${VERSION}" \
+    --body ''
