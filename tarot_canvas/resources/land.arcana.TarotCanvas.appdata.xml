@@ -45,17 +45,14 @@
     </screenshot>
   </screenshots>
   <releases>
-    <!--
-        <release version="X.Y.Z" date="YYYY-MM-DD" type="stable">
-          <description>
-            <p>A line introducing the release.</p>
-            <ul>
-              <li>A change.</li>
-              <li>Another change.</li>
-            </ul>
-          </description>
-        </release>
-    -->
+    <release version="1.4.2" date="2026-09-11" type="development">
+      <description>
+        <ul>
+          <li>Add full-screen mode to card view.</li>
+          <li>Improve card motion and feel (juicy!) in canvas view.</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.4.1" date="2026-09-09" type="stable">
       <description>
         <ul>
