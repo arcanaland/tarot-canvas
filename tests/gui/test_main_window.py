@@ -1,10 +1,11 @@
 import pytest
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QApplication, QTabWidget, QToolButton
+from PyQt6.QtWidgets import QWIDGETSIZE_MAX, QApplication, QTabWidget, QToolButton
 
 from tarot_canvas.settings import EXPLORER_VISIBLE_KEY, get_settings
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
+from tarot_canvas.ui.tabs.deck_view_tab import DeckViewTab
 from tarot_canvas.ui.tabs.library_tab import LibraryTab
 from tests.conftest import MINIMAL_DECK_PATH
 
@@ -41,24 +42,42 @@ def make_window_with_canvas(qtbot):
 def test_canvas_fullscreen_hides_chrome_and_puts_it_back(qtbot):
     window, tab = make_window_with_canvas(qtbot)
     explorer_before = window.card_explorer.isVisible()
-    max_height_before = tab.maximumHeight()
 
     tab.on_toggle_fullscreen()
-    assert window.canvas_fullscreen_tab is tab
+    assert window.fullscreen_tab is tab
     assert not window.menuBar().isVisible()
     assert not window.tab_widget.tabBar().isVisible()
     assert not window.card_explorer.isVisible()
-    assert tab.maximumHeight() > max_height_before
     assert tab.fullscreen_action.isChecked()
 
     tab.on_escape_pressed()
-    assert window.canvas_fullscreen_tab is None
+    assert window.fullscreen_tab is None
     assert window.menuBar().isVisible()
     assert window.tab_widget.tabBar().isVisible()
     assert window.card_explorer.isVisible() == explorer_before
-    assert tab.maximumHeight() == max_height_before
     assert not tab.fullscreen_action.isChecked()
-    assert not window.fullscreen_canvas_action.isChecked()
+    assert not window.fullscreen_tab_action.isChecked()
+
+
+def test_leaving_fullscreen_puts_a_maximized_window_back_as_maximized(qtbot):
+    window, tab = make_window_with_canvas(qtbot)
+    window.showMaximized()
+    qtbot.waitUntil(window.isMaximized)
+
+    tab.on_toggle_fullscreen()
+    assert window.isFullScreen()
+
+    tab.on_escape_pressed()
+    qtbot.waitUntil(window.isMaximized)
+    assert not window.isFullScreen()
+
+
+def test_the_canvas_grows_with_the_window(qtbot):
+    window, tab = make_window_with_canvas(qtbot)
+    window.resize(1200, 1400)
+    qtbot.waitUntil(lambda: tab.height() > 900)
+
+    assert tab.maximumHeight() == QWIDGETSIZE_MAX
 
 
 def test_escape_still_clears_the_selection_when_not_fullscreen(qtbot):
@@ -67,7 +86,7 @@ def test_escape_still_clears_the_selection_when_not_fullscreen(qtbot):
 
     tab.on_escape_pressed()
     assert tab.scene.selectedItems() == []
-    assert window.canvas_fullscreen_tab is None
+    assert window.fullscreen_tab is None
 
 
 def test_switching_tabs_leaves_canvas_fullscreen(qtbot):
@@ -76,10 +95,10 @@ def test_switching_tabs_leaves_canvas_fullscreen(qtbot):
     window.tab_widget.setCurrentWidget(tab)
 
     tab.on_toggle_fullscreen()
-    assert window.canvas_fullscreen_tab is tab
+    assert window.fullscreen_tab is tab
 
     window.tab_widget.setCurrentWidget(other)
-    assert window.canvas_fullscreen_tab is None
+    assert window.fullscreen_tab is None
     assert window.menuBar().isVisible()
 
 
@@ -99,10 +118,10 @@ def test_the_f_key_drives_it_from_the_canvas(qtbot):
     qtbot.waitUntil(lambda: QApplication.focusWidget() is tab.view)
 
     qtbot.keyClick(tab.view, Qt.Key.Key_F)
-    assert window.canvas_fullscreen_tab is tab
+    assert window.fullscreen_tab is tab
 
     qtbot.keyClick(tab.view, Qt.Key.Key_Escape)
-    assert window.canvas_fullscreen_tab is None
+    assert window.fullscreen_tab is None
 
 
 def test_f11_fullscreens_the_canvas_from_anywhere_in_the_window(qtbot):
@@ -114,24 +133,208 @@ def test_f11_fullscreens_the_canvas_from_anywhere_in_the_window(qtbot):
     qtbot.waitUntil(lambda: window.isActiveWindow())
 
     qtbot.keyClick(window, Qt.Key.Key_F11)
-    assert window.canvas_fullscreen_tab is tab
+    assert window.fullscreen_tab is tab
 
     qtbot.keyClick(window, Qt.Key.Key_F11)
-    assert window.canvas_fullscreen_tab is None
+    assert window.fullscreen_tab is None
     assert window.menuBar().isVisible()
 
 
-def test_f11_on_a_non_canvas_tab_does_nothing(qtbot):
+def test_f11_on_a_tab_that_opts_out_does_nothing(qtbot):
     window, tab = make_window_with_canvas(qtbot)
     # new_canvas_tab() closes the Welcome tab, so put a non-canvas tab back
     window.add_welcome_tab()
     window.tab_widget.setCurrentIndex(window.tab_widget.count() - 1)
     assert not isinstance(window.tab_widget.currentWidget(), CanvasTab)
 
-    window.toggle_canvas_fullscreen()
-    assert window.canvas_fullscreen_tab is None
+    window.toggle_tab_fullscreen()
+    assert window.fullscreen_tab is None
     assert window.menuBar().isVisible()
-    assert not window.fullscreen_canvas_action.isChecked()
+    assert not window.fullscreen_tab_action.isChecked()
+
+
+def test_the_library_tab_opts_out_of_fullscreen(qtbot):
+    """Capability, not isinstance: a tab is fullscreened only if it says so."""
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.show()
+    qtbot.waitExposed(window)
+    window.new_library_tab()
+
+    assert not window.tab_widget.currentWidget().supports_fullscreen()
+    window.toggle_tab_fullscreen()
+    assert window.fullscreen_tab is None
+
+
+def make_window_with_card_view(qtbot):
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.show()
+    qtbot.waitExposed(window)
+    window.new_card_view_tab()
+    return window, window.tab_widget.currentWidget()
+
+
+def test_card_view_fullscreen_shows_the_artwork_alone(qtbot):
+    window, tab = make_window_with_card_view(qtbot)
+    tab.deck_switcher.setVisible(True)
+    sizes_before = tab.splitter.sizes()
+
+    window.toggle_tab_fullscreen()
+    assert window.fullscreen_tab is tab
+    assert not window.menuBar().isVisible()
+    assert not tab.deck_switcher.isVisibleTo(tab)
+    assert tab.splitter.sizes()[1] == 0  # info pane collapsed
+
+    window.toggle_tab_fullscreen()
+    assert window.fullscreen_tab is None
+    assert window.menuBar().isVisible()
+    assert tab.deck_switcher.isVisibleTo(tab)
+    assert tab.splitter.sizes() == sizes_before
+
+
+def test_escape_leaves_card_view_fullscreen(qtbot):
+    window, tab = make_window_with_card_view(qtbot)
+    window.toggle_tab_fullscreen()
+
+    tab.on_escape_pressed()
+    assert window.fullscreen_tab is None
+
+
+def test_escape_still_resets_the_zoom_when_not_fullscreen(qtbot):
+    window, tab = make_window_with_card_view(qtbot)
+    view = tab.image_view
+    view.zoom_to(4.0 * view.native_scale())
+
+    tab.on_escape_pressed()
+    assert view.is_at_fit()
+    assert window.fullscreen_tab is None
+
+
+def test_ctrl_shift_f_fullscreens_the_current_tab(qtbot):
+    """The KDE standard shortcut, and the one the HIG wants on a laptop."""
+    window, tab = make_window_with_card_view(qtbot)
+    window.activateWindow()
+    qtbot.waitUntil(lambda: window.isActiveWindow())
+
+    qtbot.keyClick(
+        window,
+        Qt.Key.Key_F,
+        Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier,
+    )
+    assert window.fullscreen_tab is tab
+
+    qtbot.keyClick(
+        window,
+        Qt.Key.Key_F,
+        Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier,
+    )
+    assert window.fullscreen_tab is None
+
+
+def test_nothing_overlays_the_artwork_until_fullscreen(qtbot):
+    """Windowed, the card owns the pane: no button, no toast on top of it."""
+    window, tab = make_window_with_card_view(qtbot)
+
+    assert not tab.exit_fullscreen_button.isVisible()
+    assert not tab.toast.isVisible()
+    assert window.fullscreen_tab is None
+
+
+def test_fullscreen_offers_a_button_and_a_hint_at_the_key(qtbot):
+    window, tab = make_window_with_card_view(qtbot)
+
+    window.toggle_tab_fullscreen()
+    assert tab.exit_fullscreen_button.isVisible()
+    assert tab.toast.isVisible()
+    assert "Esc" in tab.toast.text()
+
+    # the button is the way out for anyone who does not read the hint
+    qtbot.mouseClick(tab.exit_fullscreen_button, Qt.MouseButton.LeftButton)
+    assert window.fullscreen_tab is None
+    assert not tab.exit_fullscreen_button.isVisible()
+    # the hint described a mode that is over; it must not linger over the layout
+    assert not tab.toast.isVisible()
+
+
+def test_fullscreen_offers_a_way_back_to_the_card_details(qtbot):
+    window, tab = make_window_with_card_view(qtbot)
+    width_before = tab.splitter.sizes()[1]
+    assert width_before > 0
+
+    window.toggle_tab_fullscreen()
+    assert tab.info_pane_button.isVisible()
+    assert not tab.info_pane_is_open()
+    assert "Show card details" in tab.info_pane_button.toolTip()
+    assert "Esc" in tab.toast.text()
+
+    qtbot.mouseClick(tab.info_pane_button, Qt.MouseButton.LeftButton)
+    assert tab.info_pane_is_open()
+    assert tab.splitter.sizes()[1] == width_before
+    assert "Hide card details" in tab.info_pane_button.toolTip()
+
+    qtbot.mouseClick(tab.info_pane_button, Qt.MouseButton.LeftButton)
+    assert not tab.info_pane_is_open()
+
+
+def test_the_i_key_toggles_the_card_details(qtbot):
+    window, tab = make_window_with_card_view(qtbot)
+    window.toggle_tab_fullscreen()
+    tab.image_view.setFocus()
+    qtbot.waitUntil(lambda: QApplication.focusWidget() is tab.image_view)
+
+    qtbot.keyClick(tab.image_view, Qt.Key.Key_I)
+    assert tab.info_pane_is_open()
+
+    qtbot.keyClick(tab.image_view, Qt.Key.Key_I)
+    assert not tab.info_pane_is_open()
+
+
+def test_dragging_the_pane_open_updates_the_button(qtbot):
+    window, tab = make_window_with_card_view(qtbot)
+    window.toggle_tab_fullscreen()
+    total = sum(tab.splitter.sizes())
+
+    tab.splitter.setSizes([total - 300, 300])
+    tab.splitter.splitterMoved.emit(total - 300, 1)
+    assert "Hide card details" in tab.info_pane_button.toolTip()
+
+
+def test_the_fullscreen_tabs_share_the_pane_between_them(qtbot):
+    window, tab = make_window_with_card_view(qtbot)
+    bar = tab.info_tabs.tabBar()
+    windowed = bar.width()
+
+    window.toggle_tab_fullscreen()
+    tab.toggle_info_pane()
+    qtbot.waitUntil(lambda: bar.width() > windowed)
+
+    widths = [bar.tabRect(i).width() for i in range(bar.count())]
+    assert sum(widths) >= bar.width() - 4  # they fill it
+    assert max(widths) - min(widths) <= 2  # in equal shares
+
+
+def test_a_seam_marks_off_the_info_pane(qtbot):
+    """Something for the splitter handle to sit against, so it reads as one."""
+    window, tab = make_window_with_card_view(qtbot)
+    assert tab.pane_seam.width() > 0
+
+    # and it collapses with the pane rather than leaving a stray line
+    window.toggle_tab_fullscreen()
+    qtbot.waitUntil(lambda: tab.pane_seam.width() == 0)
+
+
+def test_switching_tabs_leaves_card_view_fullscreen(qtbot):
+    window, tab = make_window_with_card_view(qtbot)
+    tab.deck_switcher.setVisible(True)
+    other = window.new_canvas_tab()
+    window.tab_widget.setCurrentWidget(tab)
+    window.toggle_tab_fullscreen()
+    assert window.fullscreen_tab is tab
+
+    window.tab_widget.setCurrentWidget(other)
+    assert window.fullscreen_tab is None
+    assert tab.deck_switcher.isVisibleTo(tab)
 
 
 def test_the_explorer_is_open_on_a_first_launch(qtbot):
@@ -338,3 +541,37 @@ def test_the_faq_url_also_comes_from_the_metainfo(qtbot, monkeypatch):
     window.show_faqs()
 
     assert opened == [load_about_data().faq]
+
+
+def deck_link(tab):
+    """The href behind the Deck: value in the overview pane."""
+    return tab.overview_tab.deck_value.text().split("'")[1]
+
+
+@pytest.mark.parametrize(
+    "open_a_card",
+    [
+        pytest.param(lambda w, card, deck: w.new_card_view_tab(), id="File > New Card View"),
+        pytest.param(lambda w, card, deck: w.open_card_view(card, deck), id="open_card_view"),
+        pytest.param(
+            lambda w, card, deck: w.handle_tab_navigation(
+                "open_card_view", {"card": card, "deck": deck}
+            ),
+            id="navigation request",
+        ),
+    ],
+)
+def test_the_deck_link_opens_the_deck_however_the_card_was_opened(
+    qtbot, open_a_card, stub_deck_manager
+):
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.show()
+    qtbot.waitExposed(window)
+    deck = stub_deck_manager.get_reference_deck()
+    open_a_card(window, deck.get_random_card(), deck)
+    tab = window.tab_widget.currentWidget()
+
+    tab.overview_tab.on_deck_link_clicked(deck_link(tab))
+
+    assert isinstance(window.tab_widget.currentWidget(), DeckViewTab)

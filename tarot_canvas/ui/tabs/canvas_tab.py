@@ -57,19 +57,13 @@ from tarot_canvas.ui.tabs.base_tab import BaseTab
 class CanvasTab(BaseTab):
     # Signal to notify the main window that we want to navigate
     navigation_requested = pyqtSignal(str, object)  # action, data
-    # Ask the main window to hide its chrome and give the canvas the whole screen
-    fullscreen_requested = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.id = f"canvas_{id(self)}"  # Unique ID for this tab
         self.tab_name = "Canvas"  # Default tab name
 
-        # Set a size policy that doesn't try to expand vertically
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-
-        # Add a maximum size constraint to prevent excessive expansion
-        self.setMaximumHeight(800)  # Set a reasonable maximum height
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         # Setup the UI with size-constrained components
         self.setup_ui()
@@ -339,21 +333,22 @@ class CanvasTab(BaseTab):
     def on_escape_pressed(self):
         """Handle Escape key - leave fullscreen if in it, otherwise cancel selection"""
         if self.is_fullscreen():
-            self.fullscreen_requested.emit()
+            self.request_fullscreen_toggle()
             return
         for item in self.scene.selectedItems():
             item.setSelected(False)
 
-    def is_fullscreen(self):
-        """True when the main window is currently fullscreened onto this canvas"""
-        return getattr(self.window(), "canvas_fullscreen_tab", None) is self
+    def supports_fullscreen(self):
+        return True
+
+    def fullscreen_focus_widget(self):
+        return self.view
 
     def on_toggle_fullscreen(self):
         """Toggle canvas fullscreen. No-op when the tab has no main window."""
-        if hasattr(self.window(), "canvas_fullscreen_tab"):
-            self.fullscreen_requested.emit()
+        self.request_fullscreen_toggle()
 
-    def sync_fullscreen_action(self):
+    def on_fullscreen_changed(self):
         """Keep the toolbar button in step with the actual fullscreen state"""
         full = self.is_fullscreen()
         self.fullscreen_action.setChecked(full)

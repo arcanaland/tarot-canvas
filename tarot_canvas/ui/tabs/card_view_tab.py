@@ -4,6 +4,7 @@ from typing import ClassVar
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QKeySequence, QPixmap, QShortcut
 from PyQt6.QtWidgets import (
+    QFrame,
     QHBoxLayout,
     QLabel,
     QSplitter,
@@ -19,6 +20,8 @@ from tarot_canvas.ui.tabs.card_view.deck_switcher import DeckSwitcher
 from tarot_canvas.ui.tabs.card_view.esoterica_tab import EsotericaTab
 from tarot_canvas.ui.tabs.card_view.notes_tab import NotesTab
 from tarot_canvas.ui.tabs.card_view.overview_tab import OverviewTab
+from tarot_canvas.ui.widgets.overlay_button import OverlayButton
+from tarot_canvas.ui.widgets.toast import Toast
 from tarot_canvas.ui.widgets.zoomable_image_view import ZoomableImageView
 
 
@@ -46,6 +49,8 @@ class CardViewTab(BaseTab):
         self.deck_manager = deck_manager
         self.source_tab_id = source_tab_id
         self.id = f"card_{id(self)}"
+        # How wide to bring the info pane back when it is toggled open
+        self._info_pane_width = 0
 
         if card is None and self.deck:
             self.card = self.deck.get_random_card()
@@ -57,19 +62,18 @@ class CardViewTab(BaseTab):
 
         # Call update_tab_name() after initialization to set the tab's name immediately
         # Use a short timer to ensure the widget is fully added to its parent first
+        # TODO: this seems terrible and is a massive code smell
         QTimer.singleShot(100, self.update_tab_name)
 
     def setup_ui(self):
         """Set up the card view tab UI"""
-        # We're already using the BaseTab's VBoxLayout
         main_layout = QVBoxLayout()
 
         if not self.deck or not self.card:
             self.layout.addWidget(QLabel("No deck or card available"))
             return
 
-        # Create a splitter for image and information
-        splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.splitter = splitter = QSplitter(Qt.Orientation.Horizontal)
 
         # Left side - card image
         self.image_container = QWidget()
@@ -79,17 +83,32 @@ class CardViewTab(BaseTab):
         self.image_view = ZoomableImageView(self)
         image_layout.addWidget(self.image_view, 1)
 
-        # The deck switcher is a sibling below the view, not a child of it, so it
-        # no longer has to be subtracted from the image's available height.
+        self.exit_fullscreen_button = OverlayButton(
+            self.image_view,
+            "view-restore",
+            "⛶",
+            "Leave fullscreen (Esc)",
+            self.request_fullscreen_toggle,
+            row=0,
+        )
+
+        self.info_pane_button = OverlayButton(
+            self.image_view,
+            "sidebar-expand-right",
+            "<",
+            "Show card details (I)",
+            self.toggle_info_pane,
+            row=1,
+        )
+        self.toast = Toast(self.image_view)
+
         self.deck_switcher = DeckSwitcher(self)
         image_layout.addWidget(self.deck_switcher)
 
         self.image_container.setMinimumWidth(self.MIN_IMAGE_PANE_WIDTH)
 
-        # Load and display the image
         self.load_image()
 
-        # Find compatible decks and update the deck switching UI
         self.deck_switcher.update_compatible_decks(self.card, self.deck, deck_manager)
 
         self.setup_zoom_shortcuts()
@@ -101,9 +120,17 @@ class CardViewTab(BaseTab):
         info_layout = QHBoxLayout(info_widget)
         info_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Create tabbed widget for different information categories
+        # A line the splitter handle sits
+        # alone a draggable one.
+        self.pane_seam = QFrame()
+        self.pane_seam.setFrameShape(QFrame.Shape.VLine)
+        self.pane_seam.setFrameShadow(QFrame.Shadow.Sunken)
+        info_layout.addWidget(self.pane_seam)
+
         self.info_tabs = QTabWidget()
-        self.info_tabs.setTabPosition(QTabWidget.TabPosition.East)  # Tabs on the right side
+
+        # East on the normal view, but North for fullscreen
+        self.info_tabs.setTabPosition(QTabWidget.TabPosition.East)
 
         # Tab 1: Overview
         self.overview_tab = OverviewTab(self.card, self.deck, self)
@@ -129,6 +156,7 @@ class CardViewTab(BaseTab):
         splitter.setSizes([int(self.width() * 0.4), int(self.width() * 0.6)])
         splitter.setStretchFactor(0, 4)
         splitter.setStretchFactor(1, 6)
+        splitter.splitterMoved.connect(self.sync_info_pane_button)
 
         # Add splitter to main layout
         main_layout.addWidget(splitter)
@@ -155,12 +183,103 @@ class CardViewTab(BaseTab):
             ("Ctrl+=", self.image_view.zoom_in),
             ("Ctrl+-", self.image_view.zoom_out),
             ("Ctrl+0", self.image_view.reset_to_fit),
-            ("Escape", self.image_view.reset_to_fit),
+            ("Ctrl+I", self.toggle_info_pane),
+            ("Escape", self.on_escape_pressed),
         ]
         for key, slot in bindings:
             shortcut = QShortcut(QKeySequence(key), self)
             shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
             shortcut.activated.connect(slot)
+
+        for key, slot in (("F", self.request_fullscreen_toggle), ("I", self.toggle_info_pane)):
+            shortcut = QShortcut(QKeySequence(key), self.image_view)
+            shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+            shortcut.activated.connect(slot)
+
+    def on_escape_pressed(self):
+        """Leave fullscreen if in it, otherwise put the card back at fit"""
+        if self.is_fullscreen():
+            self.request_fullscreen_toggle()
+            return
+        self.image_view.reset_to_fit()
+
+    def fullscreen_focus_widget(self):
+        return self.image_view
+
+    def supports_fullscreen(self):
+        return self.card is not None and self.deck is not None
+
+    def enter_fullscreen(self):
+        # isVisibleTo, not isVisible: the switcher hides itself when only one
+        # deck has the card, and that state must survive fullscreen either way
+        state = (
+            self.splitter.sizes(),
+            self.deck_switcher.isVisibleTo(self),
+            (
+                self.info_tabs.tabPosition(),
+                self.info_tabs.documentMode(),
+                self.info_tabs.tabBar().expanding(),
+            ),
+        )
+
+        # Bring the pane back at the width it had, if it is asked for again
+        self._info_pane_width = state[0][1] or self._info_pane_width
+        self.deck_switcher.setVisible(False)
+        self.splitter.setSizes([sum(state[0]), 0])
+
+        # horizontal tabs
+        self.info_tabs.setTabPosition(QTabWidget.TabPosition.North)
+        self.info_tabs.setDocumentMode(True)
+        self.info_tabs.tabBar().setExpanding(True)
+
+        return state
+
+    def exit_fullscreen(self, state):
+        sizes, switcher_visible, tab_style = state
+        self.deck_switcher.setVisible(switcher_visible)
+        self.splitter.setSizes(sizes)
+        position, document_mode, expanding = tab_style
+
+        # switch tabs back to vertical
+        self.info_tabs.setTabPosition(position)
+        self.info_tabs.setDocumentMode(document_mode)
+        self.info_tabs.tabBar().setExpanding(expanding)
+
+    def info_pane_is_open(self):
+        return self.splitter.sizes()[1] > 0
+
+    def toggle_info_pane(self):
+        """Show or hide the card details beside the artwork."""
+        sizes = self.splitter.sizes()
+        total = sum(sizes)
+
+        if self.info_pane_is_open():
+            self._info_pane_width = sizes[1]
+            self.splitter.setSizes([total, 0])
+        else:
+            width = self._info_pane_width or int(total * 0.4)
+            self.splitter.setSizes([max(self.MIN_IMAGE_PANE_WIDTH, total - width), width])
+
+        self.sync_info_pane_button()
+
+    def sync_info_pane_button(self):
+        """Keep the button saying what the next press will do"""
+        if self.info_pane_is_open():
+            self.info_pane_button.set_icon("sidebar-collapse-right", ">")
+            self.info_pane_button.setToolTip("Hide card details (I)")
+        else:
+            self.info_pane_button.set_icon("sidebar-expand-right", "<")
+            self.info_pane_button.setToolTip("Show card details (I)")
+
+    def on_fullscreen_changed(self):
+        full = self.is_fullscreen()
+        self.exit_fullscreen_button.setVisible(full)
+        self.info_pane_button.setVisible(full)
+        if full:
+            self.sync_info_pane_button()
+            self.toast.show_message("Press Esc to exit fullscreen")
+        else:
+            self.toast.dismiss()
 
     def update_tab_name(self):
         """Update the tab name and add color dot based on card type/suit"""

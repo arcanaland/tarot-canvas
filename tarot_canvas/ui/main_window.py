@@ -12,7 +12,6 @@ from PyQt6.QtGui import (
     QShortcut,
 )
 from PyQt6.QtWidgets import (
-    QWIDGETSIZE_MAX,
     QApplication,
     QFileDialog,
     QHBoxLayout,
@@ -34,6 +33,7 @@ from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.settings import EXPLORER_VISIBLE_DEFAULT, EXPLORER_VISIBLE_KEY, get_settings
 from tarot_canvas.ui.command_palette import CommandPalette
 from tarot_canvas.ui.components.card_explorer import CardExplorerPanel
+from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tarot_canvas.ui.tabs.deck_view_tab import DeckViewTab
@@ -100,8 +100,8 @@ class MainWindow(QMainWindow):
         self.setWindowIcon(QIcon(str(ICON_PATH)))
         self.setGeometry(100, 100, 950, 600)
 
-        # The canvas tab currently fullscreened, and the chrome state to put back
-        self.canvas_fullscreen_tab = None
+        # The tab currently fullscreened, and the chrome state to put back
+        self.fullscreen_tab = None
         self._pre_fullscreen = None
 
         # Initialize theme manager
@@ -182,13 +182,13 @@ class MainWindow(QMainWindow):
 
         view_menu.addSeparator()
 
-        self.fullscreen_canvas_action = QAction("&Fullscreen", self)
-        self.fullscreen_canvas_action.setShortcut("F11")
-        self.fullscreen_canvas_action.setStatusTip("Fullscreen the canvas (F11 or F)")
-        self.fullscreen_canvas_action.setCheckable(True)
-        self.fullscreen_canvas_action.triggered.connect(self.toggle_canvas_fullscreen)
-        view_menu.addAction(self.fullscreen_canvas_action)
-        self.addAction(self.fullscreen_canvas_action)
+        self.fullscreen_tab_action = QAction("&Fullscreen", self)
+        self.fullscreen_tab_action.setShortcuts([QKeySequence("Ctrl+Shift+F"), QKeySequence("F11")])
+        self.fullscreen_tab_action.setStatusTip("Fullscreen the current tab (Ctrl+Shift+F or F)")
+        self.fullscreen_tab_action.setCheckable(True)
+        self.fullscreen_tab_action.triggered.connect(self.toggle_tab_fullscreen)
+        view_menu.addAction(self.fullscreen_tab_action)
+        self.addAction(self.fullscreen_tab_action)
 
         # Add Theme submenu
         theme_menu = QMenu("&Theme", self)
@@ -430,7 +430,6 @@ class MainWindow(QMainWindow):
     def new_canvas_tab(self):
         canvas_tab = CanvasTab()
         canvas_tab.navigation_requested.connect(self.handle_tab_navigation)
-        canvas_tab.fullscreen_requested.connect(self.toggle_canvas_fullscreen)
         self.close_welcome_tab()
         tab_index = self.tab_widget.addTab(canvas_tab, "Canvas")
         self.tab_widget.setCurrentWidget(canvas_tab)
@@ -466,6 +465,15 @@ class MainWindow(QMainWindow):
             # Also store the name in the tab object
             tab.tab_name = new_name
 
+    def add_card_tab(self, card_tab, title, close_welcome=False):
+        """Adopt a card view tab. Every construction site must come through here."""
+        card_tab.navigation_requested.connect(self.handle_tab_navigation)
+        if close_welcome:
+            self.close_welcome_tab()
+        self.tab_widget.addTab(card_tab, title)
+        self.tab_widget.setCurrentWidget(card_tab)
+        return card_tab
+
     def handle_tab_navigation(self, action, data):
         """Handle navigation between tabs"""
         if action == "open_card_view":
@@ -489,11 +497,7 @@ class MainWindow(QMainWindow):
 
             # Create a new card view tab
             card_tab = CardViewTab(card=card, deck=deck, source_tab_id=source_tab_id)
-            card_tab.navigation_requested.connect(self.handle_tab_navigation)
-
-            # Add it to the tab widget
-            self.tab_widget.addTab(card_tab, card.get("name", "Card"))
-            self.tab_widget.setCurrentWidget(card_tab)
+            self.add_card_tab(card_tab, card.get("name", "Card"))
 
         elif action == "open_deck_view":
             deck_path = data.get("deck_path")
@@ -578,10 +582,7 @@ class MainWindow(QMainWindow):
         self.tab_widget.setCurrentWidget(library_tab)
 
     def new_card_view_tab(self):
-        card_tab = CardViewTab()
-        self.close_welcome_tab()
-        self.tab_widget.addTab(card_tab, "Card View")
-        self.tab_widget.setCurrentWidget(card_tab)
+        self.add_card_tab(CardViewTab(), "Card View", close_welcome=True)
 
     def close_tab(self, index):
         if self.tab_widget.count() > 1:  # Keep at least one tab open
@@ -645,47 +646,51 @@ class MainWindow(QMainWindow):
                 tab.apply_background_settings()
 
     def on_tab_changed(self, _index):
-        if self.canvas_fullscreen_tab is not None:
-            self.exit_canvas_fullscreen()
+        if self.fullscreen_tab is not None:
+            self.exit_tab_fullscreen()
 
-    def toggle_canvas_fullscreen(self):
-        """Toggle a chrome-free fullscreen showing only the canvas and its toolbar"""
-        if self.canvas_fullscreen_tab is not None:
-            self.exit_canvas_fullscreen()
+    def toggle_tab_fullscreen(self):
+        """Toggle a chrome-free fullscreen showing only the current tab
+
+        Which tabs may be fullscreened is the tab's own answer
+        (BaseTab.supports_fullscreen), not a type check here.
+        """
+        if self.fullscreen_tab is not None:
+            self.exit_tab_fullscreen()
             return
         tab = self.tab_widget.currentWidget()
-        if isinstance(tab, CanvasTab):
-            self.enter_canvas_fullscreen(tab)
+        if isinstance(tab, BaseTab) and tab.supports_fullscreen():
+            self.enter_tab_fullscreen(tab)
         else:
-            self.fullscreen_canvas_action.setChecked(False)
+            self.fullscreen_tab_action.setChecked(False)
 
-    def enter_canvas_fullscreen(self, tab):
-        self.canvas_fullscreen_tab = tab
+    def enter_tab_fullscreen(self, tab):
+        self.fullscreen_tab = tab
         self._pre_fullscreen = {
             "window_fullscreen": self.isFullScreen(),
+            "window_maximized": self.isMaximized(),
             "explorer_visible": self.card_explorer.isVisible(),
             "splitter_sizes": self.main_splitter.sizes(),
-            "tab_max_height": tab.maximumHeight(),
             "margins": self.centralWidget().layout().contentsMargins(),
+            "tab_state": tab.enter_fullscreen(),
         }
 
         self.menuBar().setVisible(False)
         self.tab_widget.tabBar().setVisible(False)
         self.card_explorer.setVisible(False)
         self.centralWidget().layout().setContentsMargins(0, 0, 0, 0)
-        # CanvasTab caps itself at 800px tall (see ensure_window_bounds); that cap
-        # would letterbox the canvas on any screen taller than that.
-        tab.setMaximumHeight(QWIDGETSIZE_MAX)
 
         if not self.isFullScreen():
-            self.showFullScreen()
-        self.fullscreen_canvas_action.setChecked(True)
-        tab.sync_fullscreen_action()
+            self.setWindowState(self.windowState() | Qt.WindowState.WindowFullScreen)
 
-    def exit_canvas_fullscreen(self):
-        tab = self.canvas_fullscreen_tab
+        tab.fullscreen_focus_widget().setFocus(Qt.FocusReason.OtherFocusReason)
+        self.fullscreen_tab_action.setChecked(True)
+        tab.on_fullscreen_changed()
+
+    def exit_tab_fullscreen(self):
+        tab = self.fullscreen_tab
         state = self._pre_fullscreen
-        self.canvas_fullscreen_tab = None
+        self.fullscreen_tab = None
         self._pre_fullscreen = None
 
         self.menuBar().setVisible(True)
@@ -694,14 +699,17 @@ class MainWindow(QMainWindow):
             self.card_explorer.setVisible(state["explorer_visible"])
             self.main_splitter.setSizes(state["splitter_sizes"])
             self.centralWidget().layout().setContentsMargins(state["margins"])
-            tab.setMaximumHeight(state["tab_max_height"])
-            # Only undo our own fullscreen: the window manager may have put the
-            # window fullscreen independently, and that is not ours to revert.
-            if not state["window_fullscreen"]:
-                self.showNormal()
+            tab.exit_fullscreen(state["tab_state"])
 
-        self.fullscreen_canvas_action.setChecked(False)
-        tab.sync_fullscreen_action()
+            # Only undo our own fullscreen
+            if not state["window_fullscreen"]:
+                window_state = self.windowState() & ~Qt.WindowState.WindowFullScreen
+                if state["window_maximized"]:
+                    window_state |= Qt.WindowState.WindowMaximized
+                self.setWindowState(window_state)
+
+        self.fullscreen_tab_action.setChecked(False)
+        tab.on_fullscreen_changed()
 
     def size_splitter_to_explorer(self):
         """Give the explorer its content width only"""
@@ -752,11 +760,7 @@ class MainWindow(QMainWindow):
         from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 
         card_tab = CardViewTab(card=card, deck=deck)
-        card_tab.navigation_requested.connect(self.handle_tab_navigation)
-
-        # Add it to the tab widget
-        self.tab_widget.addTab(card_tab, card.get("name", "Card"))
-        self.tab_widget.setCurrentWidget(card_tab)
+        self.add_card_tab(card_tab, card.get("name", "Card"))
 
     def on_card_action_requested(self, action, card, deck):
         """Handle all card actions from the explorer based on context"""
@@ -805,11 +809,7 @@ class MainWindow(QMainWindow):
         from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 
         card_tab = CardViewTab(card=card, deck=deck)
-        card_tab.navigation_requested.connect(self.handle_tab_navigation)
-
-        # Add it to the tab widget
-        self.tab_widget.addTab(card_tab, card.get("name", "Card"))
-        self.tab_widget.setCurrentWidget(card_tab)
+        self.add_card_tab(card_tab, card.get("name", "Card"))
 
     def show_faqs(self):
         """Open the FAQ document declared in the metainfo XML"""
@@ -836,14 +836,7 @@ class MainWindow(QMainWindow):
         """
         from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 
-        # Create a card view tab
-        tab = CardViewTab(card=card, deck=deck, parent=self.tab_widget)
-
-        # Add it to the tab widget
-        self.tab_widget.addTab(tab, card["name"])
-
-        # Select the new tab
-        self.tab_widget.setCurrentWidget(tab)
+        self.add_card_tab(CardViewTab(card=card, deck=deck), card["name"])
 
     def show_log_viewer(self):
         """Show the log viewer dialog"""

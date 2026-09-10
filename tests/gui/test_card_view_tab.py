@@ -1,7 +1,7 @@
 import shutil
 
 import pytest
-from PyQt6.QtCore import QPoint, QPointF, Qt
+from PyQt6.QtCore import QPoint, QPointF, QRect, QSize, Qt
 from PyQt6.QtGui import QColor, QMouseEvent, QPixmap
 
 from tarot_canvas.models.deck import TarotDeck
@@ -186,3 +186,52 @@ def test_a_card_without_an_image(qtbot, big_image_deck):
 
     assert not tab.image_view.has_image()
     assert not tab.image_view.can_pan()
+
+
+HINT = QSize(240, 40)
+
+
+def widened_to_fullscreen(qtbot, tab):
+    """Give the image the whole tab, the way fullscreen does."""
+    tab.enter_fullscreen()
+    qtbot.waitUntil(lambda: tab.image_view.width() > tab.width() * 0.9)
+    return tab.image_view
+
+
+def test_a_card_at_fit_leaves_a_band_to_park_chrome_in(qtbot, big_image_deck):
+    """A card is much taller than it is wide, so a landscape pane always has one."""
+    view = widened_to_fullscreen(qtbot, make_tab(qtbot, big_image_deck, 1200, 700))
+    image = view.image_viewport_rect()
+
+    position = view.clear_band_position(HINT)
+    assert position is not None
+    assert not QRect(position, HINT).intersects(image)
+    # trailing band, and at eye level rather than tucked in a corner
+    assert position.x() > image.right()
+    assert abs(QRect(position, HINT).center().y() - view.viewport().rect().center().y()) <= 1
+
+
+def test_no_band_once_the_artwork_fills_the_width(qtbot, big_image_deck):
+    view = widened_to_fullscreen(qtbot, make_tab(qtbot, big_image_deck, 1200, 700))
+    view.zoom_to(view.max_scale())
+
+    assert view.clear_band_position(HINT) is None
+
+
+def test_a_pane_too_narrow_for_the_hint_reports_no_band(qtbot, big_image_deck):
+    tab = make_tab(qtbot, big_image_deck, 420, 700)
+
+    assert tab.image_view.clear_band_position(HINT) is None
+
+
+def test_the_hint_ends_up_where_the_settled_layout_says(qtbot, big_image_deck):
+    tab = make_tab(qtbot, big_image_deck, 1920, 1080)
+    view, toast = tab.image_view, tab.toast
+
+    toast.show_message("foobar")
+    tab.enter_fullscreen()
+    qtbot.waitUntil(lambda: view.width() > tab.width() * 0.9)
+
+    qtbot.waitUntil(lambda: toast.pos() == view.clear_band_position(toast.size()))
+    assert view.clear_band_position(toast.size()) is not None  # a real band
+    assert not toast.geometry().intersects(view.image_viewport_rect())

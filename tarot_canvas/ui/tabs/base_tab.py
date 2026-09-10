@@ -13,3 +13,31 @@ class BaseTab(QWidget):
         placeholder = QLabel(text)
         placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.layout.addWidget(placeholder)
+
+    # -- fullscreen ------------------------------------------------------
+
+    def supports_fullscreen(self):
+        return False
+
+    def enter_fullscreen(self):
+        """Collapse the tab's own chrome. Returns state for exit_fullscreen."""
+        return None
+
+    def exit_fullscreen(self, state):
+        """Put back whatever enter_fullscreen collapsed."""
+
+    def is_fullscreen(self):
+        """True when the main window is currently fullscreened onto this tab"""
+        return getattr(self.window(), "fullscreen_tab", None) is self
+
+    def on_fullscreen_changed(self):
+        """Hook for keeping a tab-side affordance in step with the state."""
+
+    def fullscreen_focus_widget(self):
+        """The widget that should hold keyboard focus while fullscreen."""
+        return self
+
+    def request_fullscreen_toggle(self):
+        window = self.window()
+        if self.supports_fullscreen() and hasattr(window, "toggle_tab_fullscreen"):
+            window.toggle_tab_fullscreen()
