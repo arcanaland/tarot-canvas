@@ -255,9 +255,6 @@ class MainWindow(QMainWindow):
         faq_action.triggered.connect(self.show_faqs)
         help_menu.addAction(faq_action)
 
-        # No ellipsis: the HIG reserves it for actions that need further input before
-        # they complete. KDE apps write "Report Bug..." because theirs opens DrKonqi's
-        # wizard; ours just opens the tracker.
         report_bug_action = QAction("&Report Bug", self)
         report_bug_action.triggered.connect(self.report_bug)
         help_menu.addAction(report_bug_action)

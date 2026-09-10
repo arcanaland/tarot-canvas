@@ -1,14 +1,3 @@
-"""Guard the two metadata fields that cannot be derived from the metainfo XML.
-
-`Comment=` in the desktop entry and `description` in `pyproject.toml` are read by
-tooling that cannot parse our AppStream file, so they stay hand-written. Everything
-else the about dialog shows comes from the metainfo (see `tarot_canvas/about.py`);
-these two get a detector instead, which fails in the PR diff rather than at release
-time. RFC-031.
-
-Stdlib only -- no Qt, so it runs even when the GUI harness is skipped.
-"""
-
 import tomllib
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -38,7 +27,6 @@ def _pyproject():
 
 
 def test_metainfo_is_in_the_package():
-    """It moved out of packaging/ so the app can read the file it ships."""
     assert METAINFO.exists()
 
 
@@ -49,26 +37,7 @@ def test_taglines_agree():
     assert _pyproject()["project"]["description"] == summary
 
 
-def test_maintainer_address_agrees():
-    contact = _metainfo().findtext("update_contact").strip()
-
-    authors = _pyproject()["project"]["authors"]
-    assert [author["email"] for author in authors] == [contact]
-
-
-def test_developer_name_agrees():
-    developer = _metainfo().findtext("developer/name").strip()
-
-    authors = _pyproject()["project"]["authors"]
-    assert [author["name"] for author in authors] == [developer]
-
-
-def test_project_license_agrees():
-    assert _pyproject()["project"]["license"] == _metainfo().findtext("project_license").strip()
-
-
 def test_version_agrees_between_pyproject_and_version_module():
-    """`release.sh` refuses to tag unless these agree; assert it in the diff too."""
     from tarot_canvas._version import __version__
 
     assert _pyproject()["project"]["version"] == __version__

@@ -1,14 +1,4 @@
-"""The about dialog.
-
-A hand-built approximation of `KAboutApplicationDialog`: icon-and-version header,
-tabs, themed Close button. We cannot use the real one -- the Flatpak is
-`org.kde.Platform` plus `com.riverbankcomputing.PyQt.BaseApp`, which ships no PyKF6
-bindings. See RFC-031.
-
-Both list tabs are built from one row idiom -- bold title, dimmed subtitle, optional
-trailing button, hairline between entries -- because that is what makes the dialog
-read as one thing rather than three unrelated pages.
-"""
+"""The about dialog."""
 
 from __future__ import annotations
 
@@ -36,16 +26,12 @@ ICON_PATH = files("tarot_canvas.resources.icons").joinpath("icon.png")
 
 ICON_SIZE = 64
 
-# Sized against KAboutApplicationDialog: wide enough that the bug-tracker sentence
-# sits on one line, tall enough that the tab pane doesn't collapse onto its content.
 DEFAULT_SIZE = (560, 480)
 
 LICENSE_URLS = {
     "MIT": "https://opensource.org/license/mit",
 }
 
-# Freedesktop icon names, most specific first. All three are missing outside a real
-# icon theme, which is why the button falls back to a text glyph.
 MAIL_ICON_NAMES = ("mail-message-new", "mail-send", "mail-message")
 
 
@@ -54,16 +40,8 @@ def _link(url: str, label: str | None = None) -> str:
 
 
 class AboutDialog(QDialog):
-    """About Tarot Canvas.
-
-    Takes all of its data from `tarot_canvas.about`, so it touches no deck and can be
-    constructed without a `deck_manager` -- and therefore without the first-launch
-    reference-deck download.
-    """
-
     def __init__(self, parent=None, about: AboutData | None = None):
         super().__init__(parent)
-        # The dialog title echoes the menu item that opened it (HIG, text_and_labels).
         self.setWindowTitle("About Tarot Canvas")
         self.setMinimumSize(*DEFAULT_SIZE)
         self.resize(*DEFAULT_SIZE)
@@ -72,12 +50,9 @@ class AboutDialog(QDialog):
 
         layout = QVBoxLayout(self)
         layout.setSpacing(12)
-        # The header is exactly as tall as its icon; the tabs take the slack.
         layout.addWidget(self._build_header(), 0)
 
         self.tabs = QTabWidget()
-        # KDE's rule: a tab with nothing in it is not built. That is what lets Credits
-        # and Translators appear later without a redesign.
         self.tabs.addTab(self._build_about_tab(), "About")
         self.tabs.addTab(self._build_components_tab(), "Components")
         self.tabs.addTab(self._build_authors_tab(), "Authors")
@@ -124,12 +99,6 @@ class AboutDialog(QDialog):
         return header
 
     def _app_icon(self) -> QIcon:
-        """The themed icon if the desktop has it, the bundled PNG otherwise.
-
-        `main.py` calls `setDesktopFileName()` with the app ID and the manifest
-        installs `icon.svg` under that name, so inside the Flatpak this resolves to
-        the scalable icon; the PNG only ever serves the dev checkout.
-        """
         icon = QIcon.fromTheme(self.about.app_id)
         if icon.isNull():
             icon = QIcon(str(ICON_PATH))
@@ -154,11 +123,6 @@ class AboutDialog(QDialog):
         return page
 
     def _build_components_tab(self) -> QWidget:
-        """The runtime fingerprint, for pasting into a bug report.
-
-        The shipped Flatpak and a dev checkout do not agree on their Qt version, and
-        at least one known fault is specific to one side of that line.
-        """
         page, layout = self._page()
         self._add_rows(
             layout,
@@ -174,14 +138,11 @@ class AboutDialog(QDialog):
     def _build_authors_tab(self) -> QWidget:
         page, layout = self._page()
 
-        # The two KDE-standard lines first, then the people.
         if self.about.bugtracker:
             layout.addWidget(
                 self._body_label(f"Please use {_link(self.about.bugtracker)} to report bugs.")
             )
         if self.about.faq:
-            # Gwenview shows this URL bare, but ours is long enough to wrap mid-path.
-            # The label echoes the Help menu item that opens the same document.
             layout.addWidget(
                 self._body_label(
                     "If you have questions or need help, please visit "
@@ -214,8 +175,6 @@ class AboutDialog(QDialog):
         text.addWidget(title_label)
 
         subtitle_label = self._body_label(subtitle)
-        # Dimmed by the palette, so it follows the color scheme -- deliberately not a
-        # hardcoded color the way `main_window.py:337` does it.
         subtitle_label.setForegroundRole(QPalette.ColorRole.PlaceholderText)
         text.addWidget(subtitle_label)
 
@@ -226,7 +185,6 @@ class AboutDialog(QDialog):
 
     @staticmethod
     def _add_rows(layout: QVBoxLayout, rows: list[QWidget]) -> None:
-        """Rows with a hairline between them -- none above the first, none below the last."""
         for index, row in enumerate(rows):
             if index:
                 separator = QFrame()
@@ -278,7 +236,6 @@ class AboutDialog(QDialog):
         label = QLabel(text)
         label.setWordWrap(True)
         label.setOpenExternalLinks(True)
-        # Selectable so a user can paste any of it into an issue.
         label.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextBrowserInteraction
             | Qt.TextInteractionFlag.TextSelectableByMouse

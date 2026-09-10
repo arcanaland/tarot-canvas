@@ -19,8 +19,6 @@ modules:
       - pip3 install --no-deps --no-build-isolation --prefix=${FLATPAK_DEST} .
       - install -Dm644 packaging/land.arcana.TarotCanvas.desktop ${FLATPAK_DEST}/share/applications/land.arcana.TarotCanvas.desktop
       - install -Dm644 packaging/icon.svg ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/land.arcana.TarotCanvas.svg
-      # The metainfo lives in the Python package, not in packaging/, so the app can
-      # read the same file it ships. See RFC-031.
       - install -Dm644 tarot_canvas/resources/land.arcana.TarotCanvas.appdata.xml ${FLATPAK_DEST}/share/metainfo/land.arcana.TarotCanvas.metainfo.xml
 
     sources:

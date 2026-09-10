@@ -28,7 +28,6 @@ sed -e "s|^Icon=${PROD_ID}\$|Icon=${DEVEL_ID}|" \
   -e "/^X-Flatpak-RenamedFrom=/d" \
   "${PROD_ID}.desktop" >"${OUT}/${PROD_ID}.desktop"
 
-# The prod metainfo lives in the Python package now. See RFC-031.
 sed -e "s|<id>${PROD_ID}</id>|<id>${DEVEL_ID}</id>|" \
   -e "s|>${PROD_ID}\.desktop<|>${DEVEL_ID}.desktop<|" \
   -e "0,/<name>Tarot Canvas<\/name>/s||<name>Tarot Canvas (Devel)</name>|" \

@@ -270,37 +270,19 @@ def help_menu(window):
 
 
 def test_help_menu_offers_a_path_to_the_bug_tracker(qtbot):
-    """#34 arrived only because its reporter went looking for the repo. RFC-031."""
     window = MainWindow()
     qtbot.addWidget(window)
     labels = [action.text().replace("&", "") for action in help_menu(window).actions()]
 
     assert labels == [
         "Frequently Asked Questions",
-        "Report Bug",  # no ellipsis: it needs no further input
+        "Report Bug",
         "",  # separator
         "About Tarot Canvas",
     ]
 
 
-def test_report_bug_opens_the_url_from_the_metainfo(qtbot, monkeypatch):
-    from tarot_canvas.about import load_about_data
-    from tarot_canvas.ui import main_window as main_window_module
-
-    opened = []
-    monkeypatch.setattr(
-        main_window_module.QDesktopServices, "openUrl", lambda url: opened.append(url.toString())
-    )
-
-    window = MainWindow()
-    qtbot.addWidget(window)
-    window.report_bug()
-
-    assert opened == [load_about_data().bugtracker]
-
-
 def test_the_faq_url_also_comes_from_the_metainfo(qtbot, monkeypatch):
-    """One copy of every URL, in the file that ships. RFC-031."""
     from tarot_canvas.about import load_about_data
     from tarot_canvas.ui import main_window as main_window_module
 

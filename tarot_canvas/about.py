@@ -1,14 +1,4 @@
-"""Application metadata, read from the AppStream metainfo that actually ships.
-
-The metainfo XML lives in this package rather than in `packaging/` on purpose: it is
-the single source of the summary, license, developer and URLs, so a `pip` install, a
-`just run` off the source tree and the Flatpak all display the same strings. See
-RFC-031. The manifest installs it from here into `share/metainfo/`.
-
-Version is *not* read from the newest `<release>` element -- that is hand-authored
-after the bump. `_version.py` remains the version of record, gated by
-`scripts/release.sh`.
-"""
+"""AppStream metainfo"""
 
 from __future__ import annotations
 
@@ -24,11 +14,8 @@ METAINFO_RESOURCE = f"{APP_ID}.appdata.xml"
 
 COPYRIGHT = "© 2025-2026 Adam Fidel"
 
-# The metainfo has one `<developer>`; AppStream has no author list. The role is ours.
 MAINTAINER_ROLE = "Maintainer"
 
-# Used only when the metainfo resource is missing or unparseable. The About box must
-# never be the thing that fails to open.
 FALLBACK_NAME = "Tarot Canvas"
 FALLBACK_SUMMARY = "Explore and arrange tarot decks"
 FALLBACK_DEVELOPER = "Adam Fidel"
@@ -42,8 +29,6 @@ FALLBACK_URLS = {
 
 @dataclass(frozen=True)
 class Person:
-    """One line of the Authors tab: who, what they do, and how to reach them."""
-
     name: str
     role: str
     email: str | None = None
@@ -51,8 +36,6 @@ class Person:
 
 @dataclass(frozen=True)
 class AboutData:
-    """The metadata an about dialog needs, in one immutable bundle."""
-
     app_id: str = APP_ID
     name: str = FALLBACK_NAME
     summary: str = FALLBACK_SUMMARY
@@ -65,12 +48,6 @@ class AboutData:
 
     @property
     def authors(self) -> list[Person]:
-        """The Authors tab's rows.
-
-        A list of one today. It is a list so that a second contributor is a data
-        change rather than a layout change -- the same reason KDE's about dialog
-        renders a list even for single-author apps.
-        """
         return [Person(self.developer, MAINTAINER_ROLE, self.contact)]
 
     @property
@@ -94,17 +71,13 @@ def _text(root: ET.Element, path: str, default: str) -> str:
 
 
 def load_about_data() -> AboutData:
-    """Parse the bundled metainfo XML.
-
-    Called when the about dialog is constructed, not at import or startup -- the
-    dialog is its only consumer. Any failure falls back to constants and logs.
-    """
+    """Parse the bundled metainfo XML."""
     try:
         raw = (
             files("tarot_canvas.resources").joinpath(METAINFO_RESOURCE).read_text(encoding="utf-8")
         )
         root = ET.fromstring(raw)
-    except Exception as exc:  # any parse or IO failure degrades the same way
+    except Exception as exc:
         logger.warning(f"Could not read {METAINFO_RESOURCE}, using fallback metadata: {exc}")
         return AboutData()
 

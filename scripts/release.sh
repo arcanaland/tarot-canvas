@@ -17,7 +17,6 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# In the package, not packaging/: the about dialog reads the file that ships. RFC-031.
 APPDATA="tarot_canvas/resources/land.arcana.TarotCanvas.appdata.xml"
 VERSION_FILE="tarot_canvas/_version.py"
 
@@ -179,8 +178,8 @@ phase_tag() {
   if command -v appstreamcli >/dev/null 2>&1; then
     appstreamcli validate --explain "$APPDATA" || die "AppStream validation failed."
   elif flatpak info org.flatpak.Builder >/dev/null 2>&1; then
-    flatpak run --command=appstreamcli org.flatpak.Builder validate --explain "$APPDATA" \
-      || die "AppStream validation failed."
+    flatpak run --command=appstreamcli org.flatpak.Builder validate --explain "$APPDATA" ||
+      die "AppStream validation failed."
   else
     echo -e "${YELLOW}== warning: no appstreamcli available, skipping validation${NC}"
   fi
@@ -193,8 +192,6 @@ phase_tag() {
 
   TAG_NAME="v$VERSION"
 
-  # A tag already on the remote is not ours to silently recreate: it may be what
-  # Flathub built from. Stop and make the operator deal with it explicitly.
   if git ls-remote --tags --exit-code origin "refs/tags/$TAG_NAME" >/dev/null 2>&1; then
     die "$TAG_NAME already exists on origin.
    If that tag is wrong, delete it deliberately before re-releasing:
@@ -221,8 +218,6 @@ phase_tag() {
     die "aborted."
   fi
 
-  # uv.lock is here because 'uv version' rewrites it and CI runs
-  # 'uv sync --locked' -- omitting it lands a red main. See TASK-011.
   if [ -n "$(git status --porcelain -- pyproject.toml "$VERSION_FILE" "$APPDATA" uv.lock)" ]; then
     echo "== committing version changes..."
     git add pyproject.toml "$VERSION_FILE" "$APPDATA" uv.lock
@@ -250,11 +245,9 @@ phase_push() {
   TAG_NAME="v$VERSION"
   BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
-  git rev-parse --verify --quiet "refs/tags/$TAG_NAME" >/dev/null \
-    || die "no local tag $TAG_NAME -- run './scripts/release.sh tag' first."
+  git rev-parse --verify --quiet "refs/tags/$TAG_NAME" >/dev/null ||
+    die "no local tag $TAG_NAME -- run './scripts/release.sh tag' first."
 
-  # The tag must be on the branch we are pushing, or we would publish a tag
-  # pointing off into space.
   if ! git merge-base --is-ancestor "$TAG_NAME^{commit}" HEAD; then
     die "$TAG_NAME is not an ancestor of $BRANCH -- it is a leftover from an
    earlier attempt. Delete it and re-tag."
@@ -262,10 +255,8 @@ phase_push() {
 
   echo -e "== pushing ${YELLOW}$BRANCH${NC} and ${YELLOW}$TAG_NAME${NC} to origin"
 
-  # --atomic is the whole point: if the branch is refused, the tag does not go
-  # either. Pushing them as two commands leaves a tag stranded off the branch.
-  git push --atomic origin "$BRANCH" "refs/tags/$TAG_NAME" \
-    || die "push refused -- nothing was published, including the tag.
+  git push --atomic origin "$BRANCH" "refs/tags/$TAG_NAME" ||
+    die "push refused -- nothing was published, including the tag.
    Rebase onto origin/$BRANCH and start over from 'prepare'."
 
   echo -e "${GREEN}== pushed $BRANCH and $TAG_NAME${NC}"
@@ -274,22 +265,22 @@ phase_push() {
 # ------------------------------------------------------------------- main ----
 
 case "${1:-}" in
-  prepare)
-    shift
-    phase_prepare "${1:-}"
-    ;;
-  tag)
-    phase_tag
-    ;;
-  push)
-    phase_push
-    ;;
-  -h | --help | help | "")
-    usage
-    exit 0
-    ;;
-  *)
-    usage >&2
-    die "unknown phase: $1"
-    ;;
+prepare)
+  shift
+  phase_prepare "${1:-}"
+  ;;
+tag)
+  phase_tag
+  ;;
+push)
+  phase_push
+  ;;
+-h | --help | help | "")
+  usage
+  exit 0
+  ;;
+*)
+  usage >&2
+  die "unknown phase: $1"
+  ;;
 esac
