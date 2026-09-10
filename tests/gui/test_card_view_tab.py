@@ -5,6 +5,7 @@ from PyQt6.QtCore import QPoint, QPointF, QRect, QSize, Qt
 from PyQt6.QtGui import QColor, QMouseEvent, QPixmap
 
 from tarot_canvas.models.deck import TarotDeck
+from tarot_canvas.ui.tabs.card_view.card_bar import DeckBar
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tests.conftest import MINIMAL_DECK_PATH
 
@@ -97,75 +98,58 @@ def test_card_fills_a_wide_pane_without_waiting_for_a_resize(qtbot, big_image_de
     assert image.width() > viewport.width() * 0.9
 
 
-def test_card_bar_does_not_pin_the_pane_wide(qtbot, big_image_deck, stub_deck_manager):
+def test_the_bars_do_not_pin_the_pane_wide(qtbot, big_image_deck, stub_deck_manager):
     """A long deck name must elide rather than force a minimum width on the pane."""
     big_image_deck._metadata["deck"]["name"] = "A Deck With An Extravagantly Long Name " * 3
     tab = make_tab(qtbot, big_image_deck, 700, 900, deck_count=2, stub=stub_deck_manager)
 
-    assert tab.card_bar.deck_combo.width() <= tab.card_bar.MAX_COMBO_WIDTH
+    assert tab.deck_bar.deck_combo.width() <= DeckBar.MAX_COMBO_WIDTH
+    assert tab.deck_bar.minimumSizeHint().width() < CardViewTab.MIN_IMAGE_PANE_WIDTH
     assert tab.card_bar.minimumSizeHint().width() < CardViewTab.MIN_IMAGE_PANE_WIDTH
 
 
 def test_the_deck_name_is_not_squeezed(qtbot, big_image_deck, stub_deck_manager):
-    """Short of room, icons go to the overflow menu before the name loses a letter."""
     big_image_deck._metadata["deck"]["name"] = "Rider-Waite-Smith"
     tab = make_tab(qtbot, big_image_deck, 700, 900, deck_count=2, stub=stub_deck_manager)
-    combo = tab.card_bar.deck_combo
+    combo = tab.deck_bar.deck_combo
     needed = combo.fontMetrics().horizontalAdvance("Rider-Waite-Smith")
 
     for width in (280, 400, 900):
         tab.image_container.setFixedWidth(width)
-        qtbot.waitUntil(lambda w=width: tab.card_bar.width() <= w)
+        qtbot.waitUntil(lambda w=width: tab.deck_bar.width() <= w)
         assert combo.width() > needed, width
 
 
-def bar_slot(tab):
-    """Where the bar sits in the image pane, and how many slots there are."""
-    layout = tab.image_container.layout()
-    return layout.indexOf(tab.card_bar), layout.count()
+def test_the_card_bar_fits_the_default_windows_pane(qtbot, big_image_deck):
+    """At ~280 px nothing may go to the overflow menu, whose chevron reads as an arrow."""
+    tab = make_tab(qtbot, big_image_deck, 700, 900)
+    bar = tab.card_bar
+    tab.image_container.setFixedWidth(280)
+    qtbot.waitUntil(lambda: bar.width() <= 280)
+
+    qtbot.waitUntil(lambda: all(bar.widgetForAction(a).isVisible() for a in bar.actions()))
 
 
-@pytest.mark.parametrize("value", [None, "footer", "FOOTER", "sideways"])
-def test_the_bar_is_a_footer_unless_told_otherwise(qtbot, big_image_deck, monkeypatch, value):
-    if value is None:
-        monkeypatch.delenv("TAROT_CANVAS_CARD_BAR", raising=False)
-    else:
-        monkeypatch.setenv("TAROT_CANVAS_CARD_BAR", value)
-    tab = make_tab(qtbot, big_image_deck, 900, 900)
+def test_the_deck_is_above_the_card_and_the_verbs_below(qtbot, big_image_deck, stub_deck_manager):
+    tab = make_tab(qtbot, big_image_deck, 900, 900, deck_count=2, stub=stub_deck_manager)
 
-    index, count = bar_slot(tab)
-    assert index == count - 1
+    assert tab.deck_bar.geometry().bottom() < tab.image_view.geometry().top()
     assert tab.card_bar.geometry().top() > tab.image_view.geometry().bottom()
 
 
-def test_the_env_toggle_makes_it_a_header(qtbot, big_image_deck, monkeypatch):
-    monkeypatch.setenv("TAROT_CANVAS_CARD_BAR", "header")
-    tab = make_tab(qtbot, big_image_deck, 900, 900)
-
-    index, _ = bar_slot(tab)
-    assert index == 0
-    assert tab.card_bar.geometry().bottom() < tab.image_view.geometry().top()
-
-
-def test_one_deck_still_shows_the_bar_and_names_the_deck(qtbot, big_image_deck, stub_deck_manager):
+def test_one_deck_spends_no_row_on_the_deck(qtbot, big_image_deck, stub_deck_manager):
     tab = make_tab(qtbot, big_image_deck, 900, 900, deck_count=1, stub=stub_deck_manager)
-    bar = tab.card_bar
 
-    assert bar.isVisible()
-    assert bar.deck_combo.currentText() == big_image_deck.get_name()
-    assert not bar.deck_combo.isEnabled()
-    assert not bar.prev_deck_action.isEnabled()
-    assert not bar.next_deck_action.isEnabled()
-    assert bar.copy_action.isEnabled()
+    assert not tab.deck_bar.isVisibleTo(tab)
+    assert tab.card_bar.isVisibleTo(tab)
+    assert tab.card_bar.copy_action.isEnabled()
 
 
-def test_two_decks_enable_the_deck_controls(qtbot, big_image_deck, stub_deck_manager):
+def test_two_decks_show_the_deck_bar(qtbot, big_image_deck, stub_deck_manager):
     tab = make_tab(qtbot, big_image_deck, 900, 900, deck_count=2, stub=stub_deck_manager)
-    bar = tab.card_bar
 
-    assert bar.deck_combo.isEnabled()
-    assert bar.deck_combo.count() == 2
-    assert bar.next_deck_action.isEnabled()
+    assert tab.deck_bar.isVisibleTo(tab)
+    assert tab.deck_bar.deck_combo.count() == 2
 
 
 def test_a_deck_outside_the_library_is_still_named(qtbot, big_image_deck, stub_deck_manager):
@@ -173,30 +157,41 @@ def test_a_deck_outside_the_library_is_still_named(qtbot, big_image_deck, stub_d
     stub_deck_manager.get_all_decks = list
     tab = make_tab(qtbot, big_image_deck, 900, 900)
 
-    assert tab.card_bar.deck_combo.currentText() == big_image_deck.get_name()
-    assert not tab.card_bar.deck_combo.isEnabled()
+    assert tab.deck_bar.deck_combo.currentText() == big_image_deck.get_name()
+    assert not tab.deck_bar.isVisibleTo(tab)
 
 
 def test_no_bar_action_carries_a_shortcut(qtbot, big_image_deck):
     """The keys belong to the window and the tab; a second binding would kill both."""
     tab = make_tab(qtbot, big_image_deck, 900, 900)
+    bar = tab.card_bar
+    actions = bar.actions() + bar.zoom_button.menu().actions()
 
-    assert [a.text() for a in tab.card_bar.actions() if not a.shortcut().isEmpty()] == []
+    assert [a.text() for a in actions if not a.shortcut().isEmpty()] == []
 
 
-def test_the_bar_zooms(qtbot, big_image_deck):
+def test_the_zoom_button_zooms_and_says_where_it_is(qtbot, big_image_deck):
     tab = make_tab(qtbot, big_image_deck, 1200, 900)
     view, bar = tab.image_view, tab.card_bar
     fit = view.current_scale()
+    assert bar.zoom_button.text() == "Fit"
+    assert not bar.fit_action.isEnabled()
 
     bar.zoom_in_action.trigger()
     assert view.current_scale() > fit
+    assert bar.zoom_button.text().endswith("%")
+    assert bar.fit_action.isEnabled()
 
     bar.zoom_out_action.trigger()
     assert view.is_at_fit()
+    assert bar.zoom_button.text() == "Fit"
 
     bar.native_action.trigger()
     assert view.current_scale() == pytest.approx(view.native_scale())
+    assert bar.zoom_button.text() == "100%"
+
+    bar.fit_action.trigger()
+    assert view.is_at_fit()
 
 
 def test_the_bar_toggles_the_card_details(qtbot, big_image_deck):
@@ -220,6 +215,102 @@ def test_copying_from_the_bar_says_so(qtbot, big_image_deck, clipboard):
     assert clipboard.mimeData().hasFormat(CARD_MIME)
     assert tab.toast.isVisible()
     assert tab.toast.text() == f"Copied {tab.card['name']}"
+
+
+# -- moving through the deck ---------------------------------------------------
+# The minimal deck has two cards, major_arcana.00 and .01; make_tab opens the first.
+
+
+def press(qtbot, tab, key):
+    """A QShortcut only fires in the active window; keyPressEvent doesn't care."""
+    if not tab.isActiveWindow():
+        with qtbot.waitActive(tab):
+            tab.activateWindow()
+    tab.image_view.setFocus()
+    qtbot.keyClick(tab.image_view, key)
+
+
+def test_arrows_step_through_the_deck(qtbot, big_image_deck):
+    tab = make_tab(qtbot, big_image_deck, 1200, 900)
+    assert tab.card["id"] == "major_arcana.00"
+
+    press(qtbot, tab, Qt.Key.Key_Right)
+    assert tab.card["id"] == "major_arcana.01"
+
+    press(qtbot, tab, Qt.Key.Key_Right)  # the last card: nothing past it
+    assert tab.card["id"] == "major_arcana.01"
+
+    press(qtbot, tab, Qt.Key.Key_Left)
+    assert tab.card["id"] == "major_arcana.00"
+
+
+@pytest.mark.parametrize(
+    ("forward", "back"),
+    [
+        (Qt.Key.Key_PageDown, Qt.Key.Key_PageUp),
+        (Qt.Key.Key_Space, Qt.Key.Key_Backspace),
+        (Qt.Key.Key_End, Qt.Key.Key_Home),
+    ],
+)
+def test_image_viewer_keys_step_too(qtbot, big_image_deck, forward, back):
+    tab = make_tab(qtbot, big_image_deck, 1200, 900)
+
+    press(qtbot, tab, forward)
+    assert tab.card["id"] == "major_arcana.01"
+
+    press(qtbot, tab, back)
+    assert tab.card["id"] == "major_arcana.00"
+
+
+def test_arrows_pan_a_zoomed_card_instead(qtbot, big_image_deck):
+    tab = make_tab(qtbot, big_image_deck, 1200, 900)
+    view = tab.image_view
+    view.zoom_to(view.max_scale())
+    before = view.horizontalScrollBar().value()
+
+    press(qtbot, tab, Qt.Key.Key_Right)
+
+    assert tab.card["id"] == "major_arcana.00"
+    assert view.horizontalScrollBar().value() != before
+
+
+def test_stepping_keeps_the_keyboard_on_the_art(qtbot, big_image_deck):
+    tab = make_tab(qtbot, big_image_deck, 1200, 900)
+
+    press(qtbot, tab, Qt.Key.Key_Right)
+    qtbot.keyClick(tab.image_view, Qt.Key.Key_Left)
+
+    assert tab.card["id"] == "major_arcana.00"
+    assert tab.focusWidget() is tab.image_view
+
+
+def test_d_draws_another_card(qtbot, big_image_deck):
+    tab = make_tab(qtbot, big_image_deck, 1200, 900)
+
+    press(qtbot, tab, Qt.Key.Key_D)
+
+    assert tab.card["id"] == "major_arcana.01"
+    assert tab.tab_name == tab.card["name"]
+
+
+def test_brackets_step_through_the_decks(qtbot, big_image_deck, minimal_deck, stub_deck_manager):
+    stub_deck_manager.get_all_decks = lambda: [big_image_deck, minimal_deck]
+    tab = make_tab(qtbot, big_image_deck, 1200, 900)
+
+    press(qtbot, tab, Qt.Key.Key_BracketRight)
+    assert tab.deck is minimal_deck
+    assert tab.deck_bar.deck_combo.currentIndex() == 1
+
+    press(qtbot, tab, Qt.Key.Key_BracketLeft)
+    assert tab.deck is big_image_deck
+
+
+def test_brackets_do_nothing_with_one_deck(qtbot, big_image_deck, stub_deck_manager):
+    tab = make_tab(qtbot, big_image_deck, 1200, 900, deck_count=1, stub=stub_deck_manager)
+
+    press(qtbot, tab, Qt.Key.Key_BracketRight)
+
+    assert tab.deck is big_image_deck
 
 
 def test_zoom_never_shrinks_the_card_below_the_pane(qtbot, big_image_deck):
@@ -291,7 +382,7 @@ def test_switching_decks_resets_the_zoom(qtbot, big_image_deck, stub_deck_manage
     view.zoom_to(4.0 * view.native_scale())
     assert not view.is_at_fit()
 
-    tab.switch_to_deck(tab.deck, tab.card)
+    tab.show_card(tab.card, tab.deck)
 
     assert view.is_at_fit()
 
@@ -303,6 +394,7 @@ def test_a_card_without_an_image(qtbot, big_image_deck):
 
     assert not tab.image_view.has_image()
     assert not tab.image_view.can_pan()
+    assert not tab.card_bar.zoom_button.isEnabled()
 
 
 HINT = QSize(240, 40)

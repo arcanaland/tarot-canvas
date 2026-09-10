@@ -131,6 +131,11 @@ class NotesTab(QWidget):
 
     def load_card_notes(self, card):
         """Load existing notes for a card"""
+        # Stepping to another card mustn't leave an edit waiting on the autosave timer
+        if self.current_file_path and self.note_editor.document().isModified():
+            self.save_note_to_file(self.current_file_path)
+            self.note_editor.document().setModified(False)
+
         self.current_card = card
 
         if not card:

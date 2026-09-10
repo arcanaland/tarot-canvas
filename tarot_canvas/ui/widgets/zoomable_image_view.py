@@ -1,6 +1,6 @@
 from contextlib import contextmanager
 
-from PyQt6.QtCore import QPoint, QRect, QRectF, Qt
+from PyQt6.QtCore import QPoint, QRect, QRectF, Qt, pyqtSignal
 from PyQt6.QtGui import QPainter, QPixmap, QTransform
 from PyQt6.QtWidgets import (
     QFrame,
@@ -21,6 +21,11 @@ _SCALE_EPSILON = 1e-3
 
 class ZoomableImageView(QGraphicsView):
     """A pan/zoom view of a single image"""
+
+    # The scale changed, or the image did
+    zoom_changed = pyqtSignal()
+    # Left or Right with nothing to pan: -1 for the previous image, 1 for the next
+    step_requested = pyqtSignal(int)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -51,6 +56,7 @@ class ZoomableImageView(QGraphicsView):
         if pixmap is None or pixmap.isNull():
             self._scene.setSceneRect(QRectF())
             self.resetTransform()
+            self.zoom_changed.emit()
             return
         self._pixmap_item = QGraphicsPixmapItem(pixmap)
         self._pixmap_item.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
@@ -68,6 +74,7 @@ class ZoomableImageView(QGraphicsView):
         self._scene.setSceneRect(item.boundingRect())
         self.resetTransform()
         self.centerOn(item)
+        self.zoom_changed.emit()
 
     def has_image(self):
         return self._pixmap_item is not None
@@ -157,6 +164,7 @@ class ZoomableImageView(QGraphicsView):
             return
         self.scale(scale / current, scale / current)
         self._at_fit = self.is_at_fit()
+        self.zoom_changed.emit()
 
     def zoom_by(self, factor):
         self.zoom_to(self.current_scale() * factor)
@@ -177,6 +185,7 @@ class ZoomableImageView(QGraphicsView):
         scale = self.fit_scale()
         self.setTransform(QTransform().scale(scale, scale))
         self.centerOn(self._pixmap_item)
+        self.zoom_changed.emit()
 
     def zoom_to_native(self):
         """100%: one source pixel per device pixel."""
@@ -218,6 +227,15 @@ class ZoomableImageView(QGraphicsView):
             self.zoom_by(1.0 / WHEEL_ZOOM_FACTOR)
         self._update_cursor()
         event.accept()
+
+    def keyPressEvent(self, event):
+        """Left and Right pan a zoomed image, and otherwise ask for its neighbour"""
+        step = {Qt.Key.Key_Left: -1, Qt.Key.Key_Right: 1}.get(event.key())
+        if step and not self.can_pan():
+            self.step_requested.emit(step)
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
     def mouseDoubleClickEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton and self._pixmap_item:

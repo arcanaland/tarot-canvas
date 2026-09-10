@@ -1,4 +1,6 @@
 import os
+import random
+from functools import partial
 from typing import ClassVar
 
 from PyQt6.QtCore import QEvent, Qt, QTimer, pyqtSignal
@@ -17,7 +19,7 @@ from PyQt6.QtWidgets import (
 from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.ui.card_transfer import copy_card_to_clipboard
 from tarot_canvas.ui.tabs.base_tab import BaseTab
-from tarot_canvas.ui.tabs.card_view.card_bar import BarPosition, CardBar, card_bar_position
+from tarot_canvas.ui.tabs.card_view.card_bar import CardBar, DeckBar
 from tarot_canvas.ui.tabs.card_view.color_dot import ColorDot
 from tarot_canvas.ui.tabs.card_view.esoterica_tab import EsotericaTab
 from tarot_canvas.ui.tabs.card_view.notes_tab import NotesTab
@@ -104,25 +106,25 @@ class CardViewTab(BaseTab):
         )
         self.toast = Toast(self.image_view)
 
+        # Which deck above the card, what to do with it below
+        self.deck_bar = DeckBar(self)
+        image_layout.insertWidget(0, self.deck_bar)
+
         self.card_bar = CardBar(self)
         self.bar_seam = QFrame()
         self.bar_seam.setFrameShape(QFrame.Shape.HLine)
         self.bar_seam.setFrameShadow(QFrame.Shadow.Sunken)
-        # Read once per tab: relaunch to compare the two
-        if card_bar_position() is BarPosition.FOOTER:
-            image_layout.addWidget(self.bar_seam)
-            image_layout.addWidget(self.card_bar)
-        else:
-            image_layout.insertWidget(0, self.bar_seam)
-            image_layout.insertWidget(0, self.card_bar)
+        image_layout.addWidget(self.bar_seam)
+        image_layout.addWidget(self.card_bar)
 
         self.image_container.setMinimumWidth(self.MIN_IMAGE_PANE_WIDTH)
 
         self.load_image()
 
-        self.card_bar.update_decks(self.card, self.deck, deck_manager)
+        self.deck_bar.update_decks(self.card, self.deck, deck_manager)
+        self.sync_deck_bar()
 
-        self.setup_zoom_shortcuts()
+        self.setup_key_bindings()
 
         splitter.addWidget(self.image_container)
 
@@ -188,8 +190,8 @@ class CardViewTab(BaseTab):
         else:
             self.image_view.set_message("No image available")
 
-    def setup_zoom_shortcuts(self):
-        """Zoom bindings, scoped to this tab and matching the canvas's vocabulary"""
+    def setup_key_bindings(self):
+        """Zoom on the whole tab, matching the canvas's vocabulary; the rest on the art"""
         bindings = [
             ("Ctrl++", self.image_view.zoom_in),
             ("Ctrl+=", self.image_view.zoom_in),
@@ -203,10 +205,27 @@ class CardViewTab(BaseTab):
             shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
             shortcut.activated.connect(slot)
 
-        for key, slot in (("F", self.request_fullscreen_toggle), ("I", self.toggle_info_pane)):
+        # Only while the art has focus, so typing in the details pane is left alone
+        art_bindings = [
+            ("F", self.request_fullscreen_toggle),
+            ("I", self.toggle_info_pane),
+            ("PgUp", partial(self.step_card, -1)),
+            ("Backspace", partial(self.step_card, -1)),
+            ("PgDown", partial(self.step_card, 1)),
+            ("Space", partial(self.step_card, 1)),
+            ("Home", partial(self.show_card_at, 0)),
+            ("End", partial(self.show_card_at, -1)),
+            ("[", partial(self.deck_bar.step, -1)),
+            ("]", partial(self.deck_bar.step, 1)),
+            ("D", self.draw_card),
+        ]
+        for key, slot in art_bindings:
             shortcut = QShortcut(QKeySequence(key), self.image_view)
             shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
             shortcut.activated.connect(slot)
+
+        # Left and Right pan a zoomed card, so the view decides
+        self.image_view.step_requested.connect(self.step_card)
 
     def on_escape_pressed(self):
         """Leave fullscreen if in it, otherwise put the card back at fit"""
@@ -256,6 +275,7 @@ class CardViewTab(BaseTab):
 
         # Bring the pane back at the width it had, if it is asked for again
         self._info_pane_width = state[0][1] or self._info_pane_width
+        self.deck_bar.setVisible(False)
         self.card_bar.setVisible(False)
         self.bar_seam.setVisible(False)
         self.splitter.setSizes([sum(state[0]), 0])
@@ -271,6 +291,8 @@ class CardViewTab(BaseTab):
         sizes, bar_visible, tab_style = state
         self.card_bar.setVisible(bar_visible)
         self.bar_seam.setVisible(bar_visible)
+        # The card may have changed underneath, and with it the decks that have it
+        self.sync_deck_bar()
         self.splitter.setSizes(sizes)
         position, document_mode, expanding = tab_style
 
@@ -377,36 +399,51 @@ class CardViewTab(BaseTab):
         if self.source_tab_id:
             self.navigation_requested.emit("navigate", self.source_tab_id)
 
-    def switch_to_deck(self, new_deck, new_card):
-        """Switch to a different deck's version of the current card"""
-        # Hide components during update
-        self.image_container.setVisible(False)
-        self.info_tabs.setVisible(False)
+    def show_card(self, card, deck=None):
+        """Put card on screen in this tab, from deck or the one already showing"""
+        # Batch the repaint rather than hide the pane: hiding it drops the art's
+        # focus, and the next arrow key would land somewhere else
+        self.setUpdatesEnabled(False)
+        try:
+            self.deck = deck or self.deck
+            self.card = card
+            self.tab_name = card["name"]
 
-        # Update the current deck and card
-        self.deck = new_deck
-        self.card = new_card
+            self.load_image()
+            self.overview_tab.update_card_info(card, self.deck)
+            self.notes_tab.load_card_notes(card)
+            if hasattr(self.esoterica_tab, "update_card_info"):
+                self.esoterica_tab.update_card_info(card)
+            self.update_tab_name()
 
-        self.load_image()
+            self.deck_bar.update_decks(card, self.deck, self.deck_manager)
+            self.sync_deck_bar()
+        finally:
+            self.setUpdatesEnabled(True)
 
-        # Update the overview tab with the new card and deck info
-        self.overview_tab.update_card_info(new_card, new_deck)
+    def sync_deck_bar(self):
+        """A deck picker with one deck in it is dead space"""
+        self.deck_bar.setVisible(self.deck_bar.has_choice() and not self.is_fullscreen())
 
-        # Update the notes tab for the new card
-        self.notes_tab.load_card_notes(new_card)
+    # -- moving through the deck -------------------------------------------
 
-        # Update the esoterica tab
-        if hasattr(self.esoterica_tab, "update_card_info") and callable(
-            getattr(self.esoterica_tab, "update_card_info", None)
-        ):
-            self.esoterica_tab.update_card_info(new_card)
+    def step_card(self, delta):
+        """The previous or next card in the deck's order; nothing past either end"""
+        cards = self.deck.get_all_cards()
+        card_id = self.card.get("id")
+        index = next((i for i, c in enumerate(cards) if c.get("id") == card_id), None)
+        if index is not None and 0 <= index + delta < len(cards):
+            self.show_card(cards[index + delta])
 
-        # Update the tab name in the parent tab widget
-        self.update_tab_name()
+    def show_card_at(self, index):
+        """The card at index in the deck's order; negative counts from the end"""
+        cards = self.deck.get_all_cards()
+        if cards and cards[index].get("id") != self.card.get("id"):
+            self.show_card(cards[index])
 
-        # Update the bar to reflect current selection
-        self.card_bar.update_decks(new_card, new_deck, self.deck_manager)
-
-        # Show components again
-        self.image_container.setVisible(True)
-        self.info_tabs.setVisible(True)
+    def draw_card(self):
+        """Any other card from this deck, the card view's Summon Card"""
+        card_id = self.card.get("id")
+        others = [c for c in self.deck.get_all_cards() if c.get("id") != card_id]
+        if others:
+            self.show_card(random.choice(others))

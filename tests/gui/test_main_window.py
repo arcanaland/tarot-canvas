@@ -1,5 +1,6 @@
 import pytest
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QAction, QKeySequence, QShortcut
 from PyQt6.QtWidgets import QWIDGETSIZE_MAX, QApplication, QTabWidget, QToolButton
 
 from tarot_canvas.settings import EXPLORER_VISIBLE_KEY, get_settings
@@ -352,6 +353,33 @@ def test_the_bar_fullscreen_button_tracks_the_state(qtbot):
     tab.on_escape_pressed()
     assert window.fullscreen_tab is None
     assert not action.isChecked()
+
+
+def test_the_deck_bar_stays_down_while_fullscreen(qtbot, minimal_deck, stub_deck_manager):
+    """Stepping to another card in fullscreen must not bring the header back."""
+    stub_deck_manager.get_all_decks = lambda: [minimal_deck, minimal_deck]
+    window, tab = make_window_with_card_view(qtbot)
+    assert tab.deck_bar.isVisibleTo(tab)
+
+    window.toggle_tab_fullscreen()
+    assert not tab.deck_bar.isVisibleTo(tab)
+    tab.draw_card()
+    assert not tab.deck_bar.isVisibleTo(tab)
+
+    window.toggle_tab_fullscreen()
+    assert tab.deck_bar.isVisibleTo(tab)
+
+
+def test_ctrl_p_is_bound_exactly_once(qtbot):
+    """Two bindings of one key make Qt fire neither; Ctrl+P was dead that way."""
+    window = make_shown_window(qtbot)
+    ctrl_p = QKeySequence("Ctrl+P")
+
+    actions = [a for a in window.findChildren(QAction) if ctrl_p in a.shortcuts()]
+    shortcuts = [s for s in window.findChildren(QShortcut) if s.key() == ctrl_p]
+
+    assert len(actions) + len(shortcuts) == 1
+    assert actions[0] in window.actions()  # survives the menu bar hiding in fullscreen
 
 
 def test_the_explorer_is_open_on_a_first_launch(qtbot):

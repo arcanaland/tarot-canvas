@@ -48,9 +48,11 @@
     <release version="1.4.2" date="2026-09-11" type="development">
       <description>
         <ul>
-          <li>New full-screen mode for card view.</li>
-          <li>Add copy-and-paste from card to canvas.</li>
-          <li>Improve card motion and feel (juicy!) in canvas view.</li>
+          <li>New full-screen mode for the Card View.</li>
+          <li>Improve card motion and feel (juicy!) in the Canvas View.</li>
+          <li>Add copy-and-paste from a card tab to an open canvas.</li>
+          <li>Add ability to drag-and-drop cards to a canvas from the Card Explorer.</li>
+          <li>Fixed a bug that broke the command palette shortcut (Ctrl+P).</li>
         </ul>
       </description>
     </release>

@@ -10,7 +10,6 @@ from PyQt6.QtGui import (
     QGuiApplication,
     QIcon,
     QKeySequence,
-    QShortcut,
 )
 from PyQt6.QtWidgets import (
     QApplication,
@@ -114,7 +113,6 @@ class MainWindow(QMainWindow):
 
         self.create_menus()
         self.init_ui()
-        self.setup_shortcuts()
 
         QGuiApplication.clipboard().dataChanged.connect(self.update_card_clipboard_actions)
         self.update_card_clipboard_actions()
@@ -266,6 +264,8 @@ class MainWindow(QMainWindow):
         command_palette_action.setShortcut("Ctrl+P")
         command_palette_action.triggered.connect(self.show_command_palette)
         tools_menu.addAction(command_palette_action)
+        # The one binding of Ctrl+P; on the window too, so fullscreen keeps it
+        self.addAction(command_palette_action)
 
         # Add Log Viewer action
         log_viewer_action = QAction("&Log Viewer", self)
@@ -921,11 +921,6 @@ class MainWindow(QMainWindow):
         # Create a deck view tab with the reference deck path
         self.new_deck_view_tab(deck_path=reference_deck.deck_path)
         self.close_welcome_tab()
-
-    def setup_shortcuts(self):
-        # Command palette shortcut (Ctrl+P)
-        self.command_palette_shortcut = QShortcut(QKeySequence("Ctrl+P"), self)
-        self.command_palette_shortcut.activated.connect(self.show_command_palette)
 
     def show_command_palette(self):
         """Show the command palette with context-aware behavior"""
