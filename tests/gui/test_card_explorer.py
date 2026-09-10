@@ -36,6 +36,12 @@ def test_preferred_width_stays_within_the_panels_own_bounds(qtbot):
     assert explorer.preferred_width() <= explorer.maximumWidth()
 
 
+def test_the_close_button_asks_to_be_closed(qtbot):
+    explorer = panel(qtbot)
+    with qtbot.waitSignal(explorer.close_requested, timeout=1000):
+        explorer.close_button.click()
+
+
 def test_preferred_width_follows_the_selected_deck(qtbot):
     explorer = panel(qtbot)
     if explorer.deck_selector.count() < 2:

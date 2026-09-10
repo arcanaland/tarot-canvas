@@ -58,6 +58,9 @@ LIBRARY_RECENT_LIMIT = 50
 DECK_HEADER_EXPANDED_KEY = "deck_view/header_expanded"
 DECK_HEADER_EXPANDED_DEFAULT = True
 
+EXPLORER_VISIBLE_KEY = "main_window/explorer_visible"
+EXPLORER_VISIBLE_DEFAULT = True
+
 
 def get_recent_decks():
     """Mapping of deck path -> last-opened epoch seconds."""
