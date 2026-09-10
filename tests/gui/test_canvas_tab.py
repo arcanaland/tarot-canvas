@@ -19,12 +19,6 @@ def add_cards(tab, count):
 
 
 def set_motion_level(level):
-    """State the precondition rather than inherit it.
-
-    QSettings is not reliably isolated between tests in this suite (the 2-arg QSettings
-    resolves a NativeFormat path once per process), so any test whose behaviour depends
-    on the motion level has to set it.
-    """
     settings = get_settings()
     settings.setValue(MOTION_LEVEL_KEY, level)
     settings.sync()
@@ -237,7 +231,7 @@ def test_panning_leaves_no_override_cursor_behind(qtbot):
 
 
 def test_the_motion_clock_follows_the_tab_visibility(qtbot):
-    """An idle window must genuinely idle: no visible canvas, no timer."""
+    """An idle window must genuinely idle."""
     set_motion_level("Full")
     tab = make_tab(qtbot)
     assert tab.motion_clock.is_running()
@@ -264,17 +258,10 @@ def test_ambient_stays_shut_while_the_canvas_is_hidden(qtbot):
 
 
 def test_cards_hold_an_identity_transform_while_ambient_is_gated(qtbot):
-    """A gated canvas is inert, not merely slow: no tilt, no drift, and so no repaints.
-
-    The gate is shut here because an offscreen test window is never the active one, which
-    is the same path a backgrounded window takes.
-    """
     set_motion_level("Full")
     tab = make_tab(qtbot)
     add_cards(tab, 3)
     cards = [i for i in tab.scene.items() if isinstance(i, DraggableCardItem)]
-    # add_cards selects what it adds, and selection now carries a resting lift of its own
-    # — see test_selection_lifts_the_card_off_the_felt. Rest is the unselected state.
     tab.scene.clearSelection()
 
     for frame in range(120):
@@ -282,12 +269,12 @@ def test_cards_hold_an_identity_transform_while_ambient_is_gated(qtbot):
 
     assert tab.ambient_gain == 0.0  # snapped, not merely small
     assert all(card.transform().isIdentity() for card in cards)
-    # Exactly identity, so the snapshot stops changing and the repaints stop with it.
+
+    # Exactly identity
     assert not any(card.advance_motion(3.0, 1.0 / 60.0, 0.0) for card in cards)
 
 
 def test_cards_drift_once_ambient_is_allowed(qtbot):
-    """The complement of the test above, and the only automated check that drift exists."""
     set_motion_level("Full")
     tab = make_tab(qtbot)
     add_cards(tab, 3)
@@ -299,7 +286,6 @@ def test_cards_drift_once_ambient_is_allowed(qtbot):
     assert not any(transform.isIdentity() for transform in first)
     assert not any(transform.isAffine() for transform in first)  # tilt, not a 2-D spin
 
-    # Different cards, different phases: they must not move as one block.
     for card in cards:
         card.advance_motion(2.0, 1.0 / 60.0, 1.0)
     deltas = [
@@ -309,11 +295,6 @@ def test_cards_drift_once_ambient_is_allowed(qtbot):
 
 
 def test_every_card_gets_its_own_depth(qtbot):
-    """Cards used to share a z-value of 0 and fall back to insertion order.
-
-    That made "bring to front" a no-op for a second card — both landed on 100 — and left
-    no ordering for a shadow to sit inside, which is why a stacked card cast onto nothing.
-    """
     tab = make_tab(qtbot)
     add_cards(tab, 3)
     cards = [i for i in tab.scene.items() if isinstance(i, DraggableCardItem)]
@@ -325,7 +306,6 @@ def test_every_card_gets_its_own_depth(qtbot):
 
 
 def test_restacking_a_selection_keeps_its_internal_order(qtbot):
-    """Raising three cards together must not shuffle them relative to one another."""
     tab = make_tab(qtbot)
     add_cards(tab, 3)
     cards = sorted(
@@ -344,12 +324,6 @@ def test_restacking_a_selection_keeps_its_internal_order(qtbot):
 
 
 def test_reactive_is_no_longer_indistinguishable_from_off(qtbot):
-    """The middle rung of the ladder finally means something.
-
-    TASK-028 shipped the Off/Reactive/Full combo with nothing plugged into the reactive
-    tier, so two of its three entries behaved identically. Reactive keeps the clock and
-    the response to the pointer, and drops only the ambient drift.
-    """
     set_motion_level("Reactive")
     tab = make_tab(qtbot)
 
@@ -365,13 +339,6 @@ def test_reactive_is_no_longer_indistinguishable_from_off(qtbot):
 
 
 def test_selection_lifts_the_card_off_the_felt(qtbot):
-    """Selection is reinforced by height rather than by a drawn outline.
-
-    Qt's own dashed rectangle is a flat annotation over a card that now has perspective,
-    and the corner brackets that would replace it cannot be painted from Python without
-    crashing this suite (TASK-028). A resting lift and the shadow separation that follows
-    from it say "picked up" without painting anything.
-    """
     set_motion_level("Full")
     tab = make_tab(qtbot)
     add_cards(tab, 1)
