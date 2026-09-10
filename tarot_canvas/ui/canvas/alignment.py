@@ -1,20 +1,21 @@
 import math
 
 from PyQt6.QtCore import QPointF
+from PyQt6.QtGui import QTransform
 
 DEFAULT_CIRCLE_GAP_RATIO = 0.15
 
 
 def logical_rect(item):
-    """The item's scene rect ignoring its own transform.
-
-    Cards carry a live ambient transform — a drifting perspective tilt and a sub-pixel
-    position offset — so `sceneBoundingRect()` answers a slightly different question every
-    frame, and an align run twice in a row would move the cards twice. The drift is
-    visual-only by design: every arrangement here measures and sets the *logical* position,
-    which is what `sceneBoundingRect()` returned back when cards had no transform.
-    """
-    return item.boundingRect().translated(item.pos())
+    rect = item.boundingRect()
+    quarter_turns = round(item.rotation() / 90) % 4
+    if quarter_turns:
+        origin = item.transformOriginPoint()
+        turn = QTransform().translate(origin.x(), origin.y())
+        turn.rotate(quarter_turns * 90)
+        turn.translate(-origin.x(), -origin.y())
+        rect = turn.mapRect(rect)
+    return rect.translated(item.pos())
 
 
 def align_items_horizontally(items, alignment):
@@ -23,7 +24,6 @@ def align_items_horizontally(items, alignment):
         return
 
     if alignment == "left":
-        # Find leftmost edge
         leftmost = min(logical_rect(item).left() for item in items)
         # Align all to leftmost edge
         for item in items:
@@ -32,7 +32,6 @@ def align_items_horizontally(items, alignment):
             item.setPos(item.pos().x() + offset, item.pos().y())
 
     elif alignment == "center":
-        # Calculate average center X
         avg_center_x = sum(logical_rect(item).center().x() for item in items) / len(items)
         # Align all to average center
         for item in items:
@@ -41,7 +40,6 @@ def align_items_horizontally(items, alignment):
             item.setPos(item.pos().x() + offset, item.pos().y())
 
     elif alignment == "right":
-        # Find rightmost edge
         rightmost = max(logical_rect(item).right() for item in items)
         # Align all to rightmost edge
         for item in items:
@@ -56,7 +54,6 @@ def align_items_vertically(items, alignment):
         return
 
     if alignment == "top":
-        # Find topmost edge
         topmost = min(logical_rect(item).top() for item in items)
         # Align all to topmost edge
         for item in items:
@@ -65,7 +62,6 @@ def align_items_vertically(items, alignment):
             item.setPos(item.pos().x(), item.pos().y() + offset)
 
     elif alignment == "center":
-        # Calculate average center Y
         avg_center_y = sum(logical_rect(item).center().y() for item in items) / len(items)
         # Align all to average center
         for item in items:
@@ -74,7 +70,6 @@ def align_items_vertically(items, alignment):
             item.setPos(item.pos().x(), item.pos().y() + offset)
 
     elif alignment == "bottom":
-        # Find bottommost edge
         bottommost = max(logical_rect(item).bottom() for item in items)
         # Align all to bottommost edge
         for item in items:

@@ -1,10 +1,3 @@
-"""Arrangement must measure the logical position, not the drifting visual one.
-
-Cards carry a live ambient transform once RFC-024 phase 3 lands. If align and distribute
-read `sceneBoundingRect()` they read a value that changes every frame, so the same command
-gives a different answer each time it runs — and running it twice moves the cards twice.
-"""
-
 import pytest
 from PyQt6.QtCore import QRectF
 from PyQt6.QtWidgets import QGraphicsRectItem
@@ -28,7 +21,6 @@ ARRANGEMENTS = [
     (distribute_items_vertically, None),
 ]
 
-# Mid-breath: a tilt and an offset well inside what the ambient tier actually produces.
 DRIFTING = MotionChannels(tilt_x=2.4, tilt_y=-1.7, drift_x=1.3, drift_y=-0.9)
 
 
@@ -75,3 +67,29 @@ def test_arrangement_is_idempotent_while_drifting(qapp, arrangement, argument):
     for (x, y), item in zip(once, items, strict=True):
         assert item.pos().x() == pytest.approx(x, abs=1e-9)
         assert item.pos().y() == pytest.approx(y, abs=1e-9)
+
+
+@pytest.mark.parametrize("rotation", [90, 270])
+@pytest.mark.parametrize(
+    "arrangement,argument,edge",
+    [
+        (align_items_horizontally, "left", QRectF.left),
+        (align_items_horizontally, "right", QRectF.right),
+        (align_items_vertically, "top", QRectF.top),
+        (align_items_vertically, "bottom", QRectF.bottom),
+    ],
+)
+def test_edge_alignment_sees_a_card_turned_sideways(qapp, arrangement, argument, edge, rotation):
+    """A rotate-90 card is measured by its turned footprint"""
+    upright = QGraphicsRectItem(QRectF(0, 0, 300, 450))
+    upright.setPos(0, 0)
+    sideways = QGraphicsRectItem(QRectF(0, 0, 300, 450))
+    sideways.setPos(40, 600)
+    sideways.setTransformOriginPoint(150, 225)
+    sideways.setRotation(rotation)
+
+    arrangement([upright, sideways], argument)
+
+    assert edge(sideways.sceneBoundingRect()) == pytest.approx(
+        edge(upright.sceneBoundingRect()), abs=1e-9
+    )
