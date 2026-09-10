@@ -5,8 +5,8 @@ build-backend = "poetry.core.masonry.api"
 [project]
 name = "tarot-canvas"
 version = "1.4.1"
-description = "A cross-platform Qt6 application for viewing and exploring tarot decks"
-authors = [{name = "Adam Fidel", email = "adam@fidel.cloud"}]
+description = "Explore and arrange tarot decks"
+authors = [{name = "Adam Fidel", email = "adam@arcana.land"}]
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11,<4.0"

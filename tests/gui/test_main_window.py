@@ -259,3 +259,40 @@ def test_the_search_button_is_still_reachable(qtbot):
     qtbot.addWidget(window)
     corner = window.tab_widget.cornerWidget(Qt.Corner.TopRightCorner)
     assert len(corner.findChildren(QToolButton)) == 2
+
+
+def help_menu(window):
+    return next(
+        action.menu()
+        for action in window.menuBar().actions()
+        if action.text().replace("&", "") == "Help"
+    )
+
+
+def test_help_menu_offers_a_path_to_the_bug_tracker(qtbot):
+    window = MainWindow()
+    qtbot.addWidget(window)
+    labels = [action.text().replace("&", "") for action in help_menu(window).actions()]
+
+    assert labels == [
+        "Frequently Asked Questions",
+        "Report Bug",
+        "",  # separator
+        "About Tarot Canvas",
+    ]
+
+
+def test_the_faq_url_also_comes_from_the_metainfo(qtbot, monkeypatch):
+    from tarot_canvas.about import load_about_data
+    from tarot_canvas.ui import main_window as main_window_module
+
+    opened = []
+    monkeypatch.setattr(
+        main_window_module.QDesktopServices, "openUrl", lambda url: opened.append(url.toString())
+    )
+
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.show_faqs()
+
+    assert opened == [load_about_data().faq]

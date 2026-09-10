@@ -29,7 +29,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from tarot_canvas._version import __version__
+from tarot_canvas.about import load_about_data
 from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.ui.command_palette import CommandPalette
 from tarot_canvas.ui.components.card_explorer import CardExplorerPanel
@@ -37,6 +37,7 @@ from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tarot_canvas.ui.tabs.deck_view_tab import DeckViewTab
 from tarot_canvas.ui.tabs.library_tab import LibraryTab
+from tarot_canvas.ui.windows.about import AboutDialog
 from tarot_canvas.ui.windows.log_viewer import LogViewerDialog
 from tarot_canvas.utils.logger import logger
 from tarot_canvas.utils.theme_manager import ThemeManager, ThemeType
@@ -253,6 +254,10 @@ class MainWindow(QMainWindow):
         faq_action = QAction("&Frequently Asked Questions", self)
         faq_action.triggered.connect(self.show_faqs)
         help_menu.addAction(faq_action)
+
+        report_bug_action = QAction("&Report Bug", self)
+        report_bug_action.triggered.connect(self.report_bug)
+        help_menu.addAction(report_bug_action)
 
         help_menu.addSeparator()
 
@@ -791,19 +796,20 @@ class MainWindow(QMainWindow):
         self.tab_widget.setCurrentWidget(card_tab)
 
     def show_faqs(self):
-        """Open the online FAQ document in the user's browser"""
-        QDesktopServices.openUrl(
-            QUrl("https://github.com/arcanaland/tarot-canvas/blob/main/docs/FAQs.md")
-        )
+        """Open the FAQ document declared in the metainfo XML"""
+        faq = load_about_data().faq
+        if faq:
+            QDesktopServices.openUrl(QUrl(faq))
+
+    def report_bug(self):
+        """Open the bug tracker declared in the metainfo XML"""
+        bugtracker = load_about_data().bugtracker
+        if bugtracker:
+            QDesktopServices.openUrl(QUrl(bugtracker))
 
     def show_about(self):
-        about_text = (
-            "Tarot Canvas\n\n"
-            f"Version: {__version__}\n"
-            "A modern tarot exploration application.\n\n"
-            "© 2025-2026 Adam Fidel"
-        )
-        QMessageBox.about(self, "About Tarot Canvas", about_text)
+        dialog = AboutDialog(self)
+        dialog.exec()
 
     def open_card_view(self, card, deck=None):
         """Open a card view tab for a specific card

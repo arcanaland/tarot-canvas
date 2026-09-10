@@ -19,7 +19,7 @@ modules:
       - pip3 install --no-deps --no-build-isolation --prefix=${FLATPAK_DEST} .
       - install -Dm644 packaging/land.arcana.TarotCanvas.desktop ${FLATPAK_DEST}/share/applications/land.arcana.TarotCanvas.desktop
       - install -Dm644 packaging/icon.svg ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/land.arcana.TarotCanvas.svg
-      - install -Dm644 packaging/land.arcana.TarotCanvas.appdata.xml ${FLATPAK_DEST}/share/metainfo/land.arcana.TarotCanvas.metainfo.xml
+      - install -Dm644 tarot_canvas/resources/land.arcana.TarotCanvas.appdata.xml ${FLATPAK_DEST}/share/metainfo/land.arcana.TarotCanvas.metainfo.xml
 
     sources:
       - type: dir
