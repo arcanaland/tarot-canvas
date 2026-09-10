@@ -17,7 +17,8 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-APPDATA="packaging/land.arcana.TarotCanvas.appdata.xml"
+# In the package, not packaging/: the about dialog reads the file that ships. RFC-031.
+APPDATA="tarot_canvas/resources/land.arcana.TarotCanvas.appdata.xml"
 VERSION_FILE="tarot_canvas/_version.py"
 
 die() {
@@ -32,8 +33,8 @@ usage: release.sh prepare [X.Y.Z]   bump pyproject.toml + _version.py, then stop
        release.sh push              push the branch and the tag, atomically
 
 Between the two, add a <release> entry for the new version to
-packaging/land.arcana.TarotCanvas.appdata.xml. The template is in an XML comment
-at the top of the <releases> block.
+tarot_canvas/resources/land.arcana.TarotCanvas.appdata.xml. The template is in an
+XML comment at the top of the <releases> block.
 EOF
 }
 

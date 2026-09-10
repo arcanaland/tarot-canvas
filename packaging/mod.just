@@ -47,7 +47,7 @@ deps:
 
 # Validate the AppStream metainfo.
 validate:
-  flatpak run --command=appstreamcli org.flatpak.Builder validate --explain land.arcana.TarotCanvas.appdata.xml
+  flatpak run --command=appstreamcli org.flatpak.Builder validate --explain ../tarot_canvas/resources/land.arcana.TarotCanvas.appdata.xml
 
 build:
   {{dbus}} flatpak run org.flatpak.Builder --user --force-clean build-dir land.arcana.TarotCanvas.yml

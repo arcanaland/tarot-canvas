@@ -50,7 +50,7 @@ release VERSION="":
   echo "Releasing is three phases:"
   echo
   echo "  just release-prepare {{VERSION}}"
-  echo "  <add the <release> entry to packaging/land.arcana.TarotCanvas.appdata.xml>"
+  echo "  <add the <release> entry to tarot_canvas/resources/land.arcana.TarotCanvas.appdata.xml>"
   echo "  just release-tag"
   echo "  just release-push"
   echo

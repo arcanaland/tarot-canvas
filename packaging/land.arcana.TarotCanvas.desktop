@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
 Name=Tarot Canvas
-Comment=View, manage and explore tarot decks
+Comment=Explore and arrange tarot decks
 Exec=env RESOURCE_NAME=tarot-canvas tarot-canvas %u
 Icon=land.arcana.TarotCanvas
 Categories=Graphics;Spirituality;

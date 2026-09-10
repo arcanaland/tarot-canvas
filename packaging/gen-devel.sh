@@ -14,7 +14,7 @@ mkdir -p "${OUT}"
 sed \
   -e "s|^app-id: ${PROD_ID}\$|app-id: ${DEVEL_ID}|" \
   -e "s|packaging/${PROD_ID}\.desktop|packaging/${OUT}/${PROD_ID}.desktop|" \
-  -e "s|packaging/${PROD_ID}\.appdata\.xml|packaging/${OUT}/${PROD_ID}.appdata.xml|" \
+  -e "s|tarot_canvas/resources/${PROD_ID}\.appdata\.xml|packaging/${OUT}/${PROD_ID}.appdata.xml|" \
   -e "s|packaging/icon\.svg|packaging/${OUT}/icon.svg|" \
   -e "s|share/applications/${PROD_ID}\.desktop|share/applications/${DEVEL_ID}.desktop|" \
   -e "s|apps/${PROD_ID}\.svg|apps/${DEVEL_ID}.svg|" \
@@ -28,10 +28,11 @@ sed -e "s|^Icon=${PROD_ID}\$|Icon=${DEVEL_ID}|" \
   -e "/^X-Flatpak-RenamedFrom=/d" \
   "${PROD_ID}.desktop" >"${OUT}/${PROD_ID}.desktop"
 
+# The prod metainfo lives in the Python package now. See RFC-031.
 sed -e "s|<id>${PROD_ID}</id>|<id>${DEVEL_ID}</id>|" \
   -e "s|>${PROD_ID}\.desktop<|>${DEVEL_ID}.desktop<|" \
   -e "0,/<name>Tarot Canvas<\/name>/s||<name>Tarot Canvas (Devel)</name>|" \
-  "${PROD_ID}.appdata.xml" >"${OUT}/${PROD_ID}.appdata.xml"
+  "../tarot_canvas/resources/${PROD_ID}.appdata.xml" >"${OUT}/${PROD_ID}.appdata.xml"
 
 ./gen-devel-icon.py icon.svg "${OUT}/icon.svg"
 

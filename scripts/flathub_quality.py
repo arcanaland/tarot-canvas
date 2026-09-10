@@ -13,7 +13,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-METAINFO = REPO / "packaging" / "land.arcana.TarotCanvas.appdata.xml"
+# In the package, not packaging/: the about dialog reads the file that ships. RFC-031.
+METAINFO = REPO / "tarot_canvas" / "resources" / "land.arcana.TarotCanvas.appdata.xml"
 ICON = REPO / "packaging" / "icon.png"
 SHOTS = REPO / "packaging" / "screenshots"
 APP_ID = "land.arcana.TarotCanvas"
