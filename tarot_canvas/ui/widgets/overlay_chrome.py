@@ -2,7 +2,7 @@ from PyQt6.QtCore import QRectF
 from PyQt6.QtGui import QColor, QPainter, QPalette, QPen
 from PyQt6.QtWidgets import QApplication
 
-RESTING_FILL_ALPHA = 0.86
+RESTING_FILL_ALPHA = 0.56
 ACTIVE_FILL_ALPHA = 1.0
 OUTLINE_ALPHA = 0.5
 
