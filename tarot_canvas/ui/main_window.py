@@ -256,6 +256,29 @@ class MainWindow(QMainWindow):
             ThemeType.DARK: dark_theme_action,
         }
 
+        # Go menu: the card view's moves, listed where they can be found. The keys
+        # stay on the art, where they can't take arrows from the notes pane, so the
+        # text after the tab only displays them.
+        go_menu = menu_bar.addMenu("&Go")
+        go_menu.aboutToShow.connect(self.update_go_actions)
+        self.go_actions = {}
+        for group in (
+            (("previous", "&Previous Card\tLeft"), ("next", "&Next Card\tRight")),
+            (
+                ("first", "&First Card\tHome"),
+                ("last", "&Last Card\tEnd"),
+                ("random", "&Random Card\tD"),
+            ),
+            (("previous_deck", "Previous &Deck\t["), ("next_deck", "Ne&xt Deck\t]")),
+        ):
+            for where, text in group:
+                action = go_menu.addAction(text)
+                action.triggered.connect(lambda _checked=False, w=where: self.go(w))
+                self.go_actions[where] = action
+            go_menu.addSeparator()
+        find_card_action = go_menu.addAction("Find &Card…\tCtrl+P")
+        find_card_action.triggered.connect(self.show_command_palette)
+
         # Tools menu
         tools_menu = menu_bar.addMenu("&Tools")
 
@@ -697,6 +720,17 @@ class MainWindow(QMainWindow):
         if tab is not None and tab.can_paste_card(mime):
             tab.paste_card(mime)
         self.update_card_clipboard_actions()
+
+    def update_go_actions(self):
+        """Go entries enable as the current tab says"""
+        tab = self.current_base_tab()
+        for where, action in self.go_actions.items():
+            action.setEnabled(tab is not None and tab.can_go(where))
+
+    def go(self, where):
+        tab = self.current_base_tab()
+        if tab is not None and tab.can_go(where):
+            tab.go(where)
 
     def toggle_tab_fullscreen(self):
         """Toggle a chrome-free fullscreen showing only the current tab

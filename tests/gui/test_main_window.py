@@ -382,6 +382,43 @@ def test_ctrl_p_is_bound_exactly_once(qtbot):
     assert actions[0] in window.actions()  # survives the menu bar hiding in fullscreen
 
 
+def test_the_go_menu_asks_the_card_view(qtbot):
+    window, tab = make_window_with_card_view(qtbot)
+    cards = tab.deck.get_all_cards()
+    tab.show_card(cards[0])
+    go = window.go_actions
+
+    window.update_go_actions()
+    assert not go["previous"].isEnabled()
+    assert not go["first"].isEnabled()
+    assert go["next"].isEnabled()
+    assert go["last"].isEnabled()
+    assert go["random"].isEnabled()
+    assert not go["next_deck"].isEnabled()  # the stub has one deck
+
+    go["next"].trigger()
+    assert tab.card["id"] == cards[1]["id"]
+
+    window.update_go_actions()
+    assert go["previous"].isEnabled()
+    assert not go["next"].isEnabled()
+
+
+def test_the_go_menu_is_disabled_off_a_card_view(qtbot):
+    window = make_shown_window(qtbot)
+
+    window.update_go_actions()
+
+    assert not any(action.isEnabled() for action in window.go_actions.values())
+
+
+def test_no_go_entry_binds_its_key(qtbot):
+    """The keys live on the card art; binding them here too would make Qt fire neither."""
+    window = make_shown_window(qtbot)
+
+    assert all(action.shortcut().isEmpty() for action in window.go_actions.values())
+
+
 def test_the_explorer_is_open_on_a_first_launch(qtbot):
     window = make_shown_window(qtbot)
     assert window.card_explorer.isVisible()

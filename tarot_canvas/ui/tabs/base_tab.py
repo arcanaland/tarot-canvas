@@ -57,3 +57,13 @@ class BaseTab(QWidget):
 
     def paste_card(self, mime):
         """Place the card mime carries."""
+
+    # -- go ----------------------------------------------------------------
+    # The Go menu asks the current tab. where is one of previous, next, first,
+    # last, random, previous_deck, next_deck; the keys are the tab's own.
+
+    def can_go(self, where):
+        return False
+
+    def go(self, where):
+        """Show another card in this tab."""

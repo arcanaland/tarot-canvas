@@ -209,15 +209,15 @@ class CardViewTab(BaseTab):
         art_bindings = [
             ("F", self.request_fullscreen_toggle),
             ("I", self.toggle_info_pane),
-            ("PgUp", partial(self.step_card, -1)),
-            ("Backspace", partial(self.step_card, -1)),
-            ("PgDown", partial(self.step_card, 1)),
-            ("Space", partial(self.step_card, 1)),
-            ("Home", partial(self.show_card_at, 0)),
-            ("End", partial(self.show_card_at, -1)),
-            ("[", partial(self.deck_bar.step, -1)),
-            ("]", partial(self.deck_bar.step, 1)),
-            ("D", self.draw_card),
+            ("PgUp", partial(self.go, "previous")),
+            ("Backspace", partial(self.go, "previous")),
+            ("PgDown", partial(self.go, "next")),
+            ("Space", partial(self.go, "next")),
+            ("Home", partial(self.go, "first")),
+            ("End", partial(self.go, "last")),
+            ("[", partial(self.go, "previous_deck")),
+            ("]", partial(self.go, "next_deck")),
+            ("D", partial(self.go, "random")),
         ]
         for key, slot in art_bindings:
             shortcut = QShortcut(QKeySequence(key), self.image_view)
@@ -426,12 +426,43 @@ class CardViewTab(BaseTab):
         self.deck_bar.setVisible(self.deck_bar.has_choice() and not self.is_fullscreen())
 
     # -- moving through the deck -------------------------------------------
+    # The Go menu asks can_go and calls go; the keys on the art call go directly
+
+    def can_go(self, where):
+        if self.card is None or self.deck is None:
+            return False
+        cards = self.deck.get_all_cards()
+        index = self._card_index(cards)
+        if where in ("previous", "first"):
+            return index is not None and index > 0
+        if where in ("next", "last"):
+            return index is not None and index < len(cards) - 1
+        if where == "random":
+            return len(cards) > 1
+        if where in ("previous_deck", "next_deck"):
+            return self.deck_bar.has_choice()
+        return False
+
+    def go(self, where):
+        moves = {
+            "previous": partial(self.step_card, -1),
+            "next": partial(self.step_card, 1),
+            "first": partial(self.show_card_at, 0),
+            "last": partial(self.show_card_at, -1),
+            "random": self.draw_card,
+            "previous_deck": partial(self.deck_bar.step, -1),
+            "next_deck": partial(self.deck_bar.step, 1),
+        }
+        moves[where]()
+
+    def _card_index(self, cards):
+        card_id = self.card.get("id")
+        return next((i for i, c in enumerate(cards) if c.get("id") == card_id), None)
 
     def step_card(self, delta):
         """The previous or next card in the deck's order; nothing past either end"""
         cards = self.deck.get_all_cards()
-        card_id = self.card.get("id")
-        index = next((i for i, c in enumerate(cards) if c.get("id") == card_id), None)
+        index = self._card_index(cards)
         if index is not None and 0 <= index + delta < len(cards):
             self.show_card(cards[index + delta])
 
