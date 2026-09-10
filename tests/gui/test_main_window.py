@@ -1,10 +1,20 @@
+import pytest
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication, QTabWidget, QToolButton
 
+from tarot_canvas.settings import EXPLORER_VISIBLE_KEY, get_settings
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.library_tab import LibraryTab
 from tests.conftest import MINIMAL_DECK_PATH
+
+
+@pytest.fixture(autouse=True)
+def no_stored_explorer_visibility():
+    """Qt resolves the QSettings path once per process, so the file outlives a test."""
+    get_settings().remove(EXPLORER_VISIBLE_KEY)
+    yield
+    get_settings().remove(EXPLORER_VISIBLE_KEY)
 
 
 def test_main_window_opens_with_welcome_tab(qtbot):
@@ -122,6 +132,48 @@ def test_f11_on_a_non_canvas_tab_does_nothing(qtbot):
     assert window.canvas_fullscreen_tab is None
     assert window.menuBar().isVisible()
     assert not window.fullscreen_canvas_action.isChecked()
+
+
+def test_the_explorer_is_open_on_a_first_launch(qtbot):
+    window = make_shown_window(qtbot)
+    assert window.card_explorer.isVisible()
+    assert window.explorer_action.isChecked()
+
+
+def test_the_explorer_close_button_hides_it(qtbot):
+    window = make_shown_window(qtbot)
+
+    window.card_explorer.close_button.click()
+
+    assert not window.card_explorer.isVisible()
+    assert not window.explorer_action.isChecked()
+    assert not get_settings().value(EXPLORER_VISIBLE_KEY, True, type=bool)
+
+
+def test_a_closed_explorer_stays_closed_next_session(qtbot):
+    first = make_shown_window(qtbot)
+    first.card_explorer.close_button.click()
+
+    second = make_shown_window(qtbot)
+    assert not second.card_explorer.isVisible()
+    assert not second.explorer_action.isChecked()
+
+    second.explorer_action.trigger()
+    assert second.card_explorer.isVisible()
+
+    third = make_shown_window(qtbot)
+    assert third.card_explorer.isVisible()
+    assert third.explorer_action.isChecked()
+
+
+def test_canvas_fullscreen_does_not_forget_the_explorer(qtbot):
+    """Fullscreen hides the explorer as chrome; that is not the user closing it."""
+    window, tab = make_window_with_canvas(qtbot)
+
+    tab.on_toggle_fullscreen()
+    assert not window.card_explorer.isVisible()
+
+    assert get_settings().value(EXPLORER_VISIBLE_KEY, True, type=bool)
 
 
 def test_opening_the_same_deck_twice_reuses_its_tab(qtbot):

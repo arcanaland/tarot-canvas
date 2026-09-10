@@ -31,6 +31,7 @@ from PyQt6.QtWidgets import (
 
 from tarot_canvas._version import __version__
 from tarot_canvas.models.deck_manager import deck_manager
+from tarot_canvas.settings import EXPLORER_VISIBLE_DEFAULT, EXPLORER_VISIBLE_KEY, get_settings
 from tarot_canvas.ui.command_palette import CommandPalette
 from tarot_canvas.ui.components.card_explorer import CardExplorerPanel
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
@@ -273,6 +274,7 @@ class MainWindow(QMainWindow):
         self.card_explorer = CardExplorerPanel()
         self.card_explorer.card_action_requested.connect(self.on_explorer_card_selected)
         self.card_explorer.card_action_requested.connect(self.on_card_action_requested)
+        self.card_explorer.close_requested.connect(lambda: self.set_card_explorer_visible(False))
         self.card_explorer.show()
         self.main_splitter.addWidget(self.card_explorer)
 
@@ -354,6 +356,10 @@ class MainWindow(QMainWindow):
         self.main_splitter.addWidget(right_container)
 
         self.size_splitter_to_explorer()
+
+        # Come back the way the previous session left it
+        visible = get_settings().value(EXPLORER_VISIBLE_KEY, EXPLORER_VISIBLE_DEFAULT, type=bool)
+        self.apply_card_explorer_visible(bool(visible))
 
         main_layout.addWidget(self.main_splitter)
 
@@ -700,7 +706,17 @@ class MainWindow(QMainWindow):
 
     def toggle_card_explorer(self, checked):
         """Toggle visibility of the card explorer panel"""
-        if checked:
+        self.set_card_explorer_visible(checked)
+
+    def set_card_explorer_visible(self, visible):
+        """Show or hide the card explorer at the user's request, and remember it"""
+        self.apply_card_explorer_visible(visible)
+        get_settings().setValue(EXPLORER_VISIBLE_KEY, bool(visible))
+
+    def apply_card_explorer_visible(self, visible):
+        """Show or hide the card explorer without touching the stored preference"""
+        self.explorer_action.setChecked(visible)
+        if visible:
             self.card_explorer.show()
             self.size_splitter_to_explorer()
         else:

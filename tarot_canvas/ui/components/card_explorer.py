@@ -1,10 +1,11 @@
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QStandardItem, QStandardItemModel
+from PyQt6.QtGui import QIcon, QStandardItem, QStandardItemModel
 from PyQt6.QtWidgets import (
     QComboBox,
     QFrame,
     QHBoxLayout,
     QLabel,
+    QToolButton,
     QTreeView,
     QVBoxLayout,
     QWidget,
@@ -16,6 +17,8 @@ from tarot_canvas.models.deck_manager import deck_manager
 class CardExplorerPanel(QWidget):
     # Signal emitted when a card action is requested
     card_action_requested = pyqtSignal(str, dict, object)  # action, card, deck
+    # Signal emitted when the header's close button is clicked
+    close_requested = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -28,10 +31,28 @@ class CardExplorerPanel(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # Header label
+        # Header label with a close button
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(0)
+
         header = QLabel("Card Explorer")
         header.setStyleSheet("font-weight: bold; padding: 5px;")
-        layout.addWidget(header)
+        header_layout.addWidget(header, 1)
+
+        self.close_button = QToolButton()
+        self.close_button.setAutoRaise(True)
+        close_icon = QIcon.fromTheme("window-close")
+        if close_icon.isNull():
+            self.close_button.setText("\N{MULTIPLICATION SIGN}")
+        else:
+            self.close_button.setIcon(close_icon)
+        self.close_button.setToolTip("Hide Card Explorer (Ctrl+E)")
+        self.close_button.setAccessibleName("Hide Card Explorer")
+        self.close_button.clicked.connect(self.close_requested)
+        header_layout.addWidget(self.close_button)
+
+        layout.addLayout(header_layout)
 
         # Tree view for cards
         self.tree_view = QTreeView()
