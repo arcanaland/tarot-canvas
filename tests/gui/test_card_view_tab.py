@@ -222,3 +222,21 @@ def test_a_pane_too_narrow_for_the_hint_reports_no_band(qtbot, big_image_deck):
     tab = make_tab(qtbot, big_image_deck, 420, 700)
 
     assert tab.image_view.clear_band_position(HINT) is None
+
+
+def test_the_hint_ends_up_where_the_settled_layout_says(qtbot, big_image_deck):
+    """A view reports its resize before it has resized its own viewport and
+    refitted, so a hint placed from inside that event measures the layout the
+    view is leaving, and lands over the card instead of beside it. Toast defers
+    placement past the resize; this pins the outcome that requires.
+    """
+    tab = make_tab(qtbot, big_image_deck, 1920, 1080)
+    view, toast = tab.image_view, tab.toast
+
+    toast.show_message("Press Esc to exit fullscreen  ·  I for card details")
+    tab.enter_fullscreen()
+    qtbot.waitUntil(lambda: view.width() > tab.width() * 0.9)
+
+    qtbot.waitUntil(lambda: toast.pos() == view.clear_band_position(toast.size()))
+    assert view.clear_band_position(toast.size()) is not None  # a real band
+    assert not toast.geometry().intersects(view.image_viewport_rect())

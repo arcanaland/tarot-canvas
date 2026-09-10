@@ -39,6 +39,14 @@ class Toast(QLabel):
         self._hold.setSingleShot(True)
         self._hold.timeout.connect(self._start_fade)
 
+        # A view reports its resize before it has resized its own viewport and
+        # refitted its contents, so anything measuring the view from inside that
+        # event is a resize behind. Place ourselves on the next turn instead.
+        self._replace = QTimer(self)
+        self._replace.setSingleShot(True)
+        self._replace.setInterval(0)
+        self._replace.timeout.connect(self.reposition)
+
         parent.installEventFilter(self)
         self.hide()
 
@@ -51,12 +59,15 @@ class Toast(QLabel):
         self.reposition()
         self.show()
         self.raise_()
+        # The mode that shows a hint usually resizes the view on its way in
+        self._replace.start()
         self._hold.start(self.HOLD_MS if hold_ms is None else hold_ms)
 
     def dismiss(self):
         """Take it away now, without a fade (the mode it described is over)"""
         self._hold.stop()
         self._fade.stop()
+        self._replace.stop()
         self.hide()
 
     def reposition(self):
@@ -85,5 +96,5 @@ class Toast(QLabel):
 
     def eventFilter(self, watched, event):
         if watched is self.parentWidget() and event.type() == QEvent.Type.Resize:
-            self.reposition()
+            self._replace.start()
         return super().eventFilter(watched, event)

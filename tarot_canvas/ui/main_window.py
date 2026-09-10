@@ -469,6 +469,20 @@ class MainWindow(QMainWindow):
             # Also store the name in the tab object
             tab.tab_name = new_name
 
+    def add_card_tab(self, card_tab, title, close_welcome=False):
+        """Adopt a card view tab. Every construction site must come through here.
+
+        A card tab is inert until its navigation_requested is connected -- the
+        deck link and back-navigation both go through it -- and wiring that up
+        at each construction site meant two of the five silently skipped it.
+        """
+        card_tab.navigation_requested.connect(self.handle_tab_navigation)
+        if close_welcome:
+            self.close_welcome_tab()
+        self.tab_widget.addTab(card_tab, title)
+        self.tab_widget.setCurrentWidget(card_tab)
+        return card_tab
+
     def handle_tab_navigation(self, action, data):
         """Handle navigation between tabs"""
         if action == "open_card_view":
@@ -492,11 +506,7 @@ class MainWindow(QMainWindow):
 
             # Create a new card view tab
             card_tab = CardViewTab(card=card, deck=deck, source_tab_id=source_tab_id)
-            card_tab.navigation_requested.connect(self.handle_tab_navigation)
-
-            # Add it to the tab widget
-            self.tab_widget.addTab(card_tab, card.get("name", "Card"))
-            self.tab_widget.setCurrentWidget(card_tab)
+            self.add_card_tab(card_tab, card.get("name", "Card"))
 
         elif action == "open_deck_view":
             deck_path = data.get("deck_path")
@@ -581,10 +591,7 @@ class MainWindow(QMainWindow):
         self.tab_widget.setCurrentWidget(library_tab)
 
     def new_card_view_tab(self):
-        card_tab = CardViewTab()
-        self.close_welcome_tab()
-        self.tab_widget.addTab(card_tab, "Card View")
-        self.tab_widget.setCurrentWidget(card_tab)
+        self.add_card_tab(CardViewTab(), "Card View", close_welcome=True)
 
     def close_tab(self, index):
         if self.tab_widget.count() > 1:  # Keep at least one tab open
@@ -756,11 +763,7 @@ class MainWindow(QMainWindow):
         from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 
         card_tab = CardViewTab(card=card, deck=deck)
-        card_tab.navigation_requested.connect(self.handle_tab_navigation)
-
-        # Add it to the tab widget
-        self.tab_widget.addTab(card_tab, card.get("name", "Card"))
-        self.tab_widget.setCurrentWidget(card_tab)
+        self.add_card_tab(card_tab, card.get("name", "Card"))
 
     def on_card_action_requested(self, action, card, deck):
         """Handle all card actions from the explorer based on context"""
@@ -809,11 +812,7 @@ class MainWindow(QMainWindow):
         from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 
         card_tab = CardViewTab(card=card, deck=deck)
-        card_tab.navigation_requested.connect(self.handle_tab_navigation)
-
-        # Add it to the tab widget
-        self.tab_widget.addTab(card_tab, card.get("name", "Card"))
-        self.tab_widget.setCurrentWidget(card_tab)
+        self.add_card_tab(card_tab, card.get("name", "Card"))
 
     def show_faqs(self):
         """Open the FAQ document declared in the metainfo XML"""
@@ -840,14 +839,7 @@ class MainWindow(QMainWindow):
         """
         from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 
-        # Create a card view tab
-        tab = CardViewTab(card=card, deck=deck, parent=self.tab_widget)
-
-        # Add it to the tab widget
-        self.tab_widget.addTab(tab, card["name"])
-
-        # Select the new tab
-        self.tab_widget.setCurrentWidget(tab)
+        self.add_card_tab(CardViewTab(card=card, deck=deck), card["name"])
 
     def show_log_viewer(self):
         """Show the log viewer dialog"""

@@ -5,6 +5,7 @@ from PyQt6.QtWidgets import QWIDGETSIZE_MAX, QApplication, QTabWidget, QToolButt
 from tarot_canvas.settings import EXPLORER_VISIBLE_KEY, get_settings
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
+from tarot_canvas.ui.tabs.deck_view_tab import DeckViewTab
 from tarot_canvas.ui.tabs.library_tab import LibraryTab
 from tests.conftest import MINIMAL_DECK_PATH
 
@@ -237,9 +238,6 @@ def test_fullscreen_offers_a_button_and_a_hint_at_the_key(qtbot):
     assert tab.exit_fullscreen_button.isVisible()
     assert tab.toast.isVisible()
     assert "Esc" in tab.toast.text()
-    # the hint must sit beside the card, never over the artwork it interrupts
-    image = tab.image_view.image_viewport_rect()
-    qtbot.waitUntil(lambda: not tab.toast.geometry().intersects(image))
 
     # the button is the way out for anyone who does not read the hint
     qtbot.mouseClick(tab.exit_fullscreen_button, Qt.MouseButton.LeftButton)
@@ -274,6 +272,99 @@ def test_the_exit_button_tracks_the_top_corner_of_the_image_view(qtbot):
     qtbot.waitUntil(in_the_top_trailing_corner)
     window.resize(1100, 800)
     qtbot.waitUntil(in_the_top_trailing_corner)
+
+
+def test_the_information_tabs_turn_upright_only_in_fullscreen(qtbot):
+    """East windowed, where the rotated strip costs the least width."""
+    window, tab = make_window_with_card_view(qtbot)
+    assert [tab.info_tabs.tabText(i) for i in range(tab.info_tabs.count())] == [
+        "Overview",
+        "Esoterica",
+        "Notes",
+    ]
+    # framed tabs sized to their labels, as the windowed pane has always drawn
+    assert tab.info_tabs.tabPosition() == QTabWidget.TabPosition.East
+    assert not tab.info_tabs.documentMode()
+
+    window.toggle_tab_fullscreen()
+    assert tab.info_tabs.tabPosition() == QTabWidget.TabPosition.North
+    assert tab.info_tabs.documentMode()
+
+    window.toggle_tab_fullscreen()
+    assert tab.info_tabs.tabPosition() == QTabWidget.TabPosition.East
+    assert not tab.info_tabs.documentMode()
+
+
+def test_fullscreen_offers_a_way_back_to_the_card_details(qtbot):
+    """The collapsed handle is against the screen edge; this is the visible way."""
+    window, tab = make_window_with_card_view(qtbot)
+    width_before = tab.splitter.sizes()[1]
+    assert width_before > 0
+
+    window.toggle_tab_fullscreen()
+    assert tab.info_pane_button.isVisible()
+    assert not tab.info_pane_is_open()
+    assert "Show card details" in tab.info_pane_button.toolTip()
+    assert "Esc" in tab.toast.text()
+
+    qtbot.mouseClick(tab.info_pane_button, Qt.MouseButton.LeftButton)
+    assert tab.info_pane_is_open()
+    # back at the width it had before fullscreen collapsed it
+    assert tab.splitter.sizes()[1] == width_before
+    assert "Hide card details" in tab.info_pane_button.toolTip()
+
+    qtbot.mouseClick(tab.info_pane_button, Qt.MouseButton.LeftButton)
+    assert not tab.info_pane_is_open()
+
+
+def test_the_i_key_toggles_the_card_details(qtbot):
+    window, tab = make_window_with_card_view(qtbot)
+    window.toggle_tab_fullscreen()
+    tab.image_view.setFocus()
+    qtbot.waitUntil(lambda: QApplication.focusWidget() is tab.image_view)
+
+    qtbot.keyClick(tab.image_view, Qt.Key.Key_I)
+    assert tab.info_pane_is_open()
+
+    qtbot.keyClick(tab.image_view, Qt.Key.Key_I)
+    assert not tab.info_pane_is_open()
+
+
+def test_dragging_the_pane_open_updates_the_button(qtbot):
+    window, tab = make_window_with_card_view(qtbot)
+    window.toggle_tab_fullscreen()
+    total = sum(tab.splitter.sizes())
+
+    tab.splitter.setSizes([total - 300, 300])
+    tab.splitter.splitterMoved.emit(total - 300, 1)
+    assert "Hide card details" in tab.info_pane_button.toolTip()
+
+
+def test_the_fullscreen_tabs_share_the_pane_between_them(qtbot):
+    """QTabWidget.setDocumentMode() forces expanding off; if that is not undone
+    the bar runs the width of the pane while the tabs huddle at its leading
+    edge."""
+    window, tab = make_window_with_card_view(qtbot)
+    bar = tab.info_tabs.tabBar()
+    windowed = bar.width()
+
+    window.toggle_tab_fullscreen()
+    tab.toggle_info_pane()
+    qtbot.waitUntil(lambda: bar.width() > windowed)
+
+    widths = [bar.tabRect(i).width() for i in range(bar.count())]
+    assert sum(widths) >= bar.width() - 4  # they fill it
+    assert max(widths) - min(widths) <= 2  # in equal shares
+
+
+def test_a_seam_marks_off_the_info_pane(qtbot):
+    """Something for the splitter handle to sit against, so it reads as one."""
+    window, tab = make_window_with_card_view(qtbot)
+    assert tab.pane_seam.width() > 0
+
+    # and it collapses with the pane rather than leaving a stray line
+    window.toggle_tab_fullscreen()
+    qtbot.waitUntil(lambda: tab.pane_seam.width() == 0)
 
 
 def test_switching_tabs_leaves_card_view_fullscreen(qtbot):
@@ -493,3 +584,38 @@ def test_the_faq_url_also_comes_from_the_metainfo(qtbot, monkeypatch):
     window.show_faqs()
 
     assert opened == [load_about_data().faq]
+
+def deck_link(tab):
+    """The href behind the Deck: value in the overview pane."""
+    return tab.overview_tab.deck_value.text().split("'")[1]
+
+
+@pytest.mark.parametrize(
+    "open_a_card",
+    [
+        pytest.param(lambda w, card, deck: w.new_card_view_tab(), id="File > New Card View"),
+        pytest.param(lambda w, card, deck: w.open_card_view(card, deck), id="open_card_view"),
+        pytest.param(
+            lambda w, card, deck: w.handle_tab_navigation(
+                "open_card_view", {"card": card, "deck": deck}
+            ),
+            id="navigation request",
+        ),
+    ],
+)
+def test_the_deck_link_opens_the_deck_however_the_card_was_opened(
+    qtbot, open_a_card, stub_deck_manager
+):
+    """A card tab is inert until its navigation_requested is connected, and
+    connecting that per construction site left two of the five paths dead."""
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.show()
+    qtbot.waitExposed(window)
+    deck = stub_deck_manager.get_reference_deck()
+    open_a_card(window, deck.get_random_card(), deck)
+    tab = window.tab_widget.currentWidget()
+
+    tab.overview_tab.on_deck_link_clicked(deck_link(tab))
+
+    assert isinstance(window.tab_widget.currentWidget(), DeckViewTab)

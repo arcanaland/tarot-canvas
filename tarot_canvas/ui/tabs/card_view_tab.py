@@ -4,6 +4,7 @@ from typing import ClassVar
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QKeySequence, QPixmap, QShortcut
 from PyQt6.QtWidgets import (
+    QFrame,
     QHBoxLayout,
     QLabel,
     QSplitter,
@@ -19,7 +20,7 @@ from tarot_canvas.ui.tabs.card_view.deck_switcher import DeckSwitcher
 from tarot_canvas.ui.tabs.card_view.esoterica_tab import EsotericaTab
 from tarot_canvas.ui.tabs.card_view.notes_tab import NotesTab
 from tarot_canvas.ui.tabs.card_view.overview_tab import OverviewTab
-from tarot_canvas.ui.widgets.exit_fullscreen_button import ExitFullscreenButton
+from tarot_canvas.ui.widgets.overlay_button import OverlayButton
 from tarot_canvas.ui.widgets.toast import Toast
 from tarot_canvas.ui.widgets.zoomable_image_view import ZoomableImageView
 
@@ -48,6 +49,8 @@ class CardViewTab(BaseTab):
         self.deck_manager = deck_manager
         self.source_tab_id = source_tab_id
         self.id = f"card_{id(self)}"
+        # How wide to bring the info pane back when it is toggled open
+        self._info_pane_width = 0
 
         if card is None and self.deck:
             self.card = self.deck.get_random_card()
@@ -81,10 +84,23 @@ class CardViewTab(BaseTab):
         self.image_view = ZoomableImageView(self)
         image_layout.addWidget(self.image_view, 1)
 
-        # Both float over the artwork rather than living in the layout, and
-        # both appear only in fullscreen -- see on_fullscreen_changed().
-        self.exit_fullscreen_button = ExitFullscreenButton(
-            self.image_view, self.request_fullscreen_toggle
+        # These float over the artwork rather than living in the layout, and
+        # all three appear only in fullscreen -- see on_fullscreen_changed().
+        self.exit_fullscreen_button = OverlayButton(
+            self.image_view,
+            "view-restore",
+            "⛶",
+            "Leave fullscreen (Esc)",
+            self.request_fullscreen_toggle,
+            row=0,
+        )
+        self.info_pane_button = OverlayButton(
+            self.image_view,
+            "sidebar-expand-right",
+            "<",
+            "Show card details (I)",
+            self.toggle_info_pane,
+            row=1,
         )
         self.toast = Toast(self.image_view)
 
@@ -110,9 +126,23 @@ class CardViewTab(BaseTab):
         info_layout = QHBoxLayout(info_widget)
         info_layout.setContentsMargins(0, 0, 0, 0)
 
+        # A line the splitter handle can sit against. Without it the two sides
+        # share one background and there is no seam to suggest a divider, let
+        # alone a draggable one.
+        self.pane_seam = QFrame()
+        self.pane_seam.setFrameShape(QFrame.Shape.VLine)
+        self.pane_seam.setFrameShadow(QFrame.Shadow.Sunken)
+        info_layout.addWidget(self.pane_seam)
+
         # Create tabbed widget for different information categories
         self.info_tabs = QTabWidget()
-        self.info_tabs.setTabPosition(QTabWidget.TabPosition.East)  # Tabs on the right side
+        # East windowed, where the rotated strip costs the least width, with
+        # the style's framed tabs. Fullscreen swaps in the arrangement the HIG
+        # asks for on immutable tabs (hig/displaying_content.md) -- see
+        # enter_fullscreen(). Document mode is what widens the bar to the whole
+        # pane, so it travels with North rather than being set here, where it
+        # would flatten the windowed pane's frame.
+        self.info_tabs.setTabPosition(QTabWidget.TabPosition.East)
 
         # Tab 1: Overview
         self.overview_tab = OverviewTab(self.card, self.deck, self)
@@ -138,6 +168,7 @@ class CardViewTab(BaseTab):
         splitter.setSizes([int(self.width() * 0.4), int(self.width() * 0.6)])
         splitter.setStretchFactor(0, 4)
         splitter.setStretchFactor(1, 6)
+        splitter.splitterMoved.connect(self.sync_info_pane_button)
 
         # Add splitter to main layout
         main_layout.addWidget(splitter)
@@ -164,6 +195,7 @@ class CardViewTab(BaseTab):
             ("Ctrl+=", self.image_view.zoom_in),
             ("Ctrl+-", self.image_view.zoom_out),
             ("Ctrl+0", self.image_view.reset_to_fit),
+            ("Ctrl+I", self.toggle_info_pane),
             ("Escape", self.on_escape_pressed),
         ]
         for key, slot in bindings:
@@ -171,11 +203,13 @@ class CardViewTab(BaseTab):
             shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
             shortcut.activated.connect(slot)
 
-        # Bare F is scoped to the image view, not the tab: at tab scope it would
-        # eat the letter f in the notes editor. F11 remains the window-wide way in.
-        fullscreen = QShortcut(QKeySequence("F"), self.image_view)
-        fullscreen.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
-        fullscreen.activated.connect(self.request_fullscreen_toggle)
+        # Bare letters are scoped to the image view, not the tab: at tab scope
+        # they would eat those letters in the notes editor. The Ctrl forms above
+        # stay available from anywhere in the tab.
+        for key, slot in (("F", self.request_fullscreen_toggle), ("I", self.toggle_info_pane)):
+            shortcut = QShortcut(QKeySequence(key), self.image_view)
+            shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+            shortcut.activated.connect(slot)
 
     def on_escape_pressed(self):
         """Leave fullscreen if in it, otherwise put the card back at fit"""
@@ -193,27 +227,73 @@ class CardViewTab(BaseTab):
         """Show the artwork and nothing else: no info pane, no deck switcher"""
         # isVisibleTo, not isVisible: the switcher hides itself when only one
         # deck has the card, and that state must survive fullscreen either way
-        state = (self.splitter.sizes(), self.deck_switcher.isVisibleTo(self))
+        state = (
+            self.splitter.sizes(),
+            self.deck_switcher.isVisibleTo(self),
+            (
+                self.info_tabs.tabPosition(),
+                self.info_tabs.documentMode(),
+                self.info_tabs.tabBar().expanding(),
+            ),
+        )
+        # Bring the pane back at the width it had, if it is asked for again
+        self._info_pane_width = state[0][1] or self._info_pane_width
         self.deck_switcher.setVisible(False)
         self.splitter.setSizes([sum(state[0]), 0])
+        # Room is no longer scarce here, so the tabs can sit where the HIG
+        # wants them (hig/displaying_content.md) rather than rotated on an edge.
+        self.info_tabs.setTabPosition(QTabWidget.TabPosition.North)
+        self.info_tabs.setDocumentMode(True)
+        # After setDocumentMode, which forces expanding off (it calls
+        # setExpanding(!enabled) internally). Without this the bar runs the
+        # width of the pane while the tabs huddle at its leading edge.
+        self.info_tabs.tabBar().setExpanding(True)
         return state
 
     def exit_fullscreen(self, state):
-        sizes, switcher_visible = state
+        sizes, switcher_visible, tab_style = state
         self.deck_switcher.setVisible(switcher_visible)
         self.splitter.setSizes(sizes)
+        position, document_mode, expanding = tab_style
+        self.info_tabs.setTabPosition(position)
+        self.info_tabs.setDocumentMode(document_mode)
+        self.info_tabs.tabBar().setExpanding(expanding)
+
+    def info_pane_is_open(self):
+        return self.splitter.sizes()[1] > 0
+
+    def toggle_info_pane(self):
+        """Show or hide the card details beside the artwork.
+
+        In fullscreen the splitter handle is parked against the screen edge,
+        where nothing suggests it can be dragged; this is the way to the same
+        thing that does not depend on finding a five-pixel strip.
+        """
+        sizes = self.splitter.sizes()
+        total = sum(sizes)
+        if self.info_pane_is_open():
+            self._info_pane_width = sizes[1]
+            self.splitter.setSizes([total, 0])
+        else:
+            width = self._info_pane_width or int(total * 0.4)
+            self.splitter.setSizes([max(self.MIN_IMAGE_PANE_WIDTH, total - width), width])
+        self.sync_info_pane_button()
+
+    def sync_info_pane_button(self):
+        """Keep the button saying what the next press will do"""
+        if self.info_pane_is_open():
+            self.info_pane_button.set_icon("sidebar-collapse-right", ">")
+            self.info_pane_button.setToolTip("Hide card details (I)")
+        else:
+            self.info_pane_button.set_icon("sidebar-expand-right", "<")
+            self.info_pane_button.setToolTip("Show card details (I)")
 
     def on_fullscreen_changed(self):
-        """Overlay the artwork only while fullscreen, never in the normal view.
-
-        Windowed, the card is the whole point of the pane and nothing should sit
-        on it; the View menu, Ctrl+Shift+F and F are the ways in. Fullscreen has
-        no chrome left, so it gets both a button and a one-off hint at the key
-        that does the same thing.
-        """
         full = self.is_fullscreen()
         self.exit_fullscreen_button.setVisible(full)
+        self.info_pane_button.setVisible(full)
         if full:
+            self.sync_info_pane_button()
             self.toast.show_message("Press Esc to exit fullscreen")
         else:
             self.toast.dismiss()
