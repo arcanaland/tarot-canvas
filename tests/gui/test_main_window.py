@@ -542,6 +542,7 @@ def test_the_faq_url_also_comes_from_the_metainfo(qtbot, monkeypatch):
 
     assert opened == [load_about_data().faq]
 
+
 def deck_link(tab):
     """The href behind the Deck: value in the overview pane."""
     return tab.overview_tab.deck_value.text().split("'")[1]
