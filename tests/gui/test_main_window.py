@@ -256,6 +256,7 @@ def test_fullscreen_offers_a_button_and_a_hint_at_the_key(qtbot):
     # the hint described a mode that is over; it must not linger over the layout
     assert not tab.toast.isVisible()
 
+
 def test_fullscreen_offers_a_way_back_to_the_card_details(qtbot):
     window, tab = make_window_with_card_view(qtbot)
     width_before = tab.splitter.sizes()[1]

@@ -7,6 +7,7 @@ from tarot_canvas.ui.widgets.overlay_chrome import paint_surface, text_color
 
 class Toast(QLabel):
     """A transient toast message"""
+
     MARGIN = 24
     HOLD_MS = 2200
     FADE_MS = 400
