@@ -41,3 +41,19 @@ class BaseTab(QWidget):
         window = self.window()
         if self.supports_fullscreen() and hasattr(window, "toggle_tab_fullscreen"):
             window.toggle_tab_fullscreen()
+
+    # -- card clipboard --------------------------------------------------
+    # Edit > Copy Card / Paste Card ask the current tab; Ctrl+C and Ctrl+V are
+    # bound on those window actions only.
+
+    def can_copy_card(self):
+        return False
+
+    def copy_card(self):
+        """Put this tab's card on the clipboard, and say so."""
+
+    def can_paste_card(self, mime):
+        return False
+
+    def paste_card(self, mime):
+        """Place the card mime carries."""

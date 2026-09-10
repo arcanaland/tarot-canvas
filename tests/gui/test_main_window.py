@@ -3,6 +3,8 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QWIDGETSIZE_MAX, QApplication, QTabWidget, QToolButton
 
 from tarot_canvas.settings import EXPLORER_VISIBLE_KEY, get_settings
+from tarot_canvas.ui.canvas.card_item import DraggableCardItem
+from tarot_canvas.ui.card_transfer import CARD_MIME
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.deck_view_tab import DeckViewTab
@@ -177,19 +179,21 @@ def make_window_with_card_view(qtbot):
 
 def test_card_view_fullscreen_shows_the_artwork_alone(qtbot):
     window, tab = make_window_with_card_view(qtbot)
-    tab.deck_switcher.setVisible(True)
+    assert tab.card_bar.isVisibleTo(tab)
     sizes_before = tab.splitter.sizes()
 
     window.toggle_tab_fullscreen()
     assert window.fullscreen_tab is tab
     assert not window.menuBar().isVisible()
-    assert not tab.deck_switcher.isVisibleTo(tab)
+    assert not tab.card_bar.isVisibleTo(tab)
+    assert not tab.bar_seam.isVisibleTo(tab)
     assert tab.splitter.sizes()[1] == 0  # info pane collapsed
 
     window.toggle_tab_fullscreen()
     assert window.fullscreen_tab is None
     assert window.menuBar().isVisible()
-    assert tab.deck_switcher.isVisibleTo(tab)
+    assert tab.card_bar.isVisibleTo(tab)
+    assert tab.bar_seam.isVisibleTo(tab)
     assert tab.splitter.sizes() == sizes_before
 
 
@@ -326,7 +330,6 @@ def test_a_seam_marks_off_the_info_pane(qtbot):
 
 def test_switching_tabs_leaves_card_view_fullscreen(qtbot):
     window, tab = make_window_with_card_view(qtbot)
-    tab.deck_switcher.setVisible(True)
     other = window.new_canvas_tab()
     window.tab_widget.setCurrentWidget(tab)
     window.toggle_tab_fullscreen()
@@ -334,7 +337,21 @@ def test_switching_tabs_leaves_card_view_fullscreen(qtbot):
 
     window.tab_widget.setCurrentWidget(other)
     assert window.fullscreen_tab is None
-    assert tab.deck_switcher.isVisibleTo(tab)
+    assert tab.card_bar.isVisibleTo(tab)
+    qtbot.wait(1100)  # the canvas's startup timers
+
+
+def test_the_bar_fullscreen_button_tracks_the_state(qtbot):
+    window, tab = make_window_with_card_view(qtbot)
+    action = tab.card_bar.fullscreen_action
+
+    action.trigger()
+    assert window.fullscreen_tab is tab
+    assert action.isChecked()
+
+    tab.on_escape_pressed()
+    assert window.fullscreen_tab is None
+    assert not action.isChecked()
 
 
 def test_the_explorer_is_open_on_a_first_launch(qtbot):
@@ -575,3 +592,200 @@ def test_the_deck_link_opens_the_deck_however_the_card_was_opened(
     tab.overview_tab.on_deck_link_clicked(deck_link(tab))
 
     assert isinstance(window.tab_widget.currentWidget(), DeckViewTab)
+
+
+# -- card clipboard ------------------------------------------------------------
+
+
+def edit_menu(window):
+    return next(
+        action.menu()
+        for action in window.menuBar().actions()
+        if action.text().replace("&", "") == "Edit"
+    )
+
+
+@pytest.fixture
+def other_deck(tmp_path, stub_deck_manager, minimal_deck):
+    """A second installed deck with the same cards, to tell the copied deck apart."""
+    import shutil
+
+    from tarot_canvas.models.deck import TarotDeck
+
+    shutil.copytree(MINIMAL_DECK_PATH, tmp_path / "other")
+    deck = TarotDeck(str(tmp_path / "other"))
+    stub_deck_manager.get_all_decks = lambda: [minimal_deck, deck]
+    return deck
+
+
+def activate(qtbot, window, widget):
+    """Shortcuts only fire in the active window, at whatever has focus."""
+    window.activateWindow()
+    qtbot.waitActive(window)
+    widget.setFocus()
+    qtbot.waitUntil(lambda: QApplication.focusWidget() is widget)
+
+
+def ctrl(qtbot, widget, key):
+    qtbot.keyClick(widget, key, Qt.KeyboardModifier.ControlModifier)
+
+
+def test_the_edit_menu_lists_copy_and_paste(qtbot):
+    window = MainWindow()
+    qtbot.addWidget(window)
+    labels = [action.text().replace("&", "") for action in edit_menu(window).actions()]
+
+    assert labels == ["Copy Card", "Paste Card", "", "Preferences"]
+    assert window.copy_card_action.shortcut().toString() == "Ctrl+C"
+    assert window.paste_card_action.shortcut().toString() == "Ctrl+V"
+
+
+def test_ctrl_c_and_ctrl_v_are_bound_exactly_once(qtbot):
+    """Two bindings of one key make Qt fire neither; that is the Ctrl+P bug."""
+    from PyQt6.QtGui import QAction, QKeySequence, QShortcut
+
+    window, card_view = make_window_with_card_view(qtbot)
+    window.new_canvas_tab()
+
+    for key in ("Ctrl+C", "Ctrl+V"):
+        sequence = QKeySequence(key)
+        bound = [a for a in window.findChildren(QAction) if sequence in a.shortcuts()]
+        bound += [s for s in window.findChildren(QShortcut) if s.key() == sequence]
+        assert len(bound) == 1, key
+    qtbot.wait(1100)
+
+
+def test_copy_card_is_offered_by_a_card_view_and_not_a_canvas(qtbot):
+    window, card_view = make_window_with_card_view(qtbot)
+    assert window.copy_card_action.isEnabled()
+
+    window.new_canvas_tab()
+    assert not window.copy_card_action.isEnabled()
+
+    window.tab_widget.setCurrentWidget(card_view)
+    assert window.copy_card_action.isEnabled()
+    qtbot.wait(1100)
+
+
+def test_a_card_copied_in_one_deck_is_pasted_from_that_deck(qtbot, clipboard, other_deck):
+    window = make_shown_window(qtbot)
+    window.open_card_view(other_deck.get_card_by_id("major_arcana.01"), other_deck)
+    window.copy_card_action.trigger()
+
+    canvas = window.new_canvas_tab()
+    assert window.paste_card_action.isEnabled()
+    window.paste_card_action.trigger()
+
+    cards = [item for item in canvas.scene.items() if isinstance(item, DraggableCardItem)]
+    assert len(cards) == 1
+    assert cards[0].card_data["id"] == "major_arcana.01"
+    assert cards[0].card_data["image"].startswith(str(other_deck.deck_path))
+    qtbot.wait(1100)
+
+
+def test_paste_waits_for_a_card_on_the_clipboard(qtbot, clipboard):
+    window, canvas = make_window_with_canvas(qtbot)
+    assert not window.paste_card_action.isEnabled()
+    assert not canvas.paste_action.isEnabled()
+
+    clipboard.setText("just some text")
+    assert not window.paste_card_action.isEnabled()
+
+    window.open_card_view(canvas.deck.get_random_card(), canvas.deck)
+    window.copy_card_action.trigger()
+    assert not window.paste_card_action.isEnabled(), "a card view has nowhere to paste"
+
+    window.tab_widget.setCurrentWidget(canvas)
+    assert window.paste_card_action.isEnabled()
+    assert canvas.paste_action.isEnabled()
+    qtbot.wait(1100)
+
+
+def test_ctrl_c_copies_the_card_and_ctrl_v_places_it(qtbot, clipboard):
+    window, card_view = make_window_with_card_view(qtbot)
+    activate(qtbot, window, card_view.image_view)
+    ctrl(qtbot, card_view.image_view, Qt.Key.Key_C)
+    assert clipboard.mimeData().hasFormat(CARD_MIME)
+
+    canvas = window.new_canvas_tab()
+    activate(qtbot, window, canvas.view)
+    ctrl(qtbot, canvas.view, Qt.Key.Key_V)
+
+    cards = [item for item in canvas.scene.items() if isinstance(item, DraggableCardItem)]
+    assert [c.card_data["id"] for c in cards] == [card_view.card["id"]]
+    assert not window.paste_card_action.isEnabled(), "one paste per copy"
+
+    ctrl(qtbot, canvas.view, Qt.Key.Key_V)
+    cards = [item for item in canvas.scene.items() if isinstance(item, DraggableCardItem)]
+    assert len(cards) == 1
+    qtbot.wait(1100)
+
+
+def test_one_paste_per_canvas_per_copy(qtbot, clipboard):
+    window, card_view = make_window_with_card_view(qtbot)
+    window.copy_card_action.trigger()
+    first = window.new_canvas_tab()
+    window.paste_card_action.trigger()
+    assert not window.paste_card_action.isEnabled()
+
+    window.new_canvas_tab()
+    assert window.paste_card_action.isEnabled(), "another canvas has not had it yet"
+
+    window.tab_widget.setCurrentWidget(first)
+    assert not window.paste_card_action.isEnabled()
+    qtbot.wait(1100)
+
+
+def test_ctrl_c_still_copies_in_fullscreen(qtbot, clipboard):
+    """The menu bar is hidden there, which would take its shortcuts with it."""
+    window, card_view = make_window_with_card_view(qtbot)
+    window.toggle_tab_fullscreen()
+    assert not window.menuBar().isVisible()
+
+    activate(qtbot, window, card_view.image_view)
+    ctrl(qtbot, card_view.image_view, Qt.Key.Key_C)
+
+    assert clipboard.mimeData().hasFormat(CARD_MIME)
+
+
+def test_ctrl_c_in_a_note_copies_the_text_not_the_card(qtbot, clipboard):
+    window, card_view = make_window_with_card_view(qtbot)
+    notes = card_view.notes_tab
+    card_view.info_tabs.setCurrentWidget(notes)
+    notes.stack.setCurrentWidget(notes.editor_page)
+    editor = notes.note_editor
+    editor.setEnabled(True)
+    editor.setPlainText("The Tower, again")
+    editor.selectAll()
+
+    activate(qtbot, window, editor)
+    ctrl(qtbot, editor, Qt.Key.Key_C)
+
+    assert clipboard.text() == "The Tower, again"
+    assert not clipboard.mimeData().hasFormat(CARD_MIME)
+
+
+def test_ctrl_c_in_esoterica_copies_the_text_not_the_card(qtbot, clipboard, monkeypatch):
+    from types import SimpleNamespace
+
+    from PyQt6.QtWidgets import QLabel
+
+    from tarot_canvas.models.esoterica import Passage
+    from tarot_canvas.ui.tabs.card_view import esoterica_tab
+
+    passages = [Passage("A Source", None, "Selectable passage text.")]
+    manager = SimpleNamespace(get_passages_for_card=lambda _card_id: passages)
+    monkeypatch.setattr(esoterica_tab, "get_esoterica_manager", lambda: manager)
+
+    window, card_view = make_window_with_card_view(qtbot)
+    card_view.info_tabs.setCurrentWidget(card_view.esoterica_tab)
+    text = card_view.esoterica_tab.passage_widgets[0].findChildren(QLabel)[-1]
+    qtbot.waitUntil(text.isVisible)
+
+    activate(qtbot, window, text)
+    text.setSelection(0, len("Selectable"))
+    assert text.selectedText() == "Selectable"
+    ctrl(qtbot, text, Qt.Key.Key_C)
+
+    assert clipboard.text() == "Selectable"
+    assert not clipboard.mimeData().hasFormat(CARD_MIME)

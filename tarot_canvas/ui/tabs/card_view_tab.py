@@ -1,9 +1,10 @@
 import os
 from typing import ClassVar
 
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import QEvent, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QKeySequence, QPixmap, QShortcut
 from PyQt6.QtWidgets import (
+    QApplication,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -14,9 +15,10 @@ from PyQt6.QtWidgets import (
 )
 
 from tarot_canvas.models.deck_manager import deck_manager
+from tarot_canvas.ui.card_transfer import copy_card_to_clipboard
 from tarot_canvas.ui.tabs.base_tab import BaseTab
+from tarot_canvas.ui.tabs.card_view.card_bar import BarPosition, CardBar, card_bar_position
 from tarot_canvas.ui.tabs.card_view.color_dot import ColorDot
-from tarot_canvas.ui.tabs.card_view.deck_switcher import DeckSwitcher
 from tarot_canvas.ui.tabs.card_view.esoterica_tab import EsotericaTab
 from tarot_canvas.ui.tabs.card_view.notes_tab import NotesTab
 from tarot_canvas.ui.tabs.card_view.overview_tab import OverviewTab
@@ -102,14 +104,23 @@ class CardViewTab(BaseTab):
         )
         self.toast = Toast(self.image_view)
 
-        self.deck_switcher = DeckSwitcher(self)
-        image_layout.addWidget(self.deck_switcher)
+        self.card_bar = CardBar(self)
+        self.bar_seam = QFrame()
+        self.bar_seam.setFrameShape(QFrame.Shape.HLine)
+        self.bar_seam.setFrameShadow(QFrame.Shadow.Sunken)
+        # Read once per tab: relaunch to compare the two
+        if card_bar_position() is BarPosition.FOOTER:
+            image_layout.addWidget(self.bar_seam)
+            image_layout.addWidget(self.card_bar)
+        else:
+            image_layout.insertWidget(0, self.bar_seam)
+            image_layout.insertWidget(0, self.card_bar)
 
         self.image_container.setMinimumWidth(self.MIN_IMAGE_PANE_WIDTH)
 
         self.load_image()
 
-        self.deck_switcher.update_compatible_decks(self.card, self.deck, deck_manager)
+        self.card_bar.update_decks(self.card, self.deck, deck_manager)
 
         self.setup_zoom_shortcuts()
 
@@ -157,6 +168,7 @@ class CardViewTab(BaseTab):
         splitter.setStretchFactor(0, 4)
         splitter.setStretchFactor(1, 6)
         splitter.splitterMoved.connect(self.sync_info_pane_button)
+        self.sync_info_pane_button()
 
         # Add splitter to main layout
         main_layout.addWidget(splitter)
@@ -209,12 +221,32 @@ class CardViewTab(BaseTab):
     def supports_fullscreen(self):
         return self.card is not None and self.deck is not None
 
+    def event(self, event):
+        # A read-only QLabel never claims Ctrl+C the way a text edit does, so without
+        # this Edit > Copy Card would take the key from a selection in the info pane
+        if (
+            event.type() == QEvent.Type.ShortcutOverride
+            and event.matches(QKeySequence.StandardKey.Copy)
+            and isinstance(QApplication.focusWidget(), QLabel)
+            and QApplication.focusWidget().hasSelectedText()
+        ):
+            event.accept()
+            return True
+        return super().event(event)
+
+    def can_copy_card(self):
+        return self.card is not None and self.deck is not None
+
+    def copy_card(self):
+        if not self.can_copy_card():
+            return
+        copy_card_to_clipboard(self.card, self.deck)
+        self.toast.show_message(f"Copied {self.card['name']}")
+
     def enter_fullscreen(self):
-        # isVisibleTo, not isVisible: the switcher hides itself when only one
-        # deck has the card, and that state must survive fullscreen either way
         state = (
             self.splitter.sizes(),
-            self.deck_switcher.isVisibleTo(self),
+            self.card_bar.isVisibleTo(self),
             (
                 self.info_tabs.tabPosition(),
                 self.info_tabs.documentMode(),
@@ -224,7 +256,8 @@ class CardViewTab(BaseTab):
 
         # Bring the pane back at the width it had, if it is asked for again
         self._info_pane_width = state[0][1] or self._info_pane_width
-        self.deck_switcher.setVisible(False)
+        self.card_bar.setVisible(False)
+        self.bar_seam.setVisible(False)
         self.splitter.setSizes([sum(state[0]), 0])
 
         # horizontal tabs
@@ -235,8 +268,9 @@ class CardViewTab(BaseTab):
         return state
 
     def exit_fullscreen(self, state):
-        sizes, switcher_visible, tab_style = state
-        self.deck_switcher.setVisible(switcher_visible)
+        sizes, bar_visible, tab_style = state
+        self.card_bar.setVisible(bar_visible)
+        self.bar_seam.setVisible(bar_visible)
         self.splitter.setSizes(sizes)
         position, document_mode, expanding = tab_style
 
@@ -264,6 +298,7 @@ class CardViewTab(BaseTab):
 
     def sync_info_pane_button(self):
         """Keep the button saying what the next press will do"""
+        self.card_bar.sync_info_pane(self.info_pane_is_open())
         if self.info_pane_is_open():
             self.info_pane_button.set_icon("sidebar-collapse-right", ">")
             self.info_pane_button.setToolTip("Hide card details (I)")
@@ -275,8 +310,9 @@ class CardViewTab(BaseTab):
         full = self.is_fullscreen()
         self.exit_fullscreen_button.setVisible(full)
         self.info_pane_button.setVisible(full)
+        self.card_bar.sync_fullscreen(full)
+        self.sync_info_pane_button()
         if full:
-            self.sync_info_pane_button()
             self.toast.show_message("Press Esc to exit fullscreen")
         else:
             self.toast.dismiss()
@@ -368,8 +404,8 @@ class CardViewTab(BaseTab):
         # Update the tab name in the parent tab widget
         self.update_tab_name()
 
-        # Update deck switcher to reflect current selection
-        self.deck_switcher.update_compatible_decks(new_card, new_deck, self.deck_manager)
+        # Update the bar to reflect current selection
+        self.card_bar.update_decks(new_card, new_deck, self.deck_manager)
 
         # Show components again
         self.image_container.setVisible(True)

@@ -2,12 +2,13 @@ import os
 import random
 from pathlib import Path
 
-from PyQt6.QtCore import QPoint, QPointF, QRectF, QSize, Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import QPoint, QPointF, QRectF, QSize, Qt, QTimer, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import (
     QAction,
     QBrush,
     QColor,
     QCursor,
+    QGuiApplication,
     QIcon,
     QKeySequence,
     QPainter,
@@ -55,7 +56,9 @@ from tarot_canvas.ui.canvas.motion import (
     approach,
     system_animations_enabled,
 )
+from tarot_canvas.ui.card_transfer import card_from_mime, has_card
 from tarot_canvas.ui.tabs.base_tab import BaseTab
+from tarot_canvas.utils.logger import logger
 
 
 class CanvasTab(BaseTab):
@@ -66,6 +69,8 @@ class CanvasTab(BaseTab):
         super().__init__(parent)
         self.id = f"canvas_{id(self)}"
         self.tab_name = "Canvas"
+        # Set once the clipboard's card has been pasted here, until the next copy
+        self._clipboard_pasted = False
 
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
@@ -106,6 +111,7 @@ class CanvasTab(BaseTab):
 
         # Use our custom view with middle-drag and shift+drag panning
         self.view = PannableGraphicsView(self.scene)
+        self.view.card_dropped.connect(self.on_card_dropped)
 
         # Apply background from settings
         self.apply_background_settings()
@@ -444,6 +450,14 @@ class CanvasTab(BaseTab):
                 action.setCheckable(True)
                 self.fullscreen_action = action
 
+        # No shortcut of its own: Ctrl+V belongs to Edit > Paste Card
+        self.paste_action = QAction(QIcon.fromTheme("edit-paste"), "Paste", self)
+        self.paste_action.setToolTip("Paste card (Ctrl+V)")
+        self.paste_action.triggered.connect(self.on_paste_card)
+        self.toolbar.addAction(self.paste_action)
+        QGuiApplication.clipboard().dataChanged.connect(self.on_clipboard_changed)
+        self.update_paste_action()
+
         # Arrangement actions group
         self.toolbar.addSeparator()
         self.toolbar.addWidget(self.create_section_label("Arrange"))
@@ -596,8 +610,53 @@ class CanvasTab(BaseTab):
             pos = QPointF(pos.x() + step, pos.y() + step)
         return pos
 
-    def add_specific_card(self, card, card_deck=None, is_reversed=False):
-        """Add a specific card to the canvas"""
+    # -- card clipboard and drop ---------------------------------------------
+
+    def can_paste_card(self, mime):
+        # Once per copy: pasting the same clipboard again would only stack a duplicate
+        return has_card(mime) and not self._clipboard_pasted
+
+    def paste_card(self, mime):
+        item = self.place_card(mime)
+        if item is not None:
+            self._clipboard_pasted = True
+            self.update_paste_action()
+        return item
+
+    def place_card(self, mime, at=None):
+        """Resolve a card payload and place it; None if it names nothing installed"""
+        resolved = card_from_mime(mime, deck_manager.get_all_decks())
+        if resolved is None:
+            logger.warning("Nothing placed: the card payload did not resolve")
+            return None
+        card, deck, is_reversed = resolved
+        return self.add_specific_card(card, card_deck=deck, is_reversed=is_reversed, at=at)
+
+    def on_paste_card(self):
+        mime = QGuiApplication.clipboard().mimeData()
+        if self.can_paste_card(mime):
+            self.paste_card(mime)
+
+    # A real slot, so Qt itself drops the connection when the tab is deleted: the
+    # clipboard outlives every tab
+    @pyqtSlot()
+    def on_clipboard_changed(self):
+        self._clipboard_pasted = False
+        self.update_paste_action()
+
+    def update_paste_action(self):
+        self.paste_action.setEnabled(self.can_paste_card(QGuiApplication.clipboard().mimeData()))
+
+    def on_card_dropped(self, mime, scene_pos):
+        self.place_card(mime, at=scene_pos)
+
+    def add_specific_card(self, card, card_deck=None, is_reversed=False, at=None):
+        """Add a specific card to the canvas, optionally reversed
+
+        Centred on at (scene coordinates) if given, else under the pointer, else
+        near the middle of the view. A drop must pass at: a drag delivers no Enter,
+        so the tracked pointer is stale throughout one.
+        """
         # Load the card image
         image_path = card.get("image")
         if not image_path or not os.path.exists(image_path):
@@ -635,7 +694,7 @@ class CanvasTab(BaseTab):
                 selected_item.setSelected(False)
 
             # Place under the pointer (or middle of the view if it's in Narnia)
-            target = self.view.pointer_scene_pos()
+            target = at if at is not None else self.view.pointer_scene_pos()
             if target is None:
                 target = self.view.mapToScene(self.view.viewport().rect().center())
                 # slight nudge

@@ -97,12 +97,129 @@ def test_card_fills_a_wide_pane_without_waiting_for_a_resize(qtbot, big_image_de
     assert image.width() > viewport.width() * 0.9
 
 
-def test_deck_switcher_does_not_pin_the_pane_wide(qtbot, big_image_deck, stub_deck_manager):
+def test_card_bar_does_not_pin_the_pane_wide(qtbot, big_image_deck, stub_deck_manager):
     """A long deck name must elide rather than force a minimum width on the pane."""
+    big_image_deck._metadata["deck"]["name"] = "A Deck With An Extravagantly Long Name " * 3
     tab = make_tab(qtbot, big_image_deck, 700, 900, deck_count=2, stub=stub_deck_manager)
 
-    tab.deck_switcher.deck_combo.addItem("A Deck With An Extravagantly Long Name " * 3)
-    assert tab.deck_switcher.minimumSizeHint().width() < CardViewTab.MIN_IMAGE_PANE_WIDTH
+    assert tab.card_bar.deck_combo.width() <= tab.card_bar.MAX_COMBO_WIDTH
+    assert tab.card_bar.minimumSizeHint().width() < CardViewTab.MIN_IMAGE_PANE_WIDTH
+
+
+def test_the_deck_name_is_not_squeezed(qtbot, big_image_deck, stub_deck_manager):
+    """Short of room, icons go to the overflow menu before the name loses a letter."""
+    big_image_deck._metadata["deck"]["name"] = "Rider-Waite-Smith"
+    tab = make_tab(qtbot, big_image_deck, 700, 900, deck_count=2, stub=stub_deck_manager)
+    combo = tab.card_bar.deck_combo
+    needed = combo.fontMetrics().horizontalAdvance("Rider-Waite-Smith")
+
+    for width in (280, 400, 900):
+        tab.image_container.setFixedWidth(width)
+        qtbot.waitUntil(lambda w=width: tab.card_bar.width() <= w)
+        assert combo.width() > needed, width
+
+
+def bar_slot(tab):
+    """Where the bar sits in the image pane, and how many slots there are."""
+    layout = tab.image_container.layout()
+    return layout.indexOf(tab.card_bar), layout.count()
+
+
+@pytest.mark.parametrize("value", [None, "footer", "FOOTER", "sideways"])
+def test_the_bar_is_a_footer_unless_told_otherwise(qtbot, big_image_deck, monkeypatch, value):
+    if value is None:
+        monkeypatch.delenv("TAROT_CANVAS_CARD_BAR", raising=False)
+    else:
+        monkeypatch.setenv("TAROT_CANVAS_CARD_BAR", value)
+    tab = make_tab(qtbot, big_image_deck, 900, 900)
+
+    index, count = bar_slot(tab)
+    assert index == count - 1
+    assert tab.card_bar.geometry().top() > tab.image_view.geometry().bottom()
+
+
+def test_the_env_toggle_makes_it_a_header(qtbot, big_image_deck, monkeypatch):
+    monkeypatch.setenv("TAROT_CANVAS_CARD_BAR", "header")
+    tab = make_tab(qtbot, big_image_deck, 900, 900)
+
+    index, _ = bar_slot(tab)
+    assert index == 0
+    assert tab.card_bar.geometry().bottom() < tab.image_view.geometry().top()
+
+
+def test_one_deck_still_shows_the_bar_and_names_the_deck(qtbot, big_image_deck, stub_deck_manager):
+    tab = make_tab(qtbot, big_image_deck, 900, 900, deck_count=1, stub=stub_deck_manager)
+    bar = tab.card_bar
+
+    assert bar.isVisible()
+    assert bar.deck_combo.currentText() == big_image_deck.get_name()
+    assert not bar.deck_combo.isEnabled()
+    assert not bar.prev_deck_action.isEnabled()
+    assert not bar.next_deck_action.isEnabled()
+    assert bar.copy_action.isEnabled()
+
+
+def test_two_decks_enable_the_deck_controls(qtbot, big_image_deck, stub_deck_manager):
+    tab = make_tab(qtbot, big_image_deck, 900, 900, deck_count=2, stub=stub_deck_manager)
+    bar = tab.card_bar
+
+    assert bar.deck_combo.isEnabled()
+    assert bar.deck_combo.count() == 2
+    assert bar.next_deck_action.isEnabled()
+
+
+def test_a_deck_outside_the_library_is_still_named(qtbot, big_image_deck, stub_deck_manager):
+    """Opened with File > Open Deck: no installed deck has it, but it is on screen."""
+    stub_deck_manager.get_all_decks = list
+    tab = make_tab(qtbot, big_image_deck, 900, 900)
+
+    assert tab.card_bar.deck_combo.currentText() == big_image_deck.get_name()
+    assert not tab.card_bar.deck_combo.isEnabled()
+
+
+def test_no_bar_action_carries_a_shortcut(qtbot, big_image_deck):
+    """The keys belong to the window and the tab; a second binding would kill both."""
+    tab = make_tab(qtbot, big_image_deck, 900, 900)
+
+    assert [a.text() for a in tab.card_bar.actions() if not a.shortcut().isEmpty()] == []
+
+
+def test_the_bar_zooms(qtbot, big_image_deck):
+    tab = make_tab(qtbot, big_image_deck, 1200, 900)
+    view, bar = tab.image_view, tab.card_bar
+    fit = view.current_scale()
+
+    bar.zoom_in_action.trigger()
+    assert view.current_scale() > fit
+
+    bar.zoom_out_action.trigger()
+    assert view.is_at_fit()
+
+    bar.native_action.trigger()
+    assert view.current_scale() == pytest.approx(view.native_scale())
+
+
+def test_the_bar_toggles_the_card_details(qtbot, big_image_deck):
+    tab = make_tab(qtbot, big_image_deck, 1200, 900)
+    action = tab.card_bar.info_pane_action
+    assert tab.info_pane_is_open()
+    assert "Hide" in action.toolTip()
+
+    action.trigger()
+    assert not tab.info_pane_is_open()
+    assert "Show" in action.toolTip()
+
+
+def test_copying_from_the_bar_says_so(qtbot, big_image_deck, clipboard):
+    from tarot_canvas.ui.card_transfer import CARD_MIME
+
+    tab = make_tab(qtbot, big_image_deck, 1200, 900)
+
+    tab.card_bar.copy_action.trigger()
+
+    assert clipboard.mimeData().hasFormat(CARD_MIME)
+    assert tab.toast.isVisible()
+    assert tab.toast.text() == f"Copied {tab.card['name']}"
 
 
 def test_zoom_never_shrinks_the_card_below_the_pane(qtbot, big_image_deck):

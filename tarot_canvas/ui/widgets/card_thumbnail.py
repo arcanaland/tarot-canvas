@@ -1,8 +1,8 @@
 import os
 
 from PyQt6.QtCore import QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QFont, QPixmap
-from PyQt6.QtWidgets import QFrame, QLabel, QVBoxLayout
+from PyQt6.QtGui import QFont, QIcon, QPixmap
+from PyQt6.QtWidgets import QFrame, QLabel, QMenu, QVBoxLayout
 
 
 class CardThumbnail(QFrame):
@@ -10,6 +10,8 @@ class CardThumbnail(QFrame):
 
     clicked = pyqtSignal()
     double_clicked = pyqtSignal()  # New signal for double clicks
+    # The thumbnail knows its deck only by path; the owner copies with the Deck
+    copy_requested = pyqtSignal()
 
     def __init__(self, card, deck_path, size=None, parent=None):
         super().__init__(parent)
@@ -78,6 +80,20 @@ class CardThumbnail(QFrame):
     def mouseDoubleClickEvent(self, event):
         self.double_clicked.emit()
         super().mouseDoubleClickEvent(event)
+
+    def card_menu(self):
+        """Open does what a double-click does; Copy asks the owner to copy"""
+        menu = QMenu(self)
+        open_action = menu.addAction(QIcon.fromTheme("document-open"), "&Open Card")
+        open_action.triggered.connect(self.double_clicked)
+        copy_action = menu.addAction(QIcon.fromTheme("edit-copy"), "&Copy Card")
+        copy_action.triggered.connect(self.copy_requested)
+        return menu
+
+    def contextMenuEvent(self, event):
+        menu = self.card_menu()
+        menu.exec(event.globalPos())
+        menu.deleteLater()
 
     def enterEvent(self, event):
         # Highlight on hover

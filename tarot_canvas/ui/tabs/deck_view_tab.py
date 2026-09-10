@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
 )
 
 from tarot_canvas.models.deck import TarotDeck
+from tarot_canvas.ui.card_transfer import copy_card_to_clipboard
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.ui.widgets import deck_header
@@ -144,11 +145,7 @@ class DeckViewTab(BaseTab):
 
         # Add cards to journey
         for card in major_arcana:
-            thumbnail = CardThumbnail(card, self.deck.deck_path, size=self.card_size)
-            # Connect signals to our local handlers
-            thumbnail.clicked.connect(lambda c=card: self.handle_card_click(c))
-            thumbnail.double_clicked.connect(lambda c=card: self.handle_card_double_click(c))
-            journey_layout.addWidget(thumbnail)
+            journey_layout.addWidget(self.make_thumbnail(card))
 
         # Add spacer to prevent cards from stretching
         journey_layout.addStretch()
@@ -214,17 +211,21 @@ class DeckViewTab(BaseTab):
 
             # Add cards to row
             for card in suit_cards:
-                thumbnail = CardThumbnail(card, self.deck.deck_path, size=self.card_size)
-                # Connect signals to our local handlers
-                thumbnail.clicked.connect(lambda c=card: self.handle_card_click(c))
-                thumbnail.double_clicked.connect(lambda c=card: self.handle_card_double_click(c))
-                cards_layout.addWidget(thumbnail)
+                cards_layout.addWidget(self.make_thumbnail(card))
 
             # Add spacer to prevent cards from stretching
             cards_layout.addStretch()
 
             scroll.setWidget(content)
             layout.addWidget(scroll)
+
+    def make_thumbnail(self, card):
+        thumbnail = CardThumbnail(card, self.deck.deck_path, size=self.card_size)
+        # Connect signals to our local handlers
+        thumbnail.clicked.connect(lambda c=card: self.handle_card_click(c))
+        thumbnail.double_clicked.connect(lambda c=card: self.handle_card_double_click(c))
+        thumbnail.copy_requested.connect(lambda c=card: copy_card_to_clipboard(c, self.deck))
+        return thumbnail
 
     def handle_card_click(self, card):
         """Handle single click on a card thumbnail"""

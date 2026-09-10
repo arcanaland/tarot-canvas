@@ -1,16 +1,22 @@
 from contextlib import contextmanager
 
-from PyQt6.QtCore import QEvent, Qt
+from PyQt6.QtCore import QEvent, QMimeData, QPointF, Qt, pyqtSignal
 from PyQt6.QtGui import QPainter
 from PyQt6.QtWidgets import QApplication, QGraphicsView
+
+from tarot_canvas.ui.card_transfer import has_card
 
 MIN_ZOOM = 0.1
 MAX_ZOOM = 8.0
 
 
 class PannableGraphicsView(QGraphicsView):
+    # A card payload let go over the canvas, and where, in scene coordinates
+    card_dropped = pyqtSignal(QMimeData, QPointF)
+
     def __init__(self, scene, parent=None):
         super().__init__(scene, parent)
+        self.setAcceptDrops(True)
         self.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
         self.setCacheMode(QGraphicsView.CacheModeFlag.CacheBackground)
@@ -155,6 +161,30 @@ class PannableGraphicsView(QGraphicsView):
             event.accept()
         else:
             super().mouseReleaseEvent(event)
+
+    # -- drop -------------------------------------------------------------
+    # All three, not just enter: QGraphicsView's own dragMoveEvent asks the scene,
+    # and with no item accepting drops the scene refuses what enter just accepted.
+
+    def dragEnterEvent(self, event):
+        if has_card(event.mimeData()):
+            event.acceptProposedAction()
+        else:
+            super().dragEnterEvent(event)
+
+    def dragMoveEvent(self, event):
+        if has_card(event.mimeData()):
+            event.acceptProposedAction()
+        else:
+            super().dragMoveEvent(event)
+
+    def dropEvent(self, event):
+        if has_card(event.mimeData()):
+            scene_pos = self.mapToScene(event.position().toPoint())
+            self.card_dropped.emit(event.mimeData(), scene_pos)
+            event.acceptProposedAction()
+        else:
+            super().dropEvent(event)
 
     def wheelEvent(self, event):
         """Handle zooming with mouse wheel, anchored under the pointer"""

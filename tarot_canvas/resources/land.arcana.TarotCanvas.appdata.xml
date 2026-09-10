@@ -48,7 +48,8 @@
     <release version="1.4.2" date="2026-09-11" type="development">
       <description>
         <ul>
-          <li>Add full-screen mode to card view.</li>
+          <li>New full-screen mode for card view.</li>
+          <li>Add copy-and-paste from card to canvas.</li>
           <li>Improve card motion and feel (juicy!) in canvas view.</li>
         </ul>
       </description>

@@ -2,6 +2,7 @@ import atexit
 import os
 import shutil
 import tempfile
+from functools import partial
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -50,6 +51,32 @@ def block_reference_deck_network(monkeypatch):
     )
 
 
+@pytest.fixture(autouse=True)
+def flush_closed_widgets():
+    """Delete what qtbot closed before the next test runs an event loop.
+
+    qtbot closes its widgets with deleteLater, which lands only when an event loop
+    next runs, so a later test's qtbot.wait() would paint windows from tests long
+    over. On Qt 6.11 a LibraryTab's delegate segfaulted doing exactly that.
+    """
+    yield
+    from PyQt6.QtCore import QCoreApplication, QEvent
+
+    if QCoreApplication.instance() is not None:
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+
+@pytest.fixture
+def clipboard(qapp):
+    """The process-wide clipboard, emptied either side of the test."""
+    from PyQt6.QtGui import QGuiApplication
+
+    board = QGuiApplication.clipboard()
+    board.clear()
+    yield board
+    board.clear()
+
+
 @pytest.fixture
 def minimal_deck():
     from tarot_canvas.models.deck import TarotDeck
@@ -68,6 +95,10 @@ def stub_deck_manager(monkeypatch, minimal_deck):
         get_deck=lambda name: None,
         get_all_decks=lambda: [minimal_deck],
     )
+    from tarot_canvas.models.deck_manager import DeckManager
+
+    # The real join, run over whatever get_all_decks a test swaps in
+    stub.decks_containing = partial(DeckManager.decks_containing, stub)
     for module_path in DECK_MANAGER_CONSUMERS:
         monkeypatch.setattr(f"{module_path}.deck_manager", stub, raising=False)
     return stub

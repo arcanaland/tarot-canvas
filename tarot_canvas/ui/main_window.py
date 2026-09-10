@@ -2,11 +2,12 @@ import os
 from importlib.resources import files
 from pathlib import Path
 
-from PyQt6.QtCore import QEvent, QObject, Qt, QUrl, pyqtSignal
+from PyQt6.QtCore import QEvent, QObject, Qt, QUrl, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import (
     QAction,
     QActionGroup,
     QDesktopServices,
+    QGuiApplication,
     QIcon,
     QKeySequence,
     QShortcut,
@@ -115,6 +116,9 @@ class MainWindow(QMainWindow):
         self.init_ui()
         self.setup_shortcuts()
 
+        QGuiApplication.clipboard().dataChanged.connect(self.update_card_clipboard_actions)
+        self.update_card_clipboard_actions()
+
     def create_menus(self):
         # Create menu bar
         menu_bar = self.menuBar()
@@ -164,6 +168,25 @@ class MainWindow(QMainWindow):
 
         # Edit menu
         edit_menu = menu_bar.addMenu("&Edit")
+        edit_menu.aboutToShow.connect(self.update_card_clipboard_actions)
+
+        # The only bindings of Ctrl+C / Ctrl+V in the app: the current tab answers.
+        # On the window too, or hiding the menu bar in fullscreen kills the keys.
+        self.copy_card_action = QAction("&Copy Card", self)
+        self.copy_card_action.setShortcuts(QKeySequence.StandardKey.Copy)
+        self.copy_card_action.setIcon(QIcon.fromTheme("edit-copy"))
+        self.copy_card_action.triggered.connect(self.copy_card)
+        edit_menu.addAction(self.copy_card_action)
+        self.addAction(self.copy_card_action)
+
+        self.paste_card_action = QAction("&Paste Card", self)
+        self.paste_card_action.setShortcuts(QKeySequence.StandardKey.Paste)
+        self.paste_card_action.setIcon(QIcon.fromTheme("edit-paste"))
+        self.paste_card_action.triggered.connect(self.paste_card)
+        edit_menu.addAction(self.paste_card_action)
+        self.addAction(self.paste_card_action)
+
+        edit_menu.addSeparator()
 
         preferences_action = QAction("&Preferences", self)
         preferences_action.triggered.connect(self.show_preferences)
@@ -648,6 +671,32 @@ class MainWindow(QMainWindow):
     def on_tab_changed(self, _index):
         if self.fullscreen_tab is not None:
             self.exit_tab_fullscreen()
+        self.update_card_clipboard_actions()
+
+    def current_base_tab(self):
+        tab = self.tab_widget.currentWidget()
+        return tab if isinstance(tab, BaseTab) else None
+
+    # A real slot, so Qt itself drops the clipboard connection when the window is deleted
+    @pyqtSlot()
+    def update_card_clipboard_actions(self):
+        """Copy/Paste Card enable as the current tab says, for what is on the clipboard"""
+        tab = self.current_base_tab()
+        mime = QGuiApplication.clipboard().mimeData()
+        self.copy_card_action.setEnabled(tab is not None and tab.can_copy_card())
+        self.paste_card_action.setEnabled(tab is not None and tab.can_paste_card(mime))
+
+    def copy_card(self):
+        tab = self.current_base_tab()
+        if tab is not None and tab.can_copy_card():
+            tab.copy_card()
+
+    def paste_card(self):
+        tab = self.current_base_tab()
+        mime = QGuiApplication.clipboard().mimeData()
+        if tab is not None and tab.can_paste_card(mime):
+            tab.paste_card(mime)
+        self.update_card_clipboard_actions()
 
     def toggle_tab_fullscreen(self):
         """Toggle a chrome-free fullscreen showing only the current tab

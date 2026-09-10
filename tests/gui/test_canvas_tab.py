@@ -1,9 +1,17 @@
-from PyQt6.QtCore import QEvent, QPoint, QPointF, Qt
-from PyQt6.QtGui import QEnterEvent, QMouseEvent, QPixmap
+from PyQt6.QtCore import QEvent, QMimeData, QPoint, QPointF, Qt
+from PyQt6.QtGui import (
+    QDragEnterEvent,
+    QDragMoveEvent,
+    QDropEvent,
+    QEnterEvent,
+    QMouseEvent,
+    QPixmap,
+)
 from PyQt6.QtWidgets import QApplication
 
 from tarot_canvas.settings import MOTION_LEVEL_KEY, get_settings
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
+from tarot_canvas.ui.card_transfer import card_mime_data, copy_card_to_clipboard
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 
 
@@ -423,3 +431,126 @@ def test_applying_preferences_starts_and_stops_the_clock(qtbot):
     set_motion_level("Full")
     tab.apply_background_settings()
     assert tab.motion_clock.is_running()
+
+
+# -- paste and drop ----------------------------------------------------------------
+
+
+def drag_over(tab, mime, viewport_pos):
+    """Enter, move and drop at viewport_pos, as a real drag would. Returns the events."""
+    viewport = tab.view.viewport()
+    args = (
+        Qt.DropAction.CopyAction,
+        mime,
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+    )
+    enter = QDragEnterEvent(viewport_pos, *args)
+    move = QDragMoveEvent(viewport_pos, *args)
+    drop = QDropEvent(QPointF(viewport_pos), *args)
+    for event in (enter, move, drop):
+        QApplication.sendEvent(viewport, event)
+    return enter, move, drop
+
+
+def test_a_dropped_card_lands_centred_under_the_drop(qtbot, minimal_deck):
+    tab = make_tab(qtbot)
+    spot = QPoint(160, 120)
+    card = minimal_deck.get_card_by_id("major_arcana.01")
+
+    enter, move, drop = drag_over(tab, card_mime_data(card, minimal_deck), spot)
+
+    assert enter.isAccepted()
+    assert move.isAccepted(), "QGraphicsView's own dragMoveEvent refuses what enter accepted"
+    assert drop.isAccepted()
+    placed = only_card(tab)
+    assert placed.card_data["id"] == "major_arcana.01"
+    centre = placed.sceneBoundingRect().center()
+    expected = tab.view.mapToScene(spot)
+    assert abs(centre.x() - expected.x()) <= 1
+    assert abs(centre.y() - expected.y()) <= 1
+    qtbot.wait(1100)
+
+
+def test_a_drop_ignores_the_stale_pointer(qtbot, minimal_deck):
+    """A drag delivers no Enter, so the tracked pointer is wherever it last was."""
+    tab = make_tab(qtbot)
+    hover_canvas(tab, QPoint(40, 40))
+    card = minimal_deck.get_card_by_id("major_arcana.00")
+
+    drag_over(tab, card_mime_data(card, minimal_deck), QPoint(260, 200))
+
+    centre = only_card(tab).sceneBoundingRect().center()
+    assert abs(centre.x() - tab.view.mapToScene(QPoint(260, 200)).x()) <= 1
+    qtbot.wait(1100)
+
+
+def test_a_drop_that_is_not_a_card_places_nothing(qtbot):
+    tab = make_tab(qtbot)
+    mime = QMimeData()
+    mime.setText("The Fool")
+
+    _, move, _ = drag_over(tab, mime, QPoint(160, 120))
+
+    # QGraphicsScene accepts every enter; the move is where a drag is refused, so a
+    # real one shows the forbidden cursor and never gets as far as a drop
+    assert not move.isAccepted()
+    assert [i for i in tab.scene.items() if isinstance(i, DraggableCardItem)] == []
+    qtbot.wait(1100)
+
+
+def test_the_toolbar_paste_button_follows_the_clipboard(qtbot, clipboard, minimal_deck):
+    tab = make_tab(qtbot)
+    assert not tab.paste_action.isEnabled()
+    assert tab.paste_action.shortcut().isEmpty(), "Ctrl+V belongs to Edit > Paste Card"
+
+    copy_card_to_clipboard(minimal_deck.get_card_by_id("major_arcana.00"), minimal_deck)
+    assert tab.paste_action.isEnabled()
+
+    tab.paste_action.trigger()
+    assert only_card(tab).card_data["id"] == "major_arcana.00"
+    qtbot.wait(1100)
+
+
+def test_a_copy_pastes_once(qtbot, clipboard, minimal_deck):
+    """A second paste of the same clipboard would only stack a duplicate."""
+    tab = make_tab(qtbot)
+    card = minimal_deck.get_card_by_id("major_arcana.00")
+    copy_card_to_clipboard(card, minimal_deck)
+
+    tab.paste_action.trigger()
+    assert not tab.paste_action.isEnabled()
+    assert not tab.can_paste_card(clipboard.mimeData())
+    tab.on_paste_card()
+    assert len([i for i in tab.scene.items() if isinstance(i, DraggableCardItem)]) == 1
+
+    copy_card_to_clipboard(card, minimal_deck)
+    assert tab.paste_action.isEnabled(), "a new copy is a new paste"
+    qtbot.wait(1100)
+
+
+def test_pasting_once_does_not_stop_a_drop(qtbot, clipboard, minimal_deck):
+    tab = make_tab(qtbot)
+    card = minimal_deck.get_card_by_id("major_arcana.00")
+    copy_card_to_clipboard(card, minimal_deck)
+    tab.paste_action.trigger()
+
+    drag_over(tab, card_mime_data(card, minimal_deck), QPoint(260, 200))
+
+    assert len([i for i in tab.scene.items() if isinstance(i, DraggableCardItem)]) == 2
+    qtbot.wait(1100)
+
+
+def test_a_paste_naming_a_removed_deck_places_nothing(qtbot, clipboard, minimal_deck, tmp_path):
+    import shutil
+
+    from tarot_canvas.models.deck import TarotDeck
+    from tests.conftest import MINIMAL_DECK_PATH
+
+    shutil.copytree(MINIMAL_DECK_PATH, tmp_path / "gone")
+    gone = TarotDeck(str(tmp_path / "gone"))
+    tab = make_tab(qtbot)
+
+    assert tab.paste_card(card_mime_data(gone.get_random_card(), gone)) is None
+    assert [i for i in tab.scene.items() if isinstance(i, DraggableCardItem)] == []
+    qtbot.wait(1100)
