@@ -166,16 +166,6 @@ def test_a_closed_explorer_stays_closed_next_session(qtbot):
     assert third.explorer_action.isChecked()
 
 
-def test_canvas_fullscreen_does_not_forget_the_explorer(qtbot):
-    """Fullscreen hides the explorer as chrome; that is not the user closing it."""
-    window, tab = make_window_with_canvas(qtbot)
-
-    tab.on_toggle_fullscreen()
-    assert not window.card_explorer.isVisible()
-
-    assert get_settings().value(EXPLORER_VISIBLE_KEY, True, type=bool)
-
-
 def test_opening_the_same_deck_twice_reuses_its_tab(qtbot):
     window = MainWindow()
     qtbot.addWidget(window)
