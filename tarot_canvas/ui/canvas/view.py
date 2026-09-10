@@ -13,6 +13,7 @@ class PannableGraphicsView(QGraphicsView):
         super().__init__(scene, parent)
         self.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
+        self.setCacheMode(QGraphicsView.CacheModeFlag.CacheBackground)
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
         self._pan_button = None
         self._last_mouse_pos = None

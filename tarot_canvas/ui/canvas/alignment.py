@@ -1,8 +1,21 @@
 import math
 
 from PyQt6.QtCore import QPointF
+from PyQt6.QtGui import QTransform
 
 DEFAULT_CIRCLE_GAP_RATIO = 0.15
+
+
+def logical_rect(item):
+    rect = item.boundingRect()
+    quarter_turns = round(item.rotation() / 90) % 4
+    if quarter_turns:
+        origin = item.transformOriginPoint()
+        turn = QTransform().translate(origin.x(), origin.y())
+        turn.rotate(quarter_turns * 90)
+        turn.translate(-origin.x(), -origin.y())
+        rect = turn.mapRect(rect)
+    return rect.translated(item.pos())
 
 
 def align_items_horizontally(items, alignment):
@@ -11,29 +24,26 @@ def align_items_horizontally(items, alignment):
         return
 
     if alignment == "left":
-        # Find leftmost edge
-        leftmost = min(item.sceneBoundingRect().left() for item in items)
+        leftmost = min(logical_rect(item).left() for item in items)
         # Align all to leftmost edge
         for item in items:
-            item_rect = item.sceneBoundingRect()
+            item_rect = logical_rect(item)
             offset = leftmost - item_rect.left()
             item.setPos(item.pos().x() + offset, item.pos().y())
 
     elif alignment == "center":
-        # Calculate average center X
-        avg_center_x = sum(item.sceneBoundingRect().center().x() for item in items) / len(items)
+        avg_center_x = sum(logical_rect(item).center().x() for item in items) / len(items)
         # Align all to average center
         for item in items:
-            item_rect = item.sceneBoundingRect()
+            item_rect = logical_rect(item)
             offset = avg_center_x - item_rect.center().x()
             item.setPos(item.pos().x() + offset, item.pos().y())
 
     elif alignment == "right":
-        # Find rightmost edge
-        rightmost = max(item.sceneBoundingRect().right() for item in items)
+        rightmost = max(logical_rect(item).right() for item in items)
         # Align all to rightmost edge
         for item in items:
-            item_rect = item.sceneBoundingRect()
+            item_rect = logical_rect(item)
             offset = rightmost - item_rect.right()
             item.setPos(item.pos().x() + offset, item.pos().y())
 
@@ -44,29 +54,26 @@ def align_items_vertically(items, alignment):
         return
 
     if alignment == "top":
-        # Find topmost edge
-        topmost = min(item.sceneBoundingRect().top() for item in items)
+        topmost = min(logical_rect(item).top() for item in items)
         # Align all to topmost edge
         for item in items:
-            item_rect = item.sceneBoundingRect()
+            item_rect = logical_rect(item)
             offset = topmost - item_rect.top()
             item.setPos(item.pos().x(), item.pos().y() + offset)
 
     elif alignment == "center":
-        # Calculate average center Y
-        avg_center_y = sum(item.sceneBoundingRect().center().y() for item in items) / len(items)
+        avg_center_y = sum(logical_rect(item).center().y() for item in items) / len(items)
         # Align all to average center
         for item in items:
-            item_rect = item.sceneBoundingRect()
+            item_rect = logical_rect(item)
             offset = avg_center_y - item_rect.center().y()
             item.setPos(item.pos().x(), item.pos().y() + offset)
 
     elif alignment == "bottom":
-        # Find bottommost edge
-        bottommost = max(item.sceneBoundingRect().bottom() for item in items)
+        bottommost = max(logical_rect(item).bottom() for item in items)
         # Align all to bottommost edge
         for item in items:
-            item_rect = item.sceneBoundingRect()
+            item_rect = logical_rect(item)
             offset = bottommost - item_rect.bottom()
             item.setPos(item.pos().x(), item.pos().y() + offset)
 
@@ -77,11 +84,11 @@ def distribute_items_horizontally(items):
         return  # Need at least 3 items to distribute
 
     # Sort items by x position
-    sorted_items = sorted(items, key=lambda item: item.sceneBoundingRect().center().x())
+    sorted_items = sorted(items, key=lambda item: logical_rect(item).center().x())
 
     # Get leftmost and rightmost positions
-    left_edge = sorted_items[0].sceneBoundingRect().center().x()
-    right_edge = sorted_items[-1].sceneBoundingRect().center().x()
+    left_edge = logical_rect(sorted_items[0]).center().x()
+    right_edge = logical_rect(sorted_items[-1]).center().x()
 
     # Calculate equal spacing
     total_width = right_edge - left_edge
@@ -91,7 +98,7 @@ def distribute_items_horizontally(items):
     for i in range(1, len(sorted_items) - 1):
         item = sorted_items[i]
         target_x = left_edge + (i * spacing)
-        current_center = item.sceneBoundingRect().center()
+        current_center = logical_rect(item).center()
         offset_x = target_x - current_center.x()
         item.setPos(item.pos().x() + offset_x, item.pos().y())
 
@@ -102,11 +109,11 @@ def distribute_items_vertically(items):
         return  # Need at least 3 items to distribute
 
     # Sort items by y position
-    sorted_items = sorted(items, key=lambda item: item.sceneBoundingRect().center().y())
+    sorted_items = sorted(items, key=lambda item: logical_rect(item).center().y())
 
     # Get topmost and bottommost positions
-    top_edge = sorted_items[0].sceneBoundingRect().center().y()
-    bottom_edge = sorted_items[-1].sceneBoundingRect().center().y()
+    top_edge = logical_rect(sorted_items[0]).center().y()
+    bottom_edge = logical_rect(sorted_items[-1]).center().y()
 
     # Calculate equal spacing
     total_height = bottom_edge - top_edge
@@ -116,7 +123,7 @@ def distribute_items_vertically(items):
     for i in range(1, len(sorted_items) - 1):
         item = sorted_items[i]
         target_y = top_edge + (i * spacing)
-        current_center = item.sceneBoundingRect().center()
+        current_center = logical_rect(item).center()
         offset_y = target_y - current_center.y()
         item.setPos(item.pos().x(), item.pos().y() + offset_y)
 
