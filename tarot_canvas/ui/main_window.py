@@ -183,10 +183,6 @@ class MainWindow(QMainWindow):
         view_menu.addSeparator()
 
         self.fullscreen_tab_action = QAction("&Fullscreen", self)
-        # Ctrl+Shift+F is KStandardShortcut::FullScreen, and the HIG asks for
-        # "modifier and alphanumeric keys; never just a function key, as these can
-        # be hard to access on laptops". F11 stays as an unadvertised alias for
-        # anyone arriving with browser muscle memory.
         self.fullscreen_tab_action.setShortcuts([QKeySequence("Ctrl+Shift+F"), QKeySequence("F11")])
         self.fullscreen_tab_action.setStatusTip("Fullscreen the current tab (Ctrl+Shift+F or F)")
         self.fullscreen_tab_action.setCheckable(True)
@@ -470,12 +466,7 @@ class MainWindow(QMainWindow):
             tab.tab_name = new_name
 
     def add_card_tab(self, card_tab, title, close_welcome=False):
-        """Adopt a card view tab. Every construction site must come through here.
-
-        A card tab is inert until its navigation_requested is connected -- the
-        deck link and back-navigation both go through it -- and wiring that up
-        at each construction site meant two of the five silently skipped it.
-        """
+        """Adopt a card view tab. Every construction site must come through here."""
         card_tab.navigation_requested.connect(self.handle_tab_navigation)
         if close_welcome:
             self.close_welcome_tab()
@@ -690,13 +681,8 @@ class MainWindow(QMainWindow):
         self.centralWidget().layout().setContentsMargins(0, 0, 0, 0)
 
         if not self.isFullScreen():
-            # setWindowState, not showFullScreen(): showFullScreen() clears the
-            # Maximized bit outright, so a window that was maximized on the way
-            # in has nothing left to go back to. OR-ing the flag on carries the
-            # rest of the state through fullscreen untouched.
             self.setWindowState(self.windowState() | Qt.WindowState.WindowFullScreen)
-        # Hiding the explorer can leave focus nowhere in particular; put it in
-        # the tab so its own shortcuts (Esc, F, I) are live straight away.
+
         tab.fullscreen_focus_widget().setFocus(Qt.FocusReason.OtherFocusReason)
         self.fullscreen_tab_action.setChecked(True)
         tab.on_fullscreen_changed()
@@ -714,12 +700,8 @@ class MainWindow(QMainWindow):
             self.main_splitter.setSizes(state["splitter_sizes"])
             self.centralWidget().layout().setContentsMargins(state["margins"])
             tab.exit_fullscreen(state["tab_state"])
-            # Only undo our own fullscreen: the window manager may have put the
-            # window fullscreen independently, and that is not ours to revert.
-            # Clear just that one bit -- showNormal() would also drop a
-            # maximized window back to its small restored geometry -- and put
-            # the Maximized bit back explicitly, since a compositor is free to
-            # have dropped it while the window was fullscreen.
+
+            # Only undo our own fullscreen
             if not state["window_fullscreen"]:
                 window_state = self.windowState() & ~Qt.WindowState.WindowFullScreen
                 if state["window_maximized"]:

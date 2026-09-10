@@ -6,15 +6,7 @@ from tarot_canvas.ui.widgets.overlay_chrome import paint_surface, text_color
 
 
 class Toast(QLabel):
-    """A transient message floating over a content view, then fading away.
-
-    The KDE analogue is a passive notification (hig/status_changes.md): for
-    "ignorable or low-importance messages". That page also asks us to minimise
-    status messages, and this one obeys the spirit of it -- it does not announce
-    that something succeeded (the screen already showed that), it teaches the
-    keystroke that undoes a mode which has just hidden every other way out.
-    """
-
+    """A transient toast message"""
     MARGIN = 24
     HOLD_MS = 2200
     FADE_MS = 400
@@ -25,13 +17,7 @@ class Toast(QLabel):
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        # Contents margins rather than a stylesheet `padding`: QLabel already
-        # counts them in sizeHint and lays the text out inside them, so
-        # adjustSize() keeps working with no sheet in play.
         self.setContentsMargins(16, 8, 16, 8)
-        # We are a child of the image view and inherit its palette, but this is
-        # chrome on top of the content, so take the window's foreground -- the
-        # same colour paint_surface derives its fill and rim from.
         self.setForegroundRole(QPalette.ColorRole.WindowText)
         palette = self.palette()
         palette.setColor(QPalette.ColorRole.WindowText, text_color(self))
@@ -50,9 +36,7 @@ class Toast(QLabel):
         self._hold.setSingleShot(True)
         self._hold.timeout.connect(self._start_fade)
 
-        # A view reports its resize before it has resized its own viewport and
-        # refitted its contents, so anything measuring the view from inside that
-        # event is a resize behind. Place ourselves on the next turn instead.
+        # A view reports its resize before it has resized its own viewport.
         self._replace = QTimer(self)
         self._replace.setSingleShot(True)
         self._replace.setInterval(0)
@@ -70,25 +54,19 @@ class Toast(QLabel):
         self.reposition()
         self.show()
         self.raise_()
+
         # The mode that shows a hint usually resizes the view on its way in
         self._replace.start()
         self._hold.start(self.HOLD_MS if hold_ms is None else hold_ms)
 
     def dismiss(self):
-        """Take it away now, without a fade (the mode it described is over)"""
         self._hold.stop()
         self._fade.stop()
         self._replace.stop()
         self.hide()
 
     def reposition(self):
-        """Beside the content if the parent knows of somewhere clear of it.
-
-        A view that can say where its content is not -- ZoomableImageView, whose
-        cards leave wide empty bands either side -- gets to place us there, so a
-        hint never sits on the thing it is a hint about. Anything else falls back
-        to the bottom of the view.
-        """
+        """Beside the content"""
         parent = self.parentWidget()
         if parent is None:
             return
@@ -101,10 +79,6 @@ class Toast(QLabel):
         self.move(position)
 
     def paintEvent(self, event):
-        """Same antialiased, palette-derived surface the overlay buttons use.
-
-        See overlay_chrome for why this is painted rather than styled.
-        """
         painter = QPainter(self)
         paint_surface(self, painter, radius=self.RADIUS)
         painter.end()

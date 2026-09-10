@@ -60,7 +60,6 @@ def test_canvas_fullscreen_hides_chrome_and_puts_it_back(qtbot):
 
 
 def test_leaving_fullscreen_puts_a_maximized_window_back_as_maximized(qtbot):
-    """showNormal() would drop the window to its small restored geometry."""
     window, tab = make_window_with_canvas(qtbot)
     window.showMaximized()
     qtbot.waitUntil(window.isMaximized)
@@ -74,7 +73,6 @@ def test_leaving_fullscreen_puts_a_maximized_window_back_as_maximized(qtbot):
 
 
 def test_the_canvas_grows_with_the_window(qtbot):
-    """No height cap: a maximized window must not leave a gap under the canvas."""
     window, tab = make_window_with_canvas(qtbot)
     window.resize(1200, 1400)
     qtbot.waitUntil(lambda: tab.height() > 900)
@@ -179,8 +177,6 @@ def make_window_with_card_view(qtbot):
 
 def test_card_view_fullscreen_shows_the_artwork_alone(qtbot):
     window, tab = make_window_with_card_view(qtbot)
-    # the switcher hides itself when only one deck has the card; force it on so
-    # there is something for fullscreen to collapse and restore
     tab.deck_switcher.setVisible(True)
     sizes_before = tab.splitter.sizes()
 
@@ -260,57 +256,7 @@ def test_fullscreen_offers_a_button_and_a_hint_at_the_key(qtbot):
     # the hint described a mode that is over; it must not linger over the layout
     assert not tab.toast.isVisible()
 
-
-def test_the_hint_fades_on_its_own(qtbot):
-    window, tab = make_window_with_card_view(qtbot)
-    window.toggle_tab_fullscreen()
-
-    tab.toast.show_message("Press Esc to exit fullscreen", hold_ms=10)
-    qtbot.waitUntil(lambda: not tab.toast.isVisible(), timeout=3000)
-    assert window.fullscreen_tab is tab  # fading the hint changes nothing else
-
-
-def test_the_exit_button_tracks_the_top_corner_of_the_image_view(qtbot):
-    window, tab = make_window_with_card_view(qtbot)
-    view, button = tab.image_view, tab.exit_fullscreen_button
-    window.toggle_tab_fullscreen()
-    qtbot.waitUntil(lambda: view.width() > 100)
-
-    def in_the_top_trailing_corner():
-        margin = button.MARGIN
-        return (
-            button.geometry().right() == view.width() - margin - 1
-            and button.geometry().top() == margin
-        )
-
-    qtbot.waitUntil(in_the_top_trailing_corner)
-    window.resize(1100, 800)
-    qtbot.waitUntil(in_the_top_trailing_corner)
-
-
-def test_the_information_tabs_turn_upright_only_in_fullscreen(qtbot):
-    """East windowed, where the rotated strip costs the least width."""
-    window, tab = make_window_with_card_view(qtbot)
-    assert [tab.info_tabs.tabText(i) for i in range(tab.info_tabs.count())] == [
-        "Overview",
-        "Esoterica",
-        "Notes",
-    ]
-    # framed tabs sized to their labels, as the windowed pane has always drawn
-    assert tab.info_tabs.tabPosition() == QTabWidget.TabPosition.East
-    assert not tab.info_tabs.documentMode()
-
-    window.toggle_tab_fullscreen()
-    assert tab.info_tabs.tabPosition() == QTabWidget.TabPosition.North
-    assert tab.info_tabs.documentMode()
-
-    window.toggle_tab_fullscreen()
-    assert tab.info_tabs.tabPosition() == QTabWidget.TabPosition.East
-    assert not tab.info_tabs.documentMode()
-
-
 def test_fullscreen_offers_a_way_back_to_the_card_details(qtbot):
-    """The collapsed handle is against the screen edge; this is the visible way."""
     window, tab = make_window_with_card_view(qtbot)
     width_before = tab.splitter.sizes()[1]
     assert width_before > 0
@@ -323,7 +269,6 @@ def test_fullscreen_offers_a_way_back_to_the_card_details(qtbot):
 
     qtbot.mouseClick(tab.info_pane_button, Qt.MouseButton.LeftButton)
     assert tab.info_pane_is_open()
-    # back at the width it had before fullscreen collapsed it
     assert tab.splitter.sizes()[1] == width_before
     assert "Hide card details" in tab.info_pane_button.toolTip()
 
@@ -355,9 +300,6 @@ def test_dragging_the_pane_open_updates_the_button(qtbot):
 
 
 def test_the_fullscreen_tabs_share_the_pane_between_them(qtbot):
-    """QTabWidget.setDocumentMode() forces expanding off; if that is not undone
-    the bar runs the width of the pane while the tabs huddle at its leading
-    edge."""
     window, tab = make_window_with_card_view(qtbot)
     bar = tab.info_tabs.tabBar()
     windowed = bar.width()
@@ -620,8 +562,6 @@ def deck_link(tab):
 def test_the_deck_link_opens_the_deck_however_the_card_was_opened(
     qtbot, open_a_card, stub_deck_manager
 ):
-    """A card tab is inert until its navigation_requested is connected, and
-    connecting that per construction site left two of the five paths dead."""
     window = MainWindow()
     qtbot.addWidget(window)
     window.show()

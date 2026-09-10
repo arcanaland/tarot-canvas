@@ -108,28 +108,16 @@ class ZoomableImageView(QGraphicsView):
 
     # -- geometry --------------------------------------------------------
 
-    # Breathing room between a widget parked beside the artwork and both the
-    # artwork's edge and the edge of the view.
+    # Breathing room for widget beside the artwork
     BAND_MARGIN = 16
 
     def image_viewport_rect(self):
-        """The artwork's on-screen rectangle, in viewport coordinates."""
         if not self._pixmap_item:
             return QRect()
         return self.mapFromScene(self._pixmap_item.sceneBoundingRect()).boundingRect()
 
     def clear_band_position(self, size):
-        """Where a `size` widget fits beside the artwork rather than on it.
-
-        A tarot card is far taller than it is wide, so on any landscape display
-        it is height-limited at fit and leaves two wide empty bands to either
-        side. Those bands are the only part of this view that is never artwork,
-        which makes them the right home for transient chrome.
-
-        Returns the top-left corner to use, vertically centred so the widget
-        lands at eye level rather than in a corner, or None when the image
-        fills the width (zoomed in) and no band exists.
-        """
+        """Where the widget goes"""
         image = self.image_viewport_rect()
         if image.isEmpty():
             return None
@@ -137,8 +125,7 @@ class ZoomableImageView(QGraphicsView):
         left = QRect(viewport.left(), viewport.top(), image.left() - viewport.left(), 0)
         right = QRect(image.right(), viewport.top(), viewport.right() - image.right(), 0)
 
-        # Prefer the trailing band, so this shares a side with anything parked
-        # in the trailing corner instead of scattering chrome into both bands.
+        # Prefer the trailing band
         rtl = self.layoutDirection() == Qt.LayoutDirection.RightToLeft
         needed = size.width() + 2 * self.BAND_MARGIN
         for band in (left, right) if rtl else (right, left):
