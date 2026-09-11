@@ -212,12 +212,7 @@ def test_the_shadow_follows_its_card_into_and_out_of_a_scene(qapp, card):
     assert item.shadow.scene() is None
 
 
-def test_a_shadow_sits_directly_beneath_its_own_card_and_nothing_else(qapp, card):
-    """The whole point of the offset: a stacked card casts onto the card below it.
-
-    A single depth shared by every shadow would paint them all under every card, so a card
-    resting on another would float without contact — which is exactly how it looked.
-    """
+def test_a_shadow_sits_directly_beneath_its_own_card(qapp, card):
     from PyQt6.QtWidgets import QGraphicsScene
 
     scene = QGraphicsScene()
@@ -253,7 +248,6 @@ def test_the_shadow_keeps_its_place_when_the_card_is_restacked(qapp, card):
 
 
 def test_the_shadow_tracks_the_card_even_with_the_clock_stopped(qapp, card):
-    """Motion level Off runs no clock, and a card dragged then must not shed its shadow."""
     from PyQt6.QtWidgets import QGraphicsScene
 
     item = card(reactive=False)
@@ -322,12 +316,6 @@ def test_a_hover_is_never_deferred(card):
 
 
 def test_the_shadow_keeps_its_scale_while_no_gesture_is_in_flight(card):
-    """Lift is pinned to exactly LIFT_REST at rest, so ambient drift re-scales nothing.
-
-    The shadow is the largest pixmap on the canvas and draws through an opacity composite,
-    so re-setting its geometry for a drift of a hundredth of a pixel was the most
-    expensive way the canvas had of expressing nothing.
-    """
     item = card()
     run(item, 120, ambient_gain=1.0)
     scale, opacity = item.shadow.scale(), item.shadow.opacity()
@@ -337,10 +325,41 @@ def test_the_shadow_keeps_its_scale_while_no_gesture_is_in_flight(card):
 
 
 def test_a_lifted_card_still_moves_its_shadow(card):
-    """The gate is on lift having changed, not on the shadow being cheap to skip."""
     item = card()
     resting = (item.shadow.scale(), item.shadow.opacity(), item.shadow.pos().y())
     item.begin_hover(QPointF(CARD_W / 2, CARD_H / 2))
     run(item, 60)
     assert item.motion.lift == pytest.approx(LIFT_HOVER, abs=1e-3)
     assert (item.shadow.scale(), item.shadow.opacity(), item.shadow.pos().y()) != resting
+
+
+def test_the_shadow_turns_with_a_quarter_turned_card(card):
+    item = card(reactive=False)
+
+    item.set_orient(90)
+
+    assert item.shadow.rotation() == 90
+    footprint = item.shadow.sceneBoundingRect()
+    assert footprint.width() > footprint.height()
+
+
+def test_the_shadow_follows_the_turn_and_lands_square(card):
+    item = card()
+    run(item, 120)
+
+    item.set_orient(90)
+    run(item, 3)
+    assert 0.0 < item.shadow.rotation() < 90.0
+
+    run(item, 240)
+    assert item.motion.orient_lag == 0.0
+    assert item.shadow.rotation() == 90
+
+
+def test_the_shadow_takes_no_perspective_tilt(card):
+    item = card()
+    item.begin_hover(QPointF(CARD_W * 0.9, CARD_H * 0.1))
+    run(item, 60, ambient_gain=1.0)
+
+    assert item.motion.face_x or item.motion.face_y
+    assert item.shadow.transform().isAffine()

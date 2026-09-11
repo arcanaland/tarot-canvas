@@ -1,5 +1,6 @@
 import pytest
 from PyQt6.QtCore import QRectF
+from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import QGraphicsRectItem
 
 from tarot_canvas.ui.canvas.alignment import (
@@ -8,6 +9,7 @@ from tarot_canvas.ui.canvas.alignment import (
     distribute_items_horizontally,
     distribute_items_vertically,
 )
+from tarot_canvas.ui.canvas.card_item import DraggableCardItem
 from tarot_canvas.ui.canvas.motion import MotionChannels
 
 ARRANGEMENTS = [
@@ -92,4 +94,30 @@ def test_edge_alignment_sees_a_card_turned_sideways(qapp, arrangement, argument,
 
     assert edge(sideways.sceneBoundingRect()) == pytest.approx(
         edge(upright.sceneBoundingRect()), abs=1e-9
+    )
+
+
+@pytest.mark.parametrize("orient", [90, 270])
+@pytest.mark.parametrize(
+    "arrangement,argument,edge",
+    [
+        (align_items_horizontally, "left", QRectF.left),
+        (align_items_horizontally, "right", QRectF.right),
+        (align_items_vertically, "top", QRectF.top),
+        (align_items_vertically, "bottom", QRectF.bottom),
+    ],
+)
+def test_edge_alignment_sees_a_card_oriented_sideways(qapp, arrangement, argument, edge, orient):
+    """A card's orientation lives in its motion transform, not in item.rotation()"""
+    pixmap = QPixmap(300, 450)
+    pixmap.fill()
+    upright = DraggableCardItem(pixmap, {"id": "upright"})
+    sideways = DraggableCardItem(pixmap, {"id": "sideways"})
+    sideways.setPos(40, 600)
+    sideways.set_orient(orient)
+
+    arrangement([upright, sideways], argument)
+
+    assert edge(sideways.sceneBoundingRect()) == pytest.approx(
+        edge(upright.sceneBoundingRect()), abs=1e-6
     )

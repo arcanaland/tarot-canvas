@@ -1,3 +1,5 @@
+import math
+
 from PyQt6.QtCore import QPointF, Qt
 from PyQt6.QtWidgets import QGraphicsItem, QGraphicsPixmapItem
 
@@ -42,21 +44,12 @@ def _clamp(value, limit):
 
 
 class ContactShadowItem(QGraphicsPixmapItem):
-    """The blurred silhouette that grounds one card.
-
-    A separate scene item rather than a child of the card, for two reasons. A child would
-    inherit the card's transform, and a contact shadow does not tilt with the card — it
-    lies on the felt while the card turns above it. And a child is clipped into the card's
-    own coordinate system, where the penumbra has nowhere to spread.
-    """
+    """The blurred silhouette of a card"""
 
     def __init__(self, pixmap):
         super().__init__(pixmap)
         self.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
         self.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
-        # The shadow scales about its own centre and the pixmap never changes, so this is
-        # a constant. It used to be recomputed on every placement, which meant a QRectF
-        # and a QPointF allocated per card per frame to set the same value back.
         self.setTransformOriginPoint(self.boundingRect().center())
 
 
@@ -81,10 +74,14 @@ class DraggableCardItem(QGraphicsPixmapItem):
         self._view_scale = 1.0
         self._shadow_pos = None
         self._shadow_lift = None
+        self._shadow_angle = None
         self._registered_tab = None
 
         self.shadow = ContactShadowItem(build_contact_shadow(pixmap))
         self._shadow_pad = float(round(SHADOW_BLUR_PX))
+        shadow_rect = self.shadow.boundingRect()
+        # How far the shadow's corners sit from the centre it turns about
+        self._shadow_reach = max(math.hypot(shadow_rect.width(), shadow_rect.height()) / 2.0, 1.0)
         self.shadow.setZValue(self.zValue() + SHADOW_Z_OFFSET)
 
         self._hovering = False
@@ -230,26 +227,13 @@ class DraggableCardItem(QGraphicsPixmapItem):
         return True
 
     def _refresh_view_scale(self):
-        """Re-read the zoom from the scene's view, for the paths the tick does not drive."""
+        """Re-read the zoom from the scene's view."""
         scene = self.scene()
         views = scene.views() if scene is not None else ()
         if views:
             self._view_scale = abs(views[0].transform().m11())
 
     def _place_shadow(self):
-        """Put the shadow under the card for the current lift.
-
-        The shadow stays flat — it never takes the card's tilt — and follows the visual
-        drift, so a breathing card drags its own shadow with it rather than sliding across
-        a pinned one.
-
-        It gets its own, coarser dead-band on top of the card's. The shadow is the largest
-        pixmap on the canvas and it draws through an opacity composite, so it is the most
-        expensive thing here to move — and being a blur with no edge, it is the least able
-        to show that it moved. Its scale and opacity depend only on `lift`, which is pinned
-        to exactly LIFT_REST whenever no gesture is in flight, so an ambient-only canvas
-        re-scales nothing at all and only ever nudges the position.
-        """
         lift = self.motion.lift
         offset, scale, opacity = shadow_geometry(lift)
         rect = self.boundingRect()
@@ -274,31 +258,29 @@ class DraggableCardItem(QGraphicsPixmapItem):
             self.shadow.setOpacity(opacity)
             self._shadow_lift = lift
 
+        # rotate shadow without perspective tilt
+        angle = self.motion.orient + self.motion.orient_lag + self.motion.spin
+        settled = self.motion.orient_lag == 0.0 and self.motion.spin == 0.0
+        angle_threshold = math.degrees(threshold / self._shadow_reach)
+        if self._shadow_angle is None or (
+            angle != self._shadow_angle
+            and (settled or abs(angle - self._shadow_angle) >= angle_threshold)
+        ):
+            self.shadow.setRotation(angle)
+            self._shadow_angle = angle
+
     # Qt plumbing
     def itemChange(self, change, value):
-        """Keep the shadow with its card, so no call site has to remember it exists."""
+        """Keep the shadow with its card"""
         if change == QGraphicsItem.GraphicsItemChange.ItemSceneHasChanged:
             if value is not None:
                 value.addItem(self.shadow)
             elif self.shadow.scene() is not None:
                 self.shadow.scene().removeItem(self.shadow)
-            # The tab's tick iterates its own list of cards rather than filtering
-            # `scene.items()` — which builds and z-sorts a Python list of every item,
-            # shadows included, sixty times a second. Registering from here rather than
-            # from the call sites is the same reasoning as the shadow above: `addItem`
-            # and `removeItem` are called from half a dozen places and none of them
-            # should have to remember.
             self._register_with_scene(value)
         elif change == QGraphicsItem.GraphicsItemChange.ItemZValueHasChanged:
-            # Tracked through itemChange rather than by overriding setZValue, so it holds
-            # however the card is restacked — including from Qt's own side.
             self.shadow.setZValue(self.zValue() + SHADOW_Z_OFFSET)
         elif change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
-            # Also done on the tick, but the clock does not run at motion level Off, and a
-            # card dragged then must not leave its shadow behind. The tick is also what
-            # normally keeps `_view_scale` fresh, so re-read it here rather than let the
-            # shadow's dead-band be sized for the wrong zoom. Only the dragged card gets
-            # this, so it is nowhere near the hot path.
             self._refresh_view_scale()
             self._place_shadow()
         return super().itemChange(change, value)
