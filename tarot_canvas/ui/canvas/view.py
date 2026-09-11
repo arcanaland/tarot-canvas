@@ -13,6 +13,8 @@ MAX_ZOOM = 8.0
 class PannableGraphicsView(QGraphicsView):
     # A card dropped onto the canvas in scene coordinates
     card_dropped = pyqtSignal(QMimeData, QPointF)
+    # The view's new scale, after any zoom
+    zoom_changed = pyqtSignal(float)
 
     def __init__(self, scene, parent=None):
         super().__init__(scene, parent)
@@ -64,6 +66,7 @@ class PannableGraphicsView(QGraphicsView):
         if target != current:
             self.scale(target / current, target / current)
             self.grow_scene_rect()
+            self.zoom_changed.emit(target)
 
     def zoom_by(self, factor):
         """Scale the view by factor about the pointer, clamped."""
@@ -80,6 +83,12 @@ class PannableGraphicsView(QGraphicsView):
         with self._anchored_to_center():  # keep rect centred while correcting the zoom
             self._scale_to(self.transform().m11())
         self.grow_scene_rect()
+        self.zoom_changed.emit(self.transform().m11())
+
+    def reset_zoom(self):
+        """Back to 1x, with no other transform."""
+        self.resetTransform()
+        self.zoom_changed.emit(1.0)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

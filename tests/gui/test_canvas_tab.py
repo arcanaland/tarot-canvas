@@ -1,5 +1,7 @@
+import pytest
 from PyQt6.QtCore import QEvent, QMimeData, QPoint, QPointF, Qt
 from PyQt6.QtGui import (
+    QColor,
     QDragEnterEvent,
     QDragMoveEvent,
     QDropEvent,
@@ -9,8 +11,14 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtWidgets import QApplication
 
-from tarot_canvas.settings import MOTION_LEVEL_KEY, get_settings
+from tarot_canvas.settings import (
+    BACKGROUND_COLOR_KEY,
+    BACKGROUND_STYLE_KEY,
+    MOTION_LEVEL_KEY,
+    get_settings,
+)
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
+from tarot_canvas.ui.canvas.selection import GILT_ON_DARK, GILT_ON_LIGHT
 from tarot_canvas.ui.card_transfer import card_mime_data, copy_card_to_clipboard
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 
@@ -554,3 +562,63 @@ def test_a_paste_naming_a_removed_deck_places_nothing(qtbot, clipboard, minimal_
     assert tab.paste_card(card_mime_data(gone.get_random_card(), gone)) is None
     assert [i for i in tab.scene.items() if isinstance(i, DraggableCardItem)] == []
     qtbot.wait(1100)
+
+
+def canvas_cards(tab):
+    return [i for i in tab.scene.items() if isinstance(i, DraggableCardItem)]
+
+
+def test_selection_marks_are_not_cards(qtbot):
+    tab = make_tab(qtbot)
+    add_cards(tab, 2)
+
+    assert len(tab.cards()) == 2
+    assert all(card.marks.built for card in canvas_cards(tab))
+    assert len(tab.scene.selectedItems()) == 2
+
+
+def test_zooming_tells_the_selected_cards_so_their_corners_hold_their_size(qtbot):
+    tab = make_tab(qtbot)
+    add_cards(tab, 1)
+    card = canvas_cards(tab)[0]
+    near = card.marks.corners[0].path().boundingRect()
+
+    tab.view.zoom_by_from_center(0.25)
+
+    assert card.view_scale() == pytest.approx(0.25)
+    assert card.marks.corners[0].path().boundingRect().width() > near.width()
+
+    tab.on_reset_view()
+
+    assert card.view_scale() == 1.0
+    assert card.marks.corners[0].path().boundingRect() == near
+
+
+@pytest.mark.parametrize(
+    ("style", "tone"),
+    [("Gradient", GILT_ON_DARK), ("Checkerboard", GILT_ON_LIGHT)],
+)
+def test_the_selection_tone_follows_the_background(qtbot, style, tone):
+    tab = make_tab(qtbot)
+    add_cards(tab, 1)
+    card = canvas_cards(tab)[0]
+
+    settings = get_settings()
+    settings.setValue(BACKGROUND_STYLE_KEY, style)
+    settings.sync()
+    tab.apply_background_settings()
+
+    assert tab.gilt == QColor(tone)
+    assert card.marks.corners[0].brush().color() == QColor(tone)
+
+
+def test_a_light_solid_background_takes_the_dark_gilt(qtbot):
+    tab = make_tab(qtbot)
+    settings = get_settings()
+    settings.setValue(BACKGROUND_STYLE_KEY, "Solid Color")
+    settings.setValue(BACKGROUND_COLOR_KEY, "#ffffff")
+    settings.sync()
+
+    tab.apply_background_settings()
+
+    assert tab.gilt == QColor(GILT_ON_LIGHT)

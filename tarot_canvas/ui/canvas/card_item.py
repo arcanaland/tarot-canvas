@@ -1,7 +1,12 @@
 import math
 
 from PyQt6.QtCore import QPointF, Qt
-from PyQt6.QtWidgets import QGraphicsItem, QGraphicsPixmapItem
+from PyQt6.QtWidgets import (
+    QGraphicsItem,
+    QGraphicsPixmapItem,
+    QStyle,
+    QStyleOptionGraphicsItem,
+)
 
 from tarot_canvas.ui.canvas.motion import (
     AMBIENT_SCALE_DRAG,
@@ -34,6 +39,7 @@ from tarot_canvas.ui.canvas.motion import (
     rest,
     shadow_geometry,
 )
+from tarot_canvas.ui.canvas.selection import GILT_ON_DARK, SelectionMarks
 
 # Degrees of Z rotation on hover
 HOVER_PUNCH_DEG = 2.0
@@ -83,6 +89,7 @@ class DraggableCardItem(QGraphicsPixmapItem):
         # How far the shadow's corners sit from the centre it turns about
         self._shadow_reach = max(math.hypot(shadow_rect.width(), shadow_rect.height()) / 2.0, 1.0)
         self.shadow.setZValue(self.zValue() + SHADOW_Z_OFFSET)
+        self.marks = SelectionMarks(self)
 
         self._hovering = False
         self._pressed = False
@@ -187,7 +194,9 @@ class DraggableCardItem(QGraphicsPixmapItem):
         self.motion.spin = rest(approach(self.motion.spin, 0.0, SPIN_RATE, dt), 0.0)
         self.motion.orient_lag = rest(approach(self.motion.orient_lag, 0.0, ORIENT_RATE, dt), 0.0)
         self.motion.lift = self._lift.advance(self._lift_target(), dt)
-        return self._apply_motion()
+        applied = self._apply_motion()
+        self.marks.advance(dt)
+        return applied
 
     def settle_motion(self):
         """Stop moving fool"""
@@ -204,7 +213,9 @@ class DraggableCardItem(QGraphicsPixmapItem):
         channels.face_x = channels.face_y = 0.0
         channels.spin = channels.orient_lag = 0.0
         channels.lift = LIFT_REST
-        return self._apply_motion()
+        applied = self._apply_motion()
+        self.marks.settle()
+        return applied
 
     def _apply_motion(self):
         """Compose all motion channels into the a single transform"""
@@ -232,6 +243,22 @@ class DraggableCardItem(QGraphicsPixmapItem):
         views = scene.views() if scene is not None else ()
         if views:
             self._view_scale = abs(views[0].transform().m11())
+
+    def view_scale(self):
+        return self._view_scale
+
+    def set_view_scale(self, view_scale):
+        """Told by the tab when the view zooms, so the corners can hold their size."""
+        self._view_scale = view_scale
+        self.marks.set_view_scale(view_scale)
+
+    def gilt_tone(self):
+        """The selection colour for the ground this card sits on."""
+        tab = self._registered_tab or self.parent_tab
+        return getattr(tab, "gilt", None) or GILT_ON_DARK
+
+    def set_gilt(self, color):
+        self.marks.set_tone(color)
 
     def _place_shadow(self):
         lift = self.motion.lift
@@ -269,20 +296,38 @@ class DraggableCardItem(QGraphicsPixmapItem):
             self.shadow.setRotation(angle)
             self._shadow_angle = angle
 
+        self.marks.place_aureole()
+
     # Qt plumbing
+    def paint(self, painter, option, widget=None):
+        """Paint the card without Qt's dashed selection rectangle"""
+        if option.state & QStyle.StateFlag.State_Selected:
+            option = QStyleOptionGraphicsItem(option)
+            option.state &= ~QStyle.StateFlag.State_Selected
+        super().paint(painter, option, widget)
+
     def itemChange(self, change, value):
-        """Keep the shadow with its card"""
+        """Keep the shadow and the aureole with their card"""
         if change == QGraphicsItem.GraphicsItemChange.ItemSceneHasChanged:
             if value is not None:
                 value.addItem(self.shadow)
-            elif self.shadow.scene() is not None:
-                self.shadow.scene().removeItem(self.shadow)
+                self.marks.join_scene(value)
+            else:
+                if self.shadow.scene() is not None:
+                    self.shadow.scene().removeItem(self.shadow)
+                self.marks.leave_scene()
             self._register_with_scene(value)
         elif change == QGraphicsItem.GraphicsItemChange.ItemZValueHasChanged:
             self.shadow.setZValue(self.zValue() + SHADOW_Z_OFFSET)
+            self.marks.restack(self.zValue())
         elif change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
             self._refresh_view_scale()
             self._place_shadow()
+        elif change == QGraphicsItem.GraphicsItemChange.ItemSelectedHasChanged:
+            selected = self.isSelected()
+            if selected:
+                self._refresh_view_scale()
+            self.marks.set_selected(selected, animate=self._reactive_allowed())
         return super().itemChange(change, value)
 
     def _register_with_scene(self, scene):

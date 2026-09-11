@@ -56,6 +56,7 @@ from tarot_canvas.ui.canvas.motion import (
     approach,
     system_animations_enabled,
 )
+from tarot_canvas.ui.canvas.selection import GILT_ON_DARK, gilt_for_ground
 from tarot_canvas.ui.card_transfer import card_from_mime, has_card
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.utils.logger import logger
@@ -82,6 +83,7 @@ class CanvasTab(BaseTab):
         self._bottom_z = 0.0
         self.motion_level = MOTION_LEVEL_DEFAULT
         self.desktop_wants_animation = True
+        self.gilt = QColor(GILT_ON_DARK)
 
         self.setup_ui()
         self.deck = deck_manager.get_reference_deck()
@@ -112,6 +114,7 @@ class CanvasTab(BaseTab):
         # Use our custom view with middle-drag and shift+drag panning
         self.view = PannableGraphicsView(self.scene)
         self.view.card_dropped.connect(self.on_card_dropped)
+        self.view.zoom_changed.connect(self._on_zoom_changed)
 
         # Apply background from settings
         self.apply_background_settings()
@@ -157,12 +160,16 @@ class CanvasTab(BaseTab):
         bg_style = settings.value(BACKGROUND_STYLE_KEY, BACKGROUND_STYLE_DEFAULT)
 
         if bg_style == "Checkerboard":
-            self.create_purple_checkerboard_background()
+            ground = self.create_purple_checkerboard_background()
         elif bg_style == "Gradient":
-            self.create_gradient_background()
+            ground = self.create_gradient_background()
         elif bg_style == "Solid Color":
             bg_color = settings.value(BACKGROUND_COLOR_KEY, BACKGROUND_COLOR_DEFAULT)
-            self.create_solid_color_background(bg_color)
+            ground = self.create_solid_color_background(bg_color)
+        else:
+            ground = None
+        if ground is not None:
+            self.set_ground(ground)
 
         self.refresh_motion_settings()
         if self.motion_is_enabled() and self.isVisible():
@@ -189,6 +196,17 @@ class CanvasTab(BaseTab):
             and self.isVisible()
             and self.window().isActiveWindow()
         )
+
+    def set_ground(self, color):
+        """Pick the selection tone that shows up against this background colour."""
+        self.gilt = gilt_for_ground(color)
+        for card in self._cards:
+            card.set_gilt(self.gilt)
+
+    def _on_zoom_changed(self, view_scale):
+        for card in self._cards:
+            if card.isSelected():
+                card.set_view_scale(view_scale)
 
     def cards(self):
         """Every card on this canvas in no particular order."""
@@ -247,6 +265,7 @@ class CanvasTab(BaseTab):
         brush = QBrush(gradient)
         self.scene.setBackgroundBrush(brush)
         self.view.setBackgroundBrush(brush)
+        return gradient.stops()[0][1]
 
     def create_solid_color_background(self, color_str):
         """Create a solid color background for the canvas"""
@@ -254,6 +273,7 @@ class CanvasTab(BaseTab):
         brush = QBrush(color)
         self.scene.setBackgroundBrush(brush)
         self.view.setBackgroundBrush(brush)
+        return color
 
     def create_purple_checkerboard_background(self):
         """Create a purple checkerboard pattern background for the canvas"""
@@ -279,6 +299,7 @@ class CanvasTab(BaseTab):
 
         pattern_brush = QBrush(pixmap)
         self.view.setBackgroundBrush(pattern_brush)
+        return light_purple
 
     def ensure_window_bounds(self):
         """Ensure the window stays within screen boundaries"""
@@ -749,7 +770,7 @@ class CanvasTab(BaseTab):
 
     def on_reset_view(self):
         """Reset view to default position and zoom"""
-        self.view.resetTransform()
+        self.view.reset_zoom()
         # The scene rect moves with the camera now, so centre on the cards instead.
         items_rect = self.scene.itemsBoundingRect()
         self.view.centerOn(items_rect.center() if not items_rect.isNull() else QPointF(0, 0))
