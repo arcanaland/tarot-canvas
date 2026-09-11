@@ -139,3 +139,59 @@ def test_keyboard_navigation_reaches_the_grid(library, qtbot):
     library.view.setCurrentIndex(library.proxy_model.index(0, 0))
     qtbot.keyClick(library.view, Qt.Key.Key_Right)
     assert library.view.currentIndex().row() == 1
+
+
+def test_decks_changed_refreshes_an_open_library(qtbot, monkeypatch):
+    from tarot_canvas.models.deck_events import deck_events
+
+    decks = list(DECKS)
+    monkeypatch.setattr(
+        "tarot_canvas.ui.tabs.library_tab.deck_manager",
+        SimpleNamespace(get_all_decks=lambda: list(decks)),
+    )
+    tab = LibraryTab()
+    qtbot.addWidget(tab)
+    assert tab.proxy_model.rowCount() == 2
+
+    decks.append(fake_deck("Aquatic", author="Andreas", majors=22, minors=56))
+    deck_events().decks_changed.emit()
+
+    assert "Aquatic" in names(tab)
+
+
+def test_decks_changed_after_a_library_is_deleted_does_not_crash(qtbot, monkeypatch):
+    from PyQt6 import sip
+    from PyQt6.QtCore import QCoreApplication, QEvent
+
+    from tarot_canvas.models.deck_events import deck_events
+
+    monkeypatch.setattr(
+        "tarot_canvas.ui.tabs.library_tab.deck_manager",
+        SimpleNamespace(get_all_decks=lambda: list(DECKS)),
+    )
+    tab = LibraryTab()
+    tab.show()
+    tab.close()
+    tab.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    assert sip.isdeleted(tab)
+
+    deck_events().decks_changed.emit()
+    qtbot.wait(10)
+
+
+def test_decks_changed_after_a_library_is_closed_does_not_crash(qtbot, monkeypatch):
+    """A closed tab is removeTab'd, not deleted, so it lives on hidden and refreshes."""
+    from tarot_canvas.models.deck_events import deck_events
+
+    monkeypatch.setattr(
+        "tarot_canvas.ui.tabs.library_tab.deck_manager",
+        SimpleNamespace(get_all_decks=lambda: list(DECKS)),
+    )
+    tab = LibraryTab()
+    qtbot.addWidget(tab)
+    tab.show()
+    tab.close()
+
+    deck_events().decks_changed.emit()
+    assert tab.proxy_model.rowCount() == 2

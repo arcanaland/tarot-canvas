@@ -115,3 +115,21 @@ def test_a_card_row_offers_open_and_copy(qtbot, clipboard):
         actions["Open Card"].trigger()
     assert opened.args[0] == "view_card"
     assert opened.args[1]["id"] == row["card"]["id"]
+
+
+def test_decks_changed_repopulates_the_deck_selector(qtbot, stub_deck_manager, minimal_deck):
+    from tarot_canvas.models.deck import TarotDeck
+    from tarot_canvas.models.deck_events import deck_events
+    from tests.conftest import MINIMAL_DECK_PATH
+
+    explorer = panel(qtbot)
+    assert explorer.deck_selector.count() == 1
+
+    second = TarotDeck(str(MINIMAL_DECK_PATH))
+    second._metadata["deck"]["name"] = "Second Deck"
+    stub_deck_manager.get_all_decks = lambda: [minimal_deck, second]
+    deck_events().decks_changed.emit()
+
+    items = [explorer.deck_selector.itemText(i) for i in range(explorer.deck_selector.count())]
+    assert items == ["Minimal Test Deck", "Second Deck"]
+    assert explorer.deck_selector.currentText() == "Minimal Test Deck"

@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from tarot_canvas.models.deck_events import deck_events
 from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.settings import (
     LIBRARY_DENSITY_DEFAULT,
@@ -57,6 +58,7 @@ class LibraryTab(BaseTab):
         super().__init__(parent)
         self.settings = get_settings()
         self.setup_ui()
+        deck_events().decks_changed.connect(self.refresh)
 
         # Set the tab icon after a short delay to ensure the tab is added
         QTimer.singleShot(100, self.update_tab_icon)

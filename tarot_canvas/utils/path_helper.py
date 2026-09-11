@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-from xdg_base_dirs import xdg_data_home
+from xdg_base_dirs import xdg_cache_home, xdg_data_home
 
 EXTERNAL_DECKS_PATH = Path(os.path.expanduser("~/.local/share/tarot/decks"))
 EXTERNAL_ESOTERICA_PATH = Path(os.path.expanduser("~/.local/share/tarot/esoterica"))
@@ -11,6 +11,15 @@ def get_data_directory(app_specific_path=None):
     base_path = xdg_data_home()
 
     # Append app-specific path if provided
+    if app_specific_path:
+        return base_path / app_specific_path
+
+    return base_path
+
+
+def get_cache_directory(app_specific_path=None):
+    base_path = xdg_cache_home()
+
     if app_specific_path:
         return base_path / app_specific_path
 
@@ -30,6 +39,15 @@ def get_decks_directory():
         paths.append(EXTERNAL_DECKS_PATH)
 
     return paths
+
+
+def get_staging_directory():
+    """Where deck containers unpack before they are renamed into a library root.
+
+    A sibling of the first root, so on its filesystem, but not a root itself:
+    the scanner would list a half-unpacked deck here, dot-directory or not.
+    """
+    return get_data_directory("tarot/.staging")
 
 
 def get_esoterica_directories():

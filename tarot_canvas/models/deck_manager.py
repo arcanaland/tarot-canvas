@@ -1,6 +1,7 @@
 import os
 
 from tarot_canvas.models.deck import TarotDeck
+from tarot_canvas.models.deck_events import deck_events
 from tarot_canvas.models.reference_deck import ReferenceDeck
 from tarot_canvas.utils.logger import logger
 from tarot_canvas.utils.path_helper import get_decks_directory
@@ -43,10 +44,18 @@ class DeckManager:
                     try:
                         logger.debug(f"Loading deck from {deck_path}")
                         deck = TarotDeck(deck_path)
+                        # NOTE: name-keyed; a same-named deck elsewhere replaces it (RFC-034 Cons)
                         self.decks[deck.get_name()] = deck
                         logger.info(f"Loaded deck '{deck.get_name()}' from {deck_path}")
                     except Exception as e:
                         logger.error(f"Error loading deck {deck_path}: {e}")
+
+    def rescan(self):
+        """Rebuild the deck list from disk and tell listeners (DeckEvents.decks_changed)."""
+        self.decks = {}
+        self.load_reference_deck()
+        self.load_decks()
+        deck_events().decks_changed.emit()
 
     def get_deck_names(self):
         """Get a list of available deck names"""
