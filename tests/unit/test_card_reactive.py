@@ -5,7 +5,6 @@ from PyQt6.QtGui import QPixmap
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
 from tarot_canvas.ui.canvas.motion import (
     HOVER_TILT_DEG,
-    LEAN_MAX_DEG,
     LIFT_HOVER,
     LIFT_PLACED,
     LIFT_PRESSED,
