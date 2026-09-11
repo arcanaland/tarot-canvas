@@ -94,6 +94,8 @@ class DraggableCardItem(QGraphicsPixmapItem):
         self._hovering = False
         self._pressed = False
         self._dragging = False
+        # Carried along with other selected cards, so it moves exactly as they do
+        self._group_dragging = False
         self._hover_face = (0.0, 0.0)
         self._ambient_scale = 1.0
         self._visual_pos = QPointF(self.pos())
@@ -134,6 +136,8 @@ class DraggableCardItem(QGraphicsPixmapItem):
         return tab.reactive_is_allowed()
 
     def _lift_target(self):
+        if self._group_dragging:
+            return LIFT_SELECTED
         if self._dragging:
             return LIFT_DRAG
         if self._pressed:
@@ -145,6 +149,8 @@ class DraggableCardItem(QGraphicsPixmapItem):
         return LIFT_REST
 
     def _ambient_scale_target(self):
+        if self._group_dragging:
+            return 1.0
         if self._dragging:
             return AMBIENT_SCALE_DRAG
         if self._hovering:
@@ -164,6 +170,8 @@ class DraggableCardItem(QGraphicsPixmapItem):
             and abs(position.y() - self._visual_pos.y()) < LEAN_REST_PX
         ):
             self._visual_pos = QPointF(position)
+        if self._group_dragging:
+            return (0.0, 0.0)
         if self._dragging:
             error = self.pos() - self._visual_pos
             return (
@@ -203,6 +211,7 @@ class DraggableCardItem(QGraphicsPixmapItem):
         self._hovering = False
         self._pressed = False
         self._dragging = False
+        self._group_dragging = False
         self._hover_face = (0.0, 0.0)
         self._ambient_scale = 1.0
         self._visual_pos = QPointF(self.pos())
@@ -384,12 +393,35 @@ class DraggableCardItem(QGraphicsPixmapItem):
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
-        self._dragging = True
+        if not (self._dragging or self._group_dragging):
+            self.begin_drag()
         super().mouseMoveEvent(event)
 
-    def mouseReleaseEvent(self, event):
+    def begin_drag(self):
+        """Pick up this card, and the rest of the selection with it."""
+        moving = self._moving_cards()
+        if len(moving) > 1:
+            self._group_dragging = True
+        else:
+            self._dragging = True
+        tab = self._registered_tab
+        if tab is not None and hasattr(tab, "raise_cards"):
+            tab.raise_cards(moving)
+
+    def _moving_cards(self):
+        """The cards a drag of this one moves: the whole selection if this card is in it."""
+        scene = self.scene()
+        if scene is None or not self.isSelected():
+            return [self]
+        return [item for item in scene.selectedItems() if isinstance(item, DraggableCardItem)]
+
+    def end_drag(self):
         self._pressed = False
         self._dragging = False
+        self._group_dragging = False
+
+    def mouseReleaseEvent(self, event):
+        self.end_drag()
         self.setCursor(Qt.CursorShape.OpenHandCursor)
         super().mouseReleaseEvent(event)
 

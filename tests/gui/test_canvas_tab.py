@@ -18,6 +18,7 @@ from tarot_canvas.settings import (
     get_settings,
 )
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
+from tarot_canvas.ui.canvas.motion import LIFT_SELECTED
 from tarot_canvas.ui.canvas.selection import GILT_ON_DARK, GILT_ON_LIGHT
 from tarot_canvas.ui.card_transfer import card_mime_data, copy_card_to_clipboard
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
@@ -622,3 +623,109 @@ def test_a_light_solid_background_takes_the_dark_gilt(qtbot):
     tab.apply_background_settings()
 
     assert tab.gilt == QColor(GILT_ON_LIGHT)
+
+
+def press_and_move(tab, card, by):
+    """Grab card by its left strip, which no neighbour in stacked_cards() covers."""
+    start = tab.view.mapFromScene(card.mapToScene(QPointF(20.0, 80.0)))
+    send_mouse(tab, QMouseEvent.Type.MouseButtonPress, start, Qt.MouseButton.LeftButton)
+    for step in range(1, 4):
+        send_mouse(
+            tab,
+            QMouseEvent.Type.MouseMove,
+            start + by * step / 3,
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.LeftButton,
+        )
+    return start + by
+
+
+def release(tab, at):
+    send_mouse(
+        tab,
+        QMouseEvent.Type.MouseButtonRelease,
+        at,
+        Qt.MouseButton.LeftButton,
+        Qt.MouseButton.NoButton,
+    )
+
+
+def stacked_cards(tab, count):
+    """count overlapping, unselected cards, the first at the bottom."""
+    add_cards(tab, count)
+    tab.scene.clearSelection()
+    cards = sorted(canvas_cards(tab), key=lambda card: card.pos().x())
+    for card in cards:
+        card.setPos(card.pos().x() / 3, 0)  # overlap each neighbour by two thirds
+        card.setZValue(tab.take_top_z())
+    return cards
+
+
+def test_a_dragged_card_rides_above_every_card_it_crosses(qtbot):
+    tab = make_tab(qtbot)
+    bottom, middle, top = stacked_cards(tab, 3)
+
+    end = press_and_move(tab, bottom, QPoint(120, 0))
+    assert bottom.zValue() > max(middle.zValue(), top.zValue()), "picked up, not slid under"
+
+    release(tab, end)
+    assert bottom.zValue() > max(middle.zValue(), top.zValue()), "and put down on top"
+
+
+def test_a_dragged_selection_rises_together_and_keeps_its_own_order(qtbot):
+    tab = make_tab(qtbot)
+    first, second, third = stacked_cards(tab, 3)
+    first.setSelected(True)
+    second.setSelected(True)
+
+    release(tab, press_and_move(tab, first, QPoint(0, 200)))
+
+    assert third.zValue() < first.zValue() < second.zValue()
+
+
+def test_dragging_the_top_card_spends_no_depth(qtbot):
+    tab = make_tab(qtbot)
+    *_, top = stacked_cards(tab, 3)
+    depth = top.zValue()
+
+    release(tab, press_and_move(tab, top, QPoint(0, 200)))
+
+    assert top.zValue() == depth
+
+
+def test_a_group_drag_moves_every_card_the_same_way_with_no_physics(qtbot):
+    set_motion_level("Full")
+    tab = make_tab(qtbot)
+    add_cards(tab, 2)
+    grabbed, carried = sorted(canvas_cards(tab), key=lambda card: card.pos().x())
+    before = [grabbed.pos(), carried.pos()]
+
+    end = press_and_move(tab, grabbed, QPoint(90, 40))
+    for frame in range(30):
+        for card in (grabbed, carried):
+            card.advance_motion(frame / 60.0, 1.0 / 60.0, 0.0)
+
+    assert grabbed.pos() - before[0] == carried.pos() - before[1]
+    for card in (grabbed, carried):
+        assert card.motion.face_x == 0.0
+        assert card.motion.face_y == 0.0
+        assert card.motion.lift == pytest.approx(LIFT_SELECTED, abs=1e-3)
+
+    release(tab, end)
+    assert not grabbed._group_dragging
+
+
+def test_a_lone_drag_still_ploughs(qtbot):
+    set_motion_level("Full")
+    tab = make_tab(qtbot)
+    add_cards(tab, 2)
+    tab.scene.clearSelection()
+    card = sorted(canvas_cards(tab), key=lambda card: card.pos().x())[0]
+
+    end = press_and_move(tab, card, QPoint(90, 0))
+    for frame in range(3):
+        card.advance_motion(frame / 60.0, 1.0 / 60.0, 0.0)
+
+    assert card._dragging and not card._group_dragging
+    assert card.motion.face_y < 0  # the leading edge digs in
+    release(tab, end)

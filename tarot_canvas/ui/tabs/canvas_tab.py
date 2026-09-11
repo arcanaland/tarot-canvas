@@ -827,6 +827,16 @@ class CanvasTab(BaseTab):
         """Send the selected cards to the back, keeping their order among themselves."""
         self._restack(self.scene.selectedItems(), self.take_bottom_z, deepest_first=True)
 
+    def raise_cards(self, cards):
+        """Lift cards above every other card, as picking them up would."""
+        moving = set(cards)
+        others = [card.zValue() for card in self._cards if card not in moving]
+        if not moving or not others:
+            return
+        if min(card.zValue() for card in moving) > max(others):
+            return  # already on top; don't spend depth
+        self._restack(moving, self.take_top_z)
+
     def _restack(self, items, allocate, deepest_first=False):
         """Give items a new depth while preserving their relative order."""
         cards = sorted(
