@@ -729,3 +729,28 @@ def test_a_lone_drag_still_ploughs(qtbot):
     assert card._dragging and not card._group_dragging
     assert card.motion.face_y < 0  # the leading edge digs in
     release(tab, end)
+
+
+def test_zooming_in_sharpens_the_cards_on_screen_and_only_those(qtbot, tmp_path):
+    from PyQt6.QtCore import QThreadPool
+    from PyQt6.QtGui import QImage
+
+    image = QImage(1200, 2000, QImage.Format.Format_RGB32)
+    image.fill(QColor("white"))
+    path = str(tmp_path / "art.png")
+    image.save(path)
+
+    tab = make_tab(qtbot)
+    tab.add_specific_card({"id": "near", "image": path}, at=QPointF(0, 0))
+    tab.add_specific_card({"id": "far", "image": path}, at=QPointF(50000, 0))
+    near, far = sorted(canvas_cards(tab), key=lambda card: card.pos().x())
+    tab.view.centerOn(near)
+
+    tab.view.zoom_by_from_center(3.0)
+    tab.view.centerOn(near)
+    dpr = tab.view.viewport().devicePixelRatioF()
+    qtbot.waitUntil(lambda: near.detail() >= min(4, round(3 * dpr)), timeout=5000)
+
+    assert far.detail() <= max(1, round(dpr))
+    QThreadPool.globalInstance().waitForDone()
+    qtbot.wait(1100)

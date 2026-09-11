@@ -15,6 +15,8 @@ class PannableGraphicsView(QGraphicsView):
     card_dropped = pyqtSignal(QMimeData, QPointF)
     # The view's new scale, after any zoom
     zoom_changed = pyqtSignal(float)
+    # What the view shows, or how sharply, may have changed: a scroll, resize or new dpr
+    camera_moved = pyqtSignal()
 
     def __init__(self, scene, parent=None):
         super().__init__(scene, parent)
@@ -93,6 +95,17 @@ class PannableGraphicsView(QGraphicsView):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self.grow_scene_rect()
+        self.camera_moved.emit()
+
+    def scrollContentsBy(self, dx, dy):
+        super().scrollContentsBy(dx, dy)
+        self.camera_moved.emit()
+
+    def event(self, event):
+        # Moving between differently scaled outputs changes dpr without resizing anything
+        if event.type() == QEvent.Type.DevicePixelRatioChange:
+            self.camera_moved.emit()
+        return super().event(event)
 
     def showEvent(self, event):
         super().showEvent(event)

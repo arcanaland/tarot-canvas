@@ -1,6 +1,7 @@
 import math
 
-from PyQt6.QtCore import QPointF, Qt
+from PyQt6.QtCore import QPointF, QRectF, Qt
+from PyQt6.QtGui import QPainterPath, QPixmap
 from PyQt6.QtWidgets import (
     QGraphicsItem,
     QGraphicsPixmapItem,
@@ -8,6 +9,7 @@ from PyQt6.QtWidgets import (
     QStyleOptionGraphicsItem,
 )
 
+from tarot_canvas.ui.canvas.detail import art_loader, detail_level, top_level
 from tarot_canvas.ui.canvas.motion import (
     AMBIENT_SCALE_DRAG,
     AMBIENT_SCALE_HOVER,
@@ -90,6 +92,13 @@ class DraggableCardItem(QGraphicsPixmapItem):
         self._shadow_reach = max(math.hypot(shadow_rect.width(), shadow_rect.height()) / 2.0, 1.0)
         self.shadow.setZValue(self.zValue() + SHADOW_Z_OFFSET)
         self.marks = SelectionMarks(self)
+
+        # Level of detail: the pixmap placed is level 1; higher ones load from the art file
+        self._base = pixmap
+        self._art_path = None
+        self._level = 1
+        self._wanted_level = 1
+        self._top_level = 1
 
         self._hovering = False
         self._pressed = False
@@ -307,7 +316,59 @@ class DraggableCardItem(QGraphicsPixmapItem):
 
         self.marks.place_aureole()
 
+    # Level of detail
+    def set_art_source(self, path, source_size):
+        """Where to load sharper levels of this card's art from."""
+        self._art_path = path
+        self._top_level = top_level(source_size, self._base.size())
+
+    def detail(self):
+        """The level currently shown."""
+        return self._level
+
+    def set_detail(self, device_scale):
+        """Show the level for device_scale device px per logical px, loading it if need be."""
+        level = detail_level(device_scale, self._top_level)
+        if level == self._wanted_level:
+            return
+        self._wanted_level = level
+        if level == 1:
+            self._show_level(1, self._base)
+        elif level < self._level:
+            # Coming back down needs no disk: the level shown already holds every pixel
+            size = self._base.size() * level
+            self._show_level(
+                level,
+                self.pixmap().scaled(
+                    size,
+                    Qt.AspectRatioMode.IgnoreAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation,
+                ),
+            )
+        else:
+            art_loader().request(self, self._art_path, self._base.size() * level, level)
+
+    def receive_detail(self, level, image):
+        """A level the loader decoded, arriving after the zoom may already have moved on."""
+        if level == self._wanted_level:
+            self._show_level(level, QPixmap.fromImage(image))
+
+    def _show_level(self, level, pixmap):
+        pixmap.setDevicePixelRatio(level)
+        self.setPixmap(pixmap)
+        self._level = level
+
     # Qt plumbing
+    def shape(self):
+        """The card's rectangle.
+
+        QGraphicsPixmapItem builds its shape from the pixmap's device pixels, ignoring its
+        device pixel ratio, so above level 1 the stock shape would be several times the card.
+        """
+        path = QPainterPath()
+        path.addRect(QRectF(self.offset(), self.pixmap().deviceIndependentSize()))
+        return path
+
     def paint(self, painter, option, widget=None):
         """Paint the card without Qt's dashed selection rectangle"""
         if option.state & QStyle.StateFlag.State_Selected:

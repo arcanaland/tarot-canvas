@@ -50,6 +50,11 @@ from tarot_canvas.ui.canvas import (
     distribute_items_horizontally,
     distribute_items_vertically,
 )
+from tarot_canvas.ui.canvas.detail import (
+    DETAIL_SETTLE_MS,
+    DETAIL_VISIBLE_MARGIN,
+    load_card_art,
+)
 from tarot_canvas.ui.canvas.motion import (
     AMBIENT_GAIN_FLOOR,
     MotionClock,
@@ -115,6 +120,14 @@ class CanvasTab(BaseTab):
         self.view = PannableGraphicsView(self.scene)
         self.view.card_dropped.connect(self.on_card_dropped)
         self.view.zoom_changed.connect(self._on_zoom_changed)
+
+        # Sharpen the cards on screen once the camera settles
+        self._detail_timer = QTimer(self)
+        self._detail_timer.setSingleShot(True)
+        self._detail_timer.setInterval(DETAIL_SETTLE_MS)
+        self._detail_timer.timeout.connect(self.refresh_detail)
+        self.view.zoom_changed.connect(self.schedule_detail)
+        self.view.camera_moved.connect(self.schedule_detail)
 
         # Apply background from settings
         self.apply_background_settings()
@@ -208,6 +221,25 @@ class CanvasTab(BaseTab):
             if card.isSelected():
                 card.set_view_scale(view_scale)
 
+    def schedule_detail(self, *_):
+        self._detail_timer.start()
+
+    def refresh_detail(self):
+        """Give each card the level of detail for how large it is on screen.
+
+        Cards off screen are held to the level for 1x, so zooming into one card doesn't
+        leave every other card on the canvas decoded at full size.
+        """
+        dpr = self.view.viewport().devicePixelRatioF() or 1.0
+        zoom = abs(self.view.transform().m11())
+        visible = self.view.mapToScene(self.view.viewport().rect()).boundingRect()
+        margin_x = visible.width() * DETAIL_VISIBLE_MARGIN
+        margin_y = visible.height() * DETAIL_VISIBLE_MARGIN
+        near = visible.adjusted(-margin_x, -margin_y, margin_x, margin_y)
+        for card in self._cards:
+            on_screen = card.sceneBoundingRect().intersects(near)
+            card.set_detail(dpr * (zoom if on_screen else min(zoom, 1.0)))
+
     def cards(self):
         """Every card on this canvas in no particular order."""
         return tuple(self._cards)
@@ -216,6 +248,7 @@ class CanvasTab(BaseTab):
         """Called by a card when it enters this tab's scene."""
         if card not in self._cards:
             self._cards.append(card)
+            self.schedule_detail()
 
     def unregister_card(self, card):
         """Called by a card when it leaves this tab's scene."""
@@ -679,23 +712,16 @@ class CanvasTab(BaseTab):
             return
 
         try:
-            # Create a pixmap from the card image
-            pixmap = QPixmap(image_path)
-            if pixmap.isNull():
+            # The card is placed at a fitted size; sharper levels load as the view needs them
+            art = load_card_art(image_path)
+            if art is None:
                 print(f"Failed to load image: {image_path}")
                 return
-
-            # Scale the pixmap to a reasonable size if needed
-            if pixmap.width() > 300 or pixmap.height() > 500:
-                pixmap = pixmap.scaled(
-                    300,
-                    500,
-                    Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation,
-                )
+            pixmap, source_size = art
 
             # Create a draggable card item
             card_item = DraggableCardItem(pixmap, card, self)
+            card_item.set_art_source(image_path, source_size)
 
             card_item.setZValue(self.take_top_z())
 
