@@ -375,21 +375,29 @@ class TarotDeck:
         logger.warning(f"No image found for card: {card_type}/{card_id}")
         return None
 
-    @staticmethod
-    def _facet(data, facet):
+    def _name_files_are_faceted(self):
+        """Whether name files nest every table under its facet, as 2.0's do.
+
+        The shape follows from the manifest's schema_version, never from the
+        name file's contents (deck spec 7.2): a 2.0 file may carry alt text alone.
+        """
+        major = str(self.get_schema_version() or "1.0").split(".")[0]
+        return major.isdigit() and int(major) >= 2
+
+    def _facet(self, data, facet):
         """A name-file facet"""
         if not isinstance(data, dict):
             return None
 
-        table = data.get(facet)
-
-        # 2.0
-        if isinstance(table, dict):
-            cards = table.get("card")
+        # 2.0: [name.card.<kind>] and [alt_text.card.<kind>]
+        if self._name_files_are_faceted():
+            table = data.get(facet)
+            cards = table.get("card") if isinstance(table, dict) else None
             return cards if isinstance(cards, dict) else None
 
-        # 1.0 fallback
-        return data if facet == "name" else None
+        # 1.0: names at the top level, alt text under [alt_text.<kind>]
+        table = data if facet == "name" else data.get(facet)
+        return table if isinstance(table, dict) else None
 
     def _name_file_tags(self, lang=None):
         """Name-file language tags to try most preferred first"""
@@ -420,14 +428,9 @@ class TarotDeck:
     def _load_localized_alt_texts(self, lang=None):
         """Load alt texts for cards from localization files."""
         if lang not in self._localized_alt_texts_cache:
-            data = self._read_name_file(lang)
-            alt_texts = None
-            if data:
-                if "name" in data:  # 2.0: [alt_text.card.<kind>]
-                    alt_texts = self._facet(data, "alt_text")
-                elif "alt_text" in data:  # 1.0: [alt_text.<kind>]
-                    alt_texts = data["alt_text"]
-            self._localized_alt_texts_cache[lang] = alt_texts
+            self._localized_alt_texts_cache[lang] = self._facet(
+                self._read_name_file(lang), "alt_text"
+            )
         return self._localized_alt_texts_cache[lang]
 
     def _load_card_backs(self):
