@@ -1,4 +1,5 @@
 import math
+
 import pytest
 from PyQt6.QtCore import QPointF
 from PyQt6.QtGui import QPixmap
