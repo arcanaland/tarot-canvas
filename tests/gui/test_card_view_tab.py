@@ -127,7 +127,6 @@ def test_the_deck_name_is_not_squeezed(qtbot, big_image_deck, stub_deck_manager)
     qtbot.waitUntil(lambda: button.text() == "Rider-Waite-Smith")
 
 
-
 def test_the_card_bar_fits_the_default_windows_pane(qtbot, big_image_deck):
     tab = make_tab(qtbot, big_image_deck, 700, 900)
     bar = tab.card_bar
