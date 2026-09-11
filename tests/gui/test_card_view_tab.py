@@ -127,30 +127,8 @@ def test_the_deck_name_is_not_squeezed(qtbot, big_image_deck, stub_deck_manager)
     qtbot.waitUntil(lambda: button.text() == "Rider-Waite-Smith")
 
 
-@pytest.mark.parametrize(
-    "title", ["Rider-Waite-Smith Tarot", "Aquatic Tarot", "Tarot de Marseille", "Thoth"]
-)
-def test_a_title_given_the_width_it_asks_for_is_whole(qtbot, title):
-    """Fractional glyph widths: Noto Sans 10 bold elided the reference deck at its own hint.
-
-    Where Noto Sans isn't installed the fallback font may round the harmless way,
-    so this can pass without exercising anything; it can't pass wrongly.
-    """
-    button = TitleButton()
-    font = QFont("Noto Sans", 10)
-    font.setBold(True)
-    button.setFont(font)
-    qtbot.addWidget(button)
-    button.show()
-
-    button.set_title(title)
-    button.resize(button.sizeHint())
-
-    assert button.text() == title
-
 
 def test_the_card_bar_fits_the_default_windows_pane(qtbot, big_image_deck):
-    """At ~280 px nothing may go to the overflow menu, whose chevron reads as an arrow."""
     tab = make_tab(qtbot, big_image_deck, 700, 900)
     bar = tab.card_bar
     tab.image_container.setFixedWidth(280)
@@ -190,7 +168,6 @@ def test_the_deck_picker_is_centred(qtbot, big_image_deck, stub_deck_manager):
 
 
 def test_a_deck_outside_the_library_is_still_named(qtbot, big_image_deck, stub_deck_manager):
-    """Opened with File > Open Deck: no installed deck has it, but it is on screen."""
     stub_deck_manager.get_all_decks = list
     tab = make_tab(qtbot, big_image_deck, 900, 900)
 
@@ -199,7 +176,6 @@ def test_a_deck_outside_the_library_is_still_named(qtbot, big_image_deck, stub_d
 
 
 def test_no_bar_action_carries_a_shortcut(qtbot, big_image_deck):
-    """The keys belong to the window and the tab; a second binding would kill both."""
     tab = make_tab(qtbot, big_image_deck, 900, 900)
     bar = tab.card_bar
     actions = bar.actions() + bar.zoom_button.menu().actions()

@@ -168,8 +168,6 @@ class MainWindow(QMainWindow):
         edit_menu = menu_bar.addMenu("&Edit")
         edit_menu.aboutToShow.connect(self.update_card_clipboard_actions)
 
-        # The only bindings of Ctrl+C / Ctrl+V in the app: the current tab answers.
-        # On the window too, or hiding the menu bar in fullscreen kills the keys.
         self.copy_card_action = QAction("&Copy Card", self)
         self.copy_card_action.setShortcuts(QKeySequence.StandardKey.Copy)
         self.copy_card_action.setIcon(QIcon.fromTheme("edit-copy"))
@@ -256,9 +254,8 @@ class MainWindow(QMainWindow):
             ThemeType.DARK: dark_theme_action,
         }
 
-        # Go menu: the card view's moves, listed where they can be found. The keys
-        # stay on the art, where they can't take arrows from the notes pane, so the
-        # text after the tab only displays them.
+        # ------------- Go menu -----------
+
         go_menu = menu_bar.addMenu("&Go")
         go_menu.aboutToShow.connect(self.update_go_actions)
         self.go_actions = {}
@@ -287,7 +284,6 @@ class MainWindow(QMainWindow):
         command_palette_action.setShortcut("Ctrl+P")
         command_palette_action.triggered.connect(self.show_command_palette)
         tools_menu.addAction(command_palette_action)
-        # The one binding of Ctrl+P; on the window too, so fullscreen keeps it
         self.addAction(command_palette_action)
 
         # Add Log Viewer action

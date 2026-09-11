@@ -1,8 +1,4 @@
-"""A card in transit: one QMimeData for the clipboard and for drag-and-drop.
-
-The payload is an identity, (card_id, deck, reversed), not a picture. The image and
-text formats ride along for other applications only; paste and drop read our format.
-"""
+"""A card in transit: QMimeData for clipboard and drag-and-drop."""
 
 import json
 import os
@@ -17,19 +13,18 @@ PAYLOAD_VERSION = 1
 
 
 def deck_path_key(deck_path):
-    """Normalized deck path, so a Path and a str naming one directory compare equal."""
+    """Normalized deck path."""
     if not deck_path:
         return None
     return os.path.normcase(os.path.realpath(os.fspath(deck_path)))
 
 
 def has_card(mime):
-    """Cheap check for enabling a paste: our format is present, resolvable or not."""
     return mime is not None and mime.hasFormat(CARD_MIME)
 
 
 def card_mime_data(card, deck, is_reversed=False):
-    """Build the payload for card as rendered by deck."""
+    """Build the payload for a card."""
     payload = {
         "v": PAYLOAD_VERSION,
         "card_id": card["id"],
@@ -50,11 +45,6 @@ def card_mime_data(card, deck, is_reversed=False):
 
 
 def card_from_mime(mime, decks):
-    """Resolve a payload against decks: (card, deck, is_reversed), or None.
-
-    None for anything that is not ours, a payload version we do not know, a deck that
-    is no longer installed, or a card that deck does not have (excluded cards included).
-    """
     if not has_card(mime):
         return None
 

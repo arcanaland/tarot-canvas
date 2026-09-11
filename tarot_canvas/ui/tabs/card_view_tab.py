@@ -241,8 +241,6 @@ class CardViewTab(BaseTab):
         return self.card is not None and self.deck is not None
 
     def event(self, event):
-        # A read-only QLabel never claims Ctrl+C the way a text edit does, so without
-        # this Edit > Copy Card would take the key from a selection in the info pane
         if (
             event.type() == QEvent.Type.ShortcutOverride
             and event.matches(QKeySequence.StandardKey.Copy)
@@ -400,9 +398,8 @@ class CardViewTab(BaseTab):
             self.navigation_requested.emit("navigate", self.source_tab_id)
 
     def show_card(self, card, deck=None):
-        """Put card on screen in this tab, from deck or the one already showing"""
-        # Batch the repaint rather than hide the pane: hiding it drops the art's
-        # focus, and the next arrow key would land somewhere else
+        """Put card on screen in this tab from deck or the one already showing"""
+        # Batch the repaint
         self.setUpdatesEnabled(False)
         try:
             self.deck = deck or self.deck
@@ -426,7 +423,6 @@ class CardViewTab(BaseTab):
         self.deck_bar.setVisible(self.deck_bar.has_choice() and not self.is_fullscreen())
 
     # -- moving through the deck -------------------------------------------
-    # The Go menu asks can_go and calls go; the keys on the art call go directly
 
     def can_go(self, where):
         if self.card is None or self.deck is None:

@@ -11,7 +11,7 @@ MAX_ZOOM = 8.0
 
 
 class PannableGraphicsView(QGraphicsView):
-    # A card payload let go over the canvas, and where, in scene coordinates
+    # A card dropped onto the canvas in scene coordinates
     card_dropped = pyqtSignal(QMimeData, QPointF)
 
     def __init__(self, scene, parent=None):
@@ -26,11 +26,7 @@ class PannableGraphicsView(QGraphicsView):
         self._pointer_pos = None
 
     def pointer_scene_pos(self):
-        """Scene position of the pointer, or None when it is not over the canvas.
-
-        Tracked from the events themselves rather than read from QCursor.pos(), which
-        on Wayland is only ever the last position Qt happened to observe.
-        """
+        """Scene position of the pointer or None when it is not over the canvas."""
         if self._pointer_pos is None:
             return None
         return self.mapToScene(self._pointer_pos)
@@ -46,13 +42,7 @@ class PannableGraphicsView(QGraphicsView):
         return self.mapToScene(self.viewport().rect()).boundingRect()
 
     def grow_scene_rect(self):
-        """Keep a viewport of scroll headroom around the camera in every direction.
-
-        QGraphicsView derives its scrollbar range from the scene rect, so panning by
-        scrollbar can never leave it. Recomputing the rect as (items | visible) plus a
-        viewport-sized margin is how a free camera is expressed in Qt: the wall keeps
-        moving ahead of the camera, and cards dragged outside stay reachable.
-        """
+        """Keep a viewport of scroll headroom around the camera in every direction."""
         visible = self._visible_scene_rect()
         rect = self.scene().itemsBoundingRect().united(visible)
         rect.adjust(-visible.width(), -visible.height(), visible.width(), visible.height())
@@ -60,11 +50,6 @@ class PannableGraphicsView(QGraphicsView):
 
     @contextmanager
     def _anchored_to_center(self):
-        """Zoom about the viewport centre instead of the pointer.
-
-        For zooms the pointer has nothing to do with — the toolbar buttons, whose
-        cursor is off the canvas entirely, and the clamp that follows fitInView.
-        """
         previous = self.transformationAnchor()
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
         try:
@@ -90,11 +75,6 @@ class PannableGraphicsView(QGraphicsView):
             self._scale_to(self.transform().m11() * factor)
 
     def fit_to_rect(self, rect):
-        """Frame rect, keeping the resulting zoom inside the clamp.
-
-        fitInView applies a transform of its own and would otherwise walk straight
-        past MIN_ZOOM on a widely spread canvas.
-        """
         self.grow_scene_rect()  # fitInView cannot scroll outside the scene rect
         self.fitInView(rect, Qt.AspectRatioMode.KeepAspectRatio)
         with self._anchored_to_center():  # keep rect centred while correcting the zoom
@@ -163,8 +143,6 @@ class PannableGraphicsView(QGraphicsView):
             super().mouseReleaseEvent(event)
 
     # -- drop -------------------------------------------------------------
-    # All three, not just enter: QGraphicsView's own dragMoveEvent asks the scene,
-    # and with no item accepting drops the scene refuses what enter just accepted.
 
     def dragEnterEvent(self, event):
         if has_card(event.mimeData()):
@@ -187,7 +165,7 @@ class PannableGraphicsView(QGraphicsView):
             super().dropEvent(event)
 
     def wheelEvent(self, event):
-        """Handle zooming with mouse wheel, anchored under the pointer"""
+        """Handle zooming with mouse wheel anchored under the pointer"""
         zoom_factor = 1.15
 
         if event.angleDelta().y() > 0:

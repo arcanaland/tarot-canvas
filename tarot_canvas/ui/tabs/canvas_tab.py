@@ -450,7 +450,7 @@ class CanvasTab(BaseTab):
                 action.setCheckable(True)
                 self.fullscreen_action = action
 
-        # No shortcut of its own: Ctrl+V belongs to Edit > Paste Card
+        # Paste
         self.paste_action = QAction(QIcon.fromTheme("edit-paste"), "Paste", self)
         self.paste_action.setToolTip("Paste card (Ctrl+V)")
         self.paste_action.triggered.connect(self.on_paste_card)
@@ -613,7 +613,7 @@ class CanvasTab(BaseTab):
     # -- card clipboard and drop ---------------------------------------------
 
     def can_paste_card(self, mime):
-        # Once per copy: pasting the same clipboard again would only stack a duplicate
+        # Once per copy
         return has_card(mime) and not self._clipboard_pasted
 
     def paste_card(self, mime):
@@ -637,8 +637,7 @@ class CanvasTab(BaseTab):
         if self.can_paste_card(mime):
             self.paste_card(mime)
 
-    # A real slot, so Qt itself drops the connection when the tab is deleted: the
-    # clipboard outlives every tab
+    # A real slot for Qt
     @pyqtSlot()
     def on_clipboard_changed(self):
         self._clipboard_pasted = False
@@ -651,12 +650,7 @@ class CanvasTab(BaseTab):
         self.place_card(mime, at=scene_pos)
 
     def add_specific_card(self, card, card_deck=None, is_reversed=False, at=None):
-        """Add a specific card to the canvas, optionally reversed
-
-        Centred on at (scene coordinates) if given, else under the pointer, else
-        near the middle of the view. A drop must pass at: a drag delivers no Enter,
-        so the tracked pointer is stale throughout one.
-        """
+        """Add a specific card to the canvas, optionally reversed"""
         # Load the card image
         image_path = card.get("image")
         if not image_path or not os.path.exists(image_path):

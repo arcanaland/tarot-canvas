@@ -9,8 +9,7 @@ class CardThumbnail(QFrame):
     """Widget for displaying a card thumbnail in the deck view"""
 
     clicked = pyqtSignal()
-    double_clicked = pyqtSignal()  # New signal for double clicks
-    # The thumbnail knows its deck only by path; the owner copies with the Deck
+    double_clicked = pyqtSignal()
     copy_requested = pyqtSignal()
 
     def __init__(self, card, deck_path, size=None, parent=None):
@@ -82,7 +81,7 @@ class CardThumbnail(QFrame):
         super().mouseDoubleClickEvent(event)
 
     def card_menu(self):
-        """Open does what a double-click does; Copy asks the owner to copy"""
+        """Open does what a double-click does and Copy asks the owner to copy"""
         menu = QMenu(self)
         open_action = menu.addAction(QIcon.fromTheme("document-open"), "&Open Card")
         open_action.triggered.connect(self.double_clicked)
