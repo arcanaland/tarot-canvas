@@ -2,10 +2,10 @@ import shutil
 
 import pytest
 from PyQt6.QtCore import QPoint, QPointF, QRect, QSize, Qt
-from PyQt6.QtGui import QColor, QFont, QMouseEvent, QPixmap
+from PyQt6.QtGui import QColor, QMouseEvent, QPixmap
 
 from tarot_canvas.models.deck import TarotDeck
-from tarot_canvas.ui.tabs.card_view.card_bar import DeckBar, TitleButton
+from tarot_canvas.ui.tabs.card_view.card_bar import DeckBar
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tests.conftest import MINIMAL_DECK_PATH
 
