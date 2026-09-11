@@ -74,6 +74,27 @@ def test_motion_level_control_shows_what_the_canvas_is_doing(qtbot):
     assert get_settings().value(MOTION_LEVEL_KEY) == "Full"
 
 
+def test_applying_a_motion_level_reaches_an_open_canvas(qtbot):
+    settings = get_settings()
+    settings.clear()
+    settings.setValue(MOTION_LEVEL_KEY, "Off")
+    settings.sync()
+
+    window = MainWindow()
+    qtbot.addWidget(window)
+    canvas_tab = window.new_canvas_tab()
+    assert not canvas_tab.motion_is_enabled()
+
+    dialog = PreferencesDialog(window)
+    qtbot.addWidget(dialog)
+    dialog.settings_changed.connect(window.apply_settings_to_open_canvases)
+    dialog.motion_combo.setCurrentIndex(dialog.motion_combo.findData("Full"))
+    dialog.apply_settings()
+
+    assert canvas_tab.motion_level == "Full"
+    assert canvas_tab.motion_is_enabled()
+
+
 def test_every_stored_motion_level_is_selectable(qtbot):
     dialog = PreferencesDialog()
     qtbot.addWidget(dialog)

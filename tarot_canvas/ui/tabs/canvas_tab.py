@@ -29,14 +29,12 @@ from PyQt6.QtWidgets import (
 
 from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.settings import (
-    ANIMATION_INTENSITY_DEFAULT,
-    ANIMATION_INTENSITY_KEY,
-    ANIMATIONS_ENABLED_DEFAULT,
-    ANIMATIONS_ENABLED_KEY,
     BACKGROUND_COLOR_DEFAULT,
     BACKGROUND_COLOR_KEY,
     BACKGROUND_STYLE_DEFAULT,
     BACKGROUND_STYLE_KEY,
+    MOTION_LEVEL_DEFAULT,
+    get_motion_level,
     get_settings,
 )
 
@@ -51,46 +49,56 @@ from tarot_canvas.ui.canvas import (
     distribute_items_horizontally,
     distribute_items_vertically,
 )
+from tarot_canvas.ui.canvas.motion import (
+    AMBIENT_GAIN_FLOOR,
+    MotionClock,
+    approach,
+    system_animations_enabled,
+)
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 
 
 class CanvasTab(BaseTab):
     # Signal to notify the main window that we want to navigate
-    navigation_requested = pyqtSignal(str, object)  # action, data
+    navigation_requested = pyqtSignal(str, object)
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.id = f"canvas_{id(self)}"  # Unique ID for this tab
-        self.tab_name = "Canvas"  # Default tab name
+        self.id = f"canvas_{id(self)}"
+        self.tab_name = "Canvas"
 
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
-        # Setup the UI with size-constrained components
+        self.motion_clock = MotionClock(self)
+        self.ambient_gain = 0.0
+
+        self._cards = []
+        self._top_z = 0.0
+        self._bottom_z = 0.0
+        self.motion_level = MOTION_LEVEL_DEFAULT
+        self.desktop_wants_animation = True
+
         self.setup_ui()
         self.deck = deck_manager.get_reference_deck()
 
-        # Navigation history
         self.source_tab = None  # From where we came
 
         # Add multiple staggered calls to ensure window bounds
         # This creates a sequence of enforcement that is harder to override
+        # TODO: another stinky code smell
         QTimer.singleShot(100, self.ensure_window_bounds)
         QTimer.singleShot(500, self.ensure_window_bounds)
         QTimer.singleShot(1000, self.ensure_window_bounds)
 
-        # Set the canvas tab icon
         QTimer.singleShot(100, self.update_tab_icon)
 
     def setup_ui(self):
-        # Create a container widget instead of using self directly
         container = QWidget()
         main_layout = QHBoxLayout(container)
 
-        # Remove all margins to eliminate the padding
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # Create a canvas area for card placement with sensible size constraints
         self.scene = QGraphicsScene(self)
 
         # Set a more conservative scene rect size
@@ -150,17 +158,75 @@ class CanvasTab(BaseTab):
             bg_color = settings.value(BACKGROUND_COLOR_KEY, BACKGROUND_COLOR_DEFAULT)
             self.create_solid_color_background(bg_color)
 
-        # Apply animation settings
-        enable_animations = settings.value(
-            ANIMATIONS_ENABLED_KEY, ANIMATIONS_ENABLED_DEFAULT, type=bool
+        self.refresh_motion_settings()
+        if self.motion_is_enabled() and self.isVisible():
+            self.motion_clock.subscribe(self._advance_motion)
+        else:
+            self.motion_clock.unsubscribe(self._advance_motion)
+            self.settle_motion()
+
+    # Motion
+    def refresh_motion_settings(self):
+        self.motion_level = get_motion_level()
+        self.desktop_wants_animation = system_animations_enabled()
+
+    def motion_is_enabled(self):
+        return self.motion_level != "Off"
+
+    def reactive_is_allowed(self):
+        return self.motion_level != "Off"
+
+    def ambient_is_allowed(self):
+        return (
+            self.motion_level == "Full"
+            and self.desktop_wants_animation
+            and self.isVisible()
+            and self.window().isActiveWindow()
         )
 
-        animation_intensity = settings.value(
-            ANIMATION_INTENSITY_KEY, ANIMATION_INTENSITY_DEFAULT, type=int
+    def cards(self):
+        """Every card on this canvas in no particular order."""
+        return tuple(self._cards)
+
+    def register_card(self, card):
+        """Called by a card when it enters this tab's scene."""
+        if card not in self._cards:
+            self._cards.append(card)
+
+    def unregister_card(self, card):
+        """Called by a card when it leaves this tab's scene."""
+        if card in self._cards:
+            self._cards.remove(card)
+
+    def _advance_motion(self, t, dt):
+        """Step every card on this canvas one frame"""
+        self.ambient_gain = approach(
+            self.ambient_gain, 1.0 if self.ambient_is_allowed() else 0.0, 8.0, dt
         )
 
-        # Update all card animations
-        self.update_card_animations(enable_animations, animation_intensity)
+        if self.ambient_gain < AMBIENT_GAIN_FLOOR:
+            self.ambient_gain = 0.0
+
+        view_scale = abs(self.view.transform().m11())
+        for card in self._cards:
+            card.advance_motion(t, dt, self.ambient_gain, view_scale)
+
+    def settle_motion(self):
+        """Put every card flat."""
+        self.ambient_gain = 0.0
+        for card in self._cards:
+            card.settle_motion()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.refresh_motion_settings()
+        if self.motion_is_enabled():
+            self.motion_clock.subscribe(self._advance_motion)
+
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        self.motion_clock.unsubscribe(self._advance_motion)
+        self.settle_motion()
 
     def create_gradient_background(self):
         """Create a gradient background for the canvas"""
@@ -207,32 +273,6 @@ class CanvasTab(BaseTab):
 
         pattern_brush = QBrush(pixmap)
         self.view.setBackgroundBrush(pattern_brush)
-
-    def update_card_animations(self, enable, intensity):
-        """Update all card animations based on settings"""
-        # Scale intensity from 0-100 to appropriate animation values
-        rotation_amplitude = intensity * 0.016  # 0 to 1.6 degrees
-        scale_amplitude = 1.0 + (intensity * 0.0004)  # 1.0 to 1.04
-
-        # Get all card items in the scene
-        for item in self.scene.items():
-            if isinstance(item, DraggableCardItem) and hasattr(item, "rotation_anim"):
-                # Stop any existing animation
-                item.rotation_anim.stop()
-
-                if enable:
-                    # Get current rotation/state
-                    base_rotation = item.rotation()
-                    if hasattr(item, "anim_controller"):
-                        item.anim_controller._rotation = base_rotation
-
-                    # Set up animation with new intensity
-                    item.setup_wobble_animation_with_intensity(
-                        base_rotation, rotation_amplitude, scale_amplitude
-                    )
-
-                    # Start the animation
-                    item.start_animations()
 
     def ensure_window_bounds(self):
         """Ensure the window stays within screen boundaries"""
@@ -537,9 +577,19 @@ class CanvasTab(BaseTab):
         # Log what deck we drew from
         print(f"Drew card from {deck_to_use.get_name()} deck")
 
+    def take_top_z(self):
+        """The next depth above every card on the canvas."""
+        self._top_z += 1.0
+        return self._top_z
+
+    def take_bottom_z(self):
+        """The next depth below every card on the canvas."""
+        self._bottom_z -= 1.0
+        return self._bottom_z
+
     def cascade_from_occupied(self, pos, step=20, limit=20):
-        """Nudge pos clear of a card already sitting there, as duplicating does."""
-        occupied = {(round(item.pos().x()), round(item.pos().y())) for item in self.scene.items()}
+        """Nudge pos clear of a card already sitting there."""
+        occupied = {(round(card.pos().x()), round(card.pos().y())) for card in self._cards}
         for _ in range(limit):
             if (round(pos.x()), round(pos.y())) not in occupied:
                 break
@@ -547,7 +597,7 @@ class CanvasTab(BaseTab):
         return pos
 
     def add_specific_card(self, card, card_deck=None, is_reversed=False):
-        """Add a specific card to the canvas, optionally reversed"""
+        """Add a specific card to the canvas"""
         # Load the card image
         image_path = card.get("image")
         if not image_path or not os.path.exists(image_path):
@@ -573,20 +623,12 @@ class CanvasTab(BaseTab):
             # Create a draggable card item
             card_item = DraggableCardItem(pixmap, card, self)
 
+            card_item.setZValue(self.take_top_z())
+
             # Set initial rotation based on reversed status
-            initial_rotation = 180 if is_reversed else 0
-            card_item.setRotation(initial_rotation)
-
-            # Update the animation controller's base rotation
-            if hasattr(card_item, "anim_controller"):
-                card_item.anim_controller._rotation = initial_rotation
-
-            # Update the card's data to reflect its reversed status
+            card_item.set_orient(180 if is_reversed else 0)
             if card_item.card_data:
                 card_item.card_data["reversed"] = is_reversed
-
-            # Setup wobble animation with the correct base rotation
-            card_item.setup_wobble_animation(base_rotation=initial_rotation)
 
             # Deselect any currently selected cards
             for selected_item in self.scene.selectedItems():
@@ -609,6 +651,9 @@ class CanvasTab(BaseTab):
 
             # Select the newly added card
             card_item.setSelected(True)
+
+            # Pop in and spring back
+            card_item.place_and_settle()
 
             reversed_status = "reversed" if is_reversed else "upright"
             print(f"Added card to canvas: {card['name']} ({reversed_status})")
@@ -663,19 +708,15 @@ class CanvasTab(BaseTab):
         items = self.scene.selectedItems()
         for item in items:
             if isinstance(item, DraggableCardItem):
-                item.setRotation((item.rotation() + 90) % 360)
+                item.set_orient(item.orient + 90)
 
     def on_flip_card(self):
         """Flip the selected card upside down (to indicate reversed position in Tarot)"""
         items = self.scene.selectedItems()
         for item in items:
             if isinstance(item, DraggableCardItem):
-                # First, stop all animations that might override our rotation
-                if hasattr(item, "rotation_anim"):
-                    item.rotation_anim.stop()
-
                 # Toggle between normal and reversed position (180° rotation)
-                current_rotation = item.rotation()
+                current_rotation = item.orient
 
                 # If close to upright (0°), flip to reversed (180°)
                 # If close to reversed (180°), flip to upright (0°)
@@ -684,20 +725,12 @@ class CanvasTab(BaseTab):
                     new_rotation = 180
 
                 # Set the new rotation directly
-                item.setRotation(new_rotation)
-
-                # Update the base rotation in the animation controller
-                if hasattr(item, "anim_controller"):
-                    item.anim_controller._rotation = new_rotation
+                item.set_orient(new_rotation)
 
                 # Update the card's internal state to reflect reversed status
                 if hasattr(item, "card_data") and item.card_data:
                     # Toggle the reversed flag (create if it doesn't exist)
                     item.card_data["reversed"] = new_rotation == 180
-
-                # Now restart the animation with the new base rotation
-                if hasattr(item, "setup_wobble_animation"):
-                    item.setup_wobble_animation(base_rotation=new_rotation)
 
     def on_delete_card(self):
         """Remove the selected card from canvas"""
@@ -713,16 +746,23 @@ class CanvasTab(BaseTab):
             action.setEnabled(count >= (2 if slot == self.on_align_cards else 1))
 
     def on_bring_to_front(self):
-        """Bring selected card to front"""
-        items = self.scene.selectedItems()
-        for item in items:
-            item.setZValue(100)  # High z-value
+        """Bring the selected cards to the front, keeping their order among themselves."""
+        self._restack(self.scene.selectedItems(), self.take_top_z)
 
     def on_send_to_back(self):
-        """Send selected card to back"""
-        items = self.scene.selectedItems()
-        for item in items:
-            item.setZValue(-100)  # Low z-value
+        """Send the selected cards to the back, keeping their order among themselves."""
+        self._restack(self.scene.selectedItems(), self.take_bottom_z, deepest_first=True)
+
+    def _restack(self, items, allocate, deepest_first=False):
+        """Give items a new depth while preserving their relative order."""
+        cards = sorted(
+            (item for item in items if isinstance(item, DraggableCardItem)),
+            key=lambda item: item.zValue(),
+            reverse=deepest_first,
+        )
+
+        for card in cards:
+            card.setZValue(allocate())
 
     def on_align_cards(self):
         """Show alignment options for selected cards"""
