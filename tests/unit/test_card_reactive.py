@@ -1,3 +1,5 @@
+import math
+
 import pytest
 from PyQt6.QtCore import QPointF
 from PyQt6.QtGui import QPixmap
@@ -198,6 +200,72 @@ def test_a_dealt_card_arrives_large_and_settles_past_its_target(card):
     assert trace[-1] == LIFT_REST
 
 
+def test_the_shadow_follows_its_card_into_and_out_of_a_scene(qapp, card):
+    from PyQt6.QtWidgets import QGraphicsScene
+
+    item = card()
+    scene = QGraphicsScene()
+
+    scene.addItem(item)
+    assert item.shadow.scene() is scene
+
+    scene.removeItem(item)
+    assert item.shadow.scene() is None
+
+
+def test_a_shadow_sits_directly_beneath_its_own_card(qapp, card):
+    from PyQt6.QtWidgets import QGraphicsScene
+
+    scene = QGraphicsScene()
+    cards = [card() for _ in range(3)]
+    for depth, item in enumerate(cards, start=1):
+        scene.addItem(item)
+        item.setZValue(float(depth))
+
+    painted = sorted(scene.items(), key=lambda item: item.zValue())
+
+    assert painted == [
+        cards[0].shadow,
+        cards[0],
+        cards[1].shadow,
+        cards[1],
+        cards[2].shadow,
+        cards[2],
+    ]
+
+
+def test_the_shadow_keeps_its_place_when_the_card_is_restacked(qapp, card):
+    from PyQt6.QtWidgets import QGraphicsScene
+
+    from tarot_canvas.ui.canvas.motion import SHADOW_Z_OFFSET
+
+    item = card()
+    scene = QGraphicsScene()  # bound: a temporary scene takes the item down with it
+    scene.addItem(item)
+
+    item.setZValue(42.0)
+
+    assert item.shadow.zValue() == 42.0 + SHADOW_Z_OFFSET
+
+
+def test_the_shadow_tracks_the_card_even_with_the_clock_stopped(qapp, card):
+    from PyQt6.QtWidgets import QGraphicsScene
+
+    item = card(reactive=False)
+    scene = QGraphicsScene()
+    scene.addItem(item)
+    before = item.shadow.pos()
+
+    item.setPos(QPointF(400.0, 250.0))
+
+    moved = item.shadow.pos() - before
+    assert math.isclose(moved.x(), 400.0)
+    assert math.isclose(moved.y(), 250.0)
+
+
+# The repaint dead-band, as the card applies it
+
+
 def test_ambient_drift_is_applied_in_visible_steps_rather_than_every_frame(card):
     item = card()
     applied = sum(item.advance_motion(f * FRAME, FRAME, 1.0, 1.0) for f in range(600))
@@ -246,3 +314,53 @@ def test_a_hover_is_never_deferred(card):
     item.begin_hover(QPointF(CARD_W - 1, 1))
     assert item.advance_motion(1.0, FRAME, 0.0, 1.0)
     assert item.transform() != before
+
+
+def test_the_shadow_keeps_its_scale_while_no_gesture_is_in_flight(card):
+    item = card()
+    run(item, 120, ambient_gain=1.0)
+    scale, opacity = item.shadow.scale(), item.shadow.opacity()
+    run(item, 120, ambient_gain=1.0)
+    assert item.shadow.scale() == scale
+    assert item.shadow.opacity() == opacity
+
+
+def test_a_lifted_card_still_moves_its_shadow(card):
+    item = card()
+    resting = (item.shadow.scale(), item.shadow.opacity(), item.shadow.pos().y())
+    item.begin_hover(QPointF(CARD_W / 2, CARD_H / 2))
+    run(item, 60)
+    assert item.motion.lift == pytest.approx(LIFT_HOVER, abs=1e-3)
+    assert (item.shadow.scale(), item.shadow.opacity(), item.shadow.pos().y()) != resting
+
+
+def test_the_shadow_turns_with_a_quarter_turned_card(card):
+    item = card(reactive=False)
+
+    item.set_orient(90)
+
+    assert item.shadow.rotation() == 90
+    footprint = item.shadow.sceneBoundingRect()
+    assert footprint.width() > footprint.height()
+
+
+def test_the_shadow_follows_the_turn_and_lands_square(card):
+    item = card()
+    run(item, 120)
+
+    item.set_orient(90)
+    run(item, 3)
+    assert 0.0 < item.shadow.rotation() < 90.0
+
+    run(item, 240)
+    assert item.motion.orient_lag == 0.0
+    assert item.shadow.rotation() == 90
+
+
+def test_the_shadow_takes_no_perspective_tilt(card):
+    item = card()
+    item.begin_hover(QPointF(CARD_W * 0.9, CARD_H * 0.1))
+    run(item, 60, ambient_gain=1.0)
+
+    assert item.motion.face_x or item.motion.face_y
+    assert item.shadow.transform().isAffine()

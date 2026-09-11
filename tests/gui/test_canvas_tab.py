@@ -323,6 +323,23 @@ def test_restacking_a_selection_keeps_its_internal_order(qtbot):
     assert [c.zValue() for c in cards] == sorted(c.zValue() for c in cards)
 
 
+def test_a_raised_card_carries_its_shadow_with_it(qtbot):
+    """Raising a card must lift its shadow past the cards it now sits on top of."""
+    tab = make_tab(qtbot)
+    add_cards(tab, 2)
+    lower, upper = sorted(
+        (i for i in tab.scene.items() if isinstance(i, DraggableCardItem)),
+        key=lambda item: item.zValue(),
+    )
+
+    tab.scene.clearSelection()
+    lower.setSelected(True)
+    tab.on_bring_to_front()
+
+    assert lower.zValue() > upper.zValue()
+    assert lower.shadow.zValue() > upper.zValue()  # the shadow lands *on* the other card
+
+
 def test_reactive_is_no_longer_indistinguishable_from_off(qtbot):
     set_motion_level("Reactive")
     tab = make_tab(qtbot)

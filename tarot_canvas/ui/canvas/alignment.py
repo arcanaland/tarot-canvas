@@ -6,11 +6,20 @@ from PyQt6.QtGui import QTransform
 DEFAULT_CIRCLE_GAP_RATIO = 0.15
 
 
+def _turn(item):
+    """The item's logical rotation in degrees and the point it turns about."""
+    orient = getattr(item, "orient", None)
+    if orient is not None:
+        rect = item.boundingRect()
+        return orient, QPointF(rect.width() / 2.0, rect.height() / 2.0)
+    return item.rotation(), item.transformOriginPoint()
+
+
 def logical_rect(item):
     rect = item.boundingRect()
-    quarter_turns = round(item.rotation() / 90) % 4
+    degrees, origin = _turn(item)
+    quarter_turns = round(degrees / 90) % 4
     if quarter_turns:
-        origin = item.transformOriginPoint()
         turn = QTransform().translate(origin.x(), origin.y())
         turn.rotate(quarter_turns * 90)
         turn.translate(-origin.x(), -origin.y())

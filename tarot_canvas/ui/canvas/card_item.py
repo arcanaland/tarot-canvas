@@ -1,3 +1,5 @@
+import math
+
 from PyQt6.QtCore import QPointF, Qt
 from PyQt6.QtWidgets import QGraphicsItem, QGraphicsPixmapItem
 
@@ -18,13 +20,19 @@ from tarot_canvas.ui.canvas.motion import (
     MOTION_EPSILON_PX,
     ORIENT_RATE,
     REACTIVE_RATE,
+    SHADOW_BLUR_PX,
+    SHADOW_EPSILON_PX,
+    SHADOW_LIFT_EPSILON,
+    SHADOW_Z_OFFSET,
     SPIN_RATE,
     AmbientDrift,
     MotionChannels,
     Spring,
     approach,
+    build_contact_shadow,
     max_corner_delta,
     rest,
+    shadow_geometry,
 )
 
 # Degrees of Z rotation on hover
@@ -33,6 +41,16 @@ HOVER_PUNCH_DEG = 2.0
 
 def _clamp(value, limit):
     return max(-limit, min(limit, value))
+
+
+class ContactShadowItem(QGraphicsPixmapItem):
+    """The blurred silhouette of a card"""
+
+    def __init__(self, pixmap):
+        super().__init__(pixmap)
+        self.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+        self.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
+        self.setTransformOriginPoint(self.boundingRect().center())
 
 
 class DraggableCardItem(QGraphicsPixmapItem):
@@ -54,7 +72,17 @@ class DraggableCardItem(QGraphicsPixmapItem):
         self._applied = None
         self._applied_corners = None
         self._view_scale = 1.0
+        self._shadow_pos = None
+        self._shadow_lift = None
+        self._shadow_angle = None
         self._registered_tab = None
+
+        self.shadow = ContactShadowItem(build_contact_shadow(pixmap))
+        self._shadow_pad = float(round(SHADOW_BLUR_PX))
+        shadow_rect = self.shadow.boundingRect()
+        # How far the shadow's corners sit from the centre it turns about
+        self._shadow_reach = max(math.hypot(shadow_rect.width(), shadow_rect.height()) / 2.0, 1.0)
+        self.shadow.setZValue(self.zValue() + SHADOW_Z_OFFSET)
 
         self._hovering = False
         self._pressed = False
@@ -195,13 +223,66 @@ class DraggableCardItem(QGraphicsPixmapItem):
         self.setTransform(transform)
         self._applied = snapshot
         self._applied_corners = corners
+        self._place_shadow()
         return True
+
+    def _refresh_view_scale(self):
+        """Re-read the zoom from the scene's view."""
+        scene = self.scene()
+        views = scene.views() if scene is not None else ()
+        if views:
+            self._view_scale = abs(views[0].transform().m11())
+
+    def _place_shadow(self):
+        lift = self.motion.lift
+        offset, scale, opacity = shadow_geometry(lift)
+        rect = self.boundingRect()
+        shadow_rect = self.shadow.boundingRect()
+        x = self.pos().x() + (rect.width() - shadow_rect.width()) / 2.0 + self.motion.drift_x
+        y = (
+            self.pos().y()
+            + (rect.height() - shadow_rect.height()) / 2.0
+            + self.motion.drift_y
+            + offset
+        )
+        threshold = SHADOW_EPSILON_PX / max(self._view_scale, 1e-6)
+        if (
+            self._shadow_pos is None
+            or abs(x - self._shadow_pos[0]) >= threshold
+            or abs(y - self._shadow_pos[1]) >= threshold
+        ):
+            self.shadow.setPos(x, y)
+            self._shadow_pos = (x, y)
+        if self._shadow_lift is None or abs(lift - self._shadow_lift) >= SHADOW_LIFT_EPSILON:
+            self.shadow.setScale(scale)
+            self.shadow.setOpacity(opacity)
+            self._shadow_lift = lift
+
+        # rotate shadow without perspective tilt
+        angle = self.motion.orient + self.motion.orient_lag + self.motion.spin
+        settled = self.motion.orient_lag == 0.0 and self.motion.spin == 0.0
+        angle_threshold = math.degrees(threshold / self._shadow_reach)
+        if self._shadow_angle is None or (
+            angle != self._shadow_angle
+            and (settled or abs(angle - self._shadow_angle) >= angle_threshold)
+        ):
+            self.shadow.setRotation(angle)
+            self._shadow_angle = angle
 
     # Qt plumbing
     def itemChange(self, change, value):
-        """Keep the tab's card list in step with the scene the card is in."""
+        """Keep the shadow with its card"""
         if change == QGraphicsItem.GraphicsItemChange.ItemSceneHasChanged:
+            if value is not None:
+                value.addItem(self.shadow)
+            elif self.shadow.scene() is not None:
+                self.shadow.scene().removeItem(self.shadow)
             self._register_with_scene(value)
+        elif change == QGraphicsItem.GraphicsItemChange.ItemZValueHasChanged:
+            self.shadow.setZValue(self.zValue() + SHADOW_Z_OFFSET)
+        elif change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
+            self._refresh_view_scale()
+            self._place_shadow()
         return super().itemChange(change, value)
 
     def _register_with_scene(self, scene):
