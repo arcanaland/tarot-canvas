@@ -87,6 +87,15 @@ class DeckManager:
 
         return all_decks
 
+    def decks_containing(self, card_id):
+        """(deck, card) for every deck that has card_id with its image on disk."""
+        found = []
+        for deck in self.get_all_decks():
+            card = deck.get_card_by_id(card_id)
+            if card and card.get("image") and os.path.exists(card["image"]):
+                found.append((deck, card))
+        return found
+
 
 # Create a global instance
 deck_manager = DeckManager()

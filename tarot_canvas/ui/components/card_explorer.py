@@ -1,10 +1,14 @@
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QIcon, QStandardItem, QStandardItemModel
+import os
+
+from PyQt6.QtCore import QPoint, Qt, pyqtSignal
+from PyQt6.QtGui import QDrag, QIcon, QPixmap, QStandardItem, QStandardItemModel
 from PyQt6.QtWidgets import (
+    QAbstractItemView,
     QComboBox,
     QFrame,
     QHBoxLayout,
     QLabel,
+    QMenu,
     QToolButton,
     QTreeView,
     QVBoxLayout,
@@ -12,6 +16,68 @@ from PyQt6.QtWidgets import (
 )
 
 from tarot_canvas.models.deck_manager import deck_manager
+from tarot_canvas.ui.card_transfer import CARD_MIME, card_mime_data, copy_card_to_clipboard
+
+
+def card_row(index):
+    """The row's {"type": "card", "card", "deck"} dict, or None for a group row"""
+    data = index.data(Qt.ItemDataRole.UserRole) if index.isValid() else None
+    return data if data and data.get("type") == "card" else None
+
+
+class CardTreeModel(QStandardItemModel):
+    """Card rows drag as the card payload; group rows do not drag at all."""
+
+    def mimeTypes(self):
+        return [CARD_MIME]
+
+    def mimeData(self, indexes):
+        for index in indexes:
+            row = card_row(index)
+            if row:
+                return card_mime_data(row["card"], row["deck"])
+        return None
+
+    def flags(self, index):
+        flags = super().flags(index)
+        if card_row(index):
+            return flags | Qt.ItemFlag.ItemIsDragEnabled
+        return flags & ~Qt.ItemFlag.ItemIsDragEnabled
+
+
+class CardTreeView(QTreeView):
+    """Shows the card's art under the pointer while it is dragged, not the text row."""
+
+    DRAG_HEIGHT = 120
+
+    def startDrag(self, supported_actions):
+        indexes = [index for index in self.selectedIndexes() if card_row(index)]
+        mime = self.model().mimeData(indexes) if indexes else None
+        if mime is None:
+            return
+
+        drag = QDrag(self)
+        drag.setMimeData(mime)
+        pixmap = self.drag_pixmap(card_row(indexes[0])["card"])
+        if pixmap is not None:
+            drag.setPixmap(pixmap)
+            size = pixmap.deviceIndependentSize()
+            drag.setHotSpot(QPoint(round(size.width() / 2), round(size.height() / 2)))
+        drag.exec(supported_actions, Qt.DropAction.CopyAction)
+
+    def drag_pixmap(self, card):
+        path = card.get("image")
+        if not path or not os.path.exists(path):
+            return None
+        source = QPixmap(path)
+        if source.isNull():
+            return None
+        dpr = self.devicePixelRatioF()
+        pixmap = source.scaledToHeight(
+            round(self.DRAG_HEIGHT * dpr), Qt.TransformationMode.SmoothTransformation
+        )
+        pixmap.setDevicePixelRatio(dpr)
+        return pixmap
 
 
 class CardExplorerPanel(QWidget):
@@ -55,18 +121,24 @@ class CardExplorerPanel(QWidget):
         layout.addLayout(header_layout)
 
         # Tree view for cards
-        self.tree_view = QTreeView()
+        self.tree_view = CardTreeView()
         self.tree_view.setHeaderHidden(True)
         self.tree_view.setAnimated(True)
         self.tree_view.setIndentation(15)
         self.tree_view.setEditTriggers(QTreeView.EditTrigger.NoEditTriggers)
 
+        # Card rows drag onto a canvas
+        self.tree_view.setDragEnabled(True)
+        self.tree_view.setDragDropMode(QAbstractItemView.DragDropMode.DragOnly)
+
         # Connect signals
         self.tree_view.clicked.connect(self.on_item_clicked)
         self.tree_view.doubleClicked.connect(self.on_item_double_clicked)
+        self.tree_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.tree_view.customContextMenuRequested.connect(self.show_card_menu)
 
         # Create model
-        self.model = QStandardItemModel()
+        self.model = CardTreeModel()
         self.tree_view.setModel(self.model)
 
         layout.addWidget(self.tree_view, 1)  # 1 = stretch factor
@@ -203,6 +275,28 @@ class CardExplorerPanel(QWidget):
         if data and data["type"] == "card":
             # Emit the action signal - main window will decide what to do based on context
             self.card_action_requested.emit("double_click", data["card"], data["deck"])
+
+    def card_menu(self, index):
+        """Open and Copy for a card row; None for a group row or empty space"""
+        row = card_row(index)
+        if not row:
+            return None
+        card, deck = row["card"], row["deck"]
+
+        menu = QMenu(self)
+        open_action = menu.addAction(QIcon.fromTheme("document-open"), "&Open Card")
+        open_action.triggered.connect(
+            lambda: self.card_action_requested.emit("view_card", card, deck)
+        )
+        copy_action = menu.addAction(QIcon.fromTheme("edit-copy"), "&Copy Card")
+        copy_action.triggered.connect(lambda: copy_card_to_clipboard(card, deck))
+        return menu
+
+    def show_card_menu(self, pos):
+        menu = self.card_menu(self.tree_view.indexAt(pos))
+        if menu is not None:
+            menu.exec(self.tree_view.viewport().mapToGlobal(pos))
+            menu.deleteLater()
 
     def refresh(self):
         """Refresh the deck selector and tree view"""

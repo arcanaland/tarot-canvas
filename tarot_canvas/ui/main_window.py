@@ -2,14 +2,14 @@ import os
 from importlib.resources import files
 from pathlib import Path
 
-from PyQt6.QtCore import QEvent, QObject, Qt, QUrl, pyqtSignal
+from PyQt6.QtCore import QEvent, QObject, Qt, QUrl, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import (
     QAction,
     QActionGroup,
     QDesktopServices,
+    QGuiApplication,
     QIcon,
     QKeySequence,
-    QShortcut,
 )
 from PyQt6.QtWidgets import (
     QApplication,
@@ -113,7 +113,9 @@ class MainWindow(QMainWindow):
 
         self.create_menus()
         self.init_ui()
-        self.setup_shortcuts()
+
+        QGuiApplication.clipboard().dataChanged.connect(self.update_card_clipboard_actions)
+        self.update_card_clipboard_actions()
 
     def create_menus(self):
         # Create menu bar
@@ -164,6 +166,23 @@ class MainWindow(QMainWindow):
 
         # Edit menu
         edit_menu = menu_bar.addMenu("&Edit")
+        edit_menu.aboutToShow.connect(self.update_card_clipboard_actions)
+
+        self.copy_card_action = QAction("&Copy Card", self)
+        self.copy_card_action.setShortcuts(QKeySequence.StandardKey.Copy)
+        self.copy_card_action.setIcon(QIcon.fromTheme("edit-copy"))
+        self.copy_card_action.triggered.connect(self.copy_card)
+        edit_menu.addAction(self.copy_card_action)
+        self.addAction(self.copy_card_action)
+
+        self.paste_card_action = QAction("&Paste Card", self)
+        self.paste_card_action.setShortcuts(QKeySequence.StandardKey.Paste)
+        self.paste_card_action.setIcon(QIcon.fromTheme("edit-paste"))
+        self.paste_card_action.triggered.connect(self.paste_card)
+        edit_menu.addAction(self.paste_card_action)
+        self.addAction(self.paste_card_action)
+
+        edit_menu.addSeparator()
 
         preferences_action = QAction("&Preferences", self)
         preferences_action.triggered.connect(self.show_preferences)
@@ -235,6 +254,28 @@ class MainWindow(QMainWindow):
             ThemeType.DARK: dark_theme_action,
         }
 
+        # ------------- Go menu -----------
+
+        go_menu = menu_bar.addMenu("&Go")
+        go_menu.aboutToShow.connect(self.update_go_actions)
+        self.go_actions = {}
+        for group in (
+            (("previous", "&Previous Card\tLeft"), ("next", "&Next Card\tRight")),
+            (
+                ("first", "&First Card\tHome"),
+                ("last", "&Last Card\tEnd"),
+                ("random", "&Random Card\tD"),
+            ),
+            (("previous_deck", "Previous &Deck\t["), ("next_deck", "Ne&xt Deck\t]")),
+        ):
+            for where, text in group:
+                action = go_menu.addAction(text)
+                action.triggered.connect(lambda _checked=False, w=where: self.go(w))
+                self.go_actions[where] = action
+            go_menu.addSeparator()
+        find_card_action = go_menu.addAction("Find &Card…\tCtrl+P")
+        find_card_action.triggered.connect(self.show_command_palette)
+
         # Tools menu
         tools_menu = menu_bar.addMenu("&Tools")
 
@@ -243,6 +284,7 @@ class MainWindow(QMainWindow):
         command_palette_action.setShortcut("Ctrl+P")
         command_palette_action.triggered.connect(self.show_command_palette)
         tools_menu.addAction(command_palette_action)
+        self.addAction(command_palette_action)
 
         # Add Log Viewer action
         log_viewer_action = QAction("&Log Viewer", self)
@@ -648,6 +690,43 @@ class MainWindow(QMainWindow):
     def on_tab_changed(self, _index):
         if self.fullscreen_tab is not None:
             self.exit_tab_fullscreen()
+        self.update_card_clipboard_actions()
+
+    def current_base_tab(self):
+        tab = self.tab_widget.currentWidget()
+        return tab if isinstance(tab, BaseTab) else None
+
+    # A real slot, so Qt itself drops the clipboard connection when the window is deleted
+    @pyqtSlot()
+    def update_card_clipboard_actions(self):
+        """Copy/Paste Card enable as the current tab says, for what is on the clipboard"""
+        tab = self.current_base_tab()
+        mime = QGuiApplication.clipboard().mimeData()
+        self.copy_card_action.setEnabled(tab is not None and tab.can_copy_card())
+        self.paste_card_action.setEnabled(tab is not None and tab.can_paste_card(mime))
+
+    def copy_card(self):
+        tab = self.current_base_tab()
+        if tab is not None and tab.can_copy_card():
+            tab.copy_card()
+
+    def paste_card(self):
+        tab = self.current_base_tab()
+        mime = QGuiApplication.clipboard().mimeData()
+        if tab is not None and tab.can_paste_card(mime):
+            tab.paste_card(mime)
+        self.update_card_clipboard_actions()
+
+    def update_go_actions(self):
+        """Go entries enable as the current tab says"""
+        tab = self.current_base_tab()
+        for where, action in self.go_actions.items():
+            action.setEnabled(tab is not None and tab.can_go(where))
+
+    def go(self, where):
+        tab = self.current_base_tab()
+        if tab is not None and tab.can_go(where):
+            tab.go(where)
 
     def toggle_tab_fullscreen(self):
         """Toggle a chrome-free fullscreen showing only the current tab
@@ -872,11 +951,6 @@ class MainWindow(QMainWindow):
         # Create a deck view tab with the reference deck path
         self.new_deck_view_tab(deck_path=reference_deck.deck_path)
         self.close_welcome_tab()
-
-    def setup_shortcuts(self):
-        # Command palette shortcut (Ctrl+P)
-        self.command_palette_shortcut = QShortcut(QKeySequence("Ctrl+P"), self)
-        self.command_palette_shortcut.activated.connect(self.show_command_palette)
 
     def show_command_palette(self):
         """Show the command palette with context-aware behavior"""

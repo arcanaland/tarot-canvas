@@ -62,3 +62,15 @@ def test_thumbnail_falls_back_when_image_is_missing(qtbot, tmp_path):
 
     assert thumbnail.image_label.pixmap().isNull()
     assert thumbnail.image_label.text() == "Image not found"
+
+
+def test_the_context_menu_offers_open_and_copy(qtbot, tmp_path):
+    thumbnail = CardThumbnail(_card(tmp_path, 600, 1024), str(tmp_path))
+    qtbot.addWidget(thumbnail)
+    actions = {a.text().replace("&", ""): a for a in thumbnail.card_menu().actions()}
+
+    assert list(actions) == ["Open Card", "Copy Card"]
+    with qtbot.waitSignal(thumbnail.copy_requested, timeout=1000):
+        actions["Copy Card"].trigger()
+    with qtbot.waitSignal(thumbnail.double_clicked, timeout=1000):
+        actions["Open Card"].trigger()

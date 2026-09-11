@@ -41,3 +41,28 @@ class BaseTab(QWidget):
         window = self.window()
         if self.supports_fullscreen() and hasattr(window, "toggle_tab_fullscreen"):
             window.toggle_tab_fullscreen()
+
+    # -- card clipboard --------------------------------------------------
+    # Edit > Copy Card / Paste Card
+
+    def can_copy_card(self):
+        return False
+
+    def copy_card(self):
+        """Put this tab's card on the clipboard."""
+
+    def can_paste_card(self, mime):
+        return False
+
+    def paste_card(self, mime):
+        """Place the card mime carries."""
+
+    # -- go ----------------------------------------------------------------
+    # The Go menu asks the current tab. where is one of previous, next, first,
+    # last, random, previous_deck, next_deck; the keys are the tab's own.
+
+    def can_go(self, where):
+        return False
+
+    def go(self, where):
+        """Show another card in this tab."""

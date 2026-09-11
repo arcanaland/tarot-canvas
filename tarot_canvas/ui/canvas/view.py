@@ -1,16 +1,22 @@
 from contextlib import contextmanager
 
-from PyQt6.QtCore import QEvent, Qt
+from PyQt6.QtCore import QEvent, QMimeData, QPointF, Qt, pyqtSignal
 from PyQt6.QtGui import QPainter
 from PyQt6.QtWidgets import QApplication, QGraphicsView
+
+from tarot_canvas.ui.card_transfer import has_card
 
 MIN_ZOOM = 0.1
 MAX_ZOOM = 8.0
 
 
 class PannableGraphicsView(QGraphicsView):
+    # A card dropped onto the canvas in scene coordinates
+    card_dropped = pyqtSignal(QMimeData, QPointF)
+
     def __init__(self, scene, parent=None):
         super().__init__(scene, parent)
+        self.setAcceptDrops(True)
         self.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
         self.setCacheMode(QGraphicsView.CacheModeFlag.CacheBackground)
@@ -20,11 +26,7 @@ class PannableGraphicsView(QGraphicsView):
         self._pointer_pos = None
 
     def pointer_scene_pos(self):
-        """Scene position of the pointer, or None when it is not over the canvas.
-
-        Tracked from the events themselves rather than read from QCursor.pos(), which
-        on Wayland is only ever the last position Qt happened to observe.
-        """
+        """Scene position of the pointer or None when it is not over the canvas."""
         if self._pointer_pos is None:
             return None
         return self.mapToScene(self._pointer_pos)
@@ -40,13 +42,7 @@ class PannableGraphicsView(QGraphicsView):
         return self.mapToScene(self.viewport().rect()).boundingRect()
 
     def grow_scene_rect(self):
-        """Keep a viewport of scroll headroom around the camera in every direction.
-
-        QGraphicsView derives its scrollbar range from the scene rect, so panning by
-        scrollbar can never leave it. Recomputing the rect as (items | visible) plus a
-        viewport-sized margin is how a free camera is expressed in Qt: the wall keeps
-        moving ahead of the camera, and cards dragged outside stay reachable.
-        """
+        """Keep a viewport of scroll headroom around the camera in every direction."""
         visible = self._visible_scene_rect()
         rect = self.scene().itemsBoundingRect().united(visible)
         rect.adjust(-visible.width(), -visible.height(), visible.width(), visible.height())
@@ -54,11 +50,6 @@ class PannableGraphicsView(QGraphicsView):
 
     @contextmanager
     def _anchored_to_center(self):
-        """Zoom about the viewport centre instead of the pointer.
-
-        For zooms the pointer has nothing to do with — the toolbar buttons, whose
-        cursor is off the canvas entirely, and the clamp that follows fitInView.
-        """
         previous = self.transformationAnchor()
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
         try:
@@ -84,11 +75,6 @@ class PannableGraphicsView(QGraphicsView):
             self._scale_to(self.transform().m11() * factor)
 
     def fit_to_rect(self, rect):
-        """Frame rect, keeping the resulting zoom inside the clamp.
-
-        fitInView applies a transform of its own and would otherwise walk straight
-        past MIN_ZOOM on a widely spread canvas.
-        """
         self.grow_scene_rect()  # fitInView cannot scroll outside the scene rect
         self.fitInView(rect, Qt.AspectRatioMode.KeepAspectRatio)
         with self._anchored_to_center():  # keep rect centred while correcting the zoom
@@ -156,8 +142,30 @@ class PannableGraphicsView(QGraphicsView):
         else:
             super().mouseReleaseEvent(event)
 
+    # -- drop -------------------------------------------------------------
+
+    def dragEnterEvent(self, event):
+        if has_card(event.mimeData()):
+            event.acceptProposedAction()
+        else:
+            super().dragEnterEvent(event)
+
+    def dragMoveEvent(self, event):
+        if has_card(event.mimeData()):
+            event.acceptProposedAction()
+        else:
+            super().dragMoveEvent(event)
+
+    def dropEvent(self, event):
+        if has_card(event.mimeData()):
+            scene_pos = self.mapToScene(event.position().toPoint())
+            self.card_dropped.emit(event.mimeData(), scene_pos)
+            event.acceptProposedAction()
+        else:
+            super().dropEvent(event)
+
     def wheelEvent(self, event):
-        """Handle zooming with mouse wheel, anchored under the pointer"""
+        """Handle zooming with mouse wheel anchored under the pointer"""
         zoom_factor = 1.15
 
         if event.angleDelta().y() > 0:

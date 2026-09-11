@@ -75,3 +75,15 @@ def test_the_exclusion_note_is_palette_derived(tab):
     assert len(notes) == 1
     assert notes[0].foregroundRole() == QPalette.ColorRole.PlaceholderText
     assert notes[0].font().italic()
+
+
+def test_copy_from_a_thumbnail_copies_the_card_from_this_deck(tab, clipboard):
+    from tarot_canvas.ui.card_transfer import card_from_mime
+    from tarot_canvas.ui.widgets.card_thumbnail import CardThumbnail
+
+    thumbnail = tab.findChildren(CardThumbnail)[0]
+    thumbnail.copy_requested.emit()
+
+    card, deck, _ = card_from_mime(clipboard.mimeData(), [tab.deck])
+    assert card["id"] == thumbnail.card["id"]
+    assert deck is tab.deck
