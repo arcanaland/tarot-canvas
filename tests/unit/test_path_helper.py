@@ -87,3 +87,21 @@ def test_outside_flatpak_esoterica_has_no_external_path(monkeypatch, tmp_path):
     monkeypatch.setattr(path_helper, "xdg_data_home", lambda: tmp_path)
 
     assert path_helper.get_esoterica_directories() == [tmp_path / "tarot/esoterica"]
+
+
+def test_cache_directory_honours_xdg_cache_home(monkeypatch, tmp_path):
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+
+    assert path_helper.get_cache_directory() == tmp_path / "cache"
+    assert path_helper.get_cache_directory("tarot-canvas/catalog") == (
+        tmp_path / "cache" / "tarot-canvas/catalog"
+    )
+
+
+def test_staging_sits_beside_the_first_root_and_is_not_one(flatpak_env):
+    flatpak_env("land.arcana.TarotCanvas")
+    staging = path_helper.get_staging_directory()
+    roots = path_helper.get_decks_directory()
+
+    assert staging.parent == roots[0].parent
+    assert staging not in roots

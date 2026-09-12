@@ -66,6 +66,12 @@ def flush_closed_widgets():
         QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
 
 
+@pytest.fixture(autouse=True)
+def fresh_deck_events(monkeypatch):
+    """A DeckEvents per test, so no test's emit reaches an earlier test's widgets."""
+    monkeypatch.setattr("tarot_canvas.models.deck_events._instance", None)
+
+
 @pytest.fixture
 def clipboard(qapp):
     """The process-wide clipboard, emptied either side of the test."""
@@ -94,6 +100,7 @@ def stub_deck_manager(monkeypatch, minimal_deck):
         get_deck_names=lambda: [],
         get_deck=lambda name: None,
         get_all_decks=lambda: [minimal_deck],
+        rescan=lambda: None,
     )
     from tarot_canvas.models.deck_manager import DeckManager
 

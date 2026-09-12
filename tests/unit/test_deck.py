@@ -171,6 +171,36 @@ def test_artist_is_read_as_the_author_in_2_0(tmp_path):
     assert deck_author(deck) == "Jane Doe"
 
 
+def test_identifier_is_read_from_a_2_0_deck(tmp_path):
+    deck = _write_deck(
+        tmp_path,
+        """
+        [deck]
+        schema_version = "2.0"
+        identifier = "land.arcana/deck/aquatic-tarot"
+        name = "Aquatic Tarot"
+        version = "2.0"
+        """,
+    )
+    assert deck.get_identifier() == "land.arcana/deck/aquatic-tarot"
+    assert deck.get_deck_id() is None
+
+
+def test_a_1_0_deck_has_an_id_and_no_identifier(tmp_path):
+    deck = _write_deck(
+        tmp_path,
+        """
+        [deck]
+        schema_version = "1.0"
+        id = "rider-waite-smith"
+        name = "Rider-Waite-Smith"
+        version = "1.1"
+        """,
+    )
+    assert deck.get_deck_id() == "rider-waite-smith"
+    assert deck.get_identifier() is None
+
+
 def test_canonical_majors_need_no_declaration(tmp_path):
     """Appendix C is the terminal step, so an RWS-seated deck restates nothing."""
     deck = _write_deck(

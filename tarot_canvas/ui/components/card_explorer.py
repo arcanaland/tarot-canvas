@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from tarot_canvas.models.deck_events import deck_events
 from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.ui.card_transfer import CARD_MIME, card_mime_data, copy_card_to_clipboard
 
@@ -91,6 +92,7 @@ class CardExplorerPanel(QWidget):
         self.current_deck = None
         self.setup_ui()
         self.populate_deck_selector()
+        deck_events().decks_changed.connect(self.refresh)
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
