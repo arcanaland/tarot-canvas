@@ -97,6 +97,36 @@ def test_schema_2_0_name_files_nest_under_their_facet(tmp_path):
     assert by_id["minor_arcana.cups.ace"]["name"] == "Ace of Chalices"
 
 
+def test_a_2_0_name_file_with_only_alt_text_is_still_2_0(tmp_path):
+    """The manifest's schema_version decides the shape, not a `[name]` table."""
+    deck = _write_deck(
+        tmp_path,
+        """
+        [deck]
+        schema_version = "2.0"
+        name = "Names In The Manifest"
+        version = "1.0"
+
+        [cards."major_arcana.00"]
+        name = "The Fool"
+        """,
+        names="""
+        [metadata.alt_text]
+        license = "MIT"
+
+        [alt_text.card.major_arcana]
+        00 = "A wanderer at a cliff edge."
+
+        [alt_text.card.minor_arcana.cups]
+        ace = "A hand holds a cup."
+        """,
+    )
+    by_id = {c["id"]: c for c in deck.get_all_cards()}
+    assert by_id["major_arcana.00"]["name"] == "The Fool"
+    assert by_id["major_arcana.00"]["alt_text"] == "A wanderer at a cliff edge."
+    assert by_id["minor_arcana.cups.ace"]["alt_text"] == "A hand holds a cup."
+
+
 def test_schema_1_0_name_files_still_load(tmp_path):
     deck = _write_deck(
         tmp_path,
