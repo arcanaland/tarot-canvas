@@ -50,6 +50,11 @@ def test_a_highlight_behind_the_art_does_not_show_through(qapp):
     assert colour.green() == colour.blue()
 
 
+def test_undimmed_art_is_drawn_as_it_is(qapp):
+    image, _ = paint(art(), background=QColor("blue"), ground=QColor("white"), dimmed=False)
+    assert image.pixelColor(RECT.center()) == QColor("red")
+
+
 @pytest.mark.parametrize("progress", [-0.5, 1.5])
 def test_progress_out_of_range_is_clamped_not_raised(qapp, progress):
     paint(art(), progress=progress)

@@ -1,3 +1,8 @@
+from types import SimpleNamespace
+
+from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtWidgets import QWidget
+
 from tarot_canvas.ui.tabs.card_view.overview_tab import OverviewTab
 
 MAJOR = {
@@ -23,6 +28,35 @@ def make_tab(qtbot, card, deck=None):
     tab.show()
     qtbot.waitExposed(tab)
     return tab
+
+
+class FakeCardView(QWidget):
+    """What the deck link asks of the tab it sits in"""
+
+    navigation_requested = pyqtSignal(str, object)
+
+    def __init__(self, reference_deck):
+        super().__init__()
+        self.id = "card_1"
+        self.deck_manager = SimpleNamespace(get_reference_deck=lambda: reference_deck)
+
+
+def test_a_broken_link_to_the_reference_deck_survives_a_rescan(qtbot):
+    """A rescan swaps every deck object, so the tab's deck is the old one, at the same path"""
+    reference = SimpleNamespace(deck_path="/decks/rider-waite-smith")
+    before_the_rescan = SimpleNamespace(deck_path="/decks/rider-waite-smith")
+    card_view = FakeCardView(reference)
+    qtbot.addWidget(card_view)
+    tab = OverviewTab(MAJOR, None, card_view)
+    tab.deck = before_the_rescan
+    asked = []
+    card_view.navigation_requested.connect(lambda action, args: asked.append((action, args)))
+
+    tab.on_deck_link_clicked("deck:None")
+
+    assert asked == [
+        ("open_deck_view", {"deck_path": reference.deck_path, "source_tab_id": "card_1"})
+    ]
 
 
 def test_info_frame_stays_visible_for_major_arcana(qtbot):

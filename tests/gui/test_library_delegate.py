@@ -315,6 +315,29 @@ def test_a_ghost_with_a_cover_hands_over_the_art_where_it_would_sit(
     assert call["rect"].bottom() == delegate._layout(option_for(delegate, qapp)).cover.bottom()
 
 
+def test_a_selected_ghost_shows_its_art_undimmed_and_keeps_its_emblem(
+    qapp, tmp_path, monkeypatch, ghost_calls
+):
+    path = write_card(tmp_path, 600, 900)
+    monkeypatch.setattr(deck_catalog(), "cover_path", lambda entry: path)
+    delegate = DeckDelegate()
+    model = ghost_model()
+
+    render(delegate, qapp, model.index(1, 0), qapp.palette())
+    render(
+        delegate,
+        qapp,
+        model.index(1, 0),
+        qapp.palette(),
+        QStyle.StateFlag.State_Enabled | QStyle.StateFlag.State_Selected,
+    )
+
+    unselected, selected = ghost_calls
+    assert unselected["dimmed"] is True
+    assert selected["dimmed"] is False
+    assert isinstance(selected["emblem"], QIcon)
+
+
 def test_an_installed_deck_never_paints_as_a_ghost(qapp, tmp_path, ghost_calls):
     with_art = model_with_cover(tmp_path)
     render(DeckDelegate(), qapp, with_art.index(0, 0), qapp.palette())

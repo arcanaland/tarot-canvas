@@ -3,7 +3,7 @@ import random
 from functools import partial
 from typing import ClassVar
 
-from PyQt6.QtCore import QEvent, Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import QEvent, Qt, QTimer, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QKeySequence, QPixmap, QShortcut
 from PyQt6.QtWidgets import (
     QApplication,
@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from tarot_canvas.models.deck_events import deck_events
 from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.ui.card_transfer import copy_card_to_clipboard
 from tarot_canvas.ui.tabs.base_tab import BaseTab
@@ -123,6 +124,8 @@ class CardViewTab(BaseTab):
 
         self.deck_bar.update_decks(self.card, self.deck, deck_manager)
         self.sync_deck_bar()
+        # A slot, so Qt drops the app-wide connection when the tab is deleted
+        deck_events().decks_changed.connect(self.on_decks_changed)
 
         self.setup_key_bindings()
 
@@ -421,6 +424,14 @@ class CardViewTab(BaseTab):
     def sync_deck_bar(self):
         """A deck picker with one deck in it is dead space"""
         self.deck_bar.setVisible(self.deck_bar.has_choice() and not self.is_fullscreen())
+
+    @pyqtSlot()
+    def on_decks_changed(self):
+        """A deck installed: list again the decks that have this card, for the bar and Go"""
+        if self.card is None or self.deck is None:
+            return
+        self.deck_bar.update_decks(self.card, self.deck, self.deck_manager)
+        self.sync_deck_bar()
 
     # -- moving through the deck -------------------------------------------
 

@@ -104,7 +104,7 @@ class DeckDelegate(QStyledItemDelegate):
         self._paint_background(painter, option, palette, selected, hovered)
 
         layout = self._layout(option)
-        self._paint_cover(painter, layout.cover, palette, index)
+        self._paint_cover(painter, layout.cover, palette, index, selected)
 
         title_colour = palette.highlightedText().color() if selected else palette.text().color()
         self._paint_line(
@@ -140,7 +140,7 @@ class DeckDelegate(QStyledItemDelegate):
         painter.setBrush(colour)
         painter.drawRoundedRect(option.rect, units.CORNER_RADIUS, units.CORNER_RADIUS)
 
-    def _paint_cover(self, painter, well, palette, index):
+    def _paint_cover(self, painter, well, palette, index, selected=False):
         pixmap = None
         path = index.data(CoverPathRole)
         if path:
@@ -169,7 +169,9 @@ class DeckDelegate(QStyledItemDelegate):
         art.moveCenter(well.center())
         art.moveBottom(well.bottom())
         if ghost:
-            self._paint_ghost(painter, art, pixmap, index, state, palette)
+            # Selected, the art shows as it would installed: dimmed art on the selection's
+            # colour reads as a clash, and the emblem still marks it a ghost
+            self._paint_ghost(painter, art, pixmap, index, state, palette, dimmed=not selected)
         else:
             painter.drawPixmap(art.topLeft(), pixmap)
 
@@ -180,7 +182,7 @@ class DeckDelegate(QStyledItemDelegate):
         painter.drawRoundedRect(art, units.COVER_RADIUS, units.COVER_RADIUS)
 
     @staticmethod
-    def _paint_ghost(painter, rect, pixmap, index, state, palette):
+    def _paint_ghost(painter, rect, pixmap, index, state, palette, dimmed=True):
         """A deck not installed yet: an emblem as well as dimming, so colour isn't the only sign"""
         downloading = state is DeckState.DOWNLOADING
         paint_ghost_cover(
@@ -192,6 +194,7 @@ class DeckDelegate(QStyledItemDelegate):
             emblem=QIcon.fromTheme("download"),
             palette=palette,
             ground=palette.base().color(),  # the view's, under an unselected tile
+            dimmed=dimmed,
         )
 
     @staticmethod

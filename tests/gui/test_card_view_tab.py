@@ -340,6 +340,48 @@ def test_brackets_do_nothing_with_one_deck(qtbot, big_image_deck, stub_deck_mana
     assert tab.deck is big_image_deck
 
 
+def test_a_deck_installed_while_the_card_is_open_joins_its_deck_bar(
+    qtbot, big_image_deck, minimal_deck, stub_deck_manager
+):
+    from tarot_canvas.models.deck_events import deck_events
+
+    installed = [big_image_deck]
+    stub_deck_manager.get_all_decks = lambda: list(installed)
+    tab = make_tab(qtbot, big_image_deck, 1200, 900)
+    assert not tab.can_go("next_deck")
+    assert not tab.deck_bar.isVisibleTo(tab)
+
+    installed.append(minimal_deck)
+    deck_events().decks_changed.emit()
+
+    # No card change needed: the bar, Go and the brackets all see the new deck
+    assert tab.deck_bar.isVisibleTo(tab)
+    assert tab.can_go("next_deck")
+    assert tab.can_go("previous_deck")
+    press(qtbot, tab, Qt.Key.Key_BracketRight)
+    assert tab.deck is minimal_deck
+
+
+def test_a_deck_installed_after_a_card_view_is_deleted_does_not_crash(
+    qtbot, big_image_deck, stub_deck_manager
+):
+    from PyQt6 import sip
+    from PyQt6.QtCore import QCoreApplication, QEvent
+
+    from tarot_canvas.models.deck_events import deck_events
+
+    stub_deck_manager.get_all_decks = lambda: [big_image_deck]
+    card = next(c for c in big_image_deck.get_all_cards() if c.get("image"))
+    tab = CardViewTab(card=card, deck=big_image_deck)  # not qtbot's: the test deletes it
+    qtbot.wait(150)  # past the tab's 100 ms singleShot, which a deleted tab can't take
+    tab.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    assert sip.isdeleted(tab)
+
+    deck_events().decks_changed.emit()
+    qtbot.wait(10)
+
+
 def test_zoom_never_shrinks_the_card_below_the_pane(qtbot, big_image_deck):
     tab = make_tab(qtbot, big_image_deck, 1200, 900)
     view = tab.image_view
