@@ -29,7 +29,9 @@ CORNER_REBUILD_RATIO = 1.1  # rebuild when the floor moves the geometry by more 
 CORNER_BASE_OPACITY = 0.7
 CORNER_GLINT_GAIN = 0.05  # per degree a corner has turned down
 CORNER_MIN_OPACITY = 0.4
-CORNER_GATHER_FROM = 1.08  # scale about the card centre (British [derogatory]) when the corners start to gather in
+CORNER_GATHER_FROM = (
+    1.08  # scale about the card centre (British [derogatory]) when the corners start to gather in
+)
 CORNER_OPACITY_EPSILON = 0.01
 
 SELECTION_RATE = REACTIVE_RATE
