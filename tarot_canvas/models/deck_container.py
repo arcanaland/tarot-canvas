@@ -1,8 +1,6 @@
-"""Unpack a deck container (deck spec 2.4) without trusting it.
+"""Unpack a zipped deck container
 
-Every entry is checked before anything is written: `zipfile` sanitises names on
-extraction, but the spec requires the whole container be rejected rather than
-repaired, so names, types and sizes are checked here and extraction is our own.
+TODO: This will eventually be replaced by libarcana.
 """
 
 import enum
@@ -59,12 +57,7 @@ DEFAULT_LIMITS = Limits(max_total_size=2 * 1024**3, max_entries=20_000, max_rati
 
 
 def unpack_container(container_path, dest_dir, limits=DEFAULT_LIMITS):
-    """Unpack the container into `dest_dir`, which must exist and be empty.
-
-    Raises ContainerError without writing anything when a header breaks a rule;
-    one found only while copying (a lying size) leaves `dest_dir` partly written,
-    so the caller must unpack somewhere it can throw away.
-    """
+    """Unpack the container into dest_dir which must exist and be empty."""
     dest_dir = Path(dest_dir)
     if not dest_dir.is_dir() or any(dest_dir.iterdir()):
         raise ValueError(f"{dest_dir} is not an empty directory")

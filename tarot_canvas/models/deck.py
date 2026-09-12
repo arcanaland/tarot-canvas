@@ -500,11 +500,11 @@ class TarotDeck:
         return self._deck_field("website")
 
     def get_deck_id(self):
-        """Get the schema-1.x `[deck].id`, or None."""
+        """Get the v1 [deck].id or None."""
         return self._deck_field("id")
 
     def get_identifier(self):
-        """Get the schema-2.0 `[deck].identifier` (deck spec 3.4), or None."""
+        """Get the v2 [deck].identifier or None."""
         return self._deck_field("identifier")
 
     def get_schema_version(self):

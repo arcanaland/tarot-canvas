@@ -1,4 +1,4 @@
-"""Deck spec 2.4: every MUST of a container is a test here."""
+"""TODO: delete when we replace the container stuff with libarcana"""
 
 import stat
 import struct

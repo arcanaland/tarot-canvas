@@ -1,9 +1,3 @@
-"""PackageDownload over file:// URLs: real QNetworkReply signals, no sockets.
-
-A file:// reply delivers the whole file in one readyRead, so chunked progress and
-the redirect policy are exercised only against a real server, not here.
-"""
-
 import hashlib
 
 import pytest

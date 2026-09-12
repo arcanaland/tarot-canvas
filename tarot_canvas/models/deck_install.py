@@ -1,8 +1,6 @@
-"""Install a deck container: unpack into staging, then rename into place.
+"""Install a deck container.
 
-A scan never sees a partly written deck, because the only write into a library
-root is one `rename(2)`. Staging must be on the same filesystem as `dest` and
-must not be a library root itself (the scanner lists dot-directories too).
+TODO: This will eventually be replaced by libarcana.
 """
 
 import enum
@@ -34,10 +32,6 @@ class InstallError(Exception):
 
 
 def install_dir_name(identifier, fallback):
-    """The directory a deck installs as: the identifier's last segment, else `fallback`.
-
-    `fallback` is the catalog's slug or the container's file stem (deck spec 2.4).
-    """
     name = identifier.rsplit("/", 1)[-1] if identifier else fallback
     if not name or name in (".", "..") or any(c in name for c in ("/", "\\", "\0", os.sep)):
         raise ValueError(f"not a single path segment: {name!r}")
@@ -45,11 +39,7 @@ def install_dir_name(identifier, fallback):
 
 
 def install_container(container_path, dest, staging_root):
-    """Unpack the container and rename it to `dest`, which must not exist.
-
-    Raises ContainerError for a bad container and InstallError when it can't be
-    placed; either way the staged copy is removed and `dest` is untouched.
-    """
+    """Unpack the container and rename it to dest."""
     dest = Path(dest)
     if os.path.lexists(dest):
         raise InstallError(InstallReason.DESTINATION_EXISTS, str(dest))
@@ -77,13 +67,10 @@ def _check_deck_toml(path):
 
 
 def _rename(staged, dest):
-    # rename(2) silently replaces an *empty* directory; one that appeared since
-    # the check above is the only case, and it held nothing to lose.
     try:
         os.rename(staged, dest)
     except OSError as e:
         if e.errno == errno.EXDEV:
-            # Copying instead would be the non-atomic install this replaces.
             raise InstallError(InstallReason.FILESYSTEM, str(e)) from e
         if e.errno in (errno.EEXIST, errno.ENOTEMPTY, errno.ENOTDIR):
             raise InstallError(InstallReason.DESTINATION_EXISTS, str(dest)) from e

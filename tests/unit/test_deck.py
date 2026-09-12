@@ -187,7 +187,6 @@ def test_identifier_is_read_from_a_2_0_deck(tmp_path):
 
 
 def test_a_1_0_deck_has_an_id_and_no_identifier(tmp_path):
-    """RFC-034's join needs both, so neither accessor stands in for the other."""
     deck = _write_deck(
         tmp_path,
         """

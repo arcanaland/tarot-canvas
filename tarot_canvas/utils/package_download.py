@@ -1,8 +1,6 @@
-"""Download one deck package, verify it, and install it off the GUI thread.
+"""Download and install a deck
 
-The consumer rescans (`deck_manager.rescan()`) on `succeeded`; this module does
-not import the deck manager, whose import builds a singleton that touches disk.
-It logs nothing either: `DownloadFailure.detail` is for the consumer to log.
+TODO: This will eventually be replaced by libarcana.
 """
 
 import contextlib
@@ -33,11 +31,10 @@ class FailureKind(enum.Enum):
 @dataclass(frozen=True)
 class DownloadFailure:
     kind: FailureKind
-    detail: str  # for the log only; never shown to a user
+    detail: str
 
 
 def failure_for(exc):
-    """The FailureKind an exception from `install_container` stands for."""
     if isinstance(exc, ContainerError):
         return DownloadFailure(FailureKind.CONTAINER, str(exc))
     if isinstance(exc, InstallError):
@@ -46,13 +43,13 @@ def failure_for(exc):
         return DownloadFailure(FailureKind.FILESYSTEM, str(exc))
     if isinstance(exc, OSError):
         return DownloadFailure(FailureKind.FILESYSTEM, str(exc))
-    # The container is the only untrusted input, so blame it, with the evidence.
+    # The container is the only untrusted input
     detail = "".join(traceback.format_exception(exc))
     return DownloadFailure(FailureKind.CONTAINER, detail)
 
 
 class _InstallReporter(QObject):
-    """Lives on the GUI thread, so signals emitted from the pool queue back to it."""
+    """Lives on the GUI thread."""
 
     succeeded = pyqtSignal(str)
     failed = pyqtSignal(object)
@@ -83,12 +80,6 @@ class _Phase(enum.Enum):
 
 
 class PackageDownload(QObject):
-    """Fetch `url`, check it is exactly `size` bytes hashing to `sha256`, install at `dest`.
-
-    Exactly one of `succeeded` or `failed` follows every `start()`, and never
-    from inside it. The `.part` file is gone by the time either is emitted.
-    """
-
     progress = pyqtSignal("qint64", "qint64")  # received, total
     succeeded = pyqtSignal(str)  # the installed deck root
     failed = pyqtSignal(object)  # a DownloadFailure
@@ -124,7 +115,6 @@ class PackageDownload(QObject):
         self._cancelled = False
         self._failure = None
 
-        # Checked again at install; this saves downloading only to be refused.
         if os.path.lexists(self._dest):
             self._fail_soon(FailureKind.DESTINATION_EXISTS, str(self._dest))
             return
@@ -138,7 +128,6 @@ class PackageDownload(QObject):
         if self._network is None:
             self._network = QNetworkAccessManager(self)
         request = QNetworkRequest(self._url)
-        # Release assets redirect to a signed objects host; never https -> http.
         request.setAttribute(
             QNetworkRequest.Attribute.RedirectPolicyAttribute,
             QNetworkRequest.RedirectPolicy.NoLessSafeRedirectPolicy,
@@ -186,7 +175,6 @@ class PackageDownload(QObject):
 
         failure = self._failure or self._transport_failure(reply)
         if failure is None and self._cancelled:
-            # A file:// reply aborts with NoError, so the flag decides, not the code.
             failure = DownloadFailure(FailureKind.CANCELLED, "cancelled")
         if failure is None and self._received != self._size:
             detail = f"{self._received} bytes, expected {self._size}"

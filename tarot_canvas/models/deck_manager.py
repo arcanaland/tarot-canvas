@@ -44,14 +44,12 @@ class DeckManager:
                     try:
                         logger.debug(f"Loading deck from {deck_path}")
                         deck = TarotDeck(deck_path)
-                        # NOTE: name-keyed; a same-named deck elsewhere replaces it (RFC-034 Cons)
                         self.decks[deck.get_name()] = deck
                         logger.info(f"Loaded deck '{deck.get_name()}' from {deck_path}")
                     except Exception as e:
                         logger.error(f"Error loading deck {deck_path}: {e}")
 
     def rescan(self):
-        """Rebuild the deck list from disk and tell listeners (DeckEvents.decks_changed)."""
         self.decks = {}
         self.load_reference_deck()
         self.load_decks()

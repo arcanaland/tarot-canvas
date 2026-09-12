@@ -42,11 +42,7 @@ def get_decks_directory():
 
 
 def get_staging_directory():
-    """Where deck containers unpack before they are renamed into a library root.
-
-    A sibling of the first root, so on its filesystem, but not a root itself:
-    the scanner would list a half-unpacked deck here, dot-directory or not.
-    """
+    """Where deck containers are unpacked"""
     return get_data_directory("tarot/.staging")
 
 
