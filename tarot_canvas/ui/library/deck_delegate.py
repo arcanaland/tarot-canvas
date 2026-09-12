@@ -1,20 +1,20 @@
 from dataclasses import dataclass
 
 from PyQt6.QtCore import QRect, QSize, Qt
-from PyQt6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter
+from PyQt6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter, QPixmap
 from PyQt6.QtWidgets import QApplication, QStyle, QStyledItemDelegate
 
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.cover_cache import CoverCache
-from tarot_canvas.ui.library.deck_model import CoverPathRole, SubtitleRole
+from tarot_canvas.ui.library.deck_downloads import DeckState
+from tarot_canvas.ui.library.deck_model import CoverPathRole, ProgressRole, StateRole, SubtitleRole
+from tarot_canvas.ui.library.ghost_paint import paint_ghost_cover, paint_placeholder_well
 
 HOVER_ALPHA = 38  # ~15% Highlight behind a hovered cell
 COVER_BORDER_ALPHA = 26  # ~10% Text as the cover hairline
-PLACEHOLDER_WELL_ALPHA = 20
 SELECTED_SUBTITLE_ALPHA = 200
 
 SUBTITLE_SCALE = 0.85
-PLACEHOLDER_ICON_FRACTION = 0.4
 
 
 @dataclass(frozen=True)
@@ -149,8 +149,13 @@ class DeckDelegate(QStyledItemDelegate):
                 path, self.cover_size(), painter.device().devicePixelRatioF()
             )
 
+        state = index.data(StateRole)
+        ghost = state is not None and state is not DeckState.INSTALLED
+
         if pixmap is None:
-            self._paint_placeholder(painter, well, palette)
+            paint_placeholder_well(painter, well, palette)
+            if ghost:
+                self._paint_ghost(painter, well, QPixmap(), index, state, palette)
             return
 
         art = QRect(
@@ -164,7 +169,10 @@ class DeckDelegate(QStyledItemDelegate):
         # the artwork whatever aspect ratio the deck's cards happen to be.
         art.moveCenter(well.center())
         art.moveBottom(well.bottom())
-        painter.drawPixmap(art.topLeft(), pixmap)
+        if ghost:
+            self._paint_ghost(painter, art, pixmap, index, state, palette)
+        else:
+            painter.drawPixmap(art.topLeft(), pixmap)
 
         border = QColor(palette.text().color())
         border.setAlpha(COVER_BORDER_ALPHA)
@@ -172,21 +180,19 @@ class DeckDelegate(QStyledItemDelegate):
         painter.setPen(border)
         painter.drawRoundedRect(art, units.COVER_RADIUS, units.COVER_RADIUS)
 
-    def _paint_placeholder(self, painter, well, palette):
-        """A well the same footprint as real art"""
-        ground = QColor(palette.text().color())
-        ground.setAlpha(PLACEHOLDER_WELL_ALPHA)
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(ground)
-        painter.drawRoundedRect(well, units.COVER_RADIUS, units.COVER_RADIUS)
-
-        icon = QIcon.fromTheme("image-missing")
-        if icon.isNull():
-            return
-        extent = max(16, round(min(well.width(), well.height()) * PLACEHOLDER_ICON_FRACTION))
-        target = QRect(0, 0, extent, extent)
-        target.moveCenter(well.center())
-        icon.paint(painter, target, Qt.AlignmentFlag.AlignCenter, QIcon.Mode.Disabled)
+    @staticmethod
+    def _paint_ghost(painter, rect, pixmap, index, state, palette):
+        """A deck not installed yet: an emblem as well as dimming, so colour isn't the only sign"""
+        downloading = state is DeckState.DOWNLOADING
+        paint_ghost_cover(
+            painter,
+            rect,
+            pixmap,
+            progress=(index.data(ProgressRole) or 0.0) if downloading else None,
+            failed=state is DeckState.FAILED,
+            emblem=QIcon.fromTheme("folder-download"),
+            palette=palette,
+        )
 
     @staticmethod
     def _paint_line(painter, rect, text, font, colour):

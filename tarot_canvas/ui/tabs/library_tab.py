@@ -1,15 +1,18 @@
+from contextlib import contextmanager
 from pathlib import Path
 
-from PyQt6.QtCore import QItemSelectionModel, QSize, Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import QItemSelectionModel, QSize, Qt, QTimer, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
+    QDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QListView,
+    QMessageBox,
     QToolButton,
     QWidget,
 )
@@ -25,7 +28,9 @@ from tarot_canvas.settings import (
     record_deck_opened,
 )
 from tarot_canvas.ui.library import units
+from tarot_canvas.ui.library.catalog_client import deck_catalog
 from tarot_canvas.ui.library.deck_delegate import DeckDelegate
+from tarot_canvas.ui.library.deck_downloads import DeckState, deck_downloads
 from tarot_canvas.ui.library.deck_model import (
     SORT_AUTHOR,
     SORT_COUNT,
@@ -34,8 +39,10 @@ from tarot_canvas.ui.library.deck_model import (
     DeckFilterProxyModel,
     DeckListModel,
     DeckRole,
+    EntryRole,
 )
 from tarot_canvas.ui.tabs.base_tab import BaseTab
+from tarot_canvas.ui.windows.deck_download_dialog import DOWNLOAD_TEXT, DeckDownloadDialog
 
 SORT_CHOICES = [
     ("Name", SORT_NAME),
@@ -58,7 +65,14 @@ class LibraryTab(BaseTab):
         super().__init__(parent)
         self.settings = get_settings()
         self.setup_ui()
+
+        # App-wide signals reach only slots, so Qt drops each connection when the tab is deleted
         deck_events().decks_changed.connect(self.refresh)
+        catalog = deck_catalog()
+        catalog.entries_changed.connect(self.on_entries_changed)
+        catalog.cover_ready.connect(self.model.cover_ready)
+        deck_downloads().changed.connect(self.model.download_changed)
+        catalog.activate()
 
         # Set the tab icon after a short delay to ensure the tab is added
         QTimer.singleShot(100, self.update_tab_icon)
@@ -67,7 +81,9 @@ class LibraryTab(BaseTab):
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(0)
 
-        self.model = DeckListModel(deck_manager.get_all_decks(), parent=self)
+        self.model = DeckListModel(
+            deck_manager.get_all_decks(), parent=self, entries=deck_catalog().entries()
+        )
         self.proxy_model = DeckFilterProxyModel(self)
         self.proxy_model.setSourceModel(self.model)
 
@@ -197,6 +213,33 @@ class LibraryTab(BaseTab):
         deck = index.data(DeckRole)
         if deck is not None:
             self.on_deck_selected(deck)
+            return
+        entry = index.data(EntryRole)
+        if entry is not None:
+            self._activate_ghost(entry)
+
+    def _activate_ghost(self, entry):
+        """Offer to download a catalog deck, or to cancel the download already running."""
+        downloads = deck_downloads()
+        if downloads.state(entry.slug) is DeckState.DOWNLOADING:
+            answer = QMessageBox.question(
+                self,
+                entry.name,
+                DOWNLOAD_TEXT["cancel_question"].format(name=entry.name),
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer == QMessageBox.StandardButton.Yes:
+                downloads.cancel(entry.slug)
+            return
+
+        dialog = DeckDownloadDialog(entry, parent=self.window())
+        try:
+            accepted = dialog.exec() == QDialog.DialogCode.Accepted
+        finally:
+            dialog.deleteLater()
+        if accepted:
+            downloads.start(entry)
 
     def on_deck_selected(self, deck):
         """Open the deck in a new tab."""
@@ -213,11 +256,22 @@ class LibraryTab(BaseTab):
         if hasattr(main_window, "open_deck"):
             main_window.open_deck()
 
+    @pyqtSlot()
     def refresh(self):
         """Reload the deck list, keeping the selected deck selected if it survives."""
+        with self._selection_kept():
+            self.model.set_decks(deck_manager.get_all_decks())
+            self.proxy_model.refresh_recent()
+
+    @pyqtSlot()
+    def on_entries_changed(self):
+        with self._selection_kept():
+            self.model.set_entries(deck_catalog().entries())
+
+    @contextmanager
+    def _selection_kept(self):
         selected = self.current_deck()
-        self.model.set_decks(deck_manager.get_all_decks())
-        self.proxy_model.refresh_recent()
+        yield
         if selected is not None:
             self.select_deck_path(selected.deck_path)
         self._update_empty_state()

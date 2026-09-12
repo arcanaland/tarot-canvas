@@ -1,13 +1,16 @@
 import pytest
 from PyQt6.QtCore import QRect, QSize, Qt
-from PyQt6.QtGui import QColor, QImage, QPainter, QPalette
+from PyQt6.QtGui import QColor, QIcon, QImage, QPainter, QPalette
 from PyQt6.QtWidgets import QStyle, QStyleOptionViewItem
 
-from tarot_canvas.ui.library import units
+from tarot_canvas.ui.library import deck_delegate, units
+from tarot_canvas.ui.library.catalog_client import deck_catalog
 from tarot_canvas.ui.library.cover_cache import CoverCache
 from tarot_canvas.ui.library.deck_delegate import DeckDelegate
+from tarot_canvas.ui.library.deck_downloads import deck_downloads
 from tarot_canvas.ui.library.deck_model import DeckListModel
-from tests.unit.test_library_model import fake_deck
+from tarot_canvas.utils.package_download import DownloadFailure, FailureKind
+from tests.unit.test_library_model import catalog_entry, fake_deck
 
 CARD_SIZES = [(600, 1024), (1140, 1140), (2420, 1400)]
 
@@ -240,3 +243,90 @@ def test_a_deck_without_art_still_paints_a_full_height_well(qapp):
     option = option_for(delegate, qapp)
     layout = delegate._layout(option)
     assert min(painted) <= layout.cover.top() + 1
+
+
+# -- ghosts --------------------------------------------------------------
+
+GHOST = catalog_entry("aquatic-tarot")
+
+
+@pytest.fixture
+def ghost_calls(monkeypatch):
+    calls = []
+
+    def record(painter, rect, pixmap, **kwargs):
+        calls.append({"rect": QRect(rect), "pixmap": pixmap, **kwargs})
+
+    monkeypatch.setattr(deck_delegate, "paint_ghost_cover", record)
+    return calls
+
+
+def ghost_model():
+    """An installed deck at row 0, the ghost at row 1. Keep the model bound while
+    its indexes are used: a freed model leaves them dangling, and data() segfaults."""
+    return DeckListModel([fake_deck("Installed", images=False)], entries=[GHOST])
+
+
+def test_an_available_ghost_is_dimmed_with_the_download_emblem(qapp, ghost_calls):
+    model = ghost_model()
+    render(DeckDelegate(), qapp, model.index(1, 0), qapp.palette())
+
+    (call,) = ghost_calls
+    assert call["progress"] is None
+    assert call["failed"] is False
+    assert isinstance(call["emblem"], QIcon)
+    assert call["pixmap"].isNull()  # no cover yet: bar and emblem go in the well
+
+
+def test_a_downloading_ghost_paints_its_progress(qapp, ghost_calls, fake_downloads):
+    deck_downloads().start(GHOST)
+    fake_downloads[0].progress.emit(40, 100)
+    model = ghost_model()
+    render(DeckDelegate(), qapp, model.index(1, 0), qapp.palette())
+
+    (call,) = ghost_calls
+    assert call["progress"] == pytest.approx(0.4)
+    assert call["failed"] is False
+
+
+def test_a_failed_ghost_paints_the_error(qapp, ghost_calls, fake_downloads):
+    deck_downloads().start(GHOST)
+    fake_downloads[0].failed.emit(DownloadFailure(FailureKind.NETWORK, "offline"))
+    model = ghost_model()
+    render(DeckDelegate(), qapp, model.index(1, 0), qapp.palette())
+
+    (call,) = ghost_calls
+    assert call["failed"] is True
+    assert call["progress"] is None
+
+
+def test_a_ghost_with_a_cover_hands_over_the_art_where_it_would_sit(
+    qapp, tmp_path, monkeypatch, ghost_calls
+):
+    path = write_card(tmp_path, 600, 900)
+    monkeypatch.setattr(deck_catalog(), "cover_path", lambda entry: path)
+    delegate = DeckDelegate()
+    model = ghost_model()
+    render(delegate, qapp, model.index(1, 0), qapp.palette())
+
+    (call,) = ghost_calls
+    assert not call["pixmap"].isNull()
+    assert call["rect"].size() == call["pixmap"].deviceIndependentSize().toSize()
+    assert call["rect"].bottom() == delegate._layout(option_for(delegate, qapp)).cover.bottom()
+
+
+def test_an_installed_deck_never_paints_as_a_ghost(qapp, tmp_path, ghost_calls):
+    with_art = model_with_cover(tmp_path)
+    render(DeckDelegate(), qapp, with_art.index(0, 0), qapp.palette())
+    beside_a_ghost = ghost_model()
+    render(DeckDelegate(), qapp, beside_a_ghost.index(0, 0), qapp.palette())
+    assert ghost_calls == []
+
+
+def test_a_ghost_row_paints_for_real(qapp, fake_downloads):
+    """No patching: the ghost path through a Python paint() must not crash."""
+    deck_downloads().start(GHOST)
+    fake_downloads[0].progress.emit(50, 100)
+    model = ghost_model()
+    image = render(DeckDelegate(), qapp, model.index(1, 0), qapp.palette())
+    assert not image.isNull()
