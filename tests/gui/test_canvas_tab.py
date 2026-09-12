@@ -1,5 +1,7 @@
+import pytest
 from PyQt6.QtCore import QEvent, QMimeData, QPoint, QPointF, Qt
 from PyQt6.QtGui import (
+    QColor,
     QDragEnterEvent,
     QDragMoveEvent,
     QDropEvent,
@@ -9,8 +11,15 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtWidgets import QApplication
 
-from tarot_canvas.settings import MOTION_LEVEL_KEY, get_settings
+from tarot_canvas.settings import (
+    BACKGROUND_COLOR_KEY,
+    BACKGROUND_STYLE_KEY,
+    MOTION_LEVEL_KEY,
+    get_settings,
+)
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
+from tarot_canvas.ui.canvas.motion import LIFT_SELECTED
+from tarot_canvas.ui.canvas.selection import GILT_ON_DARK, GILT_ON_LIGHT
 from tarot_canvas.ui.card_transfer import card_mime_data, copy_card_to_clipboard
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 
@@ -553,4 +562,195 @@ def test_a_paste_naming_a_removed_deck_places_nothing(qtbot, clipboard, minimal_
 
     assert tab.paste_card(card_mime_data(gone.get_random_card(), gone)) is None
     assert [i for i in tab.scene.items() if isinstance(i, DraggableCardItem)] == []
+    qtbot.wait(1100)
+
+
+def canvas_cards(tab):
+    return [i for i in tab.scene.items() if isinstance(i, DraggableCardItem)]
+
+
+def test_selection_marks_are_not_cards(qtbot):
+    tab = make_tab(qtbot)
+    add_cards(tab, 2)
+
+    assert len(tab.cards()) == 2
+    assert all(card.marks.built for card in canvas_cards(tab))
+    assert len(tab.scene.selectedItems()) == 2
+
+
+def test_zooming_tells_the_selected_cards_so_their_corners_hold_their_size(qtbot):
+    tab = make_tab(qtbot)
+    add_cards(tab, 1)
+    card = canvas_cards(tab)[0]
+    near = card.marks.corners[0].path().boundingRect()
+
+    tab.view.zoom_by_from_center(0.25)
+
+    assert card.view_scale() == pytest.approx(0.25)
+    assert card.marks.corners[0].path().boundingRect().width() > near.width()
+
+    tab.on_reset_view()
+
+    assert card.view_scale() == 1.0
+    assert card.marks.corners[0].path().boundingRect() == near
+
+
+@pytest.mark.parametrize(
+    ("style", "tone"),
+    [("Gradient", GILT_ON_DARK), ("Checkerboard", GILT_ON_LIGHT)],
+)
+def test_the_selection_tone_follows_the_background(qtbot, style, tone):
+    tab = make_tab(qtbot)
+    add_cards(tab, 1)
+    card = canvas_cards(tab)[0]
+
+    settings = get_settings()
+    settings.setValue(BACKGROUND_STYLE_KEY, style)
+    settings.sync()
+    tab.apply_background_settings()
+
+    assert tab.gilt == QColor(tone)
+    assert card.marks.corners[0].brush().color() == QColor(tone)
+
+
+def test_a_light_solid_background_takes_the_dark_gilt(qtbot):
+    tab = make_tab(qtbot)
+    settings = get_settings()
+    settings.setValue(BACKGROUND_STYLE_KEY, "Solid Color")
+    settings.setValue(BACKGROUND_COLOR_KEY, "#ffffff")
+    settings.sync()
+
+    tab.apply_background_settings()
+
+    assert tab.gilt == QColor(GILT_ON_LIGHT)
+
+
+def press_and_move(tab, card, by):
+    """Grab card by its left strip, which no neighbour in stacked_cards() covers."""
+    start = tab.view.mapFromScene(card.mapToScene(QPointF(20.0, 80.0)))
+    send_mouse(tab, QMouseEvent.Type.MouseButtonPress, start, Qt.MouseButton.LeftButton)
+    for step in range(1, 4):
+        send_mouse(
+            tab,
+            QMouseEvent.Type.MouseMove,
+            start + by * step / 3,
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.LeftButton,
+        )
+    return start + by
+
+
+def release(tab, at):
+    send_mouse(
+        tab,
+        QMouseEvent.Type.MouseButtonRelease,
+        at,
+        Qt.MouseButton.LeftButton,
+        Qt.MouseButton.NoButton,
+    )
+
+
+def stacked_cards(tab, count):
+    """count overlapping, unselected cards, the first at the bottom."""
+    add_cards(tab, count)
+    tab.scene.clearSelection()
+    cards = sorted(canvas_cards(tab), key=lambda card: card.pos().x())
+    for card in cards:
+        card.setPos(card.pos().x() / 3, 0)  # overlap each neighbour by two thirds
+        card.setZValue(tab.take_top_z())
+    return cards
+
+
+def test_a_dragged_card_rides_above_every_card_it_crosses(qtbot):
+    tab = make_tab(qtbot)
+    bottom, middle, top = stacked_cards(tab, 3)
+
+    end = press_and_move(tab, bottom, QPoint(120, 0))
+    assert bottom.zValue() > max(middle.zValue(), top.zValue()), "picked up, not slid under"
+
+    release(tab, end)
+    assert bottom.zValue() > max(middle.zValue(), top.zValue()), "and put down on top"
+
+
+def test_a_dragged_selection_rises_together_and_keeps_its_own_order(qtbot):
+    tab = make_tab(qtbot)
+    first, second, third = stacked_cards(tab, 3)
+    first.setSelected(True)
+    second.setSelected(True)
+
+    release(tab, press_and_move(tab, first, QPoint(0, 200)))
+
+    assert third.zValue() < first.zValue() < second.zValue()
+
+
+def test_dragging_the_top_card_spends_no_depth(qtbot):
+    tab = make_tab(qtbot)
+    *_, top = stacked_cards(tab, 3)
+    depth = top.zValue()
+
+    release(tab, press_and_move(tab, top, QPoint(0, 200)))
+
+    assert top.zValue() == depth
+
+
+def test_a_group_drag_moves_every_card_the_same_way_with_no_physics(qtbot):
+    set_motion_level("Full")
+    tab = make_tab(qtbot)
+    add_cards(tab, 2)
+    grabbed, carried = sorted(canvas_cards(tab), key=lambda card: card.pos().x())
+    before = [grabbed.pos(), carried.pos()]
+
+    end = press_and_move(tab, grabbed, QPoint(90, 40))
+    for frame in range(30):
+        for card in (grabbed, carried):
+            card.advance_motion(frame / 60.0, 1.0 / 60.0, 0.0)
+
+    assert grabbed.pos() - before[0] == carried.pos() - before[1]
+    for card in (grabbed, carried):
+        assert card.motion.face_x == 0.0
+        assert card.motion.face_y == 0.0
+        assert card.motion.lift == pytest.approx(LIFT_SELECTED, abs=1e-3)
+
+    release(tab, end)
+    assert not grabbed._group_dragging
+
+
+def test_a_lone_drag_still_ploughs(qtbot):
+    set_motion_level("Full")
+    tab = make_tab(qtbot)
+    add_cards(tab, 2)
+    tab.scene.clearSelection()
+    card = sorted(canvas_cards(tab), key=lambda card: card.pos().x())[0]
+
+    end = press_and_move(tab, card, QPoint(90, 0))
+    for frame in range(3):
+        card.advance_motion(frame / 60.0, 1.0 / 60.0, 0.0)
+
+    assert card._dragging and not card._group_dragging
+    assert card.motion.face_y < 0  # the leading edge digs in
+    release(tab, end)
+
+
+def test_zooming_in_sharpens_the_cards_on_screen_and_only_those(qtbot, tmp_path):
+    from PyQt6.QtCore import QThreadPool
+    from PyQt6.QtGui import QImage
+
+    image = QImage(1200, 2000, QImage.Format.Format_RGB32)
+    image.fill(QColor("white"))
+    path = str(tmp_path / "art.png")
+    image.save(path)
+
+    tab = make_tab(qtbot)
+    tab.add_specific_card({"id": "near", "image": path}, at=QPointF(0, 0))
+    tab.add_specific_card({"id": "far", "image": path}, at=QPointF(50000, 0))
+    near, far = sorted(canvas_cards(tab), key=lambda card: card.pos().x())
+    tab.view.centerOn(near)
+
+    tab.view.zoom_by_from_center(3.0)
+    tab.view.centerOn(near)
+    dpr = tab.view.viewport().devicePixelRatioF()
+    qtbot.waitUntil(lambda: near.detail() >= min(4, round(3 * dpr)), timeout=5000)
+
+    assert far.detail() <= max(1, round(dpr))
+    QThreadPool.globalInstance().waitForDone()
     qtbot.wait(1100)

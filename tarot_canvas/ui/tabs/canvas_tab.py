@@ -50,12 +50,18 @@ from tarot_canvas.ui.canvas import (
     distribute_items_horizontally,
     distribute_items_vertically,
 )
+from tarot_canvas.ui.canvas.detail import (
+    DETAIL_SETTLE_MS,
+    DETAIL_VISIBLE_MARGIN,
+    load_card_art,
+)
 from tarot_canvas.ui.canvas.motion import (
     AMBIENT_GAIN_FLOOR,
     MotionClock,
     approach,
     system_animations_enabled,
 )
+from tarot_canvas.ui.canvas.selection import GILT_ON_DARK, gilt_for_ground
 from tarot_canvas.ui.card_transfer import card_from_mime, has_card
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.utils.logger import logger
@@ -82,6 +88,7 @@ class CanvasTab(BaseTab):
         self._bottom_z = 0.0
         self.motion_level = MOTION_LEVEL_DEFAULT
         self.desktop_wants_animation = True
+        self.gilt = QColor(GILT_ON_DARK)
 
         self.setup_ui()
         self.deck = deck_manager.get_reference_deck()
@@ -112,6 +119,15 @@ class CanvasTab(BaseTab):
         # Use our custom view with middle-drag and shift+drag panning
         self.view = PannableGraphicsView(self.scene)
         self.view.card_dropped.connect(self.on_card_dropped)
+        self.view.zoom_changed.connect(self._on_zoom_changed)
+
+        # Sharpen the cards on screen once the camera settles
+        self._detail_timer = QTimer(self)
+        self._detail_timer.setSingleShot(True)
+        self._detail_timer.setInterval(DETAIL_SETTLE_MS)
+        self._detail_timer.timeout.connect(self.refresh_detail)
+        self.view.zoom_changed.connect(self.schedule_detail)
+        self.view.camera_moved.connect(self.schedule_detail)
 
         # Apply background from settings
         self.apply_background_settings()
@@ -157,12 +173,16 @@ class CanvasTab(BaseTab):
         bg_style = settings.value(BACKGROUND_STYLE_KEY, BACKGROUND_STYLE_DEFAULT)
 
         if bg_style == "Checkerboard":
-            self.create_purple_checkerboard_background()
+            ground = self.create_purple_checkerboard_background()
         elif bg_style == "Gradient":
-            self.create_gradient_background()
+            ground = self.create_gradient_background()
         elif bg_style == "Solid Color":
             bg_color = settings.value(BACKGROUND_COLOR_KEY, BACKGROUND_COLOR_DEFAULT)
-            self.create_solid_color_background(bg_color)
+            ground = self.create_solid_color_background(bg_color)
+        else:
+            ground = None
+        if ground is not None:
+            self.set_ground(ground)
 
         self.refresh_motion_settings()
         if self.motion_is_enabled() and self.isVisible():
@@ -190,6 +210,36 @@ class CanvasTab(BaseTab):
             and self.window().isActiveWindow()
         )
 
+    def set_ground(self, color):
+        """Pick the selection tone that shows up against this background colour."""
+        self.gilt = gilt_for_ground(color)
+        for card in self._cards:
+            card.set_gilt(self.gilt)
+
+    def _on_zoom_changed(self, view_scale):
+        for card in self._cards:
+            if card.isSelected():
+                card.set_view_scale(view_scale)
+
+    def schedule_detail(self, *_):
+        self._detail_timer.start()
+
+    def refresh_detail(self):
+        """Give each card the level of detail for how large it is on screen.
+
+        Cards off screen are held to the level for 1x, so zooming into one card doesn't
+        leave every other card on the canvas decoded at full size.
+        """
+        dpr = self.view.viewport().devicePixelRatioF() or 1.0
+        zoom = abs(self.view.transform().m11())
+        visible = self.view.mapToScene(self.view.viewport().rect()).boundingRect()
+        margin_x = visible.width() * DETAIL_VISIBLE_MARGIN
+        margin_y = visible.height() * DETAIL_VISIBLE_MARGIN
+        near = visible.adjusted(-margin_x, -margin_y, margin_x, margin_y)
+        for card in self._cards:
+            on_screen = card.sceneBoundingRect().intersects(near)
+            card.set_detail(dpr * (zoom if on_screen else min(zoom, 1.0)))
+
     def cards(self):
         """Every card on this canvas in no particular order."""
         return tuple(self._cards)
@@ -198,6 +248,7 @@ class CanvasTab(BaseTab):
         """Called by a card when it enters this tab's scene."""
         if card not in self._cards:
             self._cards.append(card)
+            self.schedule_detail()
 
     def unregister_card(self, card):
         """Called by a card when it leaves this tab's scene."""
@@ -247,6 +298,7 @@ class CanvasTab(BaseTab):
         brush = QBrush(gradient)
         self.scene.setBackgroundBrush(brush)
         self.view.setBackgroundBrush(brush)
+        return gradient.stops()[0][1]
 
     def create_solid_color_background(self, color_str):
         """Create a solid color background for the canvas"""
@@ -254,6 +306,7 @@ class CanvasTab(BaseTab):
         brush = QBrush(color)
         self.scene.setBackgroundBrush(brush)
         self.view.setBackgroundBrush(brush)
+        return color
 
     def create_purple_checkerboard_background(self):
         """Create a purple checkerboard pattern background for the canvas"""
@@ -279,6 +332,7 @@ class CanvasTab(BaseTab):
 
         pattern_brush = QBrush(pixmap)
         self.view.setBackgroundBrush(pattern_brush)
+        return light_purple
 
     def ensure_window_bounds(self):
         """Ensure the window stays within screen boundaries"""
@@ -658,23 +712,16 @@ class CanvasTab(BaseTab):
             return
 
         try:
-            # Create a pixmap from the card image
-            pixmap = QPixmap(image_path)
-            if pixmap.isNull():
+            # The card is placed at a fitted size; sharper levels load as the view needs them
+            art = load_card_art(image_path)
+            if art is None:
                 print(f"Failed to load image: {image_path}")
                 return
-
-            # Scale the pixmap to a reasonable size if needed
-            if pixmap.width() > 300 or pixmap.height() > 500:
-                pixmap = pixmap.scaled(
-                    300,
-                    500,
-                    Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation,
-                )
+            pixmap, source_size = art
 
             # Create a draggable card item
             card_item = DraggableCardItem(pixmap, card, self)
+            card_item.set_art_source(image_path, source_size)
 
             card_item.setZValue(self.take_top_z())
 
@@ -749,7 +796,7 @@ class CanvasTab(BaseTab):
 
     def on_reset_view(self):
         """Reset view to default position and zoom"""
-        self.view.resetTransform()
+        self.view.reset_zoom()
         # The scene rect moves with the camera now, so centre on the cards instead.
         items_rect = self.scene.itemsBoundingRect()
         self.view.centerOn(items_rect.center() if not items_rect.isNull() else QPointF(0, 0))
@@ -805,6 +852,16 @@ class CanvasTab(BaseTab):
     def on_send_to_back(self):
         """Send the selected cards to the back, keeping their order among themselves."""
         self._restack(self.scene.selectedItems(), self.take_bottom_z, deepest_first=True)
+
+    def raise_cards(self, cards):
+        """Lift cards above every other card, as picking them up would."""
+        moving = set(cards)
+        others = [card.zValue() for card in self._cards if card not in moving]
+        if not moving or not others:
+            return
+        if min(card.zValue() for card in moving) > max(others):
+            return  # already on top; don't spend depth
+        self._restack(moving, self.take_top_z)
 
     def _restack(self, items, allocate, deepest_first=False):
         """Give items a new depth while preserving their relative order."""
