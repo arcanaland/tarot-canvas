@@ -32,7 +32,7 @@ def paint(pixmap, **kwargs):
     ids=["plain", "progress-0", "progress-half", "progress-1", "failed"],
 )
 def test_painting_leaves_the_painter_as_it_found_it(qapp, make, kwargs):
-    _, opacity = paint(make(), emblem=QIcon.fromTheme("folder-download"), **kwargs)
+    _, opacity = paint(make(), emblem=QIcon.fromTheme("download"), **kwargs)
     assert opacity == 1.0
 
 
@@ -42,7 +42,10 @@ def test_progress_out_of_range_is_clamped_not_raised(qapp, progress):
 
 
 def test_an_emblem_the_theme_lacks_draws_nothing(qapp):
-    paint(art(), emblem=QIcon())
+    """Not even the disc it would sit on"""
+    bare, _ = paint(art(), emblem=None)
+    missing, _ = paint(art(), emblem=QIcon())
+    assert missing == bare
     paint(QPixmap(), emblem=None)
 
 

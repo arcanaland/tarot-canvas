@@ -157,6 +157,9 @@ def _extract(archive, infos, dest_dir, limits):
     written_total = 0
     for info in infos:
         name = info.orig_filename
+        # Identifies the container, not the deck, so it isn't unpacked into it.
+        if name == MIMETYPE:
+            continue
         target = dest_dir.joinpath(*name.rstrip("/").split("/"))
         if name.endswith("/"):
             target.mkdir(parents=True, exist_ok=True)

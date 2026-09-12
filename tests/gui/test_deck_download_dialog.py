@@ -40,6 +40,16 @@ def test_attribution_is_hidden_when_the_index_has_none(qtbot):
     assert not dialog.attribution_label.isVisibleTo(dialog)
 
 
+def test_a_shown_dialog_is_tall_enough_for_its_wrapped_text(qtbot):
+    long = " ".join(["Cards under the sea, painted in water colour."] * 12)
+    dialog = make(qtbot, catalog_entry("aquatic-tarot", description=long, attribution=long))
+    # Too short for the text, as Qt's own sizing can leave it under scaling
+    dialog.resize(DeckDownloadDialog.MINIMUM_WIDTH, 1)
+    dialog.show()
+    qtbot.waitExposed(dialog)
+    assert dialog.height() >= dialog.heightForWidth(dialog.width())
+
+
 def test_index_text_is_never_read_as_markup(qtbot):
     dialog = make(qtbot, catalog_entry("aquatic-tarot", description="<b>bold</b>"))
     assert dialog.description_label.textFormat() == Qt.TextFormat.PlainText

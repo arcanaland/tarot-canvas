@@ -4,8 +4,8 @@ A dialog rather than an inline prompt: some reference decks' licences forbid com
 use, and the reader should see the licence before the deck is on disk.
 """
 
-from PyQt6.QtCore import QLocale, QSize, Qt
-from PyQt6.QtGui import QFont, QPainter
+from PyQt6.QtCore import QLocale, QPoint, QRect, QRectF, QSize, Qt
+from PyQt6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPalette
 from PyQt6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.catalog_client import deck_catalog
 from tarot_canvas.ui.library.cover_cache import CoverCache
 from tarot_canvas.ui.library.ghost_paint import paint_placeholder_well
@@ -44,7 +45,8 @@ def failure_text(failure):
 class DeckDownloadDialog(QDialog):
     COVER_SIZE = QSize(160, 240)  # logical pixels, the library's 2:3 well
     HEADING_SCALE = 1.4
-    MINIMUM_WIDTH = 520
+    CAPTION_SCALE = 0.85
+    MINIMUM_WIDTH = 600
 
     def __init__(self, entry, parent=None):
         super().__init__(parent)
@@ -55,48 +57,71 @@ class DeckDownloadDialog(QDialog):
         self.cover = _Cover(deck_catalog().cover_path(entry), self.COVER_SIZE)
 
         self.heading_label = _index_text(entry.name)
-        font = QFont(self.heading_label.font())
-        if font.pointSizeF() > 0:
-            font.setPointSizeF(font.pointSizeF() * self.HEADING_SCALE)
-        font.setBold(True)
-        self.heading_label.setFont(font)
+        self.heading_label.setFont(
+            units.scaled_font(self.heading_label.font(), self.HEADING_SCALE, bold=True)
+        )
 
         self.explanation_label = _index_text(DOWNLOAD_TEXT["explanation"])
 
         self.artist_label = _index_text(entry.artist)
         self.size_label = _index_text(QLocale().formattedDataSize(entry.package_size))
         self.license_label = _index_text(entry.license)
-        self.attribution_label = _index_text(entry.attribution or "")
         form = QFormLayout()
         form.addRow("Artist:", self.artist_label)
         form.addRow("Size:", self.size_label)
         form.addRow("License:", self.license_label)
-        form.addRow("Attribution:", self.attribution_label)
-        form.setRowVisible(self.attribution_label, entry.attribution is not None)
 
         self.description_label = _index_text(entry.description)
 
+        # A credit line, prose-length and repeating the artist and licence, so a caption
+        # under the description rather than a form row
+        self.attribution_label = _index_text(entry.attribution or "")
+        self.attribution_label.setFont(
+            units.scaled_font(self.attribution_label.font(), self.CAPTION_SCALE)
+        )
+        self.attribution_label.setForegroundRole(QPalette.ColorRole.PlaceholderText)
+
         details = QVBoxLayout()
+        details.setSpacing(units.LARGE_SPACING)
         details.addWidget(self.heading_label)
         details.addWidget(self.explanation_label)
+        details.addSpacing(units.LARGE_SPACING)
         details.addLayout(form)
+        details.addSpacing(units.LARGE_SPACING)
         details.addWidget(self.description_label)
+        details.addWidget(self.attribution_label)
         details.addStretch(1)
 
         row = QHBoxLayout()
+        row.setSpacing(units.GRID_UNIT)
         row.addWidget(self.cover, 0, Qt.AlignmentFlag.AlignTop)
         row.addLayout(details, 1)
 
         buttons = QDialogButtonBox()
         self.download_button = buttons.addButton("Download", QDialogButtonBox.ButtonRole.AcceptRole)
+        self.download_button.setIcon(QIcon.fromTheme("download"))
         self.cancel_button = buttons.addButton(QDialogButtonBox.StandardButton.Cancel)
         self.download_button.setDefault(True)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
 
         layout = QVBoxLayout(self)
+        margin = units.GRID_UNIT
+        layout.setContentsMargins(margin, margin, margin, margin)
+        layout.setSpacing(units.GRID_UNIT)
         layout.addLayout(row)
         layout.addWidget(buttons)
+
+        # Only once parented: showing a parentless label would open it as a window
+        self.attribution_label.setVisible(entry.attribution is not None)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        # Qt sizes a dialog from its hint, which can leave wrapped labels too little
+        # height for the width it actually gets; they'd clip.
+        needed = self.heightForWidth(self.width())
+        if needed > self.height():
+            self.resize(self.width(), needed)
 
 
 def _index_text(text):
@@ -124,9 +149,18 @@ class _Cover(QWidget):
         if pixmap is None:
             paint_placeholder_well(painter, self.rect(), self.palette())
         else:
-            # Bottom-aligned, as the library places it
-            art = pixmap.deviceIndependentSize().toSize()
-            painter.drawPixmap(
-                (self.width() - art.width()) // 2, self.height() - art.height(), pixmap
-            )
+            # Bottom-aligned with rounded corners and a hairline, as the library draws it
+            art = QRect(QPoint(0, 0), pixmap.deviceIndependentSize().toSize())
+            art.moveCenter(self.rect().center())
+            art.moveBottom(self.rect().bottom())
+            path = QPainterPath()
+            path.addRoundedRect(QRectF(art), units.COVER_RADIUS, units.COVER_RADIUS)
+            painter.setClipPath(path)
+            painter.drawPixmap(art.topLeft(), pixmap)
+            painter.setClipping(False)
+
+            border = QColor(self.palette().text().color())
+            border.setAlpha(units.COVER_BORDER_ALPHA)
+            painter.setPen(border)
+            painter.drawRoundedRect(art, units.COVER_RADIUS, units.COVER_RADIUS)
         painter.end()

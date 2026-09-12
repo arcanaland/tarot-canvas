@@ -17,9 +17,11 @@ BAR_HEIGHT_FRACTION = 0.04
 BAR_MIN_HEIGHT = 3
 BAR_TRACK_ALPHA = 90
 
-EMBLEM_FRACTION = 0.3
-EMBLEM_MIN = 16
-EMBLEM_MARGIN = 4
+EMBLEM_FRACTION = 0.2
+EMBLEM_MIN = 22
+EMBLEM_MARGIN = 6
+EMBLEM_GLYPH_FRACTION = 0.6
+EMBLEM_PLATE_ALPHA = 220
 
 
 def paint_placeholder_well(painter, well, palette):
@@ -69,11 +71,25 @@ def paint_ghost_cover(
     icon = QIcon.fromTheme("dialog-error") if failed else emblem
     if icon is not None and not icon.isNull():
         extent = max(EMBLEM_MIN, round(min(cover.width(), cover.height()) * EMBLEM_FRACTION))
-        target = QRect(0, 0, extent, extent)
-        target.moveBottomRight(QPoint(cover.right() - EMBLEM_MARGIN, emblem_bottom - EMBLEM_MARGIN))
-        icon.paint(painter, target)
+        plate = QRect(0, 0, extent, extent)
+        plate.moveBottomRight(QPoint(cover.right() - EMBLEM_MARGIN, emblem_bottom - EMBLEM_MARGIN))
+        _paint_emblem(painter, plate, icon, palette)
 
     painter.restore()
+
+
+def _paint_emblem(painter, plate, icon, palette):
+    """The icon on a disc, so a monochrome glyph reads over any art"""
+    ground = QColor(palette.window().color())
+    ground.setAlpha(EMBLEM_PLATE_ALPHA)
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(ground)
+    painter.drawEllipse(plate)
+
+    extent = round(plate.width() * EMBLEM_GLYPH_FRACTION)
+    glyph = QRect(0, 0, extent, extent)
+    glyph.moveCenter(plate.center())
+    icon.paint(painter, glyph)
 
 
 def _paint_bar(painter, cover, progress, palette):

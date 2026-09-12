@@ -11,7 +11,6 @@ from tarot_canvas.ui.library.deck_model import CoverPathRole, ProgressRole, Stat
 from tarot_canvas.ui.library.ghost_paint import paint_ghost_cover, paint_placeholder_well
 
 HOVER_ALPHA = 38  # ~15% Highlight behind a hovered cell
-COVER_BORDER_ALPHA = 26  # ~10% Text as the cover hairline
 SELECTED_SUBTITLE_ALPHA = 200
 
 SUBTITLE_SCALE = 0.85
@@ -175,7 +174,7 @@ class DeckDelegate(QStyledItemDelegate):
             painter.drawPixmap(art.topLeft(), pixmap)
 
         border = QColor(palette.text().color())
-        border.setAlpha(COVER_BORDER_ALPHA)
+        border.setAlpha(units.COVER_BORDER_ALPHA)
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.setPen(border)
         painter.drawRoundedRect(art, units.COVER_RADIUS, units.COVER_RADIUS)
@@ -190,7 +189,7 @@ class DeckDelegate(QStyledItemDelegate):
             pixmap,
             progress=(index.data(ProgressRole) or 0.0) if downloading else None,
             failed=state is DeckState.FAILED,
-            emblem=QIcon.fromTheme("folder-download"),
+            emblem=QIcon.fromTheme("download"),
             palette=palette,
         )
 
