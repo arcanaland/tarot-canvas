@@ -55,6 +55,9 @@ LIBRARY_SORT_DEFAULT = "name"
 LIBRARY_RECENT_KEY = "library/recent"
 LIBRARY_RECENT_LIMIT = 50
 
+SHOW_AVAILABLE_DECKS_KEY = "library/show_available_decks"
+SHOW_AVAILABLE_DECKS_DEFAULT = True
+
 DECK_HEADER_EXPANDED_KEY = "deck_view/header_expanded"
 DECK_HEADER_EXPANDED_DEFAULT = True
 

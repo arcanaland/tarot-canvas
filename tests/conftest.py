@@ -17,6 +17,7 @@ atexit.register(shutil.rmtree, str(_TEST_HOME), ignore_errors=True)
 os.environ["HOME"] = str(_TEST_HOME)
 os.environ["XDG_CONFIG_HOME"] = str(_TEST_HOME / ".config")
 os.environ["XDG_DATA_HOME"] = str(_TEST_HOME / ".local" / "share")
+os.environ["XDG_CACHE_HOME"] = str(_TEST_HOME / ".cache")
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 MINIMAL_DECK_PATH = FIXTURES_DIR / "decks" / "minimal"
@@ -70,6 +71,12 @@ def flush_closed_widgets():
 def fresh_deck_events(monkeypatch):
     """A DeckEvents per test, so no test's emit reaches an earlier test's widgets."""
     monkeypatch.setattr("tarot_canvas.models.deck_events._instance", None)
+
+
+@pytest.fixture(autouse=True)
+def fresh_deck_catalog(monkeypatch):
+    """A DeckCatalog per test, so no test inherits another's session state."""
+    monkeypatch.setattr("tarot_canvas.ui.library.catalog_client._instance", None)
 
 
 @pytest.fixture

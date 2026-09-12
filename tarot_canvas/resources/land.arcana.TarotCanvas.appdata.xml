@@ -49,6 +49,7 @@
       <description>
         <p>Major new features include:</p>
         <ul>
+          <li>Add option to download more tarot decks to Library View.</li>
           <li>New full-screen mode for the Card View.</li>
           <li>Overhauled card movement and feel in the Canvas View. (juicy!)</li>
           <li>Add copy-and-paste from a card tab to an open canvas.</li>
