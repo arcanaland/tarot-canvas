@@ -1,8 +1,4 @@
-"""The app-wide deck catalog: the reference-deck index and its covers, cached on disk.
-
-It renders from the cache first and revalidates behind it, at most once a session and
-once a day. Covers are tag-pinned, so each is fetched once, ever.
-"""
+"""The app-wide deck catalog"""
 
 import hashlib
 import json
@@ -33,8 +29,7 @@ from tarot_canvas.settings import (
 )
 from tarot_canvas.utils.path_helper import get_cache_directory
 
-# Environment only, never preferences: a user-settable index URL would make us
-# responsible for vetting whatever third-party decks it offers.
+# for testing
 URL_ENV = "TAROT_CANVAS_CATALOG_URL"
 TTL_ENV = "TAROT_CANVAS_CATALOG_TTL"
 
@@ -49,12 +44,6 @@ log = logging.getLogger("TarotCanvas.catalog")
 
 
 class QtTransport(QObject):
-    """GET over QNetworkAccessManager.
-
-    Calls back with (status, body, etag, error); status is None for schemes without
-    one, such as file://.
-    """
-
     def __init__(self, parent=None):
         super().__init__(parent)
         self._network = None
@@ -90,7 +79,7 @@ class QtTransport(QObject):
 
 
 class DeckCatalog(QObject):
-    """Which decks the reference-deck index offers. One per process: see deck_catalog()."""
+    """Which decks the reference-deck index has."""
 
     entries_changed = pyqtSignal()
     cover_ready = pyqtSignal(str)  # the cover's URL
@@ -127,7 +116,7 @@ class DeckCatalog(QObject):
         return self._enabled
 
     def activate(self):
-        """Load the cache and revalidate it if due. Only the first call does anything."""
+        """Load the cache and revalidate it if needed."""
         if self._activated:
             return
         self._activated = True
@@ -136,11 +125,6 @@ class DeckCatalog(QObject):
             self._start()
 
     def set_enabled(self, enabled):
-        """The change path for the setting; this does not write it.
-
-        Before activate() it only records the value, so a user who never opens the
-        library still never touches the network.
-        """
         enabled = bool(enabled)
         if enabled == self.is_enabled():
             return
@@ -165,8 +149,7 @@ class DeckCatalog(QObject):
 
     def _load_cache(self):
         meta = _read_meta(self._dir / META_FILE)
-        # Another index's cache is cold: a dev override must not revalidate against
-        # production's ETag, nor show production's decks.
+        # skip if we're testing
         if meta is not None and meta.url != self._url:
             meta = None
         entries = []
@@ -198,7 +181,6 @@ class DeckCatalog(QObject):
             self._write_meta()
             return
 
-        # Stored even in a format we can't read, so a newer app's view survives
         try:
             _write_atomic(self._dir / INDEX_FILE, body)
         except OSError as e:

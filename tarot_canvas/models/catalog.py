@@ -1,8 +1,3 @@
-"""The reference-deck index: what it offers, and when to ask it again.
-
-No Qt and no I/O; ui/library/catalog_client.py does the fetching and caching.
-"""
-
 import enum
 import json
 import logging
@@ -57,20 +52,16 @@ class _Rejected(ValueError):
 
 
 class _Unsupported(_Rejected):
-    """A well-formed entry this app can't load; hidden rather than offered."""
+    """A well-formed entry this app can't load."""
 
 
 def parse_index(data):
-    """The entries of an index document, or [] if it isn't one this app reads."""
+    """The entries of an index document."""
     return read_index(data) or []
 
 
 def read_index(data):
-    """Like parse_index, but None when the document itself is unreadable.
-
-    An empty list is an index that offers nothing, which is not the same as an index
-    from a newer format.
-    """
+    """Like parse_index but None when the document itself is unreadable."""
     try:
         doc = json.loads(data)
     except (ValueError, RecursionError):
@@ -177,19 +168,14 @@ def _label(raw):
 
 
 def is_installed(entry, deck):
-    """Whether a loaded deck is this entry.
-
-    A deck with a spec identifier joins on it. Older copies, which predate identifiers,
-    join on their 1.x id or else their directory name against the slug.
-    """
     identifier = deck.get_identifier()
     if identifier:
         return identifier == entry.identifier
+
     return (deck.get_deck_id() or Path(deck.deck_path).name) == entry.slug
 
 
 def available_entries(entries, decks):
-    """The entries no loaded deck matches."""
     decks = list(decks)
     return [entry for entry in entries if not any(is_installed(entry, d) for d in decks)]
 
@@ -237,10 +223,7 @@ class IndexAction(enum.Enum):
 
 
 def index_action(meta, now, app_version, attempted_this_session, ttl=INDEX_TTL):
-    """What to do about the cached index.
-
-    Everything the index points at is immutable, so a stale index is late, never wrong.
-    """
+    """What to do about the cached index."""
     if attempted_this_session:
         return IndexAction.USE_CACHE  # one try per session, success or not
     if meta is None:

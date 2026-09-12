@@ -26,8 +26,6 @@ COVER_NAME = hashlib.sha256(COVER_URL.encode()).hexdigest()[:32] + ".jpg"
 
 
 class FakeTransport:
-    """Records requests and answers them only when a test says so."""
-
     def __init__(self):
         self.requests = []
         self._pending = {}
