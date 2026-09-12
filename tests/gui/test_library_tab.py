@@ -1,12 +1,13 @@
 from types import SimpleNamespace
 
 import pytest
-from PyQt6.QtCore import QItemSelectionModel, Qt
-from PyQt6.QtWidgets import QDialog, QFrame, QListView, QMessageBox
+from PyQt6.QtCore import QItemSelectionModel, QPoint, Qt
+from PyQt6.QtWidgets import QFrame, QListView
 
 from tarot_canvas.models.catalog import INDEX_URL
 from tarot_canvas.settings import (
     LIBRARY_DENSITY_KEY,
+    LIBRARY_DETAILS_PANE_KEY,
     LIBRARY_SORT_KEY,
     SHOW_AVAILABLE_DECKS_KEY,
     get_settings,
@@ -22,8 +23,8 @@ from tarot_canvas.ui.library.deck_model import (
     ProgressRole,
     StateRole,
 )
+from tarot_canvas.ui.library.download_text import DOWNLOAD_TEXT
 from tarot_canvas.ui.tabs.library_tab import LibraryTab
-from tarot_canvas.ui.windows.deck_download_dialog import DOWNLOAD_TEXT
 from tests.gui.test_catalog_client import FakeTransport
 from tests.unit.test_catalog import index, raw_entry
 from tests.unit.test_library_model import catalog_entry, fake_deck
@@ -222,11 +223,13 @@ INDEX_BODY = index(raw_entry("aquatic-tarot"))
 
 
 @pytest.fixture(autouse=True)
-def switch_unset(qapp):
-    """QSettings is shared across the process, so a test that turns the switch off leaks."""
-    get_settings().remove(SHOW_AVAILABLE_DECKS_KEY)
+def switches_unset(qapp):
+    """QSettings is shared across the process, so a test that turns a switch off leaks."""
+    for key in (SHOW_AVAILABLE_DECKS_KEY, LIBRARY_DETAILS_PANE_KEY):
+        get_settings().remove(key)
     yield
-    get_settings().remove(SHOW_AVAILABLE_DECKS_KEY)
+    for key in (SHOW_AVAILABLE_DECKS_KEY, LIBRARY_DETAILS_PANE_KEY):
+        get_settings().remove(key)
 
 
 @pytest.fixture
@@ -274,17 +277,191 @@ def delete(tab):
     assert sip.isdeleted(tab)
 
 
+def shown(tab):
+    return tab.details_pane.details()
+
+
+def select(tab, row):
+    """Make a row current the way code does, not the way a user does"""
+    tab.view.selectionModel().setCurrentIndex(
+        tab.proxy_model.index(row, 0), QItemSelectionModel.SelectionFlag.ClearAndSelect
+    )
+
+
+def click(tab, qtbot, row):
+    rect = tab.view.visualRect(tab.proxy_model.index(row, 0))
+    qtbot.mouseClick(tab.view.viewport(), Qt.MouseButton.LeftButton, pos=rect.center())
+
+
 @pytest.fixture
-def dialog_answers(monkeypatch):
-    """What DeckDownloadDialog.exec returns, set per test; the dialogs it was shown."""
-    answers = SimpleNamespace(result=QDialog.DialogCode.Accepted, shown=[])
+def shown_library(library, qtbot):
+    library.resize(1200, 800)
+    # Active, so the grid's hasFocus is true when the keyboard path asks it
+    with qtbot.waitActive(library):
+        library.show()
+        library.activateWindow()
+    return library
 
-    def fake_exec(dialog):
-        answers.shown.append(dialog.entry)
-        return answers.result
 
-    monkeypatch.setattr("tarot_canvas.ui.tabs.library_tab.DeckDownloadDialog.exec", fake_exec)
-    return answers
+# -- the details pane ----------------------------------------------------
+
+
+def test_the_pane_starts_hidden_with_its_toggle_disabled(library):
+    assert not library.details_pane_is_open()
+    assert not library.details_toggle.isEnabled()
+
+
+def test_a_click_opens_the_pane_on_the_clicked_deck(shown_library, qtbot):
+    click(shown_library, qtbot, 1)
+    assert shown_library.details_pane_is_open()
+    assert shown(shown_library).deck is shown_library.current_deck()
+    assert shown_library.details_toggle.isChecked()
+
+
+def test_a_keyboard_move_opens_the_pane(shown_library, qtbot):
+    shown_library.view.setFocus()
+    shown_library.select_deck_path(DECKS[1].deck_path)
+    assert not shown_library.details_pane_is_open()
+
+    qtbot.keyClick(shown_library.view, Qt.Key.Key_Left)
+    assert shown_library.details_pane_is_open()
+
+
+def test_focusing_the_grid_does_not_open_the_pane(shown_library, qtbot):
+    """The view makes its first deck current on focus in, which selects nothing"""
+    shown_library.search_field.setFocus()
+    qtbot.keyClick(shown_library.search_field, Qt.Key.Key_Tab)
+    shown_library.view.setFocus(Qt.FocusReason.TabFocusReason)
+    assert not shown_library.details_pane_is_open()
+
+
+def test_selection_by_code_never_opens_the_pane(library):
+    library.select_deck_path(DECKS[1].deck_path)
+    library.refresh()
+    assert not library.details_pane_is_open()
+    # but it does fill it, and enables the toggle
+    assert shown(library).deck is DECKS[1]
+    assert library.details_toggle.isEnabled()
+
+
+def test_the_pane_follows_the_selection_once_open(shown_library, qtbot):
+    click(shown_library, qtbot, 0)
+    select(shown_library, 1)
+    assert shown(shown_library).deck is shown_library.current_deck()
+
+
+def test_a_close_is_remembered_and_selection_stops_opening_the_pane(
+    shown_library, qtbot, monkeypatch
+):
+    click(shown_library, qtbot, 0)
+    shown_library.details_toggle.click()
+
+    assert not shown_library.details_pane_is_open()
+    assert get_settings().value(LIBRARY_DETAILS_PANE_KEY, type=bool) is False
+    click(shown_library, qtbot, 1)
+    assert not shown_library.details_pane_is_open()
+
+    monkeypatch.setattr(
+        "tarot_canvas.ui.tabs.library_tab.deck_manager",
+        SimpleNamespace(get_all_decks=lambda: list(DECKS)),
+    )
+    reopened = LibraryTab()
+    qtbot.addWidget(reopened)
+    with qtbot.waitExposed(reopened):
+        reopened.show()
+    click(reopened, qtbot, 0)
+    assert not reopened.details_pane_is_open()
+
+
+def test_opening_through_the_toggle_is_remembered(shown_library, qtbot):
+    get_settings().setValue(LIBRARY_DETAILS_PANE_KEY, False)
+    select(shown_library, 0)
+    shown_library.details_toggle.click()
+    assert shown_library.details_pane_is_open()
+    assert get_settings().value(LIBRARY_DETAILS_PANE_KEY, type=bool) is True
+
+
+def test_ctrl_i_toggles_the_pane(shown_library, qtbot):
+    select(shown_library, 0)
+    shown_library.view.setFocus()
+
+    qtbot.keyClick(shown_library.view, Qt.Key.Key_I, Qt.KeyboardModifier.ControlModifier)
+    assert shown_library.details_pane_is_open()
+    qtbot.keyClick(shown_library.view, Qt.Key.Key_I, Qt.KeyboardModifier.ControlModifier)
+    assert not shown_library.details_pane_is_open()
+
+
+def test_ctrl_i_does_nothing_with_nothing_to_show(shown_library, qtbot):
+    shown_library.search_field.setFocus()
+    qtbot.keyClick(shown_library.search_field, Qt.Key.Key_I, Qt.KeyboardModifier.ControlModifier)
+    assert not shown_library.details_pane_is_open()
+
+
+def click_nowhere(tab, qtbot):
+    viewport = tab.view.viewport()
+    spot = QPoint(viewport.width() - 5, viewport.height() - 5)
+    assert not tab.view.indexAt(spot).isValid()
+    qtbot.mouseClick(viewport, Qt.MouseButton.LeftButton, pos=spot)
+
+
+def test_a_click_on_no_deck_deselects_and_the_pane_keeps_the_deck(shown_library, qtbot):
+    click(shown_library, qtbot, 0)
+    deck = shown_library.current_deck()
+
+    click_nowhere(shown_library, qtbot)
+
+    assert shown_library.view.selectionModel().selectedIndexes() == []
+    assert shown_library.current_deck() is None
+    assert shown_library.details_pane_is_open()
+    assert shown(shown_library).deck is deck
+    assert shown_library.details_toggle.isEnabled()
+
+
+def test_esc_deselects(shown_library, qtbot):
+    click(shown_library, qtbot, 0)
+    qtbot.keyClick(shown_library.view, Qt.Key.Key_Escape)
+
+    assert shown_library.current_deck() is None
+    assert shown_library.details_pane_is_open()
+
+
+def test_a_deselected_library_stays_deselected_through_a_refresh(shown_library, qtbot):
+    click(shown_library, qtbot, 0)
+    click_nowhere(shown_library, qtbot)
+    shown_library.refresh()
+    assert shown_library.current_deck() is None
+
+
+def test_the_pane_opens_at_a_share_of_the_width_and_keeps_a_resized_width(shown_library):
+    select(shown_library, 0)
+    shown_library.details_toggle.click()
+    grid, pane = shown_library.splitter.sizes()
+    assert pane == pytest.approx((grid + pane) * LibraryTab.DETAILS_PANE_SHARE, abs=2)
+
+    shown_library.splitter.setSizes([grid + pane - 400, 400])
+    shown_library.details_toggle.click()
+    shown_library.details_toggle.click()
+    assert shown_library.splitter.sizes()[1] == 400
+
+
+def test_the_pane_keeps_its_minimum_width(shown_library):
+    select(shown_library, 0)
+    shown_library.details_toggle.click()
+    total = sum(shown_library.splitter.sizes())
+    shown_library.splitter.setSizes([total, 0])
+    assert shown_library.splitter.sizes()[1] >= LibraryTab.DETAILS_PANE_MIN_WIDTH
+    assert not shown_library.splitter.isCollapsible(0)
+
+
+def test_a_deck_the_search_hides_stays_shown(library):
+    select(library, 0)
+    deck = library.current_deck()
+    library.search_field.setText("nothing matches this")
+    assert shown(library).deck is deck
+    assert library.details_toggle.isEnabled()
+
+
+# -- ghosts in the pane --------------------------------------------------
 
 
 def test_a_catalog_deck_you_lack_trails_the_installed_decks(ghost_library):
@@ -293,61 +470,127 @@ def test_a_catalog_deck_you_lack_trails_the_installed_decks(ghost_library):
     assert ghost_of(ghost_library).data(DeckRole) is None
 
 
-def test_activating_a_ghost_downloads_it_once_the_dialog_is_accepted(
-    ghost_library, dialog_answers, fake_downloads
+def test_activating_a_ghost_shows_it_with_download_focused_and_starts_nothing(
+    ghost_library, fake_downloads, qtbot
 ):
+    # Only an active window's widgets report hasFocus
+    with qtbot.waitActive(ghost_library):
+        ghost_library.show()
+        ghost_library.activateWindow()
     ghost_library.view.activated.emit(ghost_of(ghost_library))
 
-    assert dialog_answers.shown == [AQUATIC]
+    assert ghost_library.details_pane_is_open()
+    assert shown(ghost_library).entry == AQUATIC
+    assert ghost_library.details_pane.action_button.text() == "Download"
+    assert ghost_library.details_pane.action_button.hasFocus()
+    assert fake_downloads == []
+
+
+def test_activating_a_ghost_opens_the_pane_the_user_closed(ghost_library, fake_downloads):
+    select(ghost_library, 0)
+    ghost_library.toggle_details_pane()  # open
+    ghost_library.toggle_details_pane()  # and closed, remembered
+    assert not ghost_library.details_pane_is_open()
+
+    ghost_library.view.activated.emit(ghost_of(ghost_library))
+    assert ghost_library.details_pane_is_open()
+    assert fake_downloads == []
+
+
+def test_download_starts_the_shown_deck(ghost_library, fake_downloads):
+    ghost_library.view.activated.emit(ghost_of(ghost_library))
+    ghost_library.details_pane.action_button.click()
+
     (job,) = fake_downloads
     assert job.dest.name == "aquatic-tarot"
     assert ghost_of(ghost_library).data(StateRole) is DeckState.DOWNLOADING
+    assert ghost_library.details_pane.action_button.text() == "Cancel"
 
 
-def test_a_rejected_dialog_starts_nothing(ghost_library, dialog_answers, fake_downloads):
-    dialog_answers.result = QDialog.DialogCode.Rejected
+def test_cancel_asks_nothing(ghost_library, fake_downloads, monkeypatch):
+    def no_questions(*args, **kwargs):
+        raise AssertionError("cancelling asked a question")
+
+    for name in ("question", "warning", "information", "critical", "exec"):
+        monkeypatch.setattr(f"PyQt6.QtWidgets.QMessageBox.{name}", no_questions)
     ghost_library.view.activated.emit(ghost_of(ghost_library))
+    ghost_library.details_pane.action_button.click()
 
-    assert dialog_answers.shown == [AQUATIC]
-    assert fake_downloads == []
+    ghost_library.details_pane.action_button.click()
+
+    assert fake_downloads[0].cancelled
     assert ghost_of(ghost_library).data(StateRole) is DeckState.AVAILABLE
+    assert ghost_library.details_pane.action_button.text() == "Download"
 
 
-@pytest.mark.parametrize(
-    ("answer", "cancelled"),
-    [(QMessageBox.StandardButton.Yes, True), (QMessageBox.StandardButton.No, False)],
-)
-def test_activating_a_downloading_ghost_asks_before_cancelling(
-    ghost_library, dialog_answers, fake_downloads, monkeypatch, answer, cancelled
-):
-    deck_downloads().start(AQUATIC)
-    asked = []
-    monkeypatch.setattr(
-        "tarot_canvas.ui.tabs.library_tab.QMessageBox.question",
-        lambda parent, title, text, *args: asked.append(text) or answer,
-    )
-
-    ghost_library.view.activated.emit(ghost_of(ghost_library))
-
-    assert asked == [DOWNLOAD_TEXT["cancel_question"].format(name=AQUATIC.name)]
-    assert dialog_answers.shown == []
-    assert fake_downloads[0].cancelled is cancelled
-    expected = DeckState.AVAILABLE if cancelled else DeckState.DOWNLOADING
-    assert ghost_of(ghost_library).data(StateRole) is expected
-
-
-def test_activating_a_failed_ghost_offers_the_dialog_again(
-    ghost_library, dialog_answers, fake_downloads
-):
+def test_try_again_restarts_a_failed_download(ghost_library, fake_downloads):
     from tarot_canvas.utils.package_download import DownloadFailure, FailureKind
 
-    deck_downloads().start(AQUATIC)
-    fake_downloads[0].failed.emit(DownloadFailure(FailureKind.NETWORK, "offline"))
-    assert ghost_of(ghost_library).data(StateRole) is DeckState.FAILED
-
     ghost_library.view.activated.emit(ghost_of(ghost_library))
-    assert dialog_answers.shown == [AQUATIC]
+    ghost_library.details_pane.action_button.click()
+    fake_downloads[0].failed.emit(DownloadFailure(FailureKind.NETWORK, "offline"))
+
+    pane = ghost_library.details_pane
+    assert pane.action_button.text() == "Try Again"
+    assert pane.failure_label.text() == DOWNLOAD_TEXT["failed: network"]
+
+    pane.action_button.click()
     assert len(fake_downloads) == 2
+    assert ghost_of(ghost_library).data(StateRole) is DeckState.DOWNLOADING
+
+
+def test_open_opens_the_deck_tab(library, monkeypatch):
+    opened = []
+    monkeypatch.setattr(
+        library,
+        "window",
+        lambda: SimpleNamespace(new_deck_view_tab=lambda deck_path: opened.append(deck_path)),
+    )
+    select(library, 0)
+
+    assert library.details_pane.action_button.text() == "Open"
+    library.details_pane.action_button.click()
+    assert opened == [library.current_deck().deck_path]
+
+
+def test_progress_moves_the_pane_bar(ghost_library, fake_downloads):
+    ghost_library.view.activated.emit(ghost_of(ghost_library))
+    ghost_library.details_pane.action_button.click()
+    cancel = ghost_library.details_pane.action_button
+
+    fake_downloads[0].progress.emit(40, 100)
+
+    assert ghost_library.details_pane.progress_bar.value() == 40
+    assert ghost_library.details_pane.action_button is cancel
+
+
+def test_a_shown_ghost_that_installs_becomes_its_deck(ghost_library, installed, fake_downloads):
+    from tarot_canvas.models.deck_events import deck_events
+
+    select(ghost_library, ghost_of(ghost_library).row())
+    ghost_library.details_pane.action_button.click()
+
+    installed.append(fake_deck("Aquatic Tarot", identifier=AQUATIC.identifier))
+    fake_downloads[0].succeeded.emit(str(fake_downloads[0].dest))
+    deck_events().decks_changed.emit()  # the stub deck_manager's rescan emits nothing
+
+    assert ghost_of(ghost_library) is None
+    assert ghost_library.current_deck() is installed[-1]
+    assert shown(ghost_library).deck is installed[-1]
+    assert ghost_library.details_pane.action_button.text() == "Open"
+
+
+def test_a_ghost_the_search_hides_stays_shown_and_downloadable(ghost_library, fake_downloads):
+    ghost_library.view.activated.emit(ghost_of(ghost_library))
+    ghost_library.search_field.setText("Zodiac")
+    assert ghost_of(ghost_library) is None
+
+    assert shown(ghost_library).entry == AQUATIC
+    ghost_library.details_pane.action_button.click()
+    assert len(fake_downloads) == 1
+    # The source model's row still reaches the pane
+    fake_downloads[0].progress.emit(40, 100)
+    assert ghost_library.details_pane.progress_bar.value() == 40
 
 
 def test_the_switch_off_shows_no_ghosts_and_asks_nothing(qtbot, installed, transport):
@@ -395,11 +638,12 @@ def test_reopening_a_library_asks_for_the_index_only_once(qtbot, installed, tran
 
 
 def test_a_download_outlives_the_library_that_started_it(
-    qtbot, installed, transport, dialog_answers, fake_downloads
+    qtbot, installed, transport, fake_downloads
 ):
     first = LibraryTab()  # not qtbot's: it would close the deleted tab at teardown
     transport.reply(INDEX_URL, body=INDEX_BODY)
     first.view.activated.emit(ghost_of(first))
+    first.details_pane.action_button.click()
     fake_downloads[0].progress.emit(40, 100)
     delete(first)
 
@@ -429,6 +673,8 @@ def test_every_app_wide_signal_is_safe_after_a_library_is_deleted(
     tab = LibraryTab()
     tab.show()
     transport.reply(INDEX_URL, body=INDEX_BODY)
+    tab.view.activated.emit(ghost_of(tab))  # a ghost in the pane, to be updated
+    tab.details_pane.action_button.click()
     delete(tab)
 
     deck_events().decks_changed.emit()

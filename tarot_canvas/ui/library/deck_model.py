@@ -6,7 +6,7 @@ from tarot_canvas.models.catalog import available_entries
 from tarot_canvas.settings import get_recent_decks
 from tarot_canvas.ui.library.catalog_client import deck_catalog
 from tarot_canvas.ui.library.deck_downloads import DeckState, deck_downloads
-from tarot_canvas.ui.windows.deck_download_dialog import failure_text
+from tarot_canvas.ui.library.download_text import failure_text
 
 DeckRole = Qt.ItemDataRole.UserRole + 1
 SubtitleRole = Qt.ItemDataRole.UserRole + 2

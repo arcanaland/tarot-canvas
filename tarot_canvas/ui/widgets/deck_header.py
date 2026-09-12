@@ -1,12 +1,5 @@
-from PyQt6.QtCore import QDate, QLocale, QPoint, QRect, QSize, Qt
-from PyQt6.QtGui import (
-    QColor,
-    QFontMetrics,
-    QImageReader,
-    QPainter,
-    QPalette,
-    QPixmap,
-)
+from PyQt6.QtCore import QDate, QLocale, QPoint, QRect, Qt
+from PyQt6.QtGui import QFontMetrics, QPainter, QPalette
 from PyQt6.QtWidgets import (
     QApplication,
     QFormLayout,
@@ -27,6 +20,13 @@ from tarot_canvas.settings import (
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.cover_cache import CoverCache
 from tarot_canvas.ui.library.deck_model import deck_cover_path
+from tarot_canvas.ui.widgets.cover_banner import (
+    BANNER_PADDING,
+    BANNER_SUBTEXT,
+    BANNER_TEXT,
+    CoverBanner,
+    set_banner_text,
+)
 from tarot_canvas.ui.widgets.tag_chips import TagChips, normalized_tags
 
 TITLE_SCALE = 1.3
@@ -53,14 +53,8 @@ DETAIL_FIELDS = (
 )
 
 DATE_KEYS = ("created_date", "updated_date", "published_date")
-BANNER_PADDING = 2 * units.LARGE_SPACING
 DETAILS_GAP = 2 * units.LARGE_SPACING
 EDGE_MARGIN = 2 * units.LARGE_SPACING
-BANNER_SAMPLE_WIDTH = 24
-BANNER_SCRIM_ALPHA = 165
-BANNER_TEXT = QColor(255, 255, 255)
-BANNER_SUBTEXT = QColor(255, 255, 255, 190)
-BANNER_OUTLINE = QColor(255, 255, 255, 64)
 
 
 def cover_size(expanded):
@@ -140,7 +134,7 @@ class DeckHeader(QWidget):
         self.deck = deck
         self._cover_cache = cover_cache or CoverCache(capacity=8)
         self._settings = settings if settings is not None else get_settings()
-        self._banner_pixmaps = {}
+        self._banner = CoverBanner()
 
         self._build()
         self._restore_expanded()
@@ -319,80 +313,20 @@ class DeckHeader(QWidget):
 
         return QRect(0, 0, self.width(), bottom + BANNER_PADDING)
 
-    def _banner_pixmap(self, size):
-        """The cover, blurred and scrimmed, filling `size`. None if it cannot be read."""
-        ratio = self.devicePixelRatioF()
-        key = (size.width(), size.height(), round(ratio, 3))
-        if key in self._banner_pixmaps:
-            return self._banner_pixmaps[key]
-
-        pixmap = self._render_banner(size, ratio)
-        if len(self._banner_pixmaps) >= 16:
-            self._banner_pixmaps.clear()
-        self._banner_pixmaps[key] = pixmap
-        return pixmap
-
-    def _render_banner(self, size, ratio):
-        reader = QImageReader(str(self._cover_path))
-        reader.setAutoTransform(True)
-        source = reader.size()
-        if not source.isValid() or source.isEmpty():
-            return None
-
-        height = max(1, round(BANNER_SAMPLE_WIDTH * source.height() / source.width()))
-        reader.setScaledSize(QSize(BANNER_SAMPLE_WIDTH, height))
-        image = reader.read()
-        if image.isNull():
-            return None
-
-        # upscale the tiny decode smoothly (blur)
-        device = QSize(max(1, round(size.width() * ratio)), max(1, round(size.height() * ratio)))
-        image = image.scaled(
-            device,
-            Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-            Qt.TransformationMode.SmoothTransformation,
-        )
-        offset = QPoint(
-            max(0, (image.width() - device.width()) // 2),
-            max(0, (image.height() - device.height()) // 2),
-        )
-
-        image = image.copy(QRect(offset, device))
-
-        pixmap = QPixmap.fromImage(image)
-        pixmap.setDevicePixelRatio(ratio)
-
-        painter = QPainter(pixmap)
-        painter.fillRect(pixmap.rect(), QColor(0, 0, 0, BANNER_SCRIM_ALPHA))
-        painter.end()
-        return pixmap
-
     def paintEvent(self, event):
         rect = self.banner_rect()
         if not rect.isEmpty():
-            pixmap = self._banner_pixmap(rect.size())
-            if pixmap is not None:
-                painter = QPainter(self)
-                painter.drawPixmap(rect, pixmap)
-                painter.setPen(BANNER_OUTLINE)
-                painter.drawLine(rect.bottomLeft(), rect.bottomRight())
-                painter.end()
+            painter = QPainter(self)
+            self._banner.paint(painter, rect, self._cover_path, self.devicePixelRatioF())
+            painter.end()
         super().paintEvent(event)
 
     def _apply_banner_text(self, on_banner):
         """Light text while the two labels sit on the banner, palette colours otherwise."""
-        for label, colour, role in (
-            (self.title_label, BANNER_TEXT, QPalette.ColorRole.WindowText),
-            (self.subtitle_label, BANNER_SUBTEXT, QPalette.ColorRole.PlaceholderText),
-        ):
-            if on_banner:
-                palette = QPalette()
-                palette.setColor(QPalette.ColorRole.WindowText, colour)
-                label.setForegroundRole(QPalette.ColorRole.WindowText)
-                label.setPalette(palette)
-            else:
-                label.setPalette(QPalette())
-                label.setForegroundRole(role)
+        set_banner_text(self.title_label, on_banner, BANNER_TEXT, QPalette.ColorRole.WindowText)
+        set_banner_text(
+            self.subtitle_label, on_banner, BANNER_SUBTEXT, QPalette.ColorRole.PlaceholderText
+        )
 
     def _apply_expanded(self, expanded):
         expanded = bool(expanded)

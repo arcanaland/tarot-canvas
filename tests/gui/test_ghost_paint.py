@@ -14,10 +14,10 @@ def art():
     return pixmap
 
 
-def paint(pixmap, **kwargs):
+def paint(pixmap, background=Qt.GlobalColor.transparent, **kwargs):
     """The image, and the painter's opacity once the call returns."""
     image = QImage(140, 200, QImage.Format.Format_ARGB32)
-    image.fill(Qt.GlobalColor.transparent)
+    image.fill(background)
     painter = QPainter(image)
     paint_ghost_cover(painter, RECT, pixmap, **kwargs)
     opacity = painter.opacity()
@@ -34,6 +34,20 @@ def paint(pixmap, **kwargs):
 def test_painting_leaves_the_painter_as_it_found_it(qapp, make, kwargs):
     _, opacity = paint(make(), emblem=QIcon.fromTheme("download"), **kwargs)
     assert opacity == 1.0
+
+
+def test_a_highlight_behind_the_art_does_not_show_through(qapp):
+    """A selected tile paints Highlight under the cover; the veil is opaque over it"""
+    ground = QColor("white")
+    plain, _ = paint(art(), background=QColor("white"), ground=ground)
+    selected, _ = paint(art(), background=QColor("blue"), ground=ground)
+
+    colour = selected.pixelColor(RECT.center())
+    assert colour == plain.pixelColor(RECT.center())
+    # Red art faded towards white, as the old 45% opacity drew it on white
+    assert colour.red() == 255
+    assert 130 < colour.green() < 150
+    assert colour.green() == colour.blue()
 
 
 @pytest.mark.parametrize("progress", [-0.5, 1.5])

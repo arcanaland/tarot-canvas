@@ -43,11 +43,13 @@ def paint_placeholder_well(painter, well, palette):
 
 
 def paint_ghost_cover(
-    painter, rect, pixmap, *, progress=None, failed=False, emblem=None, palette=None
+    painter, rect, pixmap, *, progress=None, failed=False, emblem=None, palette=None, ground=None
 ):
     """Dimmed art, then a progress bar and an emblem at full strength.
 
-    `rect` is the art's bounds; with a null pixmap the bar and emblem go inside it.
+    `rect` is the art's bounds; with a null pixmap the bar and emblem go inside it. The art
+    is dimmed towards `ground`, the colour it sits on unselected, the palette's Window if
+    not given.
     """
     palette = palette or QGuiApplication.palette()
     cover = QRect(rect)
@@ -59,9 +61,12 @@ def paint_ghost_cover(
         )
         target = QRectF(QPointF(0, 0), size)
         target.moveCenter(QRectF(cover).center())
-        painter.setOpacity(GHOST_OPACITY)
         painter.drawPixmap(target, pixmap, QRectF(pixmap.rect()))
-        painter.setOpacity(1.0)
+        # An opaque veil rather than transparency, so a selected tile's highlight behind
+        # the art can't show through it
+        veil = QColor(ground if ground is not None else palette.window().color())
+        veil.setAlpha(round(255 * (1 - GHOST_OPACITY)))
+        painter.fillRect(target, veil)
         cover = target.toAlignedRect()
 
     emblem_bottom = cover.bottom()

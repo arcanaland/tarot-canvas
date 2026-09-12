@@ -191,6 +191,7 @@ class DeckDelegate(QStyledItemDelegate):
             failed=state is DeckState.FAILED,
             emblem=QIcon.fromTheme("download"),
             palette=palette,
+            ground=palette.base().color(),  # the view's, under an unselected tile
         )
 
     @staticmethod

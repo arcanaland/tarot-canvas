@@ -41,6 +41,7 @@ from tarot_canvas.ui.command_palette import CommandPalette
 from tarot_canvas.ui.components.card_explorer import CardExplorerPanel
 from tarot_canvas.ui.library.catalog_client import deck_catalog
 from tarot_canvas.ui.library.deck_downloads import deck_downloads
+from tarot_canvas.ui.library.download_text import DOWNLOAD_TEXT
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
@@ -48,7 +49,6 @@ from tarot_canvas.ui.tabs.deck_view_tab import DeckViewTab
 from tarot_canvas.ui.tabs.library_tab import LibraryTab
 from tarot_canvas.ui.widgets.toast import Toast
 from tarot_canvas.ui.windows.about import AboutDialog
-from tarot_canvas.ui.windows.deck_download_dialog import DOWNLOAD_TEXT
 from tarot_canvas.ui.windows.log_viewer import LogViewerDialog
 from tarot_canvas.utils.logger import logger
 from tarot_canvas.utils.theme_manager import ThemeManager, ThemeType

@@ -23,12 +23,23 @@ from tarot_canvas.ui.library.deck_model import (
     deck_subtitle,
     is_majors_only,
 )
-from tarot_canvas.ui.windows.deck_download_dialog import failure_text
+from tarot_canvas.ui.library.download_text import failure_text
 from tarot_canvas.utils.package_download import DownloadFailure, FailureKind
 from tests.unit.test_catalog import index, raw_entry
 
 
-def fake_deck(name, author="Unknown", majors=3, minors=0, images=True, path=None, identifier=None):
+def fake_deck(
+    name,
+    author="Unknown",
+    majors=3,
+    minors=0,
+    images=True,
+    path=None,
+    identifier=None,
+    **deck_fields,
+):
+    """`deck_fields` are more [deck] keys: version, license, attribution, description"""
+
     def card(index, card_type):
         return {
             "type": card_type,
@@ -38,6 +49,7 @@ def fake_deck(name, author="Unknown", majors=3, minors=0, images=True, path=None
 
     cards = [card(i, "major_arcana") for i in range(majors)]
     cards += [card(i, "minor_arcana") for i in range(minors)]
+    fields = {"author": author, **deck_fields}
     return SimpleNamespace(
         deck_path=path or f"/decks/{name}",
         get_name=lambda: name,
@@ -45,7 +57,12 @@ def fake_deck(name, author="Unknown", majors=3, minors=0, images=True, path=None
         get_cards_by_type=lambda t: [c for c in cards if c["type"] == t],
         get_identifier=lambda: identifier,
         get_deck_id=lambda: None,
-        _metadata={"deck": {"author": author}},
+        get_author=lambda: fields.get("artist") or fields.get("author"),
+        get_metadata_fields=lambda: dict(fields),
+        get_license=lambda: fields.get("license"),
+        get_attribution=lambda: fields.get("attribution"),
+        get_description=lambda: fields.get("description", ""),
+        _metadata={"deck": fields},
     )
 
 
@@ -141,8 +158,10 @@ def test_sort_by_card_count(proxy):
 
 
 def test_sort_by_recent_puts_newest_first(proxy):
-    from tarot_canvas.settings import record_deck_opened
+    from tarot_canvas.settings import LIBRARY_RECENT_KEY, get_settings, record_deck_opened
 
+    # One QSettings store per process: a library test's real open would be newer than these
+    get_settings().remove(LIBRARY_RECENT_KEY)
     record_deck_opened("/decks/Marigold", when=100)
     record_deck_opened("/decks/Zodiac", when=200)
     proxy.set_sort_key(SORT_RECENT)
