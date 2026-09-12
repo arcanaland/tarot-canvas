@@ -24,6 +24,7 @@ lint:
 
   uv run ruff check tarot_canvas tests
   uv run ruff format --check tarot_canvas tests
+  ./scripts/slop-guard.sh
 
 [group('dev')]
 fmt:
