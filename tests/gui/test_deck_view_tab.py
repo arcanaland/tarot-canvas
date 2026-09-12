@@ -25,7 +25,7 @@ def test_the_deck_view_has_a_deck_level_header(tab):
 
 
 def test_nothing_in_the_deck_view_opens_a_dialog(tab):
-    """RFC-021 defect 1: four lines of read-only text is not a reason to go modal."""
+    """Four lines of read-only text is not a reason to go modal."""
     assert not hasattr(tab, "show_deck_info")
     assert not hasattr(module, "DeckInfoDialog")
     assert tab.findChildren(QDialog) == []

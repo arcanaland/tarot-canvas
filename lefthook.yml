@@ -1,0 +1,14 @@
+pre-commit:
+  jobs:
+    - name: format
+      glob: "*.py"
+      run: uv run ruff format {staged_files}
+      stage_fixed: true
+
+    - name: slop-guard
+      glob:
+        - "*.py"
+        - "*.sh"
+        - "*.just"
+        - "justfile"
+      run: ./scripts/slop-guard.sh {staged_files}
