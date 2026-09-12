@@ -1,10 +1,14 @@
+import pytest
+
 from tarot_canvas.settings import (
     ANIMATIONS_ENABLED_KEY,
     BACKGROUND_STYLE_KEY,
     MOTION_LEVEL_KEY,
     MOTION_LEVELS,
+    SHOW_AVAILABLE_DECKS_KEY,
     get_settings,
 )
+from tarot_canvas.ui.library.catalog_client import deck_catalog
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.windows.preferences_dialog import PreferencesDialog
@@ -100,3 +104,43 @@ def test_every_stored_motion_level_is_selectable(qtbot):
     qtbot.addWidget(dialog)
     for level in MOTION_LEVELS:
         assert dialog.motion_combo.findData(level) >= 0
+
+
+@pytest.fixture
+def switch_unset():
+    """QSettings is shared across the process, so a test that turns the switch off leaks."""
+    get_settings().remove(SHOW_AVAILABLE_DECKS_KEY)
+    yield
+    get_settings().remove(SHOW_AVAILABLE_DECKS_KEY)
+
+
+def test_show_available_decks_round_trips(qtbot, switch_unset):
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+    assert dialog.show_available_decks_check.isChecked()  # on by default
+
+    dialog.show_available_decks_check.setChecked(False)
+    dialog.apply_settings()
+    assert get_settings().value(SHOW_AVAILABLE_DECKS_KEY, type=bool) is False
+
+    reopened = PreferencesDialog()
+    qtbot.addWidget(reopened)
+    assert not reopened.show_available_decks_check.isChecked()
+
+
+def test_applying_the_switch_reaches_the_catalog(qtbot, monkeypatch, switch_unset):
+    """The catalog reads the key once, so the change path is the window's."""
+    told = []
+    monkeypatch.setattr(deck_catalog(), "set_enabled", told.append)
+
+    def untick_and_apply(dialog):
+        dialog.show_available_decks_check.setChecked(False)
+        dialog.apply_settings()
+        return 0
+
+    monkeypatch.setattr(PreferencesDialog, "exec", untick_and_apply)
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.show_preferences()
+
+    assert told == [False]

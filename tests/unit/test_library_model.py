@@ -1,24 +1,45 @@
 from types import SimpleNamespace
 
 import pytest
+from PyQt6.QtCore import QLocale, Qt
 
+from tarot_canvas.models.catalog import parse_index
+from tarot_canvas.ui.library.deck_downloads import DeckState, deck_downloads
 from tarot_canvas.ui.library.deck_model import (
     SORT_AUTHOR,
     SORT_COUNT,
     SORT_NAME,
     SORT_RECENT,
     AuthorRole,
+    CardCountRole,
     CoverPathRole,
     DeckFilterProxyModel,
     DeckListModel,
+    DeckPathRole,
     DeckRole,
+    EntryRole,
+    StateRole,
     SubtitleRole,
     deck_subtitle,
     is_majors_only,
 )
+from tarot_canvas.ui.library.download_text import failure_text
+from tarot_canvas.utils.package_download import DownloadFailure, FailureKind
+from tests.unit.test_catalog import index, raw_entry
 
 
-def fake_deck(name, author="Unknown", majors=3, minors=0, images=True, path=None):
+def fake_deck(
+    name,
+    author="Unknown",
+    majors=3,
+    minors=0,
+    images=True,
+    path=None,
+    identifier=None,
+    **deck_fields,
+):
+    """`deck_fields` are more [deck] keys: version, license, attribution, description"""
+
     def card(index, card_type):
         return {
             "type": card_type,
@@ -28,13 +49,26 @@ def fake_deck(name, author="Unknown", majors=3, minors=0, images=True, path=None
 
     cards = [card(i, "major_arcana") for i in range(majors)]
     cards += [card(i, "minor_arcana") for i in range(minors)]
+    fields = {"author": author, **deck_fields}
     return SimpleNamespace(
         deck_path=path or f"/decks/{name}",
         get_name=lambda: name,
         get_all_cards=lambda: cards,
         get_cards_by_type=lambda t: [c for c in cards if c["type"] == t],
-        _metadata={"deck": {"author": author}},
+        get_identifier=lambda: identifier,
+        get_deck_id=lambda: None,
+        get_author=lambda: fields.get("artist") or fields.get("author"),
+        get_metadata_fields=lambda: dict(fields),
+        get_license=lambda: fields.get("license"),
+        get_attribution=lambda: fields.get("attribution"),
+        get_description=lambda: fields.get("description", ""),
+        _metadata={"deck": fields},
     )
+
+
+def catalog_entry(slug, **overrides):
+    (entry,) = parse_index(index(raw_entry(slug, **overrides)))
+    return entry
 
 
 def test_majors_only_deck_is_labelled():
@@ -124,8 +158,10 @@ def test_sort_by_card_count(proxy):
 
 
 def test_sort_by_recent_puts_newest_first(proxy):
-    from tarot_canvas.settings import record_deck_opened
+    from tarot_canvas.settings import LIBRARY_RECENT_KEY, get_settings, record_deck_opened
 
+    # One QSettings store per process: a library test's real open would be newer than these
+    get_settings().remove(LIBRARY_RECENT_KEY)
     record_deck_opened("/decks/Marigold", when=100)
     record_deck_opened("/decks/Zodiac", when=200)
     proxy.set_sort_key(SORT_RECENT)
@@ -143,3 +179,113 @@ def test_search_matches_name_and_author_case_insensitively(proxy):
 
     proxy.setFilterFixedString("")
     assert len(names(proxy)) == 3
+
+
+# -- ghosts: catalog decks not installed yet ------------------------------
+
+AQUATIC = catalog_entry("aquatic-tarot")
+ASCII = catalog_entry("ascii-tarot")
+
+
+@pytest.fixture
+def ghost_proxy(qapp):
+    decks = [
+        fake_deck("Zodiac", author="Alice", majors=22, minors=56),
+        fake_deck("Aurora", author="Zeno", majors=22, minors=0),
+        fake_deck("Marigold", author="Alice", majors=22, minors=14),
+    ]
+    model = DeckListModel(decks, entries=[ASCII, AQUATIC])
+    proxy = DeckFilterProxyModel()
+    proxy.setSourceModel(model)
+    return proxy
+
+
+def row_names(model):
+    return [model.data(model.index(row, 0)) for row in range(model.rowCount())]
+
+
+@pytest.mark.parametrize("key", [SORT_NAME, SORT_AUTHOR, SORT_COUNT, SORT_RECENT])
+def test_ghosts_trail_installed_decks_under_every_sort(ghost_proxy, key):
+    """Recently opened sorts descending, which would put ghosts first."""
+    ghost_proxy.set_sort_key(key)
+    order = names(ghost_proxy)
+    assert sorted(order[:3]) == ["Aurora", "Marigold", "Zodiac"]
+    assert order[3:] == ["Aquatic Tarot", "Ascii Tarot"]
+
+
+def test_a_ghost_has_no_deck_and_no_path(qapp):
+    model = DeckListModel([], entries=[AQUATIC])
+    ghost = model.index(0, 0)
+    assert model.data(ghost) == "Aquatic Tarot"
+    assert model.data(ghost, DeckRole) is None
+    assert model.data(ghost, DeckPathRole) is None
+    assert model.data(ghost, EntryRole) is AQUATIC
+    assert model.data(ghost, StateRole) is DeckState.AVAILABLE
+    assert model.data(ghost, SubtitleRole) == QLocale().formattedDataSize(AQUATIC.package_size)
+    assert model.data(ghost, AuthorRole) == "Test Artist"
+    assert model.data(ghost, CardCountRole) == 78
+    assert model.data(ghost, CoverPathRole) is None  # not fetched yet
+
+
+def test_an_installed_deck_is_installed_and_has_no_entry(qapp):
+    model = DeckListModel([fake_deck("Zodiac")], entries=[AQUATIC])
+    deck = model.index(0, 0)
+    assert model.data(deck, StateRole) is DeckState.INSTALLED
+    assert model.data(deck, EntryRole) is None
+
+
+def test_search_finds_a_ghost_by_its_artist(ghost_proxy):
+    ghost_proxy.set_sort_key(SORT_NAME)
+    ghost_proxy.setFilterFixedString("test artist")
+    assert names(ghost_proxy) == ["Aquatic Tarot", "Ascii Tarot"]
+
+
+def test_an_entry_an_installed_deck_matches_has_no_row(qapp):
+    installed = fake_deck("Aquatic", identifier=AQUATIC.identifier)
+    model = DeckListModel([installed], entries=[AQUATIC, ASCII])
+    assert row_names(model) == ["Aquatic", "Ascii Tarot"]
+
+
+def test_installing_the_matching_deck_replaces_the_ghost(qapp):
+    model = DeckListModel([], entries=[AQUATIC])
+    assert model.data(model.index(0, 0), DeckRole) is None
+
+    model.set_decks([fake_deck("Aquatic", identifier=AQUATIC.identifier)])
+    assert row_names(model) == ["Aquatic"]
+    assert model.data(model.index(0, 0), DeckRole) is not None
+
+
+def test_set_entries_replaces_the_ghosts(qapp):
+    model = DeckListModel([fake_deck("Zodiac")], entries=[AQUATIC])
+    model.set_entries([AQUATIC, ASCII])
+    assert row_names(model) == ["Zodiac", "Aquatic Tarot", "Ascii Tarot"]
+    model.set_entries([])
+    assert row_names(model) == ["Zodiac"]
+
+
+def test_a_download_or_cover_change_repaints_only_its_row(qapp):
+    model = DeckListModel([fake_deck("Zodiac")], entries=[AQUATIC, ASCII])
+    changed = []
+    model.dataChanged.connect(lambda top, bottom, *_: changed.append((top.row(), bottom.row())))
+
+    model.download_changed(ASCII.slug)
+    assert changed == [(2, 2)]
+
+    changed.clear()
+    model.cover_ready(AQUATIC.cover)
+    assert changed == [(1, 1)]
+
+    changed.clear()
+    model.download_changed("not-in-the-catalog")
+    assert changed == []
+
+
+def test_a_failed_ghost_says_why_in_its_tooltip(qapp, fake_downloads):
+    model = DeckListModel([], entries=[AQUATIC])
+    deck_downloads().start(AQUATIC)
+    failure = DownloadFailure(FailureKind.NETWORK, "offline")
+    fake_downloads[0].failed.emit(failure)
+
+    ghost = model.index(0, 0)
+    assert model.data(ghost, StateRole) is DeckState.FAILED
+    assert model.data(ghost, Qt.ItemDataRole.ToolTipRole) == failure_text(failure)
