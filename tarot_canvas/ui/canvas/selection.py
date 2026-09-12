@@ -1,4 +1,4 @@
-"""Selection as light: an aureole around a selected card and gilt marks at its corners."""
+"""Selection as an aureole around the card and gilt marks at its corners."""
 
 import math
 
@@ -12,8 +12,8 @@ from tarot_canvas.ui.canvas.motion import REACTIVE_RATE, SHADOW_EPSILON_PX, appr
 AUREOLE_OPACITY = 0.35
 AUREOLE_Z_OFFSET = -0.75  # beneath the shadow, so the shadow still grounds the card
 
-GILT_ON_DARK = "#FFD99A"  # pale candle-gold
-GILT_ON_LIGHT = "#A8741E"  # deep old-gold
+GILT_ON_DARK = "#FFD99A"
+GILT_ON_LIGHT = "#A8741E"
 LIGHT_GROUND_LUMINANCE = 0.5
 
 # Corner geometry, as fractions of the card's short side unless noted
@@ -29,16 +29,17 @@ CORNER_REBUILD_RATIO = 1.1  # rebuild when the floor moves the geometry by more 
 CORNER_BASE_OPACITY = 0.7
 CORNER_GLINT_GAIN = 0.05  # per degree a corner has turned down
 CORNER_MIN_OPACITY = 0.4
-CORNER_GATHER_FROM = 1.08  # scale about the card centre when the corners start to gather in
+CORNER_GATHER_FROM = 1.08  # scale about the card centre (British [derogatory]) when the corners start to gather in
 CORNER_OPACITY_EPSILON = 0.01
 
 SELECTION_RATE = REACTIVE_RATE
 SELECTION_REST_EPSILON = 1e-3
 
-# Outward direction of each corner, in the order MotionChannels.corners() gives them
 CORNERS = ((-1, -1), (1, -1), (1, 1), (-1, 1))
 
 # Cubic control-point distance for a quarter circle of unit radius
+# Adam: where the fuck did this number come from??
+#   Turbo-Encabulator-head-ass comment from the clanker
 _KAPPA = 0.5522847498
 
 
@@ -49,14 +50,14 @@ def ground_luminance(color):
 
 
 def gilt_for_ground(color):
-    """Light on a dark ground, gilt ink on a light one: one hue, two luminances."""
+    """Light on a dark ground, gilt ink on a light one"""
     if ground_luminance(color) > LIGHT_GROUND_LUMINANCE:
         return QColor(GILT_ON_LIGHT)
     return QColor(GILT_ON_DARK)
 
 
 def tint_silhouette(pixmap, color):
-    """The pixmap's alpha, filled with a single colour."""
+    """The pixmap's alpha filled with a single colour."""
     image = pixmap.toImage().convertToFormat(QImage.Format.Format_ARGB32_Premultiplied)
     painter = QPainter(image)
     painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
@@ -86,11 +87,6 @@ def geometry_moved(before, after):
 
 
 def corner_path(width, height, outward, arm, root, gap):
-    """One tapered L: two arms along the card's edges, joined by a rounded outer corner.
-
-    Built in "outward" coordinates (a, b) measured away from the card corner along each
-    edge, then mirrored into item coordinates, so every corner is the same shape.
-    """
     sx, sy = outward
     corner_x = width if sx > 0 else 0.0
     corner_y = height if sy > 0 else 0.0
@@ -102,6 +98,7 @@ def corner_path(width, height, outward, arm, root, gap):
     c = gap + r  # the centreline, set far enough out that the stroke never touches the art
     tip = c - max(arm, gap + 2.0 * root)  # measured from the corner, so negative is inward
     k = _KAPPA * r
+    # Adam: yup I know what this is doing 🤔
 
     path = QPainterPath(point(tip, c))
     path.lineTo(point(c, c + r))
@@ -113,13 +110,7 @@ def corner_path(width, height, outward, arm, root, gap):
 
 
 def corner_dips(tilt_x, tilt_y, spin):
-    """Degrees each corner has turned down, away from the viewer, in item corner order.
-
-    compose() applies the tilt after the spin, so it is screen-aligned: tilt_y > 0 sends
-    the screen-left edge down and tilt_x > 0 the screen-top. A corner's dip is its screen
-    direction against that tilt. The drag-tilt report's one rule (the side the gesture
-    points at goes down) then makes the corners under a hover, or leading a drag, glint.
-    """
+    """Degrees each corner has turned down, away from the viewer, in item corner order."""
     radians = math.radians(spin)
     cos, sin = math.cos(radians), math.sin(radians)
     dips = []

@@ -1,10 +1,4 @@
-"""Level of detail for card art: each card holds a pixmap sized to how large it is on screen.
-
-A card's logical size never changes. Its pixmap is that size times an integer level, with the
-level as its device pixel ratio, so Qt draws it at the same logical size either way. Level 1
-is the base the card was placed with; higher levels are decoded from the art file off the GUI
-thread and swapped in when they arrive.
-"""
+"""Level of detail for card art"""
 
 import math
 import weakref
@@ -17,14 +11,14 @@ from PyQt6.QtGui import QImage, QImageReader, QPixmap
 CARD_MAX_SIZE = QSize(300, 500)
 # No level may be longer than this on its longest side, however large the art
 DETAIL_MAX_PX = 4096
-# How much of the viewport, either side, counts as on screen for choosing a level
+# How much of the viewport counts as on screen for choosing a level
 DETAIL_VISIBLE_MARGIN = 0.5
 # Wait for zooming and panning to pause before loading anything
 DETAIL_SETTLE_MS = 120
 
 
 def logical_size(source_size):
-    """The size a card with art of source_size takes on the canvas: fitted, never enlarged."""
+    """The size a card takes on the canvas."""
     if (
         source_size.width() <= CARD_MAX_SIZE.width()
         and source_size.height() <= CARD_MAX_SIZE.height()
@@ -34,7 +28,7 @@ def logical_size(source_size):
 
 
 def top_level(source_size, logical):
-    """The highest level worth building: enough to show every pixel of the art."""
+    """The highest level that shows every pixel of the art."""
     if logical.isEmpty():
         return 1
     ratio = max(
@@ -46,16 +40,12 @@ def top_level(source_size, logical):
 
 
 def detail_level(device_scale, highest):
-    """The smallest level that is never magnified at device_scale device px per logical px.
-
-    Rounding up keeps each draw a minification of under 2x, which bilinear filtering handles
-    without the shimmer a larger reduction gets under drift.
-    """
+    """The smallest level that is never magnified at device_scale device px per logical px."""
     return max(1, min(highest, math.ceil(device_scale - 1e-9)))
 
 
 def read_art(path, size=None):
-    """Decode the art at path, at size if given."""
+    """Decode the art at path."""
     reader = QImageReader(path)
     source = reader.size()
     if size is not None and source.isValid() and size.width() < source.width():
@@ -71,7 +61,7 @@ def read_art(path, size=None):
 
 
 def load_card_art(path):
-    """(base pixmap, source size) for a card's art, or None if it can't be read."""
+    """(base pixmap, source size."""
     source = QImageReader(path).size()
     if not source.isValid():
         image = read_art(path)
@@ -104,7 +94,7 @@ class _Decode(QRunnable):
 
 
 class ArtLoader(QObject):
-    """Decodes art on the thread pool and hands each image back on the GUI thread."""
+    """Decodes art in a thread pool."""
 
     decoded = pyqtSignal(int, QImage)
 
@@ -133,7 +123,7 @@ _loader = None
 
 
 def art_loader():
-    """The one loader, created on first use on the GUI thread."""
+    """created on first use on the GUI thread."""
     global _loader
     if _loader is None:
         _loader = ArtLoader()

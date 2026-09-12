@@ -93,7 +93,7 @@ class DraggableCardItem(QGraphicsPixmapItem):
         self.shadow.setZValue(self.zValue() + SHADOW_Z_OFFSET)
         self.marks = SelectionMarks(self)
 
-        # Level of detail: the pixmap placed is level 1; higher ones load from the art file
+        # Level of detail
         self._base = pixmap
         self._art_path = None
         self._level = 1
@@ -103,7 +103,6 @@ class DraggableCardItem(QGraphicsPixmapItem):
         self._hovering = False
         self._pressed = False
         self._dragging = False
-        # Carried along with other selected cards, so it moves exactly as they do
         self._group_dragging = False
         self._hover_face = (0.0, 0.0)
         self._ambient_scale = 1.0
@@ -266,12 +265,11 @@ class DraggableCardItem(QGraphicsPixmapItem):
         return self._view_scale
 
     def set_view_scale(self, view_scale):
-        """Told by the tab when the view zooms, so the corners can hold their size."""
         self._view_scale = view_scale
         self.marks.set_view_scale(view_scale)
 
     def gilt_tone(self):
-        """The selection colour for the ground this card sits on."""
+        """The selection colour for a ard."""
         tab = self._registered_tab or self.parent_tab
         return getattr(tab, "gilt", None) or GILT_ON_DARK
 
@@ -327,7 +325,7 @@ class DraggableCardItem(QGraphicsPixmapItem):
         return self._level
 
     def set_detail(self, device_scale):
-        """Show the level for device_scale device px per logical px, loading it if need be."""
+        """Show the level for device_scale device px per logical px, loading if need be."""
         level = detail_level(device_scale, self._top_level)
         if level == self._wanted_level:
             return
@@ -335,7 +333,6 @@ class DraggableCardItem(QGraphicsPixmapItem):
         if level == 1:
             self._show_level(1, self._base)
         elif level < self._level:
-            # Coming back down needs no disk: the level shown already holds every pixel
             size = self._base.size() * level
             self._show_level(
                 level,
@@ -349,7 +346,7 @@ class DraggableCardItem(QGraphicsPixmapItem):
             art_loader().request(self, self._art_path, self._base.size() * level, level)
 
     def receive_detail(self, level, image):
-        """A level the loader decoded, arriving after the zoom may already have moved on."""
+        """A level the loader decoded, arriving potentially after the zoom."""
         if level == self._wanted_level:
             self._show_level(level, QPixmap.fromImage(image))
 
@@ -360,17 +357,13 @@ class DraggableCardItem(QGraphicsPixmapItem):
 
     # Qt plumbing
     def shape(self):
-        """The card's rectangle.
-
-        QGraphicsPixmapItem builds its shape from the pixmap's device pixels, ignoring its
-        device pixel ratio, so above level 1 the stock shape would be several times the card.
-        """
+        """The card's rectangle."""
         path = QPainterPath()
         path.addRect(QRectF(self.offset(), self.pixmap().deviceIndependentSize()))
         return path
 
     def paint(self, painter, option, widget=None):
-        """Paint the card without Qt's dashed selection rectangle"""
+        """Main paint for the card"""
         if option.state & QStyle.StateFlag.State_Selected:
             option = QStyleOptionGraphicsItem(option)
             option.state &= ~QStyle.StateFlag.State_Selected
@@ -459,7 +452,6 @@ class DraggableCardItem(QGraphicsPixmapItem):
         super().mouseMoveEvent(event)
 
     def begin_drag(self):
-        """Pick up this card, and the rest of the selection with it."""
         moving = self._moving_cards()
         if len(moving) > 1:
             self._group_dragging = True
