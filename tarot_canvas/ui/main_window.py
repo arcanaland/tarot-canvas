@@ -731,6 +731,7 @@ class MainWindow(QMainWindow):
         if self.fullscreen_tab is not None:
             self.exit_tab_fullscreen()
         self.update_card_clipboard_actions()
+        self.update_fullscreen_action()
 
     def current_base_tab(self):
         tab = self.tab_widget.currentWidget()
@@ -767,6 +768,17 @@ class MainWindow(QMainWindow):
         tab = self.current_base_tab()
         if tab is not None and tab.can_go(where):
             tab.go(where)
+
+    def update_fullscreen_action(self):
+        """Fullscreen enables as the current tab says, and always while leaving is possible
+
+        On tab change rather than aboutToShow like Go: F11 is a window shortcut, so a
+        state refreshed only when the menu opens would go stale behind it.
+        """
+        tab = self.current_base_tab()
+        self.fullscreen_tab_action.setEnabled(
+            self.fullscreen_tab is not None or (tab is not None and tab.supports_fullscreen())
+        )
 
     def toggle_tab_fullscreen(self):
         """Toggle a chrome-free fullscreen showing only the current tab

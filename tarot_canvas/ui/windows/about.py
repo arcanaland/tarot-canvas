@@ -150,8 +150,8 @@ class AboutDialog(QDialog):
         if self.about.faq:
             layout.addWidget(
                 self._body_label(
-                    "If you have questions or need help, please visit "
-                    f"{_link(self.about.faq, 'the Frequently Asked Questions')}."
+                    "If you have questions or need help, please visit the "
+                    f"{_link(self.about.faq, 'Frequently Asked Questions')}."
                 )
             )
 
