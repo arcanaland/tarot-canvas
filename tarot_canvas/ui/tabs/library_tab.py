@@ -1,5 +1,4 @@
 from contextlib import contextmanager
-from pathlib import Path
 
 from PyQt6.QtCore import QEvent, QItemSelectionModel, QSize, Qt, QTimer, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QIcon, QKeySequence, QShortcut
@@ -509,13 +508,7 @@ class LibraryTab(BaseTab):
         if index < 0:
             return
 
-        icon = QIcon.fromTheme(
-            "folder-bookmarks",
-            QIcon(
-                str(Path(__file__).parent.parent.parent / "resources" / "icons" / "bookmarks.png")
-            ),
-        )
-        tab_widget.setTabIcon(index, icon)
+        tab_widget.setTabIcon(index, QIcon.fromTheme("view-list-icons"))
 
 
 def _is_deck_at(deck_path):

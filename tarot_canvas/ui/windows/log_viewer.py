@@ -3,7 +3,7 @@ import logging
 from typing import ClassVar
 
 from PyQt6.QtCore import pyqtSlot
-from PyQt6.QtGui import QColor, QFont, QPalette, QTextCursor
+from PyQt6.QtGui import QColor, QFont, QIcon, QPalette, QTextCursor
 from PyQt6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -147,6 +147,7 @@ class LogViewerDialog(QDialog):
 
         # Refresh button
         refresh_button = QPushButton("Refresh")
+        refresh_button.setIcon(QIcon.fromTheme("view-refresh"))
         refresh_button.clicked.connect(self.load_log_file)
         controls_layout.addWidget(refresh_button)
 

@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from PyQt6.QtCore import QSize, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QIcon, QPalette
 from PyQt6.QtWidgets import (
@@ -263,16 +261,4 @@ class DeckViewTab(BaseTab):
             if tab_widget:
                 index = tab_widget.indexOf(self)
                 if index >= 0:
-                    # Create and set the cards-stack icon from theme or fallback
-                    icon = QIcon.fromTheme(
-                        "view-grid",
-                        QIcon(
-                            str(
-                                Path(__file__).parent.parent.parent
-                                / "resources"
-                                / "icons"
-                                / "cards-stack.png"
-                            )
-                        ),
-                    )
-                    tab_widget.setTabIcon(index, icon)
+                    tab_widget.setTabIcon(index, QIcon.fromTheme("view-grid"))
