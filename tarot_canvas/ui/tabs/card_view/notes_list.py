@@ -110,6 +110,7 @@ class NotesListWidget(QWidget):
         actions_layout.addWidget(new_button)
 
         self.manage_button = QPushButton("Manage")
+        self.manage_button.setIcon(QIcon.fromTheme("overflow-menu"))
         self.manage_button.setObjectName("manage_button")
         actions_layout.addWidget(self.manage_button)
 

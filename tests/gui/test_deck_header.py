@@ -4,12 +4,13 @@ from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QApplication
 
 from tarot_canvas.settings import DECK_HEADER_EXPANDED_KEY, get_settings
+from tarot_canvas.ui.widgets import deck_header
 from tarot_canvas.ui.widgets.cover_banner import (
     BANNER_SCRIM_ALPHA,
     BANNER_SUBTEXT,
     BANNER_TEXT,
 )
-from tarot_canvas.ui.widgets.deck_header import DeckHeader, wrapped_height
+from tarot_canvas.ui.widgets.deck_header import BUY_TEXT, DeckHeader, wrapped_height
 from tarot_canvas.ui.widgets.tag_chips import TagChips
 
 FULL_METADATA = {
@@ -142,6 +143,44 @@ def test_the_website_is_a_link_only_when_it_is_a_url(qtbot, header):
     plain.set_expanded(True)
     assert plain.detail_labels["website"].text() == "usgamesinc.com"
     assert not plain.detail_labels["website"].openExternalLinks()
+
+
+def test_a_buy_link_is_a_button_even_when_collapsed(qtbot, monkeypatch):
+    opened = []
+    monkeypatch.setattr(
+        deck_header.QDesktopServices, "openUrl", lambda url: opened.append(url.toString())
+    )
+    links = [
+        {"rel": "homepage", "url": "https://ascii-tarot.com"},
+        {"rel": "buy", "url": "https://kathrynisabelle.com/shop"},
+    ]
+    widget = shown(qtbot, make_deck(links=links))
+    widget.set_expanded(False)
+    assert widget.buy_button.isVisibleTo(widget)
+    assert widget.buy_button.text() == BUY_TEXT
+
+    qtbot.mouseClick(widget.buy_button, Qt.MouseButton.LeftButton)
+    assert opened == ["https://kathrynisabelle.com/shop"]
+
+
+def test_the_buy_button_carries_the_links_title(qtbot):
+    links = [{"rel": "buy", "url": "https://example.com/shop", "title": "Buy from the artist"}]
+    widget = shown(qtbot, make_deck(links=links))
+    assert widget.buy_button.text() == "Buy from the artist"
+
+
+def test_no_buy_link_no_button(header):
+    assert header.buy_button is None
+
+
+def test_link_rows_are_links_with_escaped_addresses(qtbot):
+    links = [{"rel": "homepage", "url": 'https://example.com/"><b>x'}]
+    widget = shown(qtbot, make_deck(links=links))
+    widget.set_expanded(True)
+    row = widget.detail_labels["links.homepage"]
+    assert row.openExternalLinks()
+    assert 'href="https://example.com/&quot;&gt;&lt;b&gt;x"' in row.text()
+    assert "<b>" not in row.text()
 
 
 def test_tags_are_chips_rather_than_a_comma_joined_sentence(header):

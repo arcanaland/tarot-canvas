@@ -1,6 +1,5 @@
 import os
 from importlib.resources import files
-from pathlib import Path
 
 from PyQt6.QtCore import QEvent, QObject, Qt, QUrl, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import (
@@ -48,7 +47,7 @@ from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tarot_canvas.ui.tabs.deck_view_tab import DeckViewTab
 from tarot_canvas.ui.tabs.library_tab import LibraryTab
 from tarot_canvas.ui.widgets.toast import Toast
-from tarot_canvas.ui.windows.about import AboutDialog
+from tarot_canvas.ui.windows.about import AboutDialog, app_icon
 from tarot_canvas.ui.windows.log_viewer import LogViewerDialog
 from tarot_canvas.utils.logger import logger
 from tarot_canvas.utils.theme_manager import ThemeManager, ThemeType
@@ -141,7 +140,7 @@ class MainWindow(QMainWindow):
         # New Buttons
         self.new_canvas_action = QAction("New &Canvas", self)
         self.new_canvas_action.setShortcut("Ctrl+N")
-        self.new_canvas_action.setIcon(QIcon.fromTheme("document-new"))
+        self.new_canvas_action.setIcon(QIcon.fromTheme("draw-rectangle"))
         self.new_canvas_action.triggered.connect(self.new_canvas_tab)
         file_menu.addAction(self.new_canvas_action)
 
@@ -153,7 +152,7 @@ class MainWindow(QMainWindow):
 
         self.new_card_view_action = QAction("New C&ard View", self)
         self.new_card_view_action.setShortcut("Ctrl+T")
-        self.new_card_view_action.setIcon(QIcon.fromTheme("card"))
+        self.new_card_view_action.setIcon(QIcon.fromTheme("view-pages-single"))
         self.new_card_view_action.triggered.connect(self.new_card_view_tab)
         file_menu.addAction(self.new_card_view_action)
 
@@ -161,6 +160,7 @@ class MainWindow(QMainWindow):
 
         open_action = QAction("&Open Deck…", self)
         open_action.setShortcut("Ctrl+O")
+        open_action.setIcon(QIcon.fromTheme("document-open-folder"))
         open_action.triggered.connect(self.open_deck)
         file_menu.addAction(open_action)
 
@@ -168,6 +168,7 @@ class MainWindow(QMainWindow):
 
         close_tab_action = QAction("Close &Tab", self)
         close_tab_action.setShortcut("Ctrl+W")
+        close_tab_action.setIcon(QIcon.fromTheme("tab-close"))
         close_tab_action.triggered.connect(self.close_current_tab)
         file_menu.addAction(close_tab_action)
 
@@ -175,6 +176,7 @@ class MainWindow(QMainWindow):
 
         exit_action = QAction("&Exit", self)
         exit_action.setShortcut("Ctrl+Q")
+        exit_action.setIcon(QIcon.fromTheme("application-exit"))
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
 
@@ -199,6 +201,7 @@ class MainWindow(QMainWindow):
         edit_menu.addSeparator()
 
         preferences_action = QAction("&Preferences", self)
+        preferences_action.setIcon(QIcon.fromTheme("configure"))
         preferences_action.triggered.connect(self.show_preferences)
         edit_menu.addAction(preferences_action)
 
@@ -208,6 +211,7 @@ class MainWindow(QMainWindow):
         # Add explorer toggle to View menu
         self.explorer_action = QAction("&Card Explorer", self)
         self.explorer_action.setShortcut("Ctrl+E")
+        self.explorer_action.setIcon(QIcon.fromTheme("view-sidetree"))
         self.explorer_action.setCheckable(True)
         self.explorer_action.setChecked(True)  # Set checked by default
         self.explorer_action.triggered.connect(self.toggle_card_explorer)
@@ -218,6 +222,7 @@ class MainWindow(QMainWindow):
         self.fullscreen_tab_action = QAction("&Fullscreen", self)
         self.fullscreen_tab_action.setShortcuts([QKeySequence("Ctrl+Shift+F"), QKeySequence("F11")])
         self.fullscreen_tab_action.setStatusTip("Fullscreen the current tab (Ctrl+Shift+F or F)")
+        self.fullscreen_tab_action.setIcon(QIcon.fromTheme("view-fullscreen"))
         self.fullscreen_tab_action.setCheckable(True)
         self.fullscreen_tab_action.triggered.connect(self.toggle_tab_fullscreen)
         view_menu.addAction(self.fullscreen_tab_action)
@@ -225,9 +230,10 @@ class MainWindow(QMainWindow):
 
         # Add Theme submenu
         theme_menu = QMenu("&Theme", self)
+        theme_menu.setIcon(QIcon.fromTheme("games-config-theme"))
         view_menu.addMenu(theme_menu)
 
-        # Create a theme action group for radio behavior
+        # Create a theme action group for radio behavior; the radio mark is the icon
         theme_group = QActionGroup(self)
         theme_group.setExclusive(True)
 
@@ -274,34 +280,40 @@ class MainWindow(QMainWindow):
         go_menu.aboutToShow.connect(self.update_go_actions)
         self.go_actions = {}
         for group in (
-            (("previous", "&Previous Card\tLeft"), ("next", "&Next Card\tRight")),
             (
-                ("first", "&First Card\tHome"),
-                ("last", "&Last Card\tEnd"),
-                ("random", "&Random Card\tD"),
+                ("previous", "&Previous Card\tLeft", "go-previous"),
+                ("next", "&Next Card\tRight", "go-next"),
             ),
-            (("previous_deck", "Previous &Deck\t["), ("next_deck", "Ne&xt Deck\t]")),
+            (
+                ("first", "&First Card\tHome", "go-first"),
+                ("last", "&Last Card\tEnd", "go-last"),
+                ("random", "&Random Card\tD", "roll"),
+            ),
+            (
+                ("previous_deck", "Previous &Deck\t[", "go-previous-skip"),
+                ("next_deck", "Ne&xt Deck\t]", "go-next-skip"),
+            ),
         ):
-            for where, text in group:
-                action = go_menu.addAction(text)
+            for where, text, icon_name in group:
+                action = go_menu.addAction(QIcon.fromTheme(icon_name), text)
                 action.triggered.connect(lambda _checked=False, w=where: self.go(w))
                 self.go_actions[where] = action
             go_menu.addSeparator()
-        find_card_action = go_menu.addAction("Find &Card…\tCtrl+P")
-        find_card_action.triggered.connect(self.show_command_palette)
+
+        # On the window as well, so Ctrl+P works with the menu bar hidden in fullscreen
+        self.find_card_action = QAction("Find &Card…", self)
+        self.find_card_action.setShortcut("Ctrl+P")
+        self.find_card_action.setIcon(QIcon.fromTheme("edit-find"))
+        self.find_card_action.triggered.connect(self.show_command_palette)
+        go_menu.addAction(self.find_card_action)
+        self.addAction(self.find_card_action)
 
         # Tools menu
         tools_menu = menu_bar.addMenu("&Tools")
 
-        # Add Command Palette action
-        command_palette_action = QAction("&Command Palette", self)
-        command_palette_action.setShortcut("Ctrl+P")
-        command_palette_action.triggered.connect(self.show_command_palette)
-        tools_menu.addAction(command_palette_action)
-        self.addAction(command_palette_action)
-
         # Add Log Viewer action
         log_viewer_action = QAction("&Log Viewer", self)
+        log_viewer_action.setIcon(QIcon.fromTheme("view-list-text"))
         log_viewer_action.triggered.connect(self.show_log_viewer)
         tools_menu.addAction(log_viewer_action)
 
@@ -309,16 +321,19 @@ class MainWindow(QMainWindow):
         help_menu = menu_bar.addMenu("&Help")
 
         faq_action = QAction("&Frequently Asked Questions", self)
+        faq_action.setIcon(QIcon.fromTheme("help-contents"))
         faq_action.triggered.connect(self.show_faqs)
         help_menu.addAction(faq_action)
 
         report_bug_action = QAction("&Report Bug", self)
+        report_bug_action.setIcon(QIcon.fromTheme("tools-report-bug"))
         report_bug_action.triggered.connect(self.report_bug)
         help_menu.addAction(report_bug_action)
 
         help_menu.addSeparator()
 
         about_action = QAction("&About Tarot Canvas", self)
+        about_action.setIcon(app_icon(load_about_data().app_id))
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
 
@@ -380,12 +395,7 @@ class MainWindow(QMainWindow):
 
         # Create search button and put it in the tab corner
         search_button = QToolButton()
-        search_button.setIcon(
-            QIcon.fromTheme(
-                "search",
-                QIcon(str(Path(__file__).parent.parent / "resources" / "icons" / "search.png")),
-            )
-        )
+        search_button.setIcon(QIcon.fromTheme("search"))
         search_button.setToolTip("Search Cards (Ctrl+P)")
         search_button.clicked.connect(self.show_command_palette)
 
@@ -455,19 +465,19 @@ class MainWindow(QMainWindow):
         button_layout = QHBoxLayout()
 
         # Buttons for different tab types
-        canvas_btn = QPushButton("New Canvas")
+        canvas_btn = QPushButton(QIcon.fromTheme("draw-rectangle"), "New Canvas")
         canvas_btn.clicked.connect(self.new_canvas_tab)
         button_layout.addWidget(canvas_btn)
 
-        deck_btn = QPushButton("Open Standard Deck")
+        deck_btn = QPushButton(QIcon.fromTheme("view-grid"), "Open Standard Deck")
         deck_btn.clicked.connect(self.open_reference_deck)
         button_layout.addWidget(deck_btn)
 
-        library_btn = QPushButton("Deck Library")
+        library_btn = QPushButton(QIcon.fromTheme("view-list-icons"), "Deck Library")
         library_btn.clicked.connect(self.new_library_tab)
         button_layout.addWidget(library_btn)
 
-        card_btn = QPushButton("Pick Random Card")
+        card_btn = QPushButton(QIcon.fromTheme("roll"), "Pick Random Card")
         card_btn.clicked.connect(self.new_card_view_tab)
         button_layout.addWidget(card_btn)
 
@@ -721,6 +731,7 @@ class MainWindow(QMainWindow):
         if self.fullscreen_tab is not None:
             self.exit_tab_fullscreen()
         self.update_card_clipboard_actions()
+        self.update_fullscreen_action()
 
     def current_base_tab(self):
         tab = self.tab_widget.currentWidget()
@@ -758,12 +769,14 @@ class MainWindow(QMainWindow):
         if tab is not None and tab.can_go(where):
             tab.go(where)
 
-    def toggle_tab_fullscreen(self):
-        """Toggle a chrome-free fullscreen showing only the current tab
+    def update_fullscreen_action(self):
+        tab = self.current_base_tab()
+        self.fullscreen_tab_action.setEnabled(
+            self.fullscreen_tab is not None or (tab is not None and tab.supports_fullscreen())
+        )
 
-        Which tabs may be fullscreened is the tab's own answer
-        (BaseTab.supports_fullscreen), not a type check here.
-        """
+    def toggle_tab_fullscreen(self):
+        """Toggle a chrome-free fullscreen showing only the current tab"""
         if self.fullscreen_tab is not None:
             self.exit_tab_fullscreen()
             return

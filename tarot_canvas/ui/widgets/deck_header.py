@@ -1,11 +1,14 @@
-from PyQt6.QtCore import QDate, QLocale, QPoint, QRect, Qt
-from PyQt6.QtGui import QFontMetrics, QPainter, QPalette
+import html
+
+from PyQt6.QtCore import QDate, QLocale, QPoint, QRect, Qt, QUrl
+from PyQt6.QtGui import QDesktopServices, QFontMetrics, QIcon, QPainter, QPalette
 from PyQt6.QtWidgets import (
     QApplication,
     QFormLayout,
     QFrame,
     QHBoxLayout,
     QLabel,
+    QPushButton,
     QSizePolicy,
     QToolButton,
     QVBoxLayout,
@@ -36,6 +39,13 @@ MEASURE_CHARACTERS = 85
 
 COLLAPSED_COVER_UNITS = 3
 
+# placeholder copy, Adam's to replace
+BUY_TEXT = "Buy Deck"
+BUY_ICON = "wallet-open"
+
+# a row per 2.0 link rel; `publisher` links join the Publisher row instead
+LINK_PREFIX = "links."
+
 DETAIL_FIELDS = (
     ("description", "Description"),
     ("license", "License"),
@@ -43,6 +53,10 @@ DETAIL_FIELDS = (
     ("attribution", "Attribution"),
     ("publisher", "Publisher"),
     ("website", "Website"),
+    ("links.homepage", "Homepage"),
+    ("links.artist", "Artist"),
+    ("links.buy", "Buy"),
+    ("links.source", "Source"),
     ("created_date", "Created"),
     ("updated_date", "Updated"),
     ("published_date", "Published"),
@@ -107,7 +121,8 @@ def detail_rows(fields):
     """
     rows = []
     for key, label in DETAIL_FIELDS:
-        text = format_value(fields.get(key))
+        addresses = [display_address(url) for url in links_for(key, fields)]
+        text = "\n".join(filter(None, [format_value(fields.get(key)), *addresses]))
         if not text:
             continue
         if key in DATE_KEYS:
@@ -126,6 +141,57 @@ def wrapped_height(text, font, width):
 
 def _is_link(value):
     return value.startswith("http://") or value.startswith("https://")
+
+
+def deck_links(fields):
+    """`[deck].links` as (rel, url, title), in declared order."""
+    raw = fields.get("links")
+    if not isinstance(raw, list):
+        return []
+
+    links = []
+    for entry in raw:
+        if not isinstance(entry, dict):
+            continue
+        rel, url, title = entry.get("rel"), entry.get("url"), entry.get("title")
+        if not isinstance(rel, str) or not isinstance(url, str) or not _is_link(url.strip()):
+            continue
+        title = title.strip() if isinstance(title, str) else ""
+        links.append((rel, url.strip(), title or None))
+    return links
+
+
+def links_for(key, fields):
+    """URLs the detail row `key` presents."""
+    if key.startswith(LINK_PREFIX):
+        rel = key.removeprefix(LINK_PREFIX)
+    elif key == "publisher":
+        rel = "publisher"
+    else:
+        return []
+    return [url for link_rel, url, _ in deck_links(fields) if link_rel == rel]
+
+
+def buy_link(fields):
+    """The first `buy` link as (url, title), or None."""
+    for rel, url, title in deck_links(fields):
+        if rel == "buy":
+            return url, title
+    return None
+
+
+def display_address(url):
+    """`url` as shown to a reader: no scheme, no trailing slash."""
+    return url.split("://", 1)[-1].rstrip("/")
+
+
+def link_html(text, urls):
+    """`text`, if any, then one link per URL, a line each."""
+    lines = [html.escape(text)] if text else []
+    lines += [
+        f'<a href="{html.escape(url)}">{html.escape(display_address(url))}</a>' for url in urls
+    ]
+    return "<br>".join(lines)
 
 
 class DeckHeader(QWidget):
@@ -201,6 +267,10 @@ class DeckHeader(QWidget):
         title_row.addWidget(self.title_label)
         title_row.addStretch()
 
+        self.buy_button = self._build_buy_button()
+        if self.buy_button is not None:
+            title_row.addWidget(self.buy_button, 0, Qt.AlignmentFlag.AlignTop)
+
         self.details_button = QToolButton()
         self.details_button.setText("Details")
         self.details_button.setCheckable(True)
@@ -220,6 +290,17 @@ class DeckHeader(QWidget):
         column.addSpacing(BANNER_PADDING + DETAILS_GAP)
         column.addWidget(self.details_widget)
         return column
+
+    def _build_buy_button(self):
+        """A button to the deck's first `buy` link, labelled with its title if it has one."""
+        link = buy_link(self.deck.get_metadata_fields())
+        if link is None:
+            return None
+        url, title = link
+        button = QPushButton(QIcon.fromTheme(BUY_ICON), title or BUY_TEXT)
+        button.setToolTip(url)
+        button.clicked.connect(lambda _checked=False: QDesktopServices.openUrl(QUrl(url)))
+        return button
 
     def _build_details(self):
         details = QWidget()
@@ -243,7 +324,13 @@ class DeckHeader(QWidget):
             field = QLabel()
             field.setWordWrap(True)
             field.setFixedWidth(self.measure())
-            if key == "website" and _is_link(value):
+            urls = links_for(key, fields)
+            if urls:
+                field.setTextFormat(Qt.TextFormat.RichText)
+                field.setText(link_html(format_value(fields.get(key)), urls))
+                field.setOpenExternalLinks(True)
+                field.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+            elif key == "website" and _is_link(value):
                 field.setText(f'<a href="{value}">{value}</a>')
                 field.setOpenExternalLinks(True)
                 field.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)

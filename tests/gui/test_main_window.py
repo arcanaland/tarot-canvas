@@ -169,6 +169,24 @@ def test_the_library_tab_opts_out_of_fullscreen(qtbot):
     assert window.fullscreen_tab is None
 
 
+def test_fullscreen_is_offered_only_by_a_tab_that_supports_it(qtbot):
+    window, card_view = make_window_with_card_view(qtbot)
+    assert window.fullscreen_tab_action.isEnabled()
+
+    window.new_library_tab()
+    assert not window.fullscreen_tab_action.isEnabled()
+
+    window.tab_widget.setCurrentWidget(card_view)
+    assert window.fullscreen_tab_action.isEnabled()
+
+    # Still enabled while fullscreen, so the same action can leave it
+    window.fullscreen_tab_action.trigger()
+    assert window.fullscreen_tab is card_view
+    assert window.fullscreen_tab_action.isEnabled()
+    window.fullscreen_tab_action.trigger()
+    assert window.fullscreen_tab is None
+
+
 def make_window_with_card_view(qtbot):
     window = MainWindow()
     qtbot.addWidget(window)

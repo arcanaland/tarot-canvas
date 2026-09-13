@@ -1,5 +1,5 @@
 from PyQt6.QtCore import pyqtSignal
-from PyQt6.QtGui import QColor
+from PyQt6.QtGui import QColor, QIcon
 from PyQt6.QtWidgets import (
     QCheckBox,
     QColorDialog,
@@ -86,6 +86,7 @@ class PreferencesDialog(QDialog):
 
         # Background color button (enabled only for solid color)
         self.bg_color_btn = QPushButton("Select Color")
+        self.bg_color_btn.setIcon(QIcon.fromTheme("color-picker"))
         self.bg_color_btn.clicked.connect(self.select_bg_color)
         layout.addRow("Background Color:", self.bg_color_btn)
 

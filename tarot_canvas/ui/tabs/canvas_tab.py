@@ -1,6 +1,5 @@
 import os
 import random
-from pathlib import Path
 
 from PyQt6.QtCore import QPoint, QPointF, QRectF, QSize, Qt, QTimer, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import (
@@ -483,17 +482,7 @@ class CanvasTab(BaseTab):
         # Add primary actions to toolbar
         for icon_name, slot, tooltip in primary_actions:
             action = QAction(
-                QIcon.fromTheme(
-                    icon_name,
-                    QIcon(
-                        str(
-                            Path(__file__).parent.parent.parent
-                            / "resources"
-                            / "icons"
-                            / f"{icon_name}.png"
-                        )
-                    ),
-                ),
+                QIcon.fromTheme(icon_name),
                 "",
                 self,
             )
@@ -527,17 +516,7 @@ class CanvasTab(BaseTab):
         # Add arrangement actions to toolbar
         for icon_name, slot, tooltip in arrangement_actions:
             action = QAction(
-                QIcon.fromTheme(
-                    icon_name,
-                    QIcon(
-                        str(
-                            Path(__file__).parent.parent.parent
-                            / "resources"
-                            / "icons"
-                            / f"{icon_name}.png"
-                        )
-                    ),
-                ),
+                QIcon.fromTheme(icon_name),
                 "",
                 self,
             )
@@ -569,17 +548,7 @@ class CanvasTab(BaseTab):
         # Add view control actions to toolbar
         for icon_name, slot, tooltip in view_actions:
             action = QAction(
-                QIcon.fromTheme(
-                    icon_name,
-                    QIcon(
-                        str(
-                            Path(__file__).parent.parent.parent
-                            / "resources"
-                            / "icons"
-                            / f"{icon_name}.png"
-                        )
-                    ),
-                ),
+                QIcon.fromTheme(icon_name),
                 "",
                 self,
             )
@@ -886,175 +855,43 @@ class CanvasTab(BaseTab):
 
         # Horizontal alignment actions
         horizontal_menu = menu.addMenu("Horizontal Align")
-        horizontal_menu.setIcon(
-            QIcon.fromTheme(
-                "align-horizontal-left",
-                QIcon(
-                    str(
-                        Path(__file__).parent.parent.parent
-                        / "resources"
-                        / "icons"
-                        / "align-horizontal-left.png"
-                    )
-                ),
-            )
-        )
+        horizontal_menu.setIcon(QIcon.fromTheme("align-horizontal-left"))
 
         h_left = horizontal_menu.addAction("Left Edges")
-        h_left.setIcon(
-            QIcon.fromTheme(
-                "align-horizontal-left",
-                QIcon(
-                    str(
-                        Path(__file__).parent.parent.parent
-                        / "resources"
-                        / "icons"
-                        / "align-horizontal-left.png"
-                    )
-                ),
-            )
-        )
+        h_left.setIcon(QIcon.fromTheme("align-horizontal-left"))
 
         h_center = horizontal_menu.addAction("Centers")
-        h_center.setIcon(
-            QIcon.fromTheme(
-                "align-horizontal-center",
-                QIcon(
-                    str(
-                        Path(__file__).parent.parent.parent
-                        / "resources"
-                        / "icons"
-                        / "align-horizontal-center.png"
-                    )
-                ),
-            )
-        )
+        h_center.setIcon(QIcon.fromTheme("align-horizontal-center"))
 
         h_right = horizontal_menu.addAction("Right Edges")
-        h_right.setIcon(
-            QIcon.fromTheme(
-                "align-horizontal-right",
-                QIcon(
-                    str(
-                        Path(__file__).parent.parent.parent
-                        / "resources"
-                        / "icons"
-                        / "align-horizontal-right.png"
-                    )
-                ),
-            )
-        )
+        h_right.setIcon(QIcon.fromTheme("align-horizontal-right"))
 
         # Vertical alignment actions
         vertical_menu = menu.addMenu("Vertical Align")
-        vertical_menu.setIcon(
-            QIcon.fromTheme(
-                "align-vertical-top",
-                QIcon(
-                    str(
-                        Path(__file__).parent.parent.parent
-                        / "resources"
-                        / "icons"
-                        / "align-vertical-top.png"
-                    )
-                ),
-            )
-        )
+        vertical_menu.setIcon(QIcon.fromTheme("align-vertical-top"))
 
         v_top = vertical_menu.addAction("Top Edges")
-        v_top.setIcon(
-            QIcon.fromTheme(
-                "align-vertical-top",
-                QIcon(
-                    str(
-                        Path(__file__).parent.parent.parent
-                        / "resources"
-                        / "icons"
-                        / "align-vertical-top.png"
-                    )
-                ),
-            )
-        )
+        v_top.setIcon(QIcon.fromTheme("align-vertical-top"))
 
         v_center = vertical_menu.addAction("Centers")
-        v_center.setIcon(
-            QIcon.fromTheme(
-                "align-vertical-center",
-                QIcon(
-                    str(
-                        Path(__file__).parent.parent.parent
-                        / "resources"
-                        / "icons"
-                        / "align-vertical-center.png"
-                    )
-                ),
-            )
-        )
+        v_center.setIcon(QIcon.fromTheme("align-vertical-center"))
 
         v_bottom = vertical_menu.addAction("Bottom Edges")
-        v_bottom.setIcon(
-            QIcon.fromTheme(
-                "align-vertical-bottom",
-                QIcon(
-                    str(
-                        Path(__file__).parent.parent.parent
-                        / "resources"
-                        / "icons"
-                        / "align-vertical-bottom.png"
-                    )
-                ),
-            )
-        )
+        v_bottom.setIcon(QIcon.fromTheme("align-vertical-bottom"))
 
         # Distribution options
         menu.addSeparator()
 
         distribute_h = menu.addAction("Distribute Horizontally")
-        distribute_h.setIcon(
-            QIcon.fromTheme(
-                "distribute-horizontal-center",
-                QIcon(
-                    str(
-                        Path(__file__).parent.parent.parent
-                        / "resources"
-                        / "icons"
-                        / "distribute-horizontal-center.png"
-                    )
-                ),
-            )
-        )
+        distribute_h.setIcon(QIcon.fromTheme("distribute-horizontal-center"))
 
         distribute_v = menu.addAction("Distribute Vertically")
-        distribute_v.setIcon(
-            QIcon.fromTheme(
-                "distribute-vertical-center",
-                QIcon(
-                    str(
-                        Path(__file__).parent.parent.parent
-                        / "resources"
-                        / "icons"
-                        / "distribute-vertical-center.png"
-                    )
-                ),
-            )
-        )
+        distribute_v.setIcon(QIcon.fromTheme("distribute-vertical-center"))
 
         # Circle arrangement (useful for tarot spread)
         menu.addSeparator()
         circle_arrange = menu.addAction("Arrange in Circle")
-        circle_arrange.setIcon(
-            QIcon.fromTheme(
-                "object-rotate-right",
-                QIcon(
-                    str(
-                        Path(__file__).parent.parent.parent
-                        / "resources"
-                        / "icons"
-                        / "object-rotate-right.png"
-                    )
-                ),
-            )
-        )
+        circle_arrange.setIcon(QIcon.fromTheme("object-rotate-right"))
 
         # Connect actions to alignment functions
         h_left.triggered.connect(lambda: align_items_horizontally(items, "left"))

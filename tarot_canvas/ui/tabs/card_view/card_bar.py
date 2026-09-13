@@ -211,12 +211,18 @@ class CardBar(QToolBar):
         # One button for the zoom state; the menu is the discoverable half of the
         # wheel, Ctrl+± and double-click. Text after a tab is only displayed.
         menu = QMenu(self)
-        self.zoom_in_action = self._menu_item(menu, "Zoom In\tCtrl++", image_view.zoom_in)
-        self.zoom_out_action = self._menu_item(menu, "Zoom Out\tCtrl+-", image_view.zoom_out)
+        self.zoom_in_action = self._menu_item(
+            menu, "zoom-in", "Zoom In\tCtrl++", image_view.zoom_in
+        )
+        self.zoom_out_action = self._menu_item(
+            menu, "zoom-out", "Zoom Out\tCtrl+-", image_view.zoom_out
+        )
         menu.addSeparator()
-        self.fit_action = self._menu_item(menu, "Fit\tCtrl+0", image_view.reset_to_fit)
+        self.fit_action = self._menu_item(
+            menu, "zoom-fit-best", "Fit\tCtrl+0", image_view.reset_to_fit
+        )
         self.native_action = self._menu_item(
-            menu, "Actual Size\tDouble-click", image_view.zoom_to_native
+            menu, "zoom-original", "Actual Size\tDouble-click", image_view.zoom_to_native
         )
         self.zoom_button = QToolButton()
         self.zoom_button.setMenu(menu)
@@ -251,8 +257,8 @@ class CardBar(QToolBar):
         self.addAction(action)
         return action
 
-    def _menu_item(self, menu, text, slot):
-        action = menu.addAction(text)
+    def _menu_item(self, menu, icon_name, text, slot):
+        action = menu.addAction(QIcon.fromTheme(icon_name), text)
         action.triggered.connect(slot)
         return action
 

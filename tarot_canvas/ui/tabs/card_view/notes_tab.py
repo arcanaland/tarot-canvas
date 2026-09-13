@@ -115,15 +115,15 @@ class NotesTab(QWidget):
         """Set up the manage menu for the notes list"""
         manage_menu = QMenu(self)
 
-        rename_action = QAction("Rename Note", self)
+        rename_action = QAction(QIcon.fromTheme("edit-rename"), "Rename Note", self)
         rename_action.triggered.connect(self.rename_current_note)
         manage_menu.addAction(rename_action)
 
-        delete_action = QAction("Delete Note", self)
+        delete_action = QAction(QIcon.fromTheme("edit-delete"), "Delete Note", self)
         delete_action.triggered.connect(self.delete_current_note)
         manage_menu.addAction(delete_action)
 
-        export_action = QAction("Export Note", self)
+        export_action = QAction(QIcon.fromTheme("document-export"), "Export Note", self)
         export_action.triggered.connect(self.export_current_note)
         manage_menu.addAction(export_action)
 

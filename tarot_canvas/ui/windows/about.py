@@ -35,6 +35,14 @@ LICENSE_URLS = {
 MAIL_ICON_NAMES = ("mail-message-new", "mail-send", "mail-message")
 
 
+def app_icon(app_id: str) -> QIcon:
+    """The theme's icon for the app, else the one bundled with it."""
+    icon = QIcon.fromTheme(app_id)
+    if icon.isNull():
+        icon = QIcon(str(ICON_PATH))
+    return icon
+
+
 def _link(url: str, label: str | None = None) -> str:
     return f'<a href="{url}">{label or url}</a>'
 
@@ -99,10 +107,7 @@ class AboutDialog(QDialog):
         return header
 
     def _app_icon(self) -> QIcon:
-        icon = QIcon.fromTheme(self.about.app_id)
-        if icon.isNull():
-            icon = QIcon(str(ICON_PATH))
-        return icon
+        return app_icon(self.about.app_id)
 
     # -- tabs -----------------------------------------------------------------
 
@@ -145,8 +150,8 @@ class AboutDialog(QDialog):
         if self.about.faq:
             layout.addWidget(
                 self._body_label(
-                    "If you have questions or need help, please visit "
-                    f"{_link(self.about.faq, 'the Frequently Asked Questions')}."
+                    "If you have questions or need help, please visit the "
+                    f"{_link(self.about.faq, 'Frequently Asked Questions')}."
                 )
             )
 

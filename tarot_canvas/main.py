@@ -84,6 +84,7 @@ class SetupDialog(QDialog):
 
         # Add retry button (hidden initially)
         self.retry_button = QPushButton("Retry Download")
+        self.retry_button.setIcon(QIcon.fromTheme("view-refresh"))
         self.retry_button.clicked.connect(self.start_download)
         self.retry_button.hide()
         layout.addWidget(self.retry_button)

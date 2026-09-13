@@ -83,7 +83,7 @@ class CommandPalette(QDialog):
 
     def __init__(self, parent=None, active_tab_type=None):
         super().__init__(parent)
-        self.setWindowTitle("Command Palette")
+        self.setWindowTitle("Find Card")
         self.setMinimumWidth(500)
         self.setMinimumHeight(400)
 
