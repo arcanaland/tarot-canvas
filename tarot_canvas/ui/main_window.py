@@ -159,7 +159,7 @@ class MainWindow(QMainWindow):
 
         file_menu.addSeparator()
 
-        open_action = QAction("&Open Deck", self)
+        open_action = QAction("&Open Deck…", self)
         open_action.setShortcut("Ctrl+O")
         open_action.triggered.connect(self.open_deck)
         file_menu.addAction(open_action)

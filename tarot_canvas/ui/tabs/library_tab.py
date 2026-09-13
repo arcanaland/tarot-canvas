@@ -163,12 +163,14 @@ class LibraryTab(BaseTab):
         self.density_combo.currentIndexChanged.connect(self.on_density_changed)
         row.addWidget(self.density_combo)
 
-        self.add_deck_button = QToolButton()
-        self.add_deck_button.setText("Add Deck…")
-        self.add_deck_button.setIcon(QIcon.fromTheme("list-add"))
-        self.add_deck_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        self.add_deck_button.clicked.connect(self.browse_for_deck)
-        row.addWidget(self.add_deck_button)
+        # Opens a deck folder where it is; it installs nothing, so not "Add"
+        self.open_deck_button = QToolButton()
+        self.open_deck_button.setText("Open Deck…")
+        # Not document-open, which the details pane's Open uses on the same screen
+        self.open_deck_button.setIcon(QIcon.fromTheme("document-open-folder"))
+        self.open_deck_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.open_deck_button.clicked.connect(self.browse_for_deck)
+        row.addWidget(self.open_deck_button)
 
         self.details_toggle = QToolButton()
         self.details_toggle.setCheckable(True)
