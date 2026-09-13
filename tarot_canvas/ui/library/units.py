@@ -21,6 +21,7 @@ COVER_ASPECT = 3 / 2
 
 CORNER_RADIUS = 5
 COVER_RADIUS = 4
+COVER_BORDER_ALPHA = 26  # ~10% Text as the cover hairline
 
 
 def cover_size(density):

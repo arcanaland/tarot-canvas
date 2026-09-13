@@ -7,6 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from PyQt6.QtCore import QObject, pyqtSignal
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -31,6 +32,7 @@ DECK_MANAGER_CONSUMERS = [
     "tarot_canvas.ui.tabs.card_view_tab",
     "tarot_canvas.ui.tabs.library_tab",
     "tarot_canvas.ui.components.card_explorer",
+    "tarot_canvas.ui.library.deck_downloads",
 ]
 
 
@@ -73,10 +75,75 @@ def fresh_deck_events(monkeypatch):
     monkeypatch.setattr("tarot_canvas.models.deck_events._instance", None)
 
 
+class _OfflineTransport:
+    """Records the catalog's requests and never answers them."""
+
+    def __init__(self, parent=None):
+        self.requests = []
+
+    def get(self, url, *, etag=None, callback):
+        self.requests.append((url, etag))
+
+
 @pytest.fixture(autouse=True)
 def fresh_deck_catalog(monkeypatch):
-    """A DeckCatalog per test, so no test inherits another's session state."""
+    """A DeckCatalog per test, so no test inherits another's session state.
+
+    Every library a test opens activates the catalog, so its default transport is
+    offline too. A test that wants replies installs a DeckCatalog of its own.
+    """
     monkeypatch.setattr("tarot_canvas.ui.library.catalog_client._instance", None)
+    monkeypatch.setattr("tarot_canvas.ui.library.catalog_client.QtTransport", _OfflineTransport)
+
+
+def _no_network_download(*args, **kwargs):
+    raise AssertionError("a test started a real deck download; use the fake_downloads fixture")
+
+
+@pytest.fixture(autouse=True)
+def fresh_deck_downloads(monkeypatch):
+    """A DeckDownloads per test, whose downloads can't reach the network."""
+    monkeypatch.setattr("tarot_canvas.ui.library.deck_downloads._instance", None)
+    monkeypatch.setattr(
+        "tarot_canvas.ui.library.deck_downloads.DOWNLOAD_FACTORY", _no_network_download
+    )
+
+
+class FakeDownload(QObject):
+    """A PackageDownload that never starts; the test emits its signals."""
+
+    progress = pyqtSignal("qint64", "qint64")
+    succeeded = pyqtSignal(str)
+    failed = pyqtSignal(object)
+
+    def __init__(self, url, size, sha256, dest, staging_root, network=None, parent=None):
+        super().__init__(parent)
+        self.url, self.size, self.sha256 = url, size, sha256
+        self.dest, self.staging_root = Path(dest), Path(staging_root)
+        self.started = False
+        self.cancelled = False
+
+    def start(self):
+        self.started = True
+
+    def cancel(self):
+        from tarot_canvas.utils.package_download import DownloadFailure, FailureKind
+
+        self.cancelled = True
+        self.failed.emit(DownloadFailure(FailureKind.CANCELLED, "cancelled"))
+
+
+@pytest.fixture
+def fake_downloads(monkeypatch):
+    """Every download the test starts, as a FakeDownload, oldest first."""
+    made = []
+
+    def factory(*args, **kwargs):
+        made.append(FakeDownload(*args, **kwargs))
+        return made[-1]
+
+    monkeypatch.setattr("tarot_canvas.ui.library.deck_downloads.DOWNLOAD_FACTORY", factory)
+    return made
 
 
 @pytest.fixture

@@ -83,17 +83,20 @@ def test_a_conformant_container_unpacks_to_its_tree(tmp_path, dest, mimetype):
 
     expected = ["deck.toml", "h1200", "h1200/major_arcana", "h1200/major_arcana/00.png"]
     expected += ["names", "names/en.toml"]
-    if mimetype:
-        expected.append("mimetype")
     assert tree(dest) == sorted(expected)
     assert (dest / "deck.toml").read_bytes() == DECK_TOML
     assert (dest / "h1200/major_arcana/00.png").read_bytes() == b"\x89PNG fool"
     assert [p.name for p in dest.parent.iterdir()] == ["dest"]
 
 
-def test_the_mimetype_entry_is_extracted_like_any_file(tmp_path, dest):
+def test_the_root_mimetype_entry_is_not_unpacked(tmp_path, dest):
     unpack_container(conformant(tmp_path), dest)
-    assert (dest / "mimetype").read_bytes() == MIME
+    assert not (dest / "mimetype").exists()
+
+
+def test_a_nested_mimetype_is_deck_material_and_is_unpacked(tmp_path, dest):
+    unpack_container(conformant(tmp_path, extra=[("src/mimetype", b"mine")]), dest)
+    assert (dest / "src/mimetype").read_bytes() == b"mine"
 
 
 def test_a_utf8_flagged_name_is_accepted(tmp_path, dest):

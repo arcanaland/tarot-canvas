@@ -1,6 +1,7 @@
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
+    QCheckBox,
     QColorDialog,
     QComboBox,
     QDialog,
@@ -17,6 +18,8 @@ from tarot_canvas.settings import (
     BACKGROUND_STYLE_DEFAULT,
     BACKGROUND_STYLE_KEY,
     MOTION_LEVEL_KEY,
+    SHOW_AVAILABLE_DECKS_DEFAULT,
+    SHOW_AVAILABLE_DECKS_KEY,
     THEME_DEFAULT,
     THEME_KEY,
     get_motion_level,
@@ -89,6 +92,10 @@ class PreferencesDialog(QDialog):
         # Enable the color picker only when "Solid Color" is selected
         self.bg_combo.currentIndexChanged.connect(self.update_color_button_state)
 
+        # Ghost tiles for catalog decks not installed yet
+        self.show_available_decks_check = QCheckBox("Show available decks")
+        layout.addRow("Library:", self.show_available_decks_check)
+
         self.appearance_widget.setLayout(layout)
 
     def update_color_button_state(self):
@@ -133,6 +140,10 @@ class PreferencesDialog(QDialog):
 
         self.update_color_button_state()
 
+        self.show_available_decks_check.setChecked(
+            bool(settings.value(SHOW_AVAILABLE_DECKS_KEY, SHOW_AVAILABLE_DECKS_DEFAULT, type=bool))
+        )
+
     def apply_settings(self):
         settings = get_settings()
 
@@ -144,6 +155,7 @@ class PreferencesDialog(QDialog):
             BACKGROUND_COLOR_KEY,
             getattr(self, "bg_color", QColor(BACKGROUND_COLOR_DEFAULT)).name(),
         )
+        settings.setValue(SHOW_AVAILABLE_DECKS_KEY, self.show_available_decks_check.isChecked())
 
         theme_type = ThemeType.SYSTEM
         if self.theme_combo.currentText() == "Light":

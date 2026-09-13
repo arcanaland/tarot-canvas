@@ -3,6 +3,8 @@ import os
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QFrame, QGridLayout, QLabel, QVBoxLayout, QWidget
 
+from tarot_canvas.ui.card_transfer import deck_path_key
+
 
 class OverviewTab(QWidget):
     """Tab displaying overview information about a tarot card"""
@@ -159,10 +161,10 @@ class OverviewTab(QWidget):
 
             # Check if deck path is valid; if it's the reference deck with an
             # invalid path, use a different method to resolve it
+            reference_deck = self.parent_tab.deck_manager.get_reference_deck()
             if (
                 not deck_path or deck_path == "None" or not os.path.exists(deck_path)
-            ) and self.deck == self.parent_tab.deck_manager.get_reference_deck():
-                reference_deck = self.parent_tab.deck_manager.get_reference_deck()
+            ) and self._is_same_deck(reference_deck):
                 self.parent_tab.navigation_requested.emit(
                     "open_deck_view",
                     {
@@ -176,6 +178,12 @@ class OverviewTab(QWidget):
             self.parent_tab.navigation_requested.emit(
                 "open_deck_view", {"deck_path": deck_path, "source_tab_id": self.parent_tab.id}
             )
+
+    def _is_same_deck(self, other):
+        """By path, not identity: installing a deck rebuilds every deck object"""
+        if self.deck is None or other is None:
+            return False
+        return deck_path_key(self.deck.deck_path) == deck_path_key(other.deck_path)
 
     def update_card_info(self, card, deck):
         """Update the overview tab with new card and deck information"""

@@ -45,20 +45,32 @@
     </screenshot>
   </screenshots>
   <releases>
-    <release version="1.5.0" date="2026-09-11" type="development">
+    <!--
+    <release version="1.5.1" date="2026-09-xx" type="development">
+      <description>
+        <ul>
+          <li>Fixed sluggish launch of Find Card panel.</li>
+          <li>Use hardware acceleration to improve performance of canvas motion.</li>
+        </ul>
+      </description>
+    </release>
+    -->
+    <release version="1.5.0" date="2026-09-13" type="development">
       <description>
         <p>Major new features include:</p>
         <ul>
-          <li>Add option to download more tarot decks to Library View.</li>
-          <li>New full-screen mode for the Card View.</li>
-          <li>Overhauled card movement and feel in the Canvas View. (juicy!)</li>
-          <li>Add copy-and-paste from a card tab to an open canvas.</li>
+          <li>Overhauled card animations and movement in the Canvas View. (juicy!)</li>
+          <li>Add catalog to download all of Arcana Land's tarot decks to your library.</li>
+          <li>Allow copy-paste from a card tab to an open canvas.</li>
+          <li>New full-screen mode for a card tab.</li>
           <li>Add shortcuts to cycle through cards and decks in the Card View.</li>
+          <li>Added a "What's New" section to the About window.</li>
         </ul>
         <p>Quality-of-life features and bug fixes:</p>
         <ul>
           <li>Add ability to drag-and-drop cards to a canvas from the Card Explorer.</li>
           <li>Fixed a bug that broke the command palette shortcut (Ctrl+P).</li>
+          <li>Add icons to all buttons and menu items.</li>
         </ul>
       </description>
     </release>
@@ -102,26 +114,6 @@
           <li>Improve circle arrangement.</li>
           <li>Allow middle-click to pan.</li>
         </ul>
-      </description>
-    </release>
-    <release version="1.2.2" date="2026-08-25" type="stable">
-      <description>
-        <p>Updating Flathub metadata.</p>
-      </description>
-    </release>
-    <release version="1.2.1" date="2026-07-26" type="stable">
-      <description>
-        <p>Preferences now apply immediately, including the animations toggle.</p>
-      </description>
-    </release>
-    <release version="1.2.0" date="2025-11-15" type="stable">
-      <description>
-        <p>Add screenshots for Flathub</p>
-      </description>
-    </release>
-    <release version="1.1.2" date="2025-11-13" type="stable">
-      <description>
-        <p>Initial release of Tarot Canvas on Flathub</p>
       </description>
     </release>
   </releases>
