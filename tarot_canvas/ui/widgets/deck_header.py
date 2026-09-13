@@ -144,11 +144,7 @@ def _is_link(value):
 
 
 def deck_links(fields):
-    """`[deck].links` as (rel, url, title), in declared order.
-
-    An entry without a string `rel` or an http(s) `url` is dropped rather than
-    offered to the reader (DECK.md §4.1.1).
-    """
+    """`[deck].links` as (rel, url, title), in declared order."""
     raw = fields.get("links")
     if not isinstance(raw, list):
         return []

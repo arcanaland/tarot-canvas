@@ -7,11 +7,11 @@ from tarot_canvas.ui.widgets.deck_header import (
     format_value,
 )
 
-ASCII_TAROT_LINKS = [
-    {"rel": "homepage", "url": "https://ascii-tarot.com"},
-    {"rel": "artist", "url": "https://kathrynisabelle.com"},
-    {"rel": "buy", "url": "https://kathrynisabelle.com/shop"},
-    {"rel": "source", "url": "https://github.com/lawreka/ascii-tarot"},
+EXAMPLE_TAROT_LINKS = [
+    {"rel": "homepage", "url": "https://example-tarot.com"},
+    {"rel": "artist", "url": "https://example.org"},
+    {"rel": "buy", "url": "https:/example.com/shop"},
+    {"rel": "source", "url": "https://github.com/example/example-tarot"},
 ]
 
 
@@ -131,7 +131,7 @@ def test_every_declared_field_has_a_human_label():
 
 
 def test_each_link_rel_is_a_row_showing_its_address():
-    rows = detail_rows({"license": "MIT", "links": ASCII_TAROT_LINKS, "published_date": "2020"})
+    rows = detail_rows({"license": "MIT", "links": EXAMPLE_TAROT_LINKS, "published_date": "2020"})
     assert [(label, text) for label, text, _ in rows] == [
         ("License", "MIT"),
         ("Homepage", "ascii-tarot.com"),
