@@ -36,6 +36,6 @@ flatpak run land.arcana.TarotCanvas
 
 ## AI Policy
 
-Tarot Canvas does not include any AI generated art or display strings and will never present AI-generated text or images to its users. It is an explicit design goal to never include this kind of garbage into this application.
+Tarot Canvas does not include any AI generated art or display strings and will never present AI-generated text or images to its users. It is an explicit design goal to be free from this kind of soulless hypermedia.
 
 For code, configuration, packaging and assets intended for non-user-facing automatable tasks, LLMs are used with some guidelines. See [Arcana Land's AI Policy](https://github.com/arcanaland/arcanaland/blob/main/AI-POLICY.md) for more detail.
