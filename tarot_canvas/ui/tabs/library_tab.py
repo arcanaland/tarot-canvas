@@ -297,8 +297,7 @@ class LibraryTab(BaseTab):
         if not current.isValid():
             return
         self._show_details(current)
-        # The keyboard's path; a click's is on_deck_clicked. Not selected is the view
-        # marking a first deck current as it takes focus, which is no one's selection.
+        # The keyboard path
         selected = self.view.selectionModel().isSelected(current)
         if self.view.hasFocus() and selected and not self._programmatic:
             self._open_details_for_selection()
@@ -320,11 +319,6 @@ class LibraryTab(BaseTab):
             self._reveal_ghost(index)
 
     def _reveal_ghost(self, index):
-        """Show a ghost's details with Download focused, even if the user closed the pane.
-
-        The pane is the only way to download, so it opens; the download never starts
-        here, so the licence is on screen before any of the deck is on disk.
-        """
         self._show_details(index)
         self._set_details_open(True)
         self.details_pane.focus_action()
@@ -445,7 +439,6 @@ class LibraryTab(BaseTab):
 
     @contextmanager
     def _selection_kept(self):
-        """Reselect the current deck after a reset; a ghost that installed, as its deck."""
         current = self.view.currentIndex()
         deck = current.data(DeckRole) if current.isValid() else None
         entry = current.data(EntryRole) if current.isValid() else None
@@ -459,7 +452,6 @@ class LibraryTab(BaseTab):
 
     @contextmanager
     def _programmatic_selection(self):
-        """Selection the user didn't make, which never opens the details pane"""
         self._programmatic += 1
         try:
             yield

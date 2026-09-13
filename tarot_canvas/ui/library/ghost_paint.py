@@ -1,7 +1,4 @@
-"""Covers for decks that aren't installed yet.
-
-Nothing here knows about the library's model or delegate, so any widget can paint one.
-"""
+"""Covers for decks that aren't installed yet."""
 
 from PyQt6.QtCore import QPoint, QPointF, QRect, QRectF, QSizeF, Qt
 from PyQt6.QtGui import QColor, QGuiApplication, QIcon
@@ -54,12 +51,7 @@ def paint_ghost_cover(
     ground=None,
     dimmed=True,
 ):
-    """Dimmed art, then a progress bar and an emblem at full strength.
-
-    `rect` is the art's bounds; with a null pixmap the bar and emblem go inside it. The art
-    is dimmed towards `ground`, the colour it sits on unselected, the palette's Window if
-    not given. Undimmed, only the emblem and the bar mark it as not installed.
-    """
+    """Dimmed art + progress bar + download icon"""
     palette = palette or QGuiApplication.palette()
     cover = QRect(rect)
     painter.save()
@@ -72,8 +64,6 @@ def paint_ghost_cover(
         target.moveCenter(QRectF(cover).center())
         painter.drawPixmap(target, pixmap, QRectF(pixmap.rect()))
         if dimmed:
-            # An opaque veil rather than transparency, so a highlight behind the art can't
-            # show through it
             veil = QColor(ground if ground is not None else palette.window().color())
             veil.setAlpha(round(255 * (1 - GHOST_OPACITY)))
             painter.fillRect(target, veil)
@@ -94,7 +84,7 @@ def paint_ghost_cover(
 
 
 def _paint_emblem(painter, plate, icon, palette):
-    """The icon on a disc, so a monochrome glyph reads over any art"""
+    """download icon in a circle"""
     ground = QColor(palette.window().color())
     ground.setAlpha(EMBLEM_PLATE_ALPHA)
     painter.setPen(Qt.PenStyle.NoPen)
@@ -108,7 +98,6 @@ def _paint_emblem(painter, plate, icon, palette):
 
 
 def _paint_bar(painter, cover, progress, palette):
-    """A determinate bar across the bottom of the cover; returns its top."""
     fraction = min(1.0, max(0.0, float(progress)))
     height = max(BAR_MIN_HEIGHT, round(cover.height() * BAR_HEIGHT_FRACTION))
     track = QRect(cover.left(), cover.bottom() - height + 1, cover.width(), height)

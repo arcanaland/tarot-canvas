@@ -1,8 +1,4 @@
-"""The library's details pane: one deck's cover, fields and credit line, and its one action.
-
-Every deck gets one, installed or not. For a deck not yet downloaded, the licence sits above
-the only Download button, so it is read before the deck is on disk.
-"""
+"""The library's details pane"""
 
 from dataclasses import replace
 
@@ -70,8 +66,6 @@ class DeckDetailsPane(QWidget):
         self.form.addRow("Cards:", self.card_count_label)
 
         self.description_label = _index_text()
-        # A credit line, prose-length and repeating the artist and licence, so a caption
-        # under the description rather than a form row
         self.attribution_label = _index_text()
         self.attribution_label.setFont(
             units.scaled_font(self.attribution_label.font(), self.CAPTION_SCALE)
@@ -95,7 +89,7 @@ class DeckDetailsPane(QWidget):
         column.addWidget(self.header)
         column.addLayout(body, 1)
 
-        # A long description scrolls; the action stays where it is
+        # A long description scrolls
         self.scroll_area = QScrollArea()
         self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
         self.scroll_area.setWidgetResizable(True)
@@ -164,7 +158,6 @@ class DeckDetailsPane(QWidget):
         if self._actions is not None:
             self._action_area.removeWidget(self._actions)
             self._actions.hide()
-            # Later, not now: this can run inside the old button's own clicked
             self._actions.deleteLater()
 
         self._actions = QWidget()
@@ -177,15 +170,12 @@ class DeckDetailsPane(QWidget):
         }
         builders[details.state](details)
         self._action_area.addWidget(self._actions)
-        # Now, not at the show Qt queues for a widget added to a visible parent, so the
-        # button can take focus straight away
         self._actions.show()
 
         if had_focus:
             self.focus_action()
 
-    # Open, Download and Try Again sit at the leading edge and Cancel at the trailing one,
-    # so a double-click on Download can't land its second click on Cancel, nor the reverse.
+    # Open, Download and Try Again sit at the leading edge and Cancel at the trailing one
 
     def _build_installed(self, _details):
         self.action_button = _button("Open", "document-open", self._on_open)
@@ -232,8 +222,6 @@ class DeckDetailsPane(QWidget):
         column.addWidget(message)
         column.addLayout(buttons)
 
-    # Read at click time, so a button outlives an update that changed only the entry object
-
     def _on_open(self):
         self.open_requested.emit(self._details.deck)
 
@@ -260,7 +248,7 @@ def _percent(progress):
 
 def _index_text(text=""):
     label = QLabel(text)
-    # deck.toml and the index are someone else's text: show it as written, never as markup
+    # deck.toml and the index are someone else's text
     label.setTextFormat(Qt.TextFormat.PlainText)
     label.setWordWrap(True)
     label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
@@ -281,12 +269,6 @@ def _row(parent=None):
 
 
 class _Header(QWidget):
-    """The cover beside the name and artist, as the deck view's header lays it out expanded.
-
-    The name and artist sit on the cover blurred into a band, which the cover hangs below.
-    Without a readable cover there's no band, and the text keeps the palette's colours.
-    """
-
     def __init__(self, heading, subheading, parent=None):
         super().__init__(parent)
         self._heading, self._subheading = heading, subheading

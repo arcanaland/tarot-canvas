@@ -1,5 +1,3 @@
-"""A deck's cover blurred into a band of colour, for a heading to sit on"""
-
 from PyQt6.QtCore import QPoint, QRect, QSize, Qt
 from PyQt6.QtGui import QColor, QImageReader, QPainter, QPalette, QPixmap
 
@@ -29,7 +27,7 @@ class CoverBanner:
         return self._pixmaps[key]
 
     def paint(self, painter, rect, path, ratio):
-        """The band over `rect`, with its hairline; nothing if the cover can't be read"""
+        """The band over rect with its hairline"""
         pixmap = self.pixmap(path, rect.size(), ratio)
         if pixmap is None:
             return
@@ -43,7 +41,6 @@ def is_readable_cover(path):
 
 
 def render_banner(path, size, ratio):
-    """The cover, blurred and scrimmed, filling `size`. None if it cannot be read."""
     if not path or size.isEmpty():
         return None
 
@@ -83,7 +80,6 @@ def render_banner(path, size, ratio):
 
 
 def set_banner_text(label, on_banner, colour, role):
-    """Light `colour` while the label sits on a banner, the palette's `role` otherwise"""
     if on_banner:
         palette = QPalette()
         palette.setColor(QPalette.ColorRole.WindowText, colour)

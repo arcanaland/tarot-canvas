@@ -1,5 +1,3 @@
-"""What the library's details pane shows for one row, installed or not"""
-
 from dataclasses import dataclass
 
 from PyQt6.QtCore import Qt
@@ -17,8 +15,6 @@ from tarot_canvas.ui.library.deck_model import (
 
 @dataclass(frozen=True)
 class DeckDetails:
-    """Every field is None when there's nothing to show; the pane hides its row."""
-
     name: str | None
     artist: str | None
     cover_path: str | None
@@ -27,7 +23,7 @@ class DeckDetails:
     license: str | None
     attribution: str | None
     description: str | None
-    size: int | None  # bytes, for a deck not yet downloaded
+    size: int | None  # bytes for a deck not yet downloaded
     state: DeckState
     progress: float | None  # 0.0-1.0, while downloading
     failure: object | None  # the DownloadFailure, when FAILED
@@ -45,11 +41,9 @@ def details_for(index):
 def _installed(index, deck):
     return DeckDetails(
         name=_text(index.data(Qt.ItemDataRole.DisplayRole)),
-        # Not AuthorRole, which says "Unknown" for a deck that names nobody
         artist=_text(deck.get_author()),
         cover_path=index.data(CoverPathRole),
         card_count=index.data(CardCountRole) or None,
-        # Not get_version(), which invents "Unknown Version"
         version=_text(deck.get_metadata_fields().get("version")),
         license=_text(deck.get_license()),
         attribution=_text(deck.get_attribution()),

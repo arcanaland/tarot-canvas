@@ -131,7 +131,7 @@ class DeckListModel(QAbstractListModel):
 
     @staticmethod
     def _ghost_data(entry, role):
-        # No DeckRole and no DeckPathRole: the open paths skip a row without a deck
+        # everything but DeckRole and no DeckPathRole
         if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.AccessibleTextRole):
             return entry.name
         if role == SubtitleRole:
@@ -188,8 +188,7 @@ class DeckFilterProxyModel(QSortFilterProxyModel):
             self.invalidate()
 
     def lessThan(self, left, right):
-        # Ghosts trail the installed decks whichever way the key sorts. Qt sorts
-        # descending by inverting lessThan, so invert the bucket order to match.
+        # make sure ghost decks are at the end
         left_bucket, right_bucket = self._bucket(left), self._bucket(right)
         if left_bucket != right_bucket:
             if self.sort_order() == Qt.SortOrder.DescendingOrder:

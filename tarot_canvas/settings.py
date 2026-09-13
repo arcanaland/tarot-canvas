@@ -58,7 +58,6 @@ LIBRARY_RECENT_LIMIT = 50
 SHOW_AVAILABLE_DECKS_KEY = "library/show_available_decks"
 SHOW_AVAILABLE_DECKS_DEFAULT = True
 
-# False once the user closes the library's details pane: selection then no longer opens it
 LIBRARY_DETAILS_PANE_KEY = "library/details_pane"
 LIBRARY_DETAILS_PANE_DEFAULT = True
 

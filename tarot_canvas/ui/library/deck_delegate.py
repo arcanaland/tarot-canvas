@@ -168,9 +168,9 @@ class DeckDelegate(QStyledItemDelegate):
         # the artwork whatever aspect ratio the deck's cards happen to be.
         art.moveCenter(well.center())
         art.moveBottom(well.bottom())
+
+        # not installed
         if ghost:
-            # Selected, the art shows as it would installed: dimmed art on the selection's
-            # colour reads as a clash, and the emblem still marks it a ghost
             self._paint_ghost(painter, art, pixmap, index, state, palette, dimmed=not selected)
         else:
             painter.drawPixmap(art.topLeft(), pixmap)
@@ -183,7 +183,7 @@ class DeckDelegate(QStyledItemDelegate):
 
     @staticmethod
     def _paint_ghost(painter, rect, pixmap, index, state, palette, dimmed=True):
-        """A deck not installed yet: an emblem as well as dimming, so colour isn't the only sign"""
+        """A deck not installed yet"""
         downloading = state is DeckState.DOWNLOADING
         paint_ghost_cover(
             painter,
