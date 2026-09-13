@@ -1,9 +1,18 @@
 from tarot_canvas.ui.widgets.deck_header import (
     DETAIL_FIELDS,
+    buy_link,
+    deck_links,
     detail_rows,
     format_date,
     format_value,
 )
+
+ASCII_TAROT_LINKS = [
+    {"rel": "homepage", "url": "https://ascii-tarot.com"},
+    {"rel": "artist", "url": "https://kathrynisabelle.com"},
+    {"rel": "buy", "url": "https://kathrynisabelle.com/shop"},
+    {"rel": "source", "url": "https://github.com/lawreka/ascii-tarot"},
+]
 
 
 def test_reference_style_fields_are_all_exposed(minimal_deck):
@@ -119,3 +128,59 @@ def test_schema_2_0_deck_fields_are_shown_or_suppressed_deliberately():
 
 def test_every_declared_field_has_a_human_label():
     assert all(label and label != key for key, label in DETAIL_FIELDS)
+
+
+def test_each_link_rel_is_a_row_showing_its_address():
+    rows = detail_rows({"license": "MIT", "links": ASCII_TAROT_LINKS, "published_date": "2020"})
+    assert [(label, text) for label, text, _ in rows] == [
+        ("License", "MIT"),
+        ("Homepage", "ascii-tarot.com"),
+        ("Artist", "kathrynisabelle.com"),
+        ("Buy", "kathrynisabelle.com/shop"),
+        ("Source", "github.com/lawreka/ascii-tarot"),
+        ("Published", "2020"),
+    ]
+
+
+def test_links_sharing_a_rel_share_a_row():
+    links = [
+        {"rel": "buy", "url": "https://a.example"},
+        {"rel": "buy", "url": "https://b.example/"},
+    ]
+    assert detail_rows({"links": links}) == [("Buy", "a.example\nb.example", "links.buy")]
+
+
+def test_a_publisher_link_joins_the_publisher_row():
+    fields = {
+        "publisher": "Example Press",
+        "links": [{"rel": "publisher", "url": "https://example.com"}],
+    }
+    assert detail_rows(fields) == [("Publisher", "Example Press\nexample.com", "publisher")]
+
+
+def test_links_a_reader_must_not_follow_are_dropped():
+    links = [
+        {"rel": "homepage", "url": "ftp://example.com"},
+        {"rel": "homepage", "url": "example.com"},
+        {"url": "https://example.com"},
+        "https://example.com",
+        {"rel": "x-shop", "url": "https://example.com/x"},
+        {"rel": "buy", "url": " https://example.com/shop ", "title": "  "},
+    ]
+    assert deck_links({"links": links}) == [
+        ("x-shop", "https://example.com/x", None),
+        ("buy", "https://example.com/shop", None),
+    ]
+    # an unregistered rel is ignored (DECK.md §9)
+    assert [key for _, _, key in detail_rows({"links": links})] == ["links.buy"]
+
+
+def test_the_buy_link_is_the_first_declared():
+    links = [
+        {"rel": "homepage", "url": "https://h.example"},
+        {"rel": "buy", "url": "https://one.example", "title": "Buy from the artist"},
+        {"rel": "buy", "url": "https://two.example"},
+    ]
+    assert buy_link({"links": links}) == ("https://one.example", "Buy from the artist")
+    assert buy_link({}) is None
+    assert buy_link({"links": "https://x.example"}) is None
