@@ -1,17 +1,93 @@
 import html
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QEvent, Qt
+from PyQt6.QtGui import QIcon, QPainter, QPalette
 from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
     QScrollArea,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 
+from tarot_canvas.about import FALLBACK_URLS, load_about_data
 from tarot_canvas.models.esoterica import get_esoterica_manager
+from tarot_canvas.ui.palette import muted_text, subtle_fill, with_text_colour
+from tarot_canvas.ui.tabs.card_view.ghost_passages import GhostPassages
+from tarot_canvas.ui.tabs.card_view.passage_metrics import (
+    BODY_LINE_HEIGHT,
+    HEADING_TO_BODY,
+    PADDING,
+    PARAGRAPH_GAP,
+    PASSAGE_SPACING,
+    SIDE_MARGIN,
+    TITLE_PIXEL_SIZE,
+    TITLE_TO_AUTHOR,
+    TOP_MARGIN,
+    column_width,
+)
+from tarot_canvas.ui.widgets.placeholder_message import (
+    ICON_SIZE,
+    PlaceholderMessage,
+    TintedIcon,
+)
 from tarot_canvas.utils.logger import logger
+
+PLACEHOLDER_ICON = "story-editor"
+
+# TODO(adam): write the copy. "{faq}" in the explanation or footnote becomes the URL of
+# the FAQ's esoterica section, so a link is written <a href="{faq}">…</a>
+PLACEHOLDER_HEADING = "Esoterica"
+PLACEHOLDER_EXPLANATION = 'Per-card meanings, associations and symbolism will show up here. See the <a href="{faq}">Frequently Asked Questions</a> for instructions for editing them.'
+PLACEHOLDER_FOOTNOTE = "A complete corpus containing astrological, alchemical and esoteric data is still under development and will be included here out of the box eventually."
+
+# The passages page's header carries the empty page's icon, small, so both states look like
+# one tab. None gives a text-only header.
+HEADER_ICON = PLACEHOLDER_ICON
+HEADER_ICON_SIZE = 22  # Kirigami's iconSizes.smallMedium
+
+# docs/FAQs.md's "## 3. How Do I Add My Own Esoterica?", as GitHub slugs it
+ESOTERICA_FAQ_ANCHOR = "3-how-do-i-add-my-own-esoterica"
+
+# Pages of EsotericaTab.stack
+PASSAGES_PAGE = 0  # sources loaded: this card's passages, or a line saying there are none
+PLACEHOLDER_PAGE = 1  # no sources loaded at all
+
+
+def esoterica_faq_url():
+    """The FAQ's esoterica section, from the same metainfo as Help > FAQ"""
+    faq = load_about_data().faq or FALLBACK_URLS["faq"]
+    return f"{faq}#{ESOTERICA_FAQ_ANCHOR}"
+
+
+def _with_faq_link(text):
+    return text.replace("{faq}", esoterica_faq_url()) if "{faq}" in text else text
+
+
+def _body_html(text):
+    """A passage's text as rich text: paragraphs at blank lines, line breaks at newlines.
+
+    Escaped first: this is a file the user dropped in a directory.
+    """
+    line_height = round(BODY_LINE_HEIGHT * 100)
+    return "".join(
+        f'<p style="margin: {PARAGRAPH_GAP if i else 0}px 0 0 0; line-height: {line_height}%">'
+        + paragraph.replace("\n", "<br>")
+        + "</p>"
+        for i, paragraph in enumerate(html.escape(text).split("\n\n"))
+    )
+
+
+def _window_text(palette):
+    return palette.color(QPalette.ColorRole.WindowText)
+
+
+def _italic(label):
+    font = label.font()
+    font.setItalic(True)
+    label.setFont(font)
 
 
 class PassageWidget(QFrame):
@@ -21,33 +97,52 @@ class PassageWidget(QFrame):
         super().__init__(parent)
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setFrameShadow(QFrame.Shadow.Sunken)
-        self.setStyleSheet("background-color: rgba(0, 0, 0, 0.03);")
 
+        # Title and author are one group, set apart from the body (passage_metrics)
         layout = QVBoxLayout(self)
-        layout.setSpacing(12)
+        layout.setContentsMargins(PADDING, PADDING, PADDING, PADDING)
+        layout.setSpacing(TITLE_TO_AUTHOR)
 
         # Header (book/source title)
-        header = QLabel(passage.source_name)
-        header.setStyleSheet("font-size: 16px; font-weight: bold;")
-        layout.addWidget(header)
+        self.title = QLabel(passage.source_name)
+        self.title.setStyleSheet(f"font-size: {TITLE_PIXEL_SIZE}px; font-weight: bold;")
+        layout.addWidget(self.title)
 
         # Author, only where the source declares one
+        self.author = None
         if passage.author:
-            author = QLabel(f"by {passage.author}")
-            author.setStyleSheet("font-style: italic; color: #555;")
-            layout.addWidget(author)
+            self.author = QLabel(f"by {passage.author}")
+            _italic(self.author)
+            layout.addWidget(self.author)
 
-        # Text. Escape first: this is a file the user dropped in a directory, and the
-        # label below renders rich text.
-        escaped = html.escape(passage.text)
-        html_text = escaped.replace("\n\n", "<p>").replace("\n", "<br>")
+        layout.addSpacing(HEADING_TO_BODY)
 
-        text_label = QLabel()
-        text_label.setWordWrap(True)
-        text_label.setTextFormat(Qt.TextFormat.RichText)
-        text_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        text_label.setText(html_text)
-        layout.addWidget(text_label)
+        self.body = QLabel()
+        self.body.setWordWrap(True)
+        self.body.setTextFormat(Qt.TextFormat.RichText)
+        self.body.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.body.setText(_body_html(passage.text))
+        layout.addWidget(self.body)
+
+        self._apply_colours()
+
+    def _apply_colours(self):
+        if self.author is not None:
+            self.author.setPalette(
+                with_text_colour(self.author.palette(), muted_text(self.palette()))
+            )
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.PaletteChange:
+            self._apply_colours()
+
+    def paintEvent(self, event):
+        # The same fill as a ghost passage; the frame goes on top
+        painter = QPainter(self)
+        painter.fillRect(self.rect(), subtle_fill(self.palette()))
+        painter.end()
+        super().paintEvent(event)
 
 
 class EsotericaTab(QWidget):
@@ -68,50 +163,109 @@ class EsotericaTab(QWidget):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Create header
-        header_layout = QHBoxLayout()
-        header_layout.setContentsMargins(10, 10, 10, 5)
+        self.stack = QStackedWidget()
+        self.stack.addWidget(self._passages_page())
+        self.stack.addWidget(self._placeholder_page())
+        main_layout.addWidget(self.stack)
 
-        header_label = QLabel("Esoteric References")
-        header_label.setStyleSheet("font-size: 16px; font-weight: bold;")
-        header_layout.addWidget(header_label)
-        header_layout.addStretch()
+        self._apply_colours()
 
-        main_layout.addLayout(header_layout)
+        # Update content for the current card
+        self.update_card_info(self.card)
 
-        # Create scroll area for content
+    def _passages_page(self):
+        page = QWidget()
+        page_layout = QVBoxLayout(page)
+        page_layout.setContentsMargins(0, 0, 0, 0)
+
+        # One reading column, about 85 characters wide and centred when the view is wider
+        # (passage_metrics). The header is inside it, so it lines up with the passages.
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        scroll_area.setAlignment(Qt.AlignmentFlag.AlignHCenter)
 
-        # Container widget with margins
         self.content_widget = QWidget()
         self.content_layout = QVBoxLayout(self.content_widget)
-        self.content_layout.setContentsMargins(10, 5, 10, 10)
-        self.content_layout.setSpacing(20)
+        self.content_layout.setContentsMargins(SIDE_MARGIN, TOP_MARGIN, SIDE_MARGIN, 10)
+        self.content_layout.setSpacing(PASSAGE_SPACING)
+
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 5, 0, 0)
+
+        # Named as the empty page names it; the icon is tinted like the text beside it
+        self.header_icon = None
+        if HEADER_ICON and QIcon.hasThemeIcon(HEADER_ICON):
+            self.header_icon = TintedIcon(
+                QIcon.fromTheme(HEADER_ICON), HEADER_ICON_SIZE, colour=_window_text
+            )
+            header_layout.addWidget(self.header_icon)
+
+        self.header_label = QLabel(PLACEHOLDER_HEADING)
+        self.header_label.setStyleSheet("font-size: 16px; font-weight: bold;")
+        header_layout.addWidget(self.header_label)
+        header_layout.addStretch()
+        self.content_layout.addLayout(header_layout)
 
         # No content label (shown when no passages are available)
         self.no_content_label = QLabel("No esoteric content available for this card.")
-        self.no_content_label.setStyleSheet("color: #777; font-style: italic; padding: 20px;")
+        self.no_content_label.setStyleSheet("padding: 20px;")
+        _italic(self.no_content_label)
         self.no_content_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.content_layout.addWidget(self.no_content_label)
 
         # Add stretch to push content to the top
         self.content_layout.addStretch()
 
-        # Set the scroll area widget
         scroll_area.setWidget(self.content_widget)
-        main_layout.addWidget(scroll_area)
+        page_layout.addWidget(scroll_area)
+        self._apply_column_width()
+        return page
 
-        # Update content for the current card
-        self.update_card_info(self.card)
+    def _apply_column_width(self):
+        self.content_widget.setMaximumWidth(column_width(self.content_widget.font()))
+
+    def _placeholder_page(self):
+        page = QWidget()
+        page_layout = QVBoxLayout(page)
+        page_layout.setContentsMargins(0, ICON_SIZE, 0, 0)
+
+        # Above the ghosts, never over them
+        self.placeholder = PlaceholderMessage(
+            PLACEHOLDER_ICON,
+            PLACEHOLDER_HEADING,
+            _with_faq_link(PLACEHOLDER_EXPLANATION),
+            _with_faq_link(PLACEHOLDER_FOOTNOTE),
+        )
+        page_layout.addWidget(self.placeholder)
+        page_layout.addWidget(GhostPassages(), 1)
+        return page
+
+    def _apply_colours(self):
+        self.no_content_label.setPalette(
+            with_text_colour(self.no_content_label.palette(), muted_text(self.palette()))
+        )
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.PaletteChange:
+            self._apply_colours()
+        elif event.type() == QEvent.Type.FontChange:
+            self._apply_column_width()
 
     def update_card_info(self, card):
         """Update displayed content based on the card"""
+        # Loaded once per process, so this can't change while the app runs
+        has_sources = get_esoterica_manager().has_sources()
+        self.stack.setCurrentIndex(PASSAGES_PAGE if has_sources else PLACEHOLDER_PAGE)
+
         self.card = card
 
         # Clear any existing passage widgets
         self.clear_passages()
+
+        if not has_sources:
+            return
 
         if not card:
             logger.debug("No card provided to EsotericaTab.update_card_info")

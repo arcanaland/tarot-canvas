@@ -157,6 +157,25 @@ def clipboard(qapp):
     board.clear()
 
 
+# Breeze's WindowText and Window, as (text, window) RGB
+THEME_COLOURS = {
+    "light": ((35, 38, 41), (239, 240, 241)),
+    "dark": ((252, 252, 252), (32, 35, 38)),
+}
+
+
+@pytest.fixture(params=sorted(THEME_COLOURS))
+def theme_palette(request, qapp):
+    """A light and a dark palette, for tests of colours derived from one."""
+    from PyQt6.QtGui import QColor, QPalette
+
+    text, window = THEME_COLOURS[request.param]
+    palette = QPalette()
+    palette.setColor(QPalette.ColorRole.WindowText, QColor(*text))
+    palette.setColor(QPalette.ColorRole.Window, QColor(*window))
+    return palette
+
+
 @pytest.fixture
 def minimal_deck():
     from tarot_canvas.models.deck import TarotDeck

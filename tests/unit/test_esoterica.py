@@ -98,3 +98,19 @@ def test_a_card_nobody_wrote_about_has_no_passages(root):
 
 def test_a_missing_root_is_not_an_error(tmp_path):
     assert EsotericaManager([tmp_path / "gone", tmp_path / "also-gone"]).sources == {}
+
+
+def test_an_empty_root_has_no_sources(root):
+    assert not EsotericaManager([root]).has_sources()
+
+
+def test_one_readable_file_is_a_source(root):
+    write(root, "my-notes.toml", THREE_LINES)
+
+    assert EsotericaManager([root]).has_sources()
+
+
+def test_a_file_in_the_older_format_is_not_a_source(root):
+    write(root, "old.toml", '[meta]\nid = "old-notes"\n\n[passages]\ntext = "Old."\n')
+
+    assert not EsotericaManager([root]).has_sources()
