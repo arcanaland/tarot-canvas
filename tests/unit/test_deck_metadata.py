@@ -10,7 +10,7 @@ from tarot_canvas.ui.widgets.deck_header import (
 EXAMPLE_TAROT_LINKS = [
     {"rel": "homepage", "url": "https://example-tarot.com"},
     {"rel": "artist", "url": "https://example.org"},
-    {"rel": "buy", "url": "https:/example.com/shop"},
+    {"rel": "buy", "url": "https://example.com/shop"},
     {"rel": "source", "url": "https://github.com/example/example-tarot"},
 ]
 
@@ -134,10 +134,10 @@ def test_each_link_rel_is_a_row_showing_its_address():
     rows = detail_rows({"license": "MIT", "links": EXAMPLE_TAROT_LINKS, "published_date": "2020"})
     assert [(label, text) for label, text, _ in rows] == [
         ("License", "MIT"),
-        ("Homepage", "ascii-tarot.com"),
-        ("Artist", "kathrynisabelle.com"),
-        ("Buy", "kathrynisabelle.com/shop"),
-        ("Source", "github.com/lawreka/ascii-tarot"),
+        ("Homepage", "example-tarot.com"),
+        ("Artist", "example.org"),
+        ("Buy", "example.com/shop"),
+        ("Source", "github.com/example/example-tarot"),
         ("Published", "2020"),
     ]
 
