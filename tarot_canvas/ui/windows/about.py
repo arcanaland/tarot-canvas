@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import platform
+import html
 from importlib.resources import files
 
-from PyQt6.QtCore import PYQT_VERSION_STR, QT_VERSION_STR, Qt, QUrl
+from PyQt6.QtCore import QDate, QEvent, Qt, QUrl
 from PyQt6.QtGui import QDesktopServices, QFont, QIcon, QPalette
 from PyQt6.QtWidgets import (
     QDialog,
@@ -15,12 +15,14 @@ from PyQt6.QtWidgets import (
     QLabel,
     QSizePolicy,
     QTabWidget,
+    QTextBrowser,
     QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
-from tarot_canvas.about import AboutData, Person, load_about_data
+from tarot_canvas.about import AboutData, Person, Release, load_about_data
+from tarot_canvas.ui.widgets.deck_header import format_date
 
 ICON_PATH = files("tarot_canvas.resources.icons").joinpath("icon.png")
 
@@ -33,6 +35,12 @@ LICENSE_URLS = {
 }
 
 MAIL_ICON_NAMES = ("mail-message-new", "mail-send", "mail-message")
+
+# Space above each release after the first, in px
+RELEASE_SPACING = 24
+
+# A release younger than this reads as days or weeks ago; an older one shows its date
+RELATIVE_DATE_DAYS = 30
 
 
 def app_icon(app_id: str) -> QIcon:
@@ -47,7 +55,30 @@ def _link(url: str, label: str | None = None) -> str:
     return f'<a href="{url}">{label or url}</a>'
 
 
+def _release_date(iso: str, today: QDate | None = None) -> str:
+    """How long ago an ISO date was"""
+    date = QDate.fromString(iso, Qt.DateFormat.ISODate)
+    if not date.isValid():
+        return iso
+
+    days = date.daysTo(QDate.currentDate() if today is None else today)
+    if days < 0 or days >= RELATIVE_DATE_DAYS:
+        return format_date(iso)
+    if days == 0:
+        return "Today"
+    if days == 1:
+        return "Yesterday"
+    if days < 7:
+        return f"{days} days ago"
+    weeks = days // 7
+
+    return "1 week ago" if weeks == 1 else f"{weeks} weeks ago"
+
+
 class AboutDialog(QDialog):
+    # Absent when there are no releases
+    whats_new: QTextBrowser | None = None
+
     def __init__(self, parent=None, about: AboutData | None = None):
         super().__init__(parent)
         self.setWindowTitle("About Tarot Canvas")
@@ -62,13 +93,19 @@ class AboutDialog(QDialog):
 
         self.tabs = QTabWidget()
         self.tabs.addTab(self._build_about_tab(), "About")
-        self.tabs.addTab(self._build_components_tab(), "Components")
+        if self.about.releases:
+            self.tabs.addTab(self._build_whats_new_tab(), "What's New")
         self.tabs.addTab(self._build_authors_tab(), "Authors")
         layout.addWidget(self.tabs, 1)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.PaletteChange and self.whats_new is not None:
+            self.whats_new.setHtml(self._releases_html())
 
     # -- header ---------------------------------------------------------------
 
@@ -127,18 +164,36 @@ class AboutDialog(QDialog):
         layout.addStretch()
         return page
 
-    def _build_components_tab(self) -> QWidget:
+    def _build_whats_new_tab(self) -> QWidget:
         page, layout = self._page()
-        self._add_rows(
-            layout,
-            [
-                self._detail_row("Qt", QT_VERSION_STR),
-                self._detail_row("PyQt6", PYQT_VERSION_STR),
-                self._detail_row("Python", platform.python_version()),
-            ],
-        )
-        layout.addStretch()
+
+        self.whats_new = QTextBrowser()
+        self.whats_new.setFrameShape(QFrame.Shape.NoFrame)
+        self.whats_new.setOpenExternalLinks(True)
+        # Sit on the tab's background, flush with its margins, like the labels on the other tabs
+        self.whats_new.viewport().setAutoFillBackground(False)
+        self.whats_new.document().setDocumentMargin(0)
+        self.whats_new.setHtml(self._releases_html())
+
+        layout.addWidget(self.whats_new)
         return page
+
+    def _releases_html(self) -> str:
+        # The subtitle colour of _detail_row
+        detail = self.palette().color(QPalette.ColorRole.PlaceholderText).name()
+        return "".join(
+            self._release_html(release, detail, RELEASE_SPACING if index else 0)
+            for index, release in enumerate(self.about.releases)
+        )
+
+    @staticmethod
+    def _release_html(release: Release, detail_colour: str, top_margin: int) -> str:
+        return (
+            f'<p style="margin-top:{top_margin}px; margin-bottom:0">'
+            f"<b>{html.escape(release.version)}</b><br>"
+            f'<span style="color:{detail_colour}">{html.escape(_release_date(release.date))}</span>'
+            f"</p>{release.description}"
+        )
 
     def _build_authors_tab(self) -> QWidget:
         page, layout = self._page()
