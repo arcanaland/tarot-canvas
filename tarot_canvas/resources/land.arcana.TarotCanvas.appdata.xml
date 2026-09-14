@@ -55,7 +55,7 @@
       </description>
     </release>
     -->
-    <release version="1.5.0" date="2026-09-13" type="development">
+    <release version="1.5.0" date="2026-09-14" type="stable">
       <description>
         <p>Major new features include:</p>
         <ul>
