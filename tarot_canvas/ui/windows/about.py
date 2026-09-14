@@ -56,10 +56,7 @@ def _link(url: str, label: str | None = None) -> str:
 
 
 def _release_date(iso: str, today: QDate | None = None) -> str:
-    """How long ago an ISO date was, else the date itself without its weekday.
-
-    A future date is shown as a date, and a string that isn't one is shown as written.
-    """
+    """How long ago an ISO date was"""
     date = QDate.fromString(iso, Qt.DateFormat.ISODate)
     if not date.isValid():
         return iso
@@ -74,11 +71,12 @@ def _release_date(iso: str, today: QDate | None = None) -> str:
     if days < 7:
         return f"{days} days ago"
     weeks = days // 7
+
     return "1 week ago" if weeks == 1 else f"{weeks} weeks ago"
 
 
 class AboutDialog(QDialog):
-    # Absent when there are no releases; a class default so an early changeEvent can check it
+    # Absent when there are no releases
     whats_new: QTextBrowser | None = None
 
     def __init__(self, parent=None, about: AboutData | None = None):
@@ -106,7 +104,6 @@ class AboutDialog(QDialog):
 
     def changeEvent(self, event):
         super().changeEvent(event)
-        # The date colour is baked into the document, so a theme toggle needs a rebuild
         if event.type() == QEvent.Type.PaletteChange and self.whats_new is not None:
             self.whats_new.setHtml(self._releases_html())
 

@@ -27,7 +27,6 @@ FALLBACK_URLS = {
     "faq": "https://github.com/arcanaland/tarot-canvas/blob/main/docs/FAQs.md",
 }
 
-# The markup AppStream allows in a <description>; anything else is flattened to its text
 ALLOWED_MARKUP = frozenset({"p", "ul", "ol", "li", "em", "code"})
 
 XML_LANG = "{http://www.w3.org/XML/1998/namespace}lang"
@@ -89,7 +88,6 @@ def _text(root: ET.Element, path: str, default: str) -> str:
 
 
 def _sanitised_children(element: ET.Element) -> str:
-    """The content of `element` as HTML, keeping only ALLOWED_MARKUP and no attributes."""
     parts = [html.escape(element.text or "")]
     for child in element:
         # A translation would otherwise render next to the untranslated text
