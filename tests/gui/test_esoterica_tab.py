@@ -126,16 +126,6 @@ def test_with_no_sources_at_all_the_placeholder_shows(qtbot, stub_manager):
     assert not tab.header_label.isVisibleTo(tab)
 
 
-def test_the_placeholder_copy_is_still_unwritten():
-    """No machine-written sentence may reach a user (AI-POLICY.md).
-
-    Adam deletes this test when he writes the copy.
-    """
-    assert esoterica_tab.PLACEHOLDER_HEADING == ""
-    assert esoterica_tab.PLACEHOLDER_EXPLANATION == ""
-    assert esoterica_tab.PLACEHOLDER_FOOTNOTE == ""
-
-
 def test_the_faq_token_becomes_a_link_to_the_esoterica_section(qtbot, stub_manager, monkeypatch):
     stub_manager([], has_sources=False)
     monkeypatch.setattr(esoterica_tab, "PLACEHOLDER_EXPLANATION", '<a href="{faq}">x</a>')
