@@ -38,7 +38,7 @@ from tarot_canvas.utils.logger import logger
 PLACEHOLDER_ICON = "story-editor"
 
 PLACEHOLDER_HEADING = "Esoterica"
-PLACEHOLDER_EXPLANATION = 'Per-card meanings, associations and symbolism will show up here. See the <a href="{faq}">Frequently Asked Questions</a> for instructions for editing them.'
+PLACEHOLDER_EXPLANATION = 'Per-card meanings, associations and symbolism will show up here. See the <a href="{faq}">Frequently Asked Questions</a> for how to add your own.'
 PLACEHOLDER_FOOTNOTE = "A complete corpus containing astrological, alchemical and esoteric data is still under development and will be included here out of the box eventually."
 
 HEADER_ICON = PLACEHOLDER_ICON
