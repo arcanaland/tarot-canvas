@@ -857,7 +857,9 @@ def test_ctrl_c_in_esoterica_copies_the_text_not_the_card(qtbot, clipboard, monk
     from tarot_canvas.ui.tabs.card_view import esoterica_tab
 
     passages = [Passage("A Source", None, "Selectable passage text.")]
-    manager = SimpleNamespace(get_passages_for_card=lambda _card_id: passages)
+    manager = SimpleNamespace(
+        get_passages_for_card=lambda _card_id: passages, has_sources=lambda: True
+    )
     monkeypatch.setattr(esoterica_tab, "get_esoterica_manager", lambda: manager)
 
     window, card_view = make_window_with_card_view(qtbot)

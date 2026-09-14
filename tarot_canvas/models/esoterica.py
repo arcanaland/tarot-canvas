@@ -90,6 +90,10 @@ class EsotericaManager:
 
         logger.info(f"Loaded {len(self.sources)} esoterica sources")
 
+    def has_sources(self):
+        """Whether any file could be read. A file in the older format doesn't count."""
+        return bool(self.sources)
+
     def get_passages_for_card(self, card_id):
         canonical = str(card_id).split(":", 1)[0]
 
