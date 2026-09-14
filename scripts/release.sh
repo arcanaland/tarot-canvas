@@ -38,8 +38,12 @@ EOF
 }
 
 # Pull the <release> element for a given version out of the appdata file.
+# Commented-out lines are skipped, so a draft entry in an XML comment is never
+# mistaken for the real one. Assumes comment markers start or end their lines.
 release_block() {
   awk -v ver="$1" '
+    incomment { if (/-->/) incomment = 0; next }
+    /<!--/ { if (!/-->/) incomment = 1; next }
     $0 ~ "<release[^>]*version=\"" ver "\"" { inblock = 1 }
     inblock { print }
     inblock && /<\/release>/ { exit }
@@ -158,6 +162,17 @@ phase_tag() {
   if ! printf '%s' "$BLOCK" | grep -q 'date="[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'; then
     die "the <release> entry for $VERSION has no valid date=\"YYYY-MM-DD\" attribute."
   fi
+
+  # It must be a stable release. No type attribute means stable.
+  RELEASE_TYPE=$(printf '%s\n' "$BLOCK" | head -1 | sed -n 's/.*type="\([^"]*\)".*/\1/p')
+  case "$RELEASE_TYPE" in
+  development | snapshot)
+    die "the <release> entry for $VERSION is type=\"$RELEASE_TYPE\".
+   Flathub's linter refuses a pre-release as the latest release
+   (appstream-latest-release-is-prerelease, never granted as an exception).
+   Change it to type=\"stable\" before tagging."
+    ;;
+  esac
 
   TEXT=$(printf '%s' "$BLOCK" | sed -e 's/<[^>]*>//g' -e 's/[[:space:]]//g')
   if [ -z "$TEXT" ]; then
