@@ -1,9 +1,4 @@
-"""Silhouettes of the passages a card's esoterica tab would show, for when there are none.
-
-Static: nothing is loading, so nothing shimmers. They share only a word with the
-library's ghost decks (`ui/library/ghost_paint.py`). Every measurement comes from
-`passage_metrics`, which the real passages use too.
-"""
+"""Silhouettes an esoterica tab would show if it had any data"""
 
 from PyQt6.QtCore import QRectF, Qt
 from PyQt6.QtGui import QFont, QFontMetricsF, QImage, QLinearGradient, QPainter
@@ -32,11 +27,6 @@ BODY_WIDTHS = (1.0, 1.0, 0.92, 0.60)
 
 
 def ghost_layout(font, width):
-    """One ghost `width` wide: its bars, relative to its top-left, and its height.
-
-    Each bar is centred in the line it stands in for, and the lines are spaced as
-    PassageWidget spaces its title, author and body.
-    """
     title_font = QFont(font)
     title_font.setPixelSize(TITLE_PIXEL_SIZE)
     title_font.setBold(True)
@@ -70,7 +60,7 @@ def _paint_ghost(painter, x, y, width, height, bars, palette):
 
 
 def paint_ghost_passages(painter, rect, palette):
-    """Every ghost that starts inside `rect`, in the reading column, fading out at the bottom."""
+    """Every ghost that in the reading column fading out at the bottom."""
     column = min(rect.width(), column_width(painter.font()))
     width = column - 2 * SIDE_MARGIN
     if width <= 2 * PADDING or rect.height() - 1 <= TOP_MARGIN:
@@ -80,9 +70,6 @@ def paint_ghost_passages(painter, rect, palette):
     bars, height = ghost_layout(painter.font(), width)
     step = height + PASSAGE_SPACING
 
-    # A layer, so the fade can mask the ghosts without touching what's under them.
-    # 16 bits a channel: the fill's alpha is about 10/255, and 8 bits would round it
-    # to a handful of bands and then round the fade again on top.
     dpr = painter.device().devicePixelRatioF()
     layer = QImage(
         round(rect.width() * dpr),
@@ -101,7 +88,6 @@ def paint_ghost_passages(painter, rect, palette):
         y += step
 
     # Opaque at the first ghost's top, transparent from the last row's top edge down.
-    # The colours are a mask: only their alpha is used.
     fade = QLinearGradient(0, TOP_MARGIN, 0, rect.height() - 1)
     fade.setColorAt(0, Qt.GlobalColor.black)
     fade.setColorAt(1, Qt.GlobalColor.transparent)

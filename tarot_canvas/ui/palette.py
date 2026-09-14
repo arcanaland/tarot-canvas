@@ -1,16 +1,8 @@
-"""Colours derived from a QPalette, so they follow a theme switch.
-
-Pure functions of the palette. A widget calls them with `self.palette()`, and again
-on `QEvent.Type.PaletteChange`, which `app.setPalette` delivers.
-"""
-
 from PyQt6.QtGui import QColor, QPalette
 
-# Kirigami's Informational placeholder: text at 0.75 opacity over the window
-# (PlaceholderMessage.qml:261)
 MUTED_TEXT_OPACITY = 0.75
 
-# WindowText alphas; tune by eye, light and dark
+# WindowText alphas
 SUBTLE_FILL_ALPHA = 0.04
 GHOST_BAR_ALPHA = 0.10
 

@@ -1,10 +1,3 @@
-"""A passage's measurements, shared by the real passages and their ghosts so they can't drift.
-
-After the KDE HIG: title and author are one group (hig/layout_and_nav.md:45), and long text
-is capped at about 85 characters a line, with wider views centring it rather than
-stretching it (hig/text_and_labels.md:86). The padding inside a passage is a Kirigami gridUnit.
-"""
-
 from PyQt6.QtGui import QFontMetricsF
 
 SIDE_MARGIN = 10  # the page's edge to a passage
@@ -20,7 +13,6 @@ BODY_LINE_HEIGHT = 1.3  # of the font's own line height
 PARAGRAPH_GAP = 12  # Qt's default <p> margin, which the passages had before
 
 MEASURE_CHARS = 85
-# Near enough to English prose's mix of letters and spaces to turn characters into pixels
 _PROSE_SAMPLE = "the quick brown fox jumps over the lazy dog "
 
 

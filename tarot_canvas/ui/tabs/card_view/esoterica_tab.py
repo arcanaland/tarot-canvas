@@ -37,18 +37,13 @@ from tarot_canvas.utils.logger import logger
 
 PLACEHOLDER_ICON = "story-editor"
 
-# TODO(adam): write the copy. "{faq}" in the explanation or footnote becomes the URL of
-# the FAQ's esoterica section, so a link is written <a href="{faq}">…</a>
 PLACEHOLDER_HEADING = "Esoterica"
 PLACEHOLDER_EXPLANATION = 'Per-card meanings, associations and symbolism will show up here. See the <a href="{faq}">Frequently Asked Questions</a> for instructions for editing them.'
 PLACEHOLDER_FOOTNOTE = "A complete corpus containing astrological, alchemical and esoteric data is still under development and will be included here out of the box eventually."
 
-# The passages page's header carries the empty page's icon, small, so both states look like
-# one tab. None gives a text-only header.
 HEADER_ICON = PLACEHOLDER_ICON
-HEADER_ICON_SIZE = 22  # Kirigami's iconSizes.smallMedium
+HEADER_ICON_SIZE = 22
 
-# docs/FAQs.md's "## 3. How Do I Add My Own Esoterica?", as GitHub slugs it
 ESOTERICA_FAQ_ANCHOR = "3-how-do-i-add-my-own-esoterica"
 
 # Pages of EsotericaTab.stack
@@ -193,7 +188,6 @@ class EsotericaTab(QWidget):
         header_layout = QHBoxLayout()
         header_layout.setContentsMargins(0, 5, 0, 0)
 
-        # Named as the empty page names it; the icon is tinted like the text beside it
         self.header_icon = None
         if HEADER_ICON and QIcon.hasThemeIcon(HEADER_ICON):
             self.header_icon = TintedIcon(

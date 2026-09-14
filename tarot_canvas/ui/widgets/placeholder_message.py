@@ -1,10 +1,3 @@
-"""An empty view's explanation: an icon, a heading, a sentence or two and a footnote.
-
-After Kirigami's PlaceholderMessage (controls/PlaceholderMessage.qml) in its
-Informational form. It has no action, so every element takes the muted text colour,
-except links, which keep the palette's link colour: they're the one thing to act on.
-"""
-
 from PyQt6.QtCore import QEvent, QPointF, QRect, Qt
 from PyQt6.QtGui import QFont, QIcon, QImage, QPainter
 from PyQt6.QtWidgets import QLabel, QSizePolicy, QStyle, QVBoxLayout, QWidget
@@ -19,11 +12,6 @@ EXPLANATION_WIDTH_EMS = 32
 
 
 def tint_icon(icon, logical_size, dpr, colour):
-    """`icon` at `logical_size` logical px, every pixel it covers recoloured to `colour`.
-
-    Breeze's glyphs are dark lines drawn for a light ground; Kirigami recolours them
-    to the text colour so they survive a dark theme, and so does this.
-    """
     side = round(logical_size * dpr)
     image = QImage(side, side, QImage.Format.Format_ARGB32_Premultiplied)
     image.fill(Qt.GlobalColor.transparent)
@@ -55,11 +43,7 @@ def _scaled(font, scale):
 
 
 class TintedIcon(QWidget):
-    """`icon` at a fixed logical size, in `colour(palette)`, drawn at the screen's dpr.
-
-    It tints at paint time, so a theme or screen change needs only the repaint Qt already
-    does on PaletteChange.
-    """
+    """fixed logical size drawn at the screen's dpr"""
 
     def __init__(self, icon, logical_size, colour=muted_text, parent=None):
         super().__init__(parent)
@@ -78,13 +62,7 @@ class TintedIcon(QWidget):
 
 
 class _WrappedLabel(QLabel):
-    """A word-wrapped label that is sized and laid out at the same width.
-
-    QBoxLayout sizes an item's height by heightForWidth(the column's full width), but lays an
-    AlignHCenter item out at its sizeHint width, which for a wrapping QLabel is a guess at a
-    short line. The two disagree and the text is cut off, worst when the view is wide. Here
-    both are min(available, maximumWidth).
-    """
+    """A word-wrapped label that is sized and laid out at the same width."""
 
     def sizeHint(self):
         hint = super().sizeHint()
@@ -96,11 +74,6 @@ class _WrappedLabel(QLabel):
 
 
 class PlaceholderMessage(QWidget):
-    """Why a view is empty. An empty `text`, `explanation` or `footnote` hides its label.
-
-    The explanation and the footnote may carry `<a href>` links, which open in the browser.
-    """
-
     def __init__(self, icon_name, text="", explanation="", footnote="", parent=None):
         super().__init__(parent)
         # No substitute: a theme without the icon gets no icon
@@ -130,8 +103,6 @@ class PlaceholderMessage(QWidget):
                 | Qt.TextInteractionFlag.LinksAccessibleByKeyboard
             )
 
-        # Not Maximum: that caps the height at sizeHint, which is measured at the full column
-        # width, so any narrower view cuts the text off. The layout sizes it by heightForWidth.
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
         self._apply_fonts()
         self._apply_colours()
@@ -145,7 +116,7 @@ class PlaceholderMessage(QWidget):
         self.heading.setFont(heading)
         self.footnote.setFont(_scaled(self.font(), FOOTNOTE_SCALE))
 
-        # One column width for every label, measured in the explanation's font
+        # One column width for every label
         em = self.explanation.fontMetrics().horizontalAdvance("M")
         for label in self._labels():
             label.setMaximumWidth(em * EXPLANATION_WIDTH_EMS)
