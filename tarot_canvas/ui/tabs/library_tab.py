@@ -10,7 +10,10 @@ from PyQt6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListView,
+    QListWidget,
+    QListWidgetItem,
     QSplitter,
+    QStackedWidget,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -26,6 +29,11 @@ from tarot_canvas.settings import (
     LIBRARY_DETAILS_PANE_KEY,
     LIBRARY_SORT_DEFAULT,
     LIBRARY_SORT_KEY,
+    LIBRARY_VIEW_DECKS,
+    LIBRARY_VIEW_DEFAULT,
+    LIBRARY_VIEW_KEY,
+    LIBRARY_VIEW_NOTES,
+    LIBRARY_VIEWS,
     get_settings,
     record_deck_opened,
 )
@@ -45,7 +53,14 @@ from tarot_canvas.ui.library.deck_model import (
     DeckRole,
     EntryRole,
 )
+from tarot_canvas.ui.library.notes_page import NotesPage
+from tarot_canvas.ui.library.notes_text import text as notes_text
 from tarot_canvas.ui.tabs.base_tab import BaseTab
+
+# The deck view's name. The notes view takes its own from notes_text, which is where
+# every string this view adds belongs.
+DECKS_VIEW_NAME = "Decks"
+SEARCH_DECKS_PLACEHOLDER = "Search decks…"
 
 SORT_CHOICES = [
     ("Name", SORT_NAME),
@@ -99,8 +114,6 @@ class LibraryTab(BaseTab):
         self.proxy_model = DeckFilterProxyModel(self)
         self.proxy_model.setSourceModel(self.model)
 
-        self.layout.addWidget(self._build_header())
-
         grid = QWidget()
         column = QVBoxLayout(grid)
         column.setContentsMargins(0, 0, 0, 0)
@@ -111,16 +124,53 @@ class LibraryTab(BaseTab):
         self.empty_label.setEnabled(False)
         column.addWidget(self.empty_label)
 
+        self.notes_page = NotesPage(deck_manager.get_reference_deck())
+        self.notes_page.card_activated.connect(self.on_card_activated)
+        self.notes_page.details_changed.connect(self._sync_details_toggle)
+
+        # One page per sidebar row, in LIBRARY_VIEWS order
+        self.pages = QStackedWidget()
+        self.pages.addWidget(grid)
+        self.pages.addWidget(self.notes_page)
+
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
-        self.splitter.addWidget(grid)
+        self.splitter.addWidget(self.pages)
         self.splitter.addWidget(self._build_details())
         self.splitter.setCollapsible(0, False)
         self.splitter.setCollapsible(1, False)
         # The grid takes a window's growth; the pane keeps the width it was given
         self.splitter.setStretchFactor(0, 1)
         self.splitter.setStretchFactor(1, 0)
-        self.layout.addWidget(self.splitter, 1)
         self.details_container.hide()
+
+        # [sidebar | header over (seam | splitter)]. The sidebar and header share the window
+        # colour, so the seam starts below the header, as the details pane's does
+        below_header = QHBoxLayout()
+        below_header.setContentsMargins(0, 0, 0, 0)
+        below_header.setSpacing(0)
+        seam = QFrame()
+        seam.setFrameShape(QFrame.Shape.VLine)
+        seam.setFrameShadow(QFrame.Shadow.Sunken)
+        below_header.addWidget(seam)
+        below_header.addWidget(self.splitter, 1)
+
+        content = QWidget()
+        content_column = QVBoxLayout(content)
+        content_column.setContentsMargins(0, 0, 0, 0)
+        content_column.setSpacing(0)
+        self.header = self._build_header()
+        content_column.addWidget(self.header)
+        content_column.addLayout(below_header, 1)
+
+        body = QHBoxLayout()
+        body.setContentsMargins(0, 0, 0, 0)
+        body.setSpacing(0)
+        body.addWidget(self._build_sidebar())
+        body.addWidget(content, 1)
+        self.layout.addLayout(body, 1)
+
+        # The sidebar first, so Tab goes from choosing a view to searching it
+        QWidget.setTabOrder(self.sidebar, self.search_field)
 
         # Not a bare I: the grid's type-ahead search takes letters
         shortcut = QShortcut(QKeySequence("Ctrl+I"), self)
@@ -128,6 +178,7 @@ class LibraryTab(BaseTab):
         shortcut.activated.connect(self.details_toggle.click)
 
         self._restore_settings()
+        self.sidebar.currentRowChanged.connect(self.on_view_changed)
         self._update_empty_state()
         self._sync_details_toggle()
 
@@ -140,7 +191,7 @@ class LibraryTab(BaseTab):
         row.setSpacing(units.LARGE_SPACING)
 
         self.search_field = QLineEdit()
-        self.search_field.setPlaceholderText("Search decks…")
+        self.search_field.setPlaceholderText(SEARCH_DECKS_PLACEHOLDER)
         self.search_field.setClearButtonEnabled(True)
         self.search_field.addAction(
             QIcon.fromTheme("search"), QLineEdit.ActionPosition.LeadingPosition
@@ -177,6 +228,49 @@ class LibraryTab(BaseTab):
         row.addWidget(self.details_toggle)
 
         return header
+
+    def _view_rows(self):
+        """(view, name, theme icon) per sidebar row, in LIBRARY_VIEWS order"""
+        return [
+            (LIBRARY_VIEW_DECKS, DECKS_VIEW_NAME, "view-list-icons"),
+            (LIBRARY_VIEW_NOTES, notes_text("view_name"), "view-pim-notes"),
+        ]
+
+    def _build_sidebar(self):
+        """One row per view, like Dolphin's Places panel: no frame, on the window colour"""
+        self.sidebar = QListWidget()
+        self.sidebar.setViewMode(QListView.ViewMode.ListMode)
+        self.sidebar.setFrameShape(QFrame.Shape.NoFrame)
+        # KFilePlacesView makes its viewport transparent; not filling it does the same and
+        # still follows a colour scheme change
+        self.sidebar.viewport().setAutoFillBackground(False)
+        self.sidebar.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.sidebar.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.sidebar.setSpacing(units.SMALL_SPACING // 2)
+
+        for view, name, icon in self._view_rows():
+            item = QListWidgetItem(QIcon.fromTheme(icon), name)
+            item.setData(Qt.ItemDataRole.UserRole, view)
+            self.sidebar.addItem(item)
+
+        # A click on no row, or a Ctrl+click on the current one, must not leave no view chosen
+        self.sidebar.itemSelectionChanged.connect(self._keep_a_view_selected)
+
+        self.sidebar.setFixedWidth(
+            self.sidebar.sizeHintForColumn(0) + 2 * units.LARGE_SPACING + units.GRID_UNIT
+        )
+
+        # Centre the first row on the header row, so Decks sits level with the search field.
+        # The header's controls are taller than a row, so its margin alone lands short.
+        spacing = self.sidebar.spacing()
+        row_height = self.sidebar.sizeHintForRow(0)
+        top = self.header.sizeHint().height() // 2 - row_height // 2 - spacing
+        self.sidebar.setViewportMargins(0, max(0, top), 0, 0)
+        return self.sidebar
+
+    def _keep_a_view_selected(self):
+        if not self.sidebar.selectedItems() and self.sidebar.currentItem() is not None:
+            self.sidebar.currentItem().setSelected(True)
 
     def _build_view(self):
         self.view = QListView()
@@ -248,14 +342,29 @@ class LibraryTab(BaseTab):
         self.details_pane.open_requested.connect(self.on_deck_selected)
         self.details_pane.download_requested.connect(self._start_download)
         self.details_pane.cancel_requested.connect(self._cancel_download)
-        row.addWidget(self.details_pane, 1)
+
+        # One splitter slot, one pane per view, swapped by the switcher
+        self.detail_panes = QStackedWidget()
+        self.detail_panes.addWidget(self.details_pane)
+        self.detail_panes.addWidget(self.notes_page.details_pane)
+        row.addWidget(self.detail_panes, 1)
 
         self.details_container.setMinimumWidth(self.DETAILS_PANE_MIN_WIDTH)
         return self.details_container
 
+    def current_details_pane(self):
+        return self.detail_panes.currentWidget()
+
     # -- settings ---------------------------------------------------------
 
     def _restore_settings(self):
+        view = self.settings.value(LIBRARY_VIEW_KEY, LIBRARY_VIEW_DEFAULT, type=str)
+        if view not in LIBRARY_VIEWS:
+            view = LIBRARY_VIEW_DEFAULT
+        # Before the sidebar's signal is connected, so restoring writes nothing back
+        self.sidebar.setCurrentRow(LIBRARY_VIEWS.index(view))
+        self._apply_view(view)
+
         density = self.settings.value(LIBRARY_DENSITY_KEY, LIBRARY_DENSITY_DEFAULT, type=str)
         index = self.density_combo.findData(density)
         self.density_combo.setCurrentIndex(index if index >= 0 else 1)
@@ -275,11 +384,57 @@ class LibraryTab(BaseTab):
             self.view.reset()
             self.view.scheduleDelayedItemsLayout()
 
+    # -- the sidebar ------------------------------------------------------
+
+    def current_view(self):
+        row = self.sidebar.currentRow()
+        return LIBRARY_VIEWS[row] if 0 <= row < len(LIBRARY_VIEWS) else LIBRARY_VIEW_DEFAULT
+
+    def show_view(self, view):
+        if view in LIBRARY_VIEWS:
+            self.sidebar.setCurrentRow(LIBRARY_VIEWS.index(view))
+
+    def on_view_changed(self, _row):
+        view = self.current_view()
+        self._apply_view(view)
+        self.settings.setValue(LIBRARY_VIEW_KEY, view)
+
+    def _apply_view(self, view):
+        notes = view == LIBRARY_VIEW_NOTES
+        self.pages.setCurrentIndex(LIBRARY_VIEWS.index(view))
+        self.detail_panes.setCurrentIndex(LIBRARY_VIEWS.index(view))
+
+        # Sort, cover size and Open Deck are the deck grid's; the notes list is by date
+        self.sort_combo.setVisible(not notes)
+        self.density_combo.setVisible(not notes)
+        self.open_deck_button.setVisible(not notes)
+        self.search_field.setPlaceholderText(
+            notes_text("search_placeholder") if notes else SEARCH_DECKS_PLACEHOLDER
+        )
+
+        # Each view searches its own content, so the field starts clean on a switch
+        self.search_field.clear()
+        self._sync_details_toggle()
+
     # -- slots ------------------------------------------------------------
 
     def on_search_changed(self, text):
+        if self.current_view() == LIBRARY_VIEW_NOTES:
+            self.notes_page.set_search(text)
+            return
         self.proxy_model.setFilterFixedString(text)
         self._update_empty_state()
+
+    def on_card_activated(self, card_id):
+        """Open the card view for a note's card, on its Notes tab."""
+        deck = deck_manager.get_reference_deck()
+        card = deck.get_card_by_id(card_id) if deck else None
+        if card is None:
+            return
+
+        main_window = self.window()
+        if hasattr(main_window, "open_card_view_tab"):
+            main_window.open_card_view_tab(card, deck, show_notes=True)
 
     def on_sort_changed(self):
         key = self.sort_combo.currentData()
@@ -336,7 +491,7 @@ class LibraryTab(BaseTab):
     def toggle_details_pane(self):
         """The one control that closes the pane, so a close here is remembered"""
         want = not self.details_pane_is_open()
-        if want and self.details_pane.details() is None:
+        if want and self.current_details_pane().details() is None:
             return
         self._details_wanted = want
         self.settings.setValue(LIBRARY_DETAILS_PANE_KEY, want)
@@ -362,15 +517,17 @@ class LibraryTab(BaseTab):
     def _sync_details_toggle(self):
         """Keep the toggle saying what the next press will do"""
         is_open = self.details_pane_is_open()
-        # Disabled until there's a deck to show, so the pane never opens empty
-        self.details_toggle.setEnabled(self.details_pane.details() is not None)
+        notes = self.current_view() == LIBRARY_VIEW_NOTES
+        # Disabled until there's something to show, so the pane never opens empty
+        self.details_toggle.setEnabled(self.current_details_pane().details() is not None)
         self.details_toggle.setChecked(is_open)
         if is_open:
             self.details_toggle.setIcon(QIcon.fromTheme("sidebar-collapse-right"))
-            self.details_toggle.setToolTip("Hide deck details (Ctrl+I)")
+            tooltip = notes_text("details_toggle_hide") if notes else "Hide deck details (Ctrl+I)"
         else:
             self.details_toggle.setIcon(QIcon.fromTheme("sidebar-expand-right"))
-            self.details_toggle.setToolTip("Show deck details (Ctrl+I)")
+            tooltip = notes_text("details_toggle_show") if notes else "Show deck details (Ctrl+I)"
+        self.details_toggle.setToolTip(tooltip)
 
     def _show_details(self, index):
         self.details_pane.show_details(details_for(index))

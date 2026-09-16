@@ -18,10 +18,11 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from tarot_canvas.models import notes as notes_model
+from tarot_canvas.models.note_events import note_events
 from tarot_canvas.ui.tabs.card_view.markdown_editor import MarkdownEditor
 from tarot_canvas.ui.tabs.card_view.notes_list import EmptyStateWidget, NotesListWidget
 from tarot_canvas.utils.logger import logger
-from tarot_canvas.utils.path_helper import get_data_directory
 
 
 class NotesTab(QWidget):
@@ -31,7 +32,8 @@ class NotesTab(QWidget):
         super().__init__(parent)
         self.parent_tab = parent
         self.current_card = None
-        self.all_notes = {}  # Store info about all notes for linking
+        self.notes_index = {}  # card_id -> [Note], the whole library
+        self.all_notes = {}  # (card_id, path) -> Note, for linking
         self.current_file_path = None
         self.setup_ui()
 
@@ -150,46 +152,18 @@ class NotesTab(QWidget):
             self.note_editor.set_deck_manager(self.parent_tab.deck_manager)
             logger.debug("Passed deck manager to editor")
 
-        # Determine the notes directory path
-        notes_dir = get_data_directory("tarot-canvas/notes") / card_id
-        notes_dir = str(notes_dir)  # Convert Path to string for compatibility with existing code
-
-        # Create the directory if it doesn't exist
-        os.makedirs(notes_dir, exist_ok=True)
-
-        # Load all notes at startup for linking
+        # The directory is made when the first note is written, not when a card is opened
         self.load_all_notes()
 
         # Clear the current list
         self.notes_list_widget.clear_notes()
 
-        # Load all markdown files in the directory
-        note_files = []
-        if os.path.exists(notes_dir):
-            for filename in os.listdir(notes_dir):
-                if filename.endswith(".md"):
-                    file_path = os.path.join(notes_dir, filename)
-                    # Get file stats
-                    stats = os.stat(file_path)
-                    # Save tuple of (modified time, filename, full path)
-                    note_files.append((stats.st_mtime, filename, file_path))
+        card_notes = self.notes_index.get(card_id, [])
+        for note in card_notes:
+            self.notes_list_widget.add_note(note.title, str(note.path), card_id)
 
-        # Sort by modified time (newest first)
-        note_files.sort(reverse=True)
-
-        # Add to list widget
-        for _, filename, file_path in note_files:
-            # Parse the filename to get a display name
-            display_name = self.get_display_name_from_filename(filename)
-            self.notes_list_widget.add_note(display_name, file_path, card_id)
-
-        # Show the appropriate view
-        if not note_files:
-            # Show empty state if no notes
-            self.stack.setCurrentIndex(0)  # Empty state
-        else:
-            # Show notes list if there are notes
-            self.stack.setCurrentIndex(1)  # Notes list
+        # Show notes list if there are notes, empty state otherwise
+        self.stack.setCurrentIndex(1 if card_notes else 0)
 
     def on_note_selected(self, item):
         """Handle selection of a note in the list"""
@@ -272,8 +246,7 @@ class NotesTab(QWidget):
         filename = f"{timestamp}_{safe_name}.md"
 
         # Create notes directory if it doesn't exist
-        notes_dir = get_data_directory("tarot-canvas/notes") / card_id
-        notes_dir = str(notes_dir)
+        notes_dir = str(notes_model.notes_base() / card_id)
         try:
             os.makedirs(notes_dir, exist_ok=True)
             logger.info(f"Created/verified notes directory: {notes_dir}")
@@ -293,7 +266,8 @@ class NotesTab(QWidget):
             item = self.notes_list_widget.add_note(name, file_path, card_id, select=True)
 
             # Update all notes cache
-            self.all_notes[name] = {"card_id": card_id, "file_path": file_path}
+            self.load_all_notes()
+            note_events().notes_changed.emit()
 
             # Open the editor with the new note
             self.open_note_editor(item)
@@ -328,10 +302,8 @@ class NotesTab(QWidget):
             self.notes_list_widget.remove_item(current_item)
 
             # Remove from all notes cache
-            for name, info in list(self.all_notes.items()):
-                if info["file_path"] == file_path:
-                    del self.all_notes[name]
-                    break
+            self.load_all_notes()
+            note_events().notes_changed.emit()
 
             # Show empty state if no more notes
             if self.notes_list_widget.notes_list.count() == 0:
@@ -386,16 +358,8 @@ class NotesTab(QWidget):
             current_item.setData(Qt.ItemDataRole.UserRole, new_file_path)
 
             # Update all notes cache
-            card_id = current_item.data(Qt.ItemDataRole.UserRole + 1)
-
-            # Remove old entry
-            for name, info in list(self.all_notes.items()):
-                if info["file_path"] == file_path:
-                    del self.all_notes[name]
-                    break
-
-            # Add new entry
-            self.all_notes[new_name] = {"card_id": card_id, "file_path": new_file_path}
+            self.load_all_notes()
+            note_events().notes_changed.emit()
 
             # Update current file path and title if this is the active note
             if self.current_file_path == file_path:
@@ -436,50 +400,24 @@ class NotesTab(QWidget):
     # Helper methods
 
     def load_all_notes(self):
-        """Load information about all notes across all cards for linking"""
-        self.all_notes = {}
-
-        # Base notes directory
-        base_dir = get_data_directory("tarot-canvas/notes")
-        base_dir = str(base_dir)
-        if not os.path.exists(base_dir):
-            return
-
-        # Loop through all card directories
-        for card_dir in os.listdir(base_dir):
-            card_path = os.path.join(base_dir, card_dir)
-            if os.path.isdir(card_path):
-                # Loop through all notes in this card directory
-                for filename in os.listdir(card_path):
-                    if filename.endswith(".md"):
-                        file_path = os.path.join(card_path, filename)
-                        display_name = self.get_display_name_from_filename(filename)
-
-                        # Store info about this note
-                        self.all_notes[display_name] = {"card_id": card_dir, "file_path": file_path}
-
-    def get_display_name_from_filename(self, filename):
-        """Extract a display name from a note filename"""
-        # Remove extension
-        name = filename.rsplit(".", 1)[0]
-
-        # Remove timestamp prefix if it exists
-        if "_" in name:
-            parts = name.split("_", 1)
-            if len(parts) > 1 and parts[0].isdigit():
-                name = parts[1]
-
-        # Replace underscores with spaces
-        name = name.replace("_", " ")
-
-        return name
+        """Re-read every note in the library, for linking"""
+        self.notes_index = notes_model.scan()
+        self.all_notes = {
+            (note.card_id, str(note.path)): note
+            for notes in self.notes_index.values()
+            for note in notes
+        }
 
     def get_link_suggestions(self):
         """Get suggestions for auto-completion when linking"""
         suggestions = []
 
-        # Add all note names
-        suggestions.extend(list(self.all_notes.keys()))
+        # Add all note names, first occurrence wins so the order is stable
+        seen = set()
+        for note in self.all_notes.values():
+            if note.title not in seen:
+                seen.add(note.title)
+                suggestions.append(note.title)
 
         # Add card references if deck manager is available
         if self.parent_tab and hasattr(self.parent_tab, "deck_manager"):
@@ -536,6 +474,10 @@ class NotesTab(QWidget):
 
             # Update modification time in file metadata
             os.utime(file_path, None)
+
+            # Every caller but the Save button checks isModified first, so an autosave
+            # over an untouched document doesn't repaint the library every 30 seconds
+            note_events().notes_changed.emit()
 
             # Show temporary success message if main window is available
             from PyQt6.QtWidgets import QApplication
@@ -600,16 +542,28 @@ class NotesTab(QWidget):
                     )
                     return
 
+    def find_note_by_title(self, note_name):
+        """A title is not unique across cards: prefer this card's, then the newest"""
+        matches = [note for note in self.all_notes.values() if note.title == note_name]
+        if not matches:
+            return None
+
+        if self.current_card:
+            card_id = self.current_card.get("id")
+            here = [note for note in matches if note.card_id == card_id]
+            if here:
+                return max(here, key=lambda note: note.modified)
+
+        return max(matches, key=lambda note: note.modified)
+
     def navigate_to_note(self, note_name):
         """Navigate to a specific note by name"""
-        # Check if the note exists in our cache
-        if note_name in self.all_notes:
-            note_info = self.all_notes[note_name]
-
+        note_info = self.find_note_by_title(note_name)
+        if note_info:
             # If it's a note for a different card, navigate to that card first
             if (
                 self.current_card
-                and note_info["card_id"] != self.current_card.get("id")
+                and note_info.card_id != self.current_card.get("id")
                 and self.parent_tab
                 and hasattr(self.parent_tab, "deck_manager")
             ):
@@ -620,7 +574,7 @@ class NotesTab(QWidget):
                     # Find the card by ID
                     cards = getattr(ref_deck, "get_all_cards", lambda: ref_deck._cards)()
                     for card in cards:
-                        if card["id"] == note_info["card_id"]:
+                        if card["id"] == note_info.card_id:
                             # Emit signal to navigate to this card
                             self.parent_tab.navigation_requested.emit(
                                 "open_card_view",

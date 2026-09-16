@@ -47,8 +47,10 @@ class CardViewTab(BaseTab):
     # Smallest the image pane may become.
     MIN_IMAGE_PANE_WIDTH = 120
 
-    def __init__(self, card=None, deck=None, source_tab_id=None, parent=None):
+    def __init__(self, card=None, deck=None, source_tab_id=None, parent=None, show_notes=False):
         super().__init__(parent)
+        # The library's notes list opens a card to read what is written on it
+        self._show_notes = show_notes
         self.card = card
         self.deck = deck or deck_manager.get_reference_deck()
         self.deck_manager = deck_manager
@@ -163,6 +165,9 @@ class CardViewTab(BaseTab):
         # Load the notes for this card
         self.notes_tab.load_card_notes(self.card)
 
+        if self._show_notes:
+            self.show_notes_tab()
+
         # Add the tabbed widget to the info layout
         info_layout.addWidget(self.info_tabs)
 
@@ -180,6 +185,10 @@ class CardViewTab(BaseTab):
 
         # Set the main layout
         self.layout.addLayout(main_layout)
+
+    def show_notes_tab(self):
+        """Raise the Notes tab, whichever position it sits in."""
+        self.info_tabs.setCurrentWidget(self.notes_tab)
 
     def load_image(self):
         """Load the card image into the zoomable view"""

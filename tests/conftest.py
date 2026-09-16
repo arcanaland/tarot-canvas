@@ -38,8 +38,16 @@ DECK_MANAGER_CONSUMERS = [
 
 @pytest.fixture(autouse=True)
 def isolated_settings(tmp_path, monkeypatch):
-    """Give each test its own QSettings file."""
+    """Give each test its own QSettings file.
+
+    QSettings keys its in-process cache by organization and application, not by the
+    path the environment points at, so a moved XDG_CONFIG_HOME alone leaves one
+    test reading what the last one wrote.
+    """
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    from tarot_canvas.settings import get_settings
+
+    get_settings().clear()
     yield
 
 
@@ -83,6 +91,12 @@ class _OfflineTransport:
 
     def get(self, url, *, etag=None, callback):
         self.requests.append((url, etag))
+
+
+@pytest.fixture(autouse=True)
+def fresh_note_events(monkeypatch):
+    """A NoteEvents per test, so no test's emit reaches an earlier test's widgets."""
+    monkeypatch.setattr("tarot_canvas.models.note_events._instance", None)
 
 
 @pytest.fixture(autouse=True)
