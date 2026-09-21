@@ -47,8 +47,10 @@ class CardViewTab(BaseTab):
     # Smallest the image pane may become.
     MIN_IMAGE_PANE_WIDTH = 120
 
-    def __init__(self, card=None, deck=None, source_tab_id=None, parent=None):
+    def __init__(self, card=None, deck=None, source_tab_id=None, parent=None, show_notes=False):
         super().__init__(parent)
+        # The library's notes list opens a card to read what is written on it
+        self._show_notes = show_notes
         self.card = card
         self.deck = deck or deck_manager.get_reference_deck()
         self.deck_manager = deck_manager
@@ -160,8 +162,17 @@ class CardViewTab(BaseTab):
         self.notes_tab = NotesTab(self)
         self.info_tabs.addTab(self.notes_tab, "Notes")
 
+        # Raising another tab of this card is leaving the editor, and leaving the
+        # editor saves
+        self.info_tabs.currentChanged.connect(self.on_info_tab_changed)
+
         # Load the notes for this card
         self.notes_tab.load_card_notes(self.card)
+        # The Overview reads its sibling's index, which only exists after that call
+        self.overview_tab.refresh_notes()
+
+        if self._show_notes:
+            self.show_notes_tab()
 
         # Add the tabbed widget to the info layout
         info_layout.addWidget(self.info_tabs)
@@ -180,6 +191,17 @@ class CardViewTab(BaseTab):
 
         # Set the main layout
         self.layout.addLayout(main_layout)
+
+    def show_notes_tab(self):
+        """Raise the Notes tab, whichever position it sits in."""
+        self.info_tabs.setCurrentWidget(self.notes_tab)
+
+    def on_info_tab_changed(self, _index):
+        self.notes_tab.save_if_modified()
+
+    def flush_pending_edits(self):
+        """This card's tab is no longer the visible one; the open note is written."""
+        self.notes_tab.save_if_modified()
 
     def load_image(self):
         """Load the card image into the zoomable view"""
@@ -412,6 +434,8 @@ class CardViewTab(BaseTab):
             self.load_image()
             self.overview_tab.update_card_info(card, self.deck)
             self.notes_tab.load_card_notes(card)
+            # update_card_info ran against the outgoing card's index
+            self.overview_tab.refresh_notes()
             if hasattr(self.esoterica_tab, "update_card_info"):
                 self.esoterica_tab.update_card_info(card)
             self.update_tab_name()

@@ -86,6 +86,12 @@ class _OfflineTransport:
 
 
 @pytest.fixture(autouse=True)
+def fresh_note_events(monkeypatch):
+    """A NoteEvents per test, so no test's emit reaches an earlier test's widgets."""
+    monkeypatch.setattr("tarot_canvas.models.note_events._instance", None)
+
+
+@pytest.fixture(autouse=True)
 def fresh_deck_catalog(monkeypatch):
     """A DeckCatalog per test, so no test inherits another's session state.
 

@@ -1,9 +1,28 @@
+import contextlib
 import os
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QFrame, QGridLayout, QLabel, QVBoxLayout, QWidget
 
+from tarot_canvas.models.note_events import note_events
 from tarot_canvas.ui.card_transfer import deck_path_key
+from tarot_canvas.ui.library import units
+from tarot_canvas.ui.tabs.card_view.headings import SECTION_SCALE, TITLE_SCALE, apply_heading
+from tarot_canvas.ui.tabs.card_view.notes_section import NotesSection
+
+
+def _disconnect_on_destroy(connection):
+    """A callable that drops `connection`, holding the connection and nothing else.
+
+    It must not close over the widget: a closure keeping the receiver alive is the leak
+    this exists to prevent.
+    """
+
+    def disconnect(_object=None):
+        with contextlib.suppress(RuntimeError, TypeError):
+            note_events().notes_changed.disconnect(connection)
+
+    return disconnect
 
 
 class OverviewTab(QWidget):
@@ -38,11 +57,18 @@ class OverviewTab(QWidget):
         self.description_header = None
         self.description_label = None
 
+        # Notes
+        self.notes_section = None
+
         self.setup_ui()
 
     def setup_ui(self):
         """Set up the overview tab UI"""
         layout = QVBoxLayout(self)
+        # The HIG's spacing table: 0 between a title and its subtitle, smallSpacing from
+        # a heading to the content under it, largeSpacing between groups. Set here rather
+        # than left to the style's default, which is one gap for all three cases.
+        layout.setSpacing(0)
 
         if not self.card:
             layout.addWidget(QLabel("No card information available"))
@@ -50,7 +76,7 @@ class OverviewTab(QWidget):
 
         # Card name at the top
         self.name_label = QLabel(self.card["name"])
-        self.name_label.setStyleSheet("font-size: 18px; font-weight: bold;")
+        apply_heading(self.name_label, TITLE_SCALE)
         self.name_label.setObjectName("name_label")
         layout.addWidget(self.name_label)
 
@@ -125,21 +151,39 @@ class OverviewTab(QWidget):
         self.info_grid.addWidget(self.deck_value, 4, 1, Qt.AlignmentFlag.AlignTop)
 
         # Add the frame to the layout with some spacing
-        layout.addSpacing(10)
+        layout.addSpacing(units.LARGE_SPACING)
         layout.addWidget(self.info_frame)
-        layout.addSpacing(10)
+        layout.addSpacing(units.LARGE_SPACING)
 
-        # Add description text to the overview tab
-        self.description_header = QLabel("Description:")
-        self.description_header.setStyleSheet("font-weight: bold;")
+        # A heading over a block of prose, not a label in front of a control: the HIG
+        # gives the trailing colon to the latter, which is what the Type/Suit/Deck rows
+        # in the frame above are. Title case, no colon, and a heading's size.
+        self.description_header = QLabel("Description")
+        apply_heading(self.description_header, SECTION_SCALE)
         self.description_header.setObjectName("description_header")
         layout.addWidget(self.description_header)
+        layout.addSpacing(units.SMALL_SPACING)
 
         self.description_label = QLabel()
         self.description_label.setWordWrap(True)
         self.description_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.description_label.setObjectName("description_label")
         layout.addWidget(self.description_label)
+
+        # The notes section sits under the description and above the stretch, so it is
+        # the last thing on the card and doesn't displace what was already here.
+        layout.addSpacing(units.LARGE_SPACING)
+        self.notes_section = NotesSection(self)
+        self.notes_section.noteActivated.connect(self.on_note_activated)
+        self.notes_section.createRequested.connect(self.on_create_note)
+        layout.addWidget(self.notes_section)
+
+        # Writes announce themselves; nothing here polls and nothing re-reads disk. The
+        # connection is wired explicitly rather than assumed, and is severed when this
+        # widget dies — a card view is closed often, and a slot left on an app-wide
+        # singleton is a crash waiting for the next save.
+        connection = note_events().notes_changed.connect(self.refresh_notes)
+        self.destroyed.connect(_disconnect_on_destroy(connection))
 
         # Add stretch to push everything to the top
         layout.addStretch()
@@ -233,3 +277,40 @@ class OverviewTab(QWidget):
         elif self.description_label and self.description_header:
             self.description_header.setVisible(False)
             self.description_label.setVisible(False)
+
+        self.refresh_notes()
+
+    def refresh_notes(self):
+        """Re-read this card's notes from the Notes tab's index.
+
+        The sibling tab already scans on every card load, and it owns the files a live
+        editor is autosaving. The section reads what it has; it opens no second reader.
+        """
+        if not self.notes_section:
+            return
+
+        notes_tab = getattr(self.parent_tab, "notes_tab", None)
+        card_id = self.card.get("id") if self.card else None
+        if not notes_tab or not card_id:
+            self.notes_section.set_notes([])
+            return
+
+        self.notes_section.set_notes(notes_tab.notes_index.get(card_id, []))
+
+    def on_note_activated(self, file_path):
+        """Open a listed note where notes are edited, which is the Notes tab."""
+        notes_tab = getattr(self.parent_tab, "notes_tab", None)
+        if not notes_tab:
+            return
+
+        self.parent_tab.show_notes_tab()
+        notes_tab.open_note_path(file_path)
+
+    def on_create_note(self):
+        """The section never writes: the [+] and the ghost both route through the tab."""
+        notes_tab = getattr(self.parent_tab, "notes_tab", None)
+        if not notes_tab:
+            return
+
+        self.parent_tab.show_notes_tab()
+        notes_tab.create_new_note()

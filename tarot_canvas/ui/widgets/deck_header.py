@@ -1,6 +1,6 @@
 import html
 
-from PyQt6.QtCore import QDate, QLocale, QPoint, QRect, Qt, QUrl
+from PyQt6.QtCore import QPoint, QRect, Qt, QUrl
 from PyQt6.QtGui import QDesktopServices, QFontMetrics, QIcon, QPainter, QPalette
 from PyQt6.QtWidgets import (
     QApplication,
@@ -31,6 +31,7 @@ from tarot_canvas.ui.widgets.cover_banner import (
     set_banner_text,
 )
 from tarot_canvas.ui.widgets.tag_chips import TagChips, normalized_tags
+from tarot_canvas.utils.dates import format_date
 
 TITLE_SCALE = 1.3
 SUBTITLE_SCALE = 0.85
@@ -94,21 +95,6 @@ def format_value(value):
 
     text = str(value).strip()
     return text or None
-
-
-def format_date(text):
-    date = QDate.fromString(text, Qt.DateFormat.ISODate)
-
-    if not date.isValid():
-        return text
-
-    locale = QLocale.system()
-    pattern = locale.dateFormat(QLocale.FormatType.LongFormat)
-
-    for weekday in ("dddd, ", ", dddd", "dddd ", " dddd", "dddd"):
-        pattern = pattern.replace(weekday, "")
-
-    return locale.toString(date, pattern.strip()) or text
 
 
 def detail_rows(fields):

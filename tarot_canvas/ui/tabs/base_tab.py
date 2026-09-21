@@ -8,6 +8,13 @@ class BaseTab(QWidget):
         self.layout = QVBoxLayout(self)
         self.setLayout(self.layout)
 
+    def flush_pending_edits(self):
+        """Persist anything this tab is holding unsaved.
+
+        Called when the tab stops being the visible one. A tab that owns no editable
+        content does nothing.
+        """
+
     def set_placeholder(self, text):
         """Helper to show placeholder text in empty tabs"""
         placeholder = QLabel(text)

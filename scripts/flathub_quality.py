@@ -109,6 +109,7 @@ def check_branding(root: ET.Element) -> list[Result]:
         )
     ]
     if has_both:
+
         def lum(hex_: str) -> float:
             h = hex_.lstrip("#")
             r, g, b = (int(h[i : i + 2], 16) for i in (0, 2, 4))
@@ -168,8 +169,9 @@ def _webp_size(data: bytes) -> tuple[int, int] | None:
         return w, h
     k = data.find(b"VP8 ")
     if k > 0:
-        w, h = int.from_bytes(data[k + 14 : k + 16], "little"), int.from_bytes(
-            data[k + 16 : k + 18], "little"
+        w, h = (
+            int.from_bytes(data[k + 14 : k + 16], "little"),
+            int.from_bytes(data[k + 16 : k + 18], "little"),
         )
         return w & 0x3FFF, h & 0x3FFF
     return None
@@ -271,9 +273,7 @@ def remote_status() -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument(
-        "--remote", action="store_true", help="also print Flathub's live verdicts"
-    )
+    ap.add_argument("--remote", action="store_true", help="also print Flathub's live verdicts")
     args = ap.parse_args()
 
     root = ET.parse(METAINFO).getroot()
