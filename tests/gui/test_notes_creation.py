@@ -1,10 +1,3 @@
-"""Creating a note costs nothing, and abandoning one leaves nothing.
-
-The name used to be asked for before the user had written a word, which is why *Untitled
-Note* is the commonest title in the measured store. It is deferred instead: the file
-appears on the first keystroke, and a note that is never typed into never exists.
-"""
-
 import pytest
 from PyQt6.QtGui import QTextCursor
 
@@ -24,8 +17,6 @@ def notes_base(tmp_path, monkeypatch):
 
 @pytest.fixture
 def no_dialogs(monkeypatch):
-    """Any modal in the creation path is the failure this task removed."""
-
     def refuse(*args, **kwargs):
         raise AssertionError("the creation path opened a dialog")
 
@@ -63,7 +54,6 @@ def test_the_file_appears_on_the_first_keystroke(qtbot, notes_base, no_dialogs):
     assert notes.pending_path is None
     assert notes.current_file_path == str(written[0])
 
-    # The keystroke gives the note a file; the rest of the line rides the save path
     notes.save_current_note()
     assert written[0].read_text(encoding="utf-8") == "a line I came with"
 
@@ -145,10 +135,6 @@ def test_an_empty_link_resolves_to_nothing(qtbot, notes_base, no_dialogs):
     assert tab.notes_tab.find_note_by_title("") is None
 
 
-# Naming from the editor header. The field replaced a read-only label, so the only way to
-# name a note no longer lives in the manage menu.
-
-
 def test_the_header_names_the_open_note(qtbot, notes_base, no_dialogs):
     tab, card = open_card_view(qtbot)
     card_dir = notes_base / card["id"]
@@ -164,7 +150,7 @@ def test_the_header_names_the_open_note(qtbot, notes_base, no_dialogs):
 def test_the_header_shows_a_nameless_notes_name_as_empty_not_its_text(
     qtbot, notes_base, no_dialogs
 ):
-    """The row is labelled by the note's first line; the name field must not be."""
+    """The row is labelled by the note's first line."""
     tab, card = open_card_view(qtbot)
     card_dir = notes_base / card["id"]
     card_dir.mkdir(parents=True)
@@ -223,7 +209,6 @@ def test_a_name_typed_before_the_first_keystroke_lands_in_the_filename(
 
 
 def test_naming_a_note_never_moves_its_id(qtbot, notes_base, no_dialogs):
-    """The timestamp is the id links will key on; renaming must not mint a new one."""
     tab, card = open_card_view(qtbot)
     card_dir = notes_base / card["id"]
     card_dir.mkdir(parents=True)
@@ -238,16 +223,8 @@ def test_naming_a_note_never_moves_its_id(qtbot, notes_base, no_dialogs):
     assert [p.stem.split("_")[0] for p in card_dir.iterdir()] == ["1700000000"]
 
 
-# Leaving the editor saves. Every way out goes through save_if_modified, so writing is
-# never contingent on remembering to press anything.
-
-
 def type_into(qtbot, notes_tab, text):
-    """Type at the end of the open note, the way an edit actually arrives.
-
-    Not setPlainText: that replaces the document and clears its modified flag, so it
-    looks to every save path like nothing was touched.
-    """
+    """Type at the end of the open note"""
     notes_tab.note_editor.moveCursor(QTextCursor.MoveOperation.End)
     qtbot.keyClicks(notes_tab.note_editor, text)
 

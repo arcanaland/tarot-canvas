@@ -3,7 +3,8 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import NamedTuple
 
-from tarot_canvas.models.coverage import CANONICAL_CARD_IDS, CellState
+from tarot_canvas.models.card_ids import CANONICAL_CARD_IDS
+from tarot_canvas.models.coverage import CellState
 from tarot_canvas.utils.logger import logger
 from tarot_canvas.utils.path_helper import get_data_directory
 

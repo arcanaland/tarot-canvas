@@ -1,5 +1,3 @@
-"""The one relative-date ladder, shared by the About dialog and the notes section."""
-
 import pytest
 from PyQt6.QtCore import QDate, QDateTime
 
@@ -60,12 +58,10 @@ def test_a_file_time_goes_through_the_same_ladder(qtbot):
 
 
 def test_an_iso_string_and_its_qdate_render_identically(qtbot):
-    """format_date is the ISO-string door onto format_qdate, not a second renderer."""
     assert format_date("2020-01-15") == format_qdate(QDate(2020, 1, 15))
 
 
 def test_the_weekday_is_stripped_from_whatever_the_locale_offers(qtbot):
-    """A row has no room for it, and the About dialog never wanted it either."""
     from PyQt6.QtCore import QLocale
 
     locale = QLocale.system()

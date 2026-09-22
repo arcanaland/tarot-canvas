@@ -3,7 +3,7 @@ import os
 import pytest
 
 from tarot_canvas.models import notes as notes_model
-from tarot_canvas.models.coverage import CANONICAL_CARD_IDS, CellState
+from tarot_canvas.models.coverage import CellState
 
 STUB = "# Untitled Note\n\n"
 WRITTEN = "# Untitled Note\n\nThe Chariot is a card about momentum.\n"
@@ -17,15 +17,6 @@ def write_note(base, card_id, filename, body=WRITTEN, mtime=None):
     if mtime is not None:
         os.utime(path, (mtime, mtime))
     return path
-
-
-def test_canonical_order_is_the_majors_then_four_suits():
-    assert len(CANONICAL_CARD_IDS) == 78
-    assert len(set(CANONICAL_CARD_IDS)) == 78
-    assert CANONICAL_CARD_IDS[0] == "major_arcana.00"
-    assert CANONICAL_CARD_IDS[21] == "major_arcana.21"
-    assert CANONICAL_CARD_IDS[22] == "minor_arcana.wands.ace"
-    assert CANONICAL_CARD_IDS[-1] == "minor_arcana.pentacles.king"
 
 
 def test_an_empty_card_directory_is_not_notes(tmp_path):

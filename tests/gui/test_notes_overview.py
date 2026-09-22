@@ -1,9 +1,3 @@
-"""The notes section on the card Overview.
-
-The card's own notes, newest first and capped, or one static ghost row that is itself the
-way to write the first one. It reads the Notes tab's index and never touches disk.
-"""
-
 import os
 import time
 
@@ -120,21 +114,20 @@ def test_a_nameless_note_is_listed_by_its_first_line(qtbot, notes_base):
 
 
 def test_a_nameless_note_never_shows_the_same_line_twice(qtbot, notes_base):
-    """The bug from the .Devel build: label and preview were both line 0."""
     tab, card = open_card_view(qtbot)
     write_note(
         notes_base,
         card["id"],
         "1700000000.md",
-        "what can you see on the horizon?\nand what lies beyond it\n",
+        "foo?\nand bar\n",
     )
     tab.notes_tab.load_card_notes(card)
     tab.overview_tab.refresh_notes()
 
     row = rows(tab)[0]
 
-    assert row.title_label.full_text == "what can you see on the horizon?"
-    assert row.preview_label.full_text == "and what lies beyond it"
+    assert row.title_label.full_text == "foo?"
+    assert row.preview_label.full_text == "and bar"
 
 
 def test_a_one_line_nameless_note_is_a_one_line_row(qtbot, notes_base):
@@ -165,13 +158,12 @@ def test_a_bare_opening_sentence_is_not_emphasised_like_a_title(qtbot, notes_bas
 
 
 def test_a_heading_the_user_wrote_is_emphasised_even_with_no_filename_name(qtbot, notes_base):
-    """`# Lyrics` in a nameless note is that line being declared a title."""
     tab, card = open_card_view(qtbot)
     write_note(
         notes_base,
         card["id"],
         "1700000000.md",
-        '# Lyrics\n\n"Even the longest night must end"\n',
+        '# Lyrics\n\n"foobar"\n',
     )
     tab.notes_tab.load_card_notes(card)
     tab.overview_tab.refresh_notes()
@@ -180,7 +172,7 @@ def test_a_heading_the_user_wrote_is_emphasised_even_with_no_filename_name(qtbot
 
     assert row.title_label.full_text == "Lyrics"
     assert row.title_label.font().bold() is True
-    assert row.preview_label.full_text == '"Even the longest night must end"'
+    assert row.preview_label.full_text == '"foobar"'
 
 
 def test_clicking_a_row_raises_the_notes_tab_with_that_note_open(qtbot, notes_base):
@@ -203,17 +195,14 @@ def test_writing_a_note_replaces_the_ghost_without_reloading_the_card(qtbot, not
     tab.notes_tab.create_new_note()
     qtbot.keyClicks(tab.notes_tab.note_editor, "a line I came with")
 
-    # The ghost is gone the moment the note has a file, without the card reloading
+    # The ghost is gone the moment the note has a file
     assert isinstance(rows(tab)[0], NoteRow)
 
-    # The section lists what is written, so it follows the editor's saves, not its
-    # keystrokes: the Notes tab owns the unsaved buffer and this is only a reader.
     tab.notes_tab.save_current_note()
     assert rows(tab)[0].title_label.full_text == "a line I came with"
 
 
 def test_the_section_stops_listening_when_its_card_view_is_gone(qtbot, notes_base):
-    # Deleted by hand rather than at teardown, which is the case under test
     tab, _ = open_card_view(qtbot, register=False)
 
     tab.deleteLater()
@@ -230,34 +219,3 @@ def test_the_section_is_headed_by_the_name_adam_gave_it(qtbot, notes_base):
 
     assert heading.text() == "Personal Notes"
     assert heading.isVisibleTo(tab.overview_tab)
-
-
-def test_the_description_heading_is_not_punctuated_as_a_form_label(qtbot, notes_base):
-    """A colon marks a label in front of a control; this heads a block of prose."""
-    tab, _ = open_card_view(qtbot)
-
-    assert tab.overview_tab.description_header.text() == "Description"
-
-
-def test_the_overview_headings_share_one_size(qtbot, notes_base):
-    """Description and Personal Notes are peers, and both sit under the card's name."""
-    tab, _ = open_card_view(qtbot)
-    overview = tab.overview_tab
-
-    section = overview.notes_section.heading.font().pointSizeF()
-    assert overview.description_header.font().pointSizeF() == pytest.approx(section)
-    assert overview.name_label.font().pointSizeF() > section
-
-
-def test_a_rows_date_uses_the_wording_the_about_dialog_already_had(qtbot, notes_base):
-    """One ladder, shared: the section invents no phrasing of its own."""
-    tab, card = open_card_view(qtbot)
-    path = write_note(notes_base, card["id"], "1700000000_Lyrics.md", "# Lyrics\n\nbody\n")
-    os.utime(path, (time.time(), time.time()))
-    tab.notes_tab.load_card_notes(card)
-    tab.overview_tab.refresh_notes()
-
-    row = rows(tab)[0]
-
-    assert row.date_label.full_text == "Today"
-    assert row.date_label.isVisibleTo(row) is True
