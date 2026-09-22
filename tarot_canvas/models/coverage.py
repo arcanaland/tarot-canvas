@@ -1,9 +1,3 @@
-"""The 78 canonical card slots, and what a source has to say about each one.
-
-Both the notes index and the esoterica reader answer the same question over the same
-coordinate space, so the order and the cell vocabulary live here rather than in either.
-"""
-
 from enum import Enum
 
 MAJOR_ARCANA_COUNT = 22

@@ -1,9 +1,3 @@
-"""Tells views a note was written, renamed or deleted.
-
-The card view owns every write; the library only reads. Without this the notes list would
-either poll or go stale the moment a note is saved in a tab beside it.
-"""
-
 from PyQt6.QtCore import QObject, pyqtSignal
 
 

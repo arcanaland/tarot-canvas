@@ -1,16 +1,5 @@
-"""How a date is written for the reader, in one place.
-
-The About dialog grew a relative-date ladder for release dates — *Today*, *Yesterday*,
-*N days ago*, *N weeks ago*, and the absolute date once a release is old enough to make
-"ago" useless. A note's Overview row wants exactly that, and there is no reason for the
-two to drift or for the wording to be written twice.
-
-The phrasing here is the app's existing copy, lifted from `ui/windows/about.py`.
-"""
-
 from PyQt6.QtCore import QDate, QDateTime, QLocale, Qt
 
-# Past this, "ago" stops being informative and the date itself is more use
 RELATIVE_DATE_DAYS = 30
 
 WEEKDAY_PATTERNS = ("dddd, ", ", dddd", "dddd ", " dddd", "dddd")

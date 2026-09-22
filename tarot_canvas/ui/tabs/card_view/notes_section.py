@@ -1,15 +1,4 @@
-"""The card Overview's notes section: what you have written here, or room to start.
-
-Read-only by design. It lists this card's notes and opens them; the editor, the autosave
-timer and every write belong to the Notes tab, and a second one over the same files is
-what this deliberately avoids.
-
-With nothing written on the card the section does not hide — it draws one static ghost
-row, the same `subtle_fill` well and `ghost_bar` silhouette the Esoterica tab uses, at
-the position a real row would take. On the seventy cards carrying nothing, that row is
-the only thing that says the feature exists. It is static: a shimmer would mean loading,
-and nothing here is loading.
-"""
+"""The card Overview's notes section"""
 
 from PyQt6.QtCore import QRectF, Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QFontMetrics, QPainter
@@ -34,22 +23,18 @@ from tarot_canvas.ui.tabs.card_view.notes_text import text
 from tarot_canvas.ui.tabs.card_view.passage_metrics import CORNER_RADIUS
 from tarot_canvas.utils.dates import relative_date_from_timestamp
 
-# The Overview has no scroll area, so the section is bounded rather than unbounded: the
-# rest of a card's notes are reached through the Notes tab, which is the affordance.
 MAX_ROWS = 3
 
-PADDING = units.LARGE_SPACING  # inside a row or the ghost well
+PADDING = units.LARGE_SPACING
 ROW_SPACING = units.SMALL_SPACING
 
-# Fractions of the ghost well's inner width, fixed so screenshots stay stable
+# Fractions of the ghost well's inner width
 GHOST_TITLE_WIDTH = 0.40
 GHOST_BODY_WIDTH = 0.85
 GHOST_BAR_HEIGHT = 0.6  # of the font height of the line each bar stands in for
 
 
 class ElidedLabel(QLabel):
-    """One line, elided to whatever width it is given."""
-
     def __init__(self, parent=None):
         super().__init__(parent)
         self.full_text = ""
@@ -69,7 +54,7 @@ class ElidedLabel(QLabel):
 
 
 class ClickableWidget(QWidget):
-    """A row or a ghost: the whole rectangle is the target, not a link inside it."""
+    """A row or a ghost"""
 
     clicked = pyqtSignal()
 
@@ -92,29 +77,20 @@ class ClickableWidget(QWidget):
         painter.end()
 
     def paint_contents(self, painter):
-        """Whatever the subclass draws inside the well."""
+        pass
 
 
 class NoteRow(ClickableWidget):
-    """Title, a relative date, and the note's opening line of prose."""
-
     def __init__(self, note, parent=None):
         super().__init__(parent)
         self.note = note
         self.setObjectName("notes_section_row")
-        # As tall as its lines and no taller: the section sits above the Overview's
-        # stretch, and a row that absorbed the slack would be a pane, not a row.
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(PADDING, PADDING, PADDING, PADDING)
-        # A row is a title/subtitle group, which the HIG's table spaces at 0
         layout.setSpacing(0)
 
-        # A title is emphasised, and a note has one if it was named in its filename or
-        # if its first line is a heading the user wrote. A bare opening sentence standing
-        # in for a title is not emphasised: it is content, and bolding it would say
-        # otherwise.
         title_font = QFont(self.font())
         title_font.setBold(bool(note.title) or note.first_line_is_heading)
 
@@ -142,8 +118,6 @@ class NoteRow(ClickableWidget):
 
 
 class GhostRow(ClickableWidget):
-    """One static silhouette of the row you have not written yet."""
-
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("notes_section_ghost")
@@ -169,7 +143,7 @@ class GhostRow(ClickableWidget):
 
 
 class NotesSection(QWidget):
-    """The section itself: a heading, a [+], and up to MAX_ROWS rows or one ghost."""
+    """a heading, a [+] and note rows."""
 
     noteActivated = pyqtSignal(str)
     createRequested = pyqtSignal()
@@ -180,7 +154,6 @@ class NotesSection(QWidget):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        # From the heading to the rows under it: smallSpacing, per the HIG's table
         layout.setSpacing(units.SMALL_SPACING)
 
         header = QHBoxLayout()
@@ -189,8 +162,6 @@ class NotesSection(QWidget):
         self.heading = QLabel(text("section_heading"))
         self.heading.setObjectName("notes_section_heading")
         apply_heading(self.heading, SECTION_SCALE)
-        # An empty constant hides the element it labels; the ghost below is not copy and
-        # stays whatever the heading says.
         self.heading.setVisible(bool(text("section_heading")))
         header.addWidget(self.heading)
         header.addStretch()
@@ -212,7 +183,7 @@ class NotesSection(QWidget):
         self.set_notes([])
 
     def set_notes(self, notes):
-        """Show this card's notes, newest first, or the ghost when there are none."""
+        """Show this card's notes, newest first or a ghost"""
         while self.rows.count():
             item = self.rows.takeAt(0)
             widget = item.widget()

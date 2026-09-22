@@ -28,11 +28,7 @@ from tarot_canvas.utils.logger import logger
 
 
 def renamed_path(file_path, new_name):
-    """`file_path` under `new_name`, keeping the timestamp prefix as the note's id.
-
-    An empty name takes it back to a bare <timestamp>.md — a note can lose its name the
-    same way it got one, and the id it is linked by never moves.
-    """
+    """`file_path` under `new_name`, keeping the timestamp prefix as the note's id."""
     directory = os.path.dirname(file_path)
     stem = os.path.basename(file_path).rsplit(".", 1)[0]
     prefix = stem.split("_", 1)[0] if "_" in stem else stem
@@ -44,7 +40,7 @@ def renamed_path(file_path, new_name):
 
 
 def row_label(note):
-    """What a note is listed as: its name, or its opening line until it has one."""
+    """name or opening line."""
     return note.title or note.first_line
 
 
@@ -58,8 +54,8 @@ class NotesTab(QWidget):
         self.notes_index = {}  # card_id -> [Note], the whole library
         self.all_notes = {}  # (card_id, path) -> Note, for linking
         self.current_file_path = None
-        # A note the user asked for but hasn't written yet: the path it will take, held
-        # until the first keystroke. Nothing is on disk while this is set.
+
+        # A note the user asked for but hasn't written yet
         self.pending_path = None
         self.pending_card_id = None
         self.pending_name = ""
@@ -113,9 +109,7 @@ class NotesTab(QWidget):
         back_button.clicked.connect(self.show_note_list)
         header_layout.addWidget(back_button)
 
-        # The note's name, edited in place. It was a read-only label, which left the
-        # only way to name a note buried in the manage menu — and a note created from the
-        # Overview arrives with no name at all, so the field would just sit there blank.
+        # The note's name (editable)
         self.note_title = QLineEdit()
         self.note_title.setFrame(False)
         self.note_title.setPlaceholderText(text("name_placeholder"))
@@ -309,11 +303,6 @@ class NotesTab(QWidget):
         return None
 
     def open_note_path(self, file_path):
-        """Open the note at `file_path`, if this card's list is holding it.
-
-        The Overview's section hands back a path, not a row: it lists the same notes but
-        draws its own, and the list widget is the one that knows how to open them.
-        """
         item = self.item_for_path(file_path)
         if item is not None:
             self.notes_list_widget.notes_list.setCurrentItem(item)
@@ -332,14 +321,7 @@ class NotesTab(QWidget):
             self.stack.setCurrentIndex(0)  # Empty state
 
     def create_new_note(self):
-        """Open the editor on a note that doesn't exist yet.
-
-        No dialog: the name was a tax paid before the user had written anything, which is
-        why *Untitled Note* is the commonest title in the store. The file is written on
-        the first keystroke instead, so a note that is asked for and abandoned leaves
-        nothing behind — and every note on disk therefore has a name or a first line to
-        be listed by.
-        """
+        """Open the editor on a note that doesn't exist yet."""
         if not self.current_card:
             return
 
@@ -347,7 +329,7 @@ class NotesTab(QWidget):
         if not card_id:
             return
 
-        # Whatever is open keeps its edits; the editor is about to be handed to a new note
+        # save whatever is open
         self.save_if_modified()
 
         self.current_file_path = None
@@ -355,8 +337,6 @@ class NotesTab(QWidget):
         self.pending_name = ""
         self.pending_path = str(notes_model.notes_base() / card_id / f"{int(time.time())}.md")
 
-        # The header names the open note, and this one has no name yet: the placeholder
-        # is what offers naming, without demanding it before a word is written.
         self.note_title.setText("")
         self.note_editor.clear()
         self.note_editor.setEnabled(True)
@@ -366,12 +346,7 @@ class NotesTab(QWidget):
         self.note_editor.setFocus()
 
     def discard_pending_note(self):
-        """Forget a note that was asked for and never written.
-
-        Every path that puts other content in the editor calls this first: without it the
-        next `contentsChanged` — including the one `setPlainText` raises while loading an
-        existing note — would write that content to the pending note's path.
-        """
+        """Forget a note that was asked for but never written."""
         self.pending_path = None
         self.pending_card_id = None
 
@@ -381,11 +356,6 @@ class NotesTab(QWidget):
         self.sync_unnamed_row_label()
 
     def sync_unnamed_row_label(self):
-        """A note with no name in its filename is listed by its first line.
-
-        That line changes as it is typed, and the row is the only place the note is
-        identified, so it follows the editor rather than the last save.
-        """
         if not self.current_file_path:
             return
 
@@ -399,7 +369,7 @@ class NotesTab(QWidget):
         item.setText(notes_model.first_line_of(self.note_editor.toPlainText()))
 
     def write_pending_note(self):
-        """Give a pending note a file, the moment there is something to put in it."""
+        """Give a pending note a file."""
         if not self.pending_path or not self.note_editor.toPlainText().strip():
             return
 
@@ -467,11 +437,7 @@ class NotesTab(QWidget):
             QMessageBox.critical(self, "Error", f"Could not delete note: {e}")
 
     def rename_current_note(self):
-        """Rename the selected note from the manage menu.
-
-        The header field is the discoverable way in; this is the same rename reached from
-        the list, for a note that isn't the one open in the editor.
-        """
+        """Rename the selected note from the manage menu."""
         current_item = self.notes_list_widget.get_current_item()
         if not current_item:
             return
@@ -569,13 +535,7 @@ class NotesTab(QWidget):
         self.note_editor.document().setModified(False)
 
     def save_if_modified(self):
-        """Persist the open note if it has unsaved edits.
-
-        Safe to call at any moment, including when no note is open. This is what every
-        way of leaving the editor goes through — stepping to another card, raising
-        another tab of this card, switching to another card's tab, closing the window —
-        so writing is never contingent on remembering to press anything.
-        """
+        """Persist the open note if it has unsaved edits."""
         if self.current_file_path and self.note_editor.document().isModified():
             self.save_note_to_file(self.current_file_path)
             self.note_editor.document().setModified(False)
@@ -612,11 +572,6 @@ class NotesTab(QWidget):
             # Update modification time in file metadata
             os.utime(file_path, None)
 
-            # A save changes what the index says about this note — its mtime, its body,
-            # and the first line an unnamed one is listed by — so the index is brought up
-            # to date before anything is told to re-read it. Every caller but the Save
-            # button checks isModified first, so an autosave over an untouched document
-            # neither rescans nor repaints every 30 seconds.
             self.load_all_notes()
             note_events().notes_changed.emit()
 

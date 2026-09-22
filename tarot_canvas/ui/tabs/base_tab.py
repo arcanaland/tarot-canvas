@@ -9,11 +9,7 @@ class BaseTab(QWidget):
         self.setLayout(self.layout)
 
     def flush_pending_edits(self):
-        """Persist anything this tab is holding unsaved.
-
-        Called when the tab stops being the visible one. A tab that owns no editable
-        content does nothing.
-        """
+        """Persist anything this tab is holding unsaved."""
 
     def set_placeholder(self, text):
         """Helper to show placeholder text in empty tabs"""

@@ -53,7 +53,7 @@ def _link(url: str, label: str | None = None) -> str:
 
 
 def _release_date(iso: str, today: QDate | None = None) -> str:
-    """How long ago an ISO date was. The ladder is shared with the notes section."""
+    """How long ago an ISO date was.."""
     return relative_date_from_iso(iso, today)
 
 
