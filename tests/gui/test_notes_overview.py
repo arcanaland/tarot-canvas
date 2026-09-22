@@ -1,5 +1,4 @@
 import os
-import time
 
 import pytest
 
@@ -92,7 +91,6 @@ def test_five_notes_are_capped_at_three_newest_first(qtbot, notes_base):
         path = write_note(
             notes_base, card["id"], f"17000000{index:02d}_N{index}.md", f"# N{index}\n"
         )
-        import os
 
         os.utime(path, (1700000000 + index, 1700000000 + index))
     tab.notes_tab.load_card_notes(card)
