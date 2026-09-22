@@ -6,7 +6,7 @@ from tarot_canvas.models import notes as notes_model
 from tarot_canvas.models.coverage import CellState
 
 STUB = "# Untitled Note\n\n"
-WRITTEN = "# Untitled Note\n\nThe Chariot is a card about momentum.\n"
+WRITTEN = "# Untitled Note\n\nA line of body text.\n"
 
 
 def write_note(base, card_id, filename, body=WRITTEN, mtime=None):
@@ -128,7 +128,7 @@ def one_note(base, body):
 def test_the_first_body_line_skips_the_heading(tmp_path):
     note = one_note(tmp_path, WRITTEN)
 
-    assert notes_model.first_body_line(note) == "The Chariot is a card about momentum."
+    assert notes_model.first_body_line(note) == "A line of body text."
 
 
 def test_a_stub_has_no_first_body_line(tmp_path):
@@ -136,9 +136,9 @@ def test_a_stub_has_no_first_body_line(tmp_path):
 
 
 def test_a_search_finds_the_line_it_matched(tmp_path):
-    note = one_note(tmp_path, "# Chariot\n\nfirst line\nabout MOMENTUM and control\n")
+    note = one_note(tmp_path, "# Chariot\n\nfirst line\na line in MIXED case\n")
 
-    assert notes_model.matching_line(note, "momentum") == "about MOMENTUM and control"
+    assert notes_model.matching_line(note, "mixed") == "a line in MIXED case"
 
 
 def test_a_search_never_matches_the_heading(tmp_path):
@@ -157,25 +157,20 @@ def test_an_unreadable_note_has_no_lines(tmp_path):
     note.path.chmod(0o000)
     try:
         assert notes_model.first_body_line(note) == ""
-        assert notes_model.matching_line(note, "momentum") is None
+        assert notes_model.matching_line(note, "body") is None
     finally:
         note.path.chmod(0o644)
 
 
-# The ten-note corpus measured on 2026-09-21 held four notes whose content would derive a
-# title different from the one the user sees. The title stays in the filename, and these
-# assert it: any of them coming back retitled means titles have started reading the file.
+# Notes whose content would derive a title different from the one the user sees. The
+# title stays in the filename, and these assert it: any of them coming back retitled means
+# titles have started reading the file.
 
 AWKWARD = [
-    (
-        "minor_arcana.swords.ten",
-        "1789985333_Lyrics.md",
-        '> "Even the longest night must end"\n',
-        "Lyrics",
-    ),
-    ("major_arcana.04", "1747139002_Thoughts.md", "# Thoughts on The Emperor\n", "Thoughts"),
-    ("major_arcana.01", "1757950787_Untitled_Note.md", "sdfs\n\n# A heading\n", "Untitled Note"),
-    ("major_arcana.15", "1747138034_Untitled_Note.md", "asdasd# Untitled Note\n", "Untitled Note"),
+    ("minor_arcana.swords.ten", "1700000000_Quote.md", '> "a quoted line"\n', "Quote"),
+    ("major_arcana.04", "1700000001_Reflections.md", "# Reflections on a card\n", "Reflections"),
+    ("major_arcana.01", "1700000002_Untitled_Note.md", "stray\n\n# A heading\n", "Untitled Note"),
+    ("major_arcana.15", "1700000003_Untitled_Note.md", "stray# Untitled Note\n", "Untitled Note"),
 ]
 
 
@@ -192,18 +187,18 @@ def test_an_existing_notes_title_is_its_filename_and_never_its_content(
 
 def test_a_note_that_opens_with_a_blockquote_has_no_heading_to_skip(tmp_path):
     """The bug this fixes: line 0 was assumed to be a heading, dropping the quote."""
-    note = one_note(tmp_path, '> "Even the longest night must end"\n\n-- the song\n')
+    note = one_note(tmp_path, '> "a quoted line"\n\n-- the source\n')
 
     assert note.has_body is True
-    assert notes_model.first_body_line(note) == '> "Even the longest night must end"'
-    assert note.first_line == '> "Even the longest night must end"'
+    assert notes_model.first_body_line(note) == '> "a quoted line"'
+    assert note.first_line == '> "a quoted line"'
 
 
 def test_a_hash_in_the_middle_of_a_line_is_not_a_heading(tmp_path):
-    note = one_note(tmp_path, "asdasd# Untitled Note\n")
+    note = one_note(tmp_path, "stray# Untitled Note\n")
 
     assert note.has_body is True
-    assert notes_model.first_body_line(note) == "asdasd# Untitled Note"
+    assert notes_model.first_body_line(note) == "stray# Untitled Note"
 
 
 def test_a_heading_only_note_still_has_no_body(tmp_path):
@@ -215,12 +210,12 @@ def test_a_heading_only_note_still_has_no_body(tmp_path):
 
 
 def test_a_nameless_note_has_no_title_and_falls_back_to_its_first_line(tmp_path):
-    write_note(tmp_path, "major_arcana.07", "1700000000.md", body="a line I came with\n")
+    write_note(tmp_path, "major_arcana.07", "1700000000.md", body="an opening line\n")
 
     note = notes_model.scan(tmp_path)["major_arcana.07"][0]
 
     assert note.title == ""
-    assert note.first_line == "a line I came with"
+    assert note.first_line == "an opening line"
     assert note.has_body is True
     # The row is already labelled by that line; a preview would repeat it
     assert notes_model.first_body_line(note) == ""
@@ -239,22 +234,18 @@ def test_an_empty_note_has_neither_title_nor_first_line(tmp_path):
     assert (note.title, note.first_line, note.has_body) == ("", "", False)
 
 
-# A nameless note is labelled by its own first line, so the preview has to begin after it.
-# Getting this wrong printed the same sentence twice in every Overview row.
-
-
 def test_a_nameless_notes_preview_is_the_line_after_its_label(tmp_path):
     write_note(
         tmp_path,
         "major_arcana.07",
         "1700000000.md",
-        body="what can you see on the horizon?\nand what lies beyond it\n",
+        body="the first line\nthe second line\n",
     )
 
     note = notes_model.scan(tmp_path)["major_arcana.07"][0]
 
-    assert note.first_line == "what can you see on the horizon?"
-    assert notes_model.first_body_line(note) == "and what lies beyond it"
+    assert note.first_line == "the first line"
+    assert notes_model.first_body_line(note) == "the second line"
 
 
 def test_a_one_line_nameless_note_has_no_preview_at_all(tmp_path):
@@ -285,11 +276,11 @@ def test_a_nameless_note_whose_first_line_repeats_keeps_the_repeat(tmp_path):
 
 
 def test_a_heading_first_line_is_marked_as_one(tmp_path):
-    write_note(tmp_path, "major_arcana.07", "1700000000.md", body="# Lyrics\n\nthe body\n")
+    write_note(tmp_path, "major_arcana.07", "1700000000.md", body="# A heading\n\nthe body\n")
 
     note = notes_model.scan(tmp_path)["major_arcana.07"][0]
 
-    assert note.first_line == "Lyrics"
+    assert note.first_line == "A heading"
     assert note.first_line_is_heading is True
 
 
@@ -302,6 +293,6 @@ def test_a_bare_first_line_is_not_marked_as_a_heading(tmp_path):
 
 
 def test_a_hash_mid_line_does_not_make_a_heading(tmp_path):
-    write_note(tmp_path, "major_arcana.07", "1700000000.md", body="asdasd# Untitled Note\n")
+    write_note(tmp_path, "major_arcana.07", "1700000000.md", body="stray# Untitled Note\n")
 
     assert notes_model.scan(tmp_path)["major_arcana.07"][0].first_line_is_heading is False
