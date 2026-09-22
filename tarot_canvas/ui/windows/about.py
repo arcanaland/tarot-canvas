@@ -22,7 +22,7 @@ from PyQt6.QtWidgets import (
 )
 
 from tarot_canvas.about import AboutData, Person, Release, load_about_data
-from tarot_canvas.ui.widgets.deck_header import format_date
+from tarot_canvas.utils.dates import relative_date_from_iso
 
 ICON_PATH = files("tarot_canvas.resources.icons").joinpath("icon.png")
 
@@ -39,9 +39,6 @@ MAIL_ICON_NAMES = ("mail-message-new", "mail-send", "mail-message")
 # Space above each release after the first, in px
 RELEASE_SPACING = 24
 
-# A release younger than this reads as days or weeks ago; an older one shows its date
-RELATIVE_DATE_DAYS = 30
-
 
 def app_icon(app_id: str) -> QIcon:
     """The theme's icon for the app, else the one bundled with it."""
@@ -56,23 +53,8 @@ def _link(url: str, label: str | None = None) -> str:
 
 
 def _release_date(iso: str, today: QDate | None = None) -> str:
-    """How long ago an ISO date was"""
-    date = QDate.fromString(iso, Qt.DateFormat.ISODate)
-    if not date.isValid():
-        return iso
-
-    days = date.daysTo(QDate.currentDate() if today is None else today)
-    if days < 0 or days >= RELATIVE_DATE_DAYS:
-        return format_date(iso)
-    if days == 0:
-        return "Today"
-    if days == 1:
-        return "Yesterday"
-    if days < 7:
-        return f"{days} days ago"
-    weeks = days // 7
-
-    return "1 week ago" if weeks == 1 else f"{weeks} weeks ago"
+    """How long ago an ISO date was.."""
+    return relative_date_from_iso(iso, today)
 
 
 class AboutDialog(QDialog):

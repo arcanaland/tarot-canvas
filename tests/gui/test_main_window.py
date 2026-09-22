@@ -303,6 +303,8 @@ def test_fullscreen_offers_a_way_back_to_the_card_details(qtbot):
 def test_the_i_key_toggles_the_card_details(qtbot):
     window, tab = make_window_with_card_view(qtbot)
     window.toggle_tab_fullscreen()
+    window.activateWindow()
+    qtbot.waitActive(window)
     tab.image_view.setFocus()
     qtbot.waitUntil(lambda: QApplication.focusWidget() is tab.image_view)
 

@@ -1,3 +1,4 @@
+import contextlib
 import os
 from importlib.resources import files
 
@@ -112,6 +113,9 @@ class MainWindow(QMainWindow):
         # The tab currently fullscreened, and the chrome state to put back
         self.fullscreen_tab = None
         self._pre_fullscreen = None
+
+        # The visible tab, remembered so the one being left can write what it holds
+        self.previous_tab = None
 
         # Initialize theme manager
         self.theme_manager = ThemeManager.get_instance()
@@ -728,6 +732,14 @@ class MainWindow(QMainWindow):
         self.toast.show_message(DOWNLOAD_TEXT["installed_toast"].format(name=entry.name))
 
     def on_tab_changed(self, _index):
+        # The tab being left keeps whatever it was holding. currentChanged says only
+        # where we arrived, so the one we came from is tracked here.
+        outgoing, self.previous_tab = self.previous_tab, self.tab_widget.currentWidget()
+        if isinstance(outgoing, BaseTab) and outgoing is not self.previous_tab:
+            # RuntimeError: the tab we came from is the one that was just closed
+            with contextlib.suppress(RuntimeError):
+                outgoing.flush_pending_edits()
+
         if self.fullscreen_tab is not None:
             self.exit_tab_fullscreen()
         self.update_card_clipboard_actions()

@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
     QInputDialog,
-    QLabel,
+    QLineEdit,
     QMenu,
     QMessageBox,
     QPushButton,
@@ -18,10 +18,30 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from tarot_canvas.models import notes as notes_model
+from tarot_canvas.models.note_events import note_events
+from tarot_canvas.ui.tabs.card_view.headings import SECTION_SCALE, apply_heading
 from tarot_canvas.ui.tabs.card_view.markdown_editor import MarkdownEditor
 from tarot_canvas.ui.tabs.card_view.notes_list import EmptyStateWidget, NotesListWidget
+from tarot_canvas.ui.tabs.card_view.notes_text import text
 from tarot_canvas.utils.logger import logger
-from tarot_canvas.utils.path_helper import get_data_directory
+
+
+def renamed_path(file_path, new_name):
+    """`file_path` under `new_name`, keeping the timestamp prefix as the note's id."""
+    directory = os.path.dirname(file_path)
+    stem = os.path.basename(file_path).rsplit(".", 1)[0]
+    prefix = stem.split("_", 1)[0] if "_" in stem else stem
+    timestamp = prefix if prefix.isdigit() else int(time.time())
+
+    safe_name = new_name.strip().replace(" ", "_").replace("/", "_").replace("\\", "_")
+    filename = f"{timestamp}_{safe_name}.md" if safe_name else f"{timestamp}.md"
+    return str(Path(directory) / filename)
+
+
+def row_label(note):
+    """name or opening line."""
+    return note.title or note.first_line
 
 
 class NotesTab(QWidget):
@@ -31,8 +51,14 @@ class NotesTab(QWidget):
         super().__init__(parent)
         self.parent_tab = parent
         self.current_card = None
-        self.all_notes = {}  # Store info about all notes for linking
+        self.notes_index = {}  # card_id -> [Note], the whole library
+        self.all_notes = {}  # (card_id, path) -> Note, for linking
         self.current_file_path = None
+
+        # A note the user asked for but hasn't written yet
+        self.pending_path = None
+        self.pending_card_id = None
+        self.pending_name = ""
         self.setup_ui()
 
         # Setup auto-save timer (save every 30 seconds)
@@ -83,9 +109,12 @@ class NotesTab(QWidget):
         back_button.clicked.connect(self.show_note_list)
         header_layout.addWidget(back_button)
 
-        # Note title display
-        self.note_title = QLabel()
-        self.note_title.setStyleSheet("font-size: 16px; font-weight: bold; color: palette(text);")
+        # The note's name (editable)
+        self.note_title = QLineEdit()
+        self.note_title.setFrame(False)
+        self.note_title.setPlaceholderText(text("name_placeholder"))
+        apply_heading(self.note_title, SECTION_SCALE)
+        self.note_title.editingFinished.connect(self.apply_title_edit)
         header_layout.addWidget(self.note_title)
 
         # Save button
@@ -101,6 +130,7 @@ class NotesTab(QWidget):
         # Create enhanced markdown editor - no toolbar now
         self.note_editor = MarkdownEditor(self)
         self.note_editor.linkClicked.connect(self.handle_link_click)
+        self.note_editor.document().contentsChanged.connect(self.on_editor_changed)
         editor_layout.addWidget(self.note_editor)
 
         # Add widgets to stack
@@ -131,10 +161,10 @@ class NotesTab(QWidget):
 
     def load_card_notes(self, card):
         """Load existing notes for a card"""
+        self.discard_pending_note()
+
         # Stepping to another card mustn't leave an edit waiting on the autosave timer
-        if self.current_file_path and self.note_editor.document().isModified():
-            self.save_note_to_file(self.current_file_path)
-            self.note_editor.document().setModified(False)
+        self.save_if_modified()
 
         self.current_card = card
 
@@ -150,49 +180,23 @@ class NotesTab(QWidget):
             self.note_editor.set_deck_manager(self.parent_tab.deck_manager)
             logger.debug("Passed deck manager to editor")
 
-        # Determine the notes directory path
-        notes_dir = get_data_directory("tarot-canvas/notes") / card_id
-        notes_dir = str(notes_dir)  # Convert Path to string for compatibility with existing code
-
-        # Create the directory if it doesn't exist
-        os.makedirs(notes_dir, exist_ok=True)
-
-        # Load all notes at startup for linking
+        # The directory is made when the first note is written, not when a card is opened
         self.load_all_notes()
 
         # Clear the current list
         self.notes_list_widget.clear_notes()
 
-        # Load all markdown files in the directory
-        note_files = []
-        if os.path.exists(notes_dir):
-            for filename in os.listdir(notes_dir):
-                if filename.endswith(".md"):
-                    file_path = os.path.join(notes_dir, filename)
-                    # Get file stats
-                    stats = os.stat(file_path)
-                    # Save tuple of (modified time, filename, full path)
-                    note_files.append((stats.st_mtime, filename, file_path))
+        card_notes = self.notes_index.get(card_id, [])
+        for note in card_notes:
+            self.notes_list_widget.add_note(row_label(note), str(note.path), card_id)
 
-        # Sort by modified time (newest first)
-        note_files.sort(reverse=True)
-
-        # Add to list widget
-        for _, filename, file_path in note_files:
-            # Parse the filename to get a display name
-            display_name = self.get_display_name_from_filename(filename)
-            self.notes_list_widget.add_note(display_name, file_path, card_id)
-
-        # Show the appropriate view
-        if not note_files:
-            # Show empty state if no notes
-            self.stack.setCurrentIndex(0)  # Empty state
-        else:
-            # Show notes list if there are notes
-            self.stack.setCurrentIndex(1)  # Notes list
+        # Show notes list if there are notes, empty state otherwise
+        self.stack.setCurrentIndex(1 if card_notes else 0)
 
     def on_note_selected(self, item):
         """Handle selection of a note in the list"""
+        self.discard_pending_note()
+
         if not item:
             # No item selected
             self.note_editor.clear()
@@ -201,8 +205,7 @@ class NotesTab(QWidget):
             return
 
         # Auto-save any previously edited note
-        if self.current_file_path and self.note_editor.document().isModified():
-            self.save_note_to_file(self.current_file_path)
+        self.save_if_modified()
 
         # Get the file path from the item
         file_path = item.data(Qt.ItemDataRole.UserRole)
@@ -210,6 +213,8 @@ class NotesTab(QWidget):
 
     def open_note_editor(self, item):
         """Open the editor for the selected note"""
+        self.discard_pending_note()
+
         if not item:
             return
 
@@ -217,8 +222,10 @@ class NotesTab(QWidget):
         file_path = item.data(Qt.ItemDataRole.UserRole)
         self.current_file_path = file_path
 
-        # Set the note title
-        self.note_title.setText(item.text())
+        # The field is the note's name. For a nameless note the row is labelled by its
+        # first line, which is content — putting that in the name field would offer to
+        # rename the note to its own text.
+        self.note_title.setText(notes_model.display_name_from_filename(os.path.basename(file_path)))
 
         # Load the note content
         try:
@@ -237,11 +244,75 @@ class NotesTab(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Could not load note: {e}")
 
+    def apply_title_edit(self):
+        """Rename the open note to whatever the header now says."""
+        new_name = self.note_title.text().strip()
+
+        if self.pending_path:
+            # No file to rename yet; the name is held for whoever creates it
+            self.pending_name = new_name
+            return
+
+        if not self.current_file_path:
+            return
+
+        current = notes_model.display_name_from_filename(os.path.basename(self.current_file_path))
+        if new_name == current:
+            return
+
+        self.rename_note_to(self.current_file_path, new_name)
+
+    def rename_note_to(self, file_path, new_name):
+        """Rename a note's file and bring every view of it up to date."""
+        new_file_path = renamed_path(file_path, new_name)
+        if new_file_path == file_path:
+            return None
+
+        try:
+            os.rename(file_path, new_file_path)
+        except OSError as error:
+            QMessageBox.critical(self, "Error", f"Could not rename note: {error}")
+            return None
+
+        item = self.item_for_path(file_path)
+        if item is not None:
+            item.setData(Qt.ItemDataRole.UserRole, new_file_path)
+
+        if self.current_file_path == file_path:
+            self.current_file_path = new_file_path
+
+        self.load_all_notes()
+
+        if item is not None:
+            note = self.all_notes.get((self.pending_card_id or self.card_id(), new_file_path))
+            item.setText(row_label(note) if note else new_name)
+
+        note_events().notes_changed.emit()
+        return new_file_path
+
+    def card_id(self):
+        return self.current_card.get("id") if self.current_card else None
+
+    def item_for_path(self, file_path):
+        """The list row holding `file_path`, or None if this card isn't showing it."""
+        listing = self.notes_list_widget.notes_list
+        for index in range(listing.count()):
+            item = listing.item(index)
+            if item.data(Qt.ItemDataRole.UserRole) == file_path:
+                return item
+        return None
+
+    def open_note_path(self, file_path):
+        item = self.item_for_path(file_path)
+        if item is not None:
+            self.notes_list_widget.notes_list.setCurrentItem(item)
+            self.open_note_editor(item)
+
     def show_note_list(self):
         """Return to the note list view"""
-        # Save current note if modified
-        if self.current_file_path and self.note_editor.document().isModified():
-            self.save_note_to_file(self.current_file_path)
+        self.discard_pending_note()
+
+        self.save_if_modified()
 
         # Show notes list or empty state based on whether there are notes
         if self.notes_list_widget.notes_list.count() > 0:
@@ -250,7 +321,7 @@ class NotesTab(QWidget):
             self.stack.setCurrentIndex(0)  # Empty state
 
     def create_new_note(self):
-        """Create a new note for the current card"""
+        """Open the editor on a note that doesn't exist yet."""
         if not self.current_card:
             return
 
@@ -258,47 +329,74 @@ class NotesTab(QWidget):
         if not card_id:
             return
 
-        # Get a name for the new note
-        name, ok = QInputDialog.getText(
-            self, "New Note", "Enter a name for this note:", text="Untitled Note"
-        )
+        # save whatever is open
+        self.save_if_modified()
 
-        if not ok or not name:
+        self.current_file_path = None
+        self.pending_card_id = card_id
+        self.pending_name = ""
+        self.pending_path = str(notes_model.notes_base() / card_id / f"{int(time.time())}.md")
+
+        self.note_title.setText("")
+        self.note_editor.clear()
+        self.note_editor.setEnabled(True)
+        self.note_editor.document().setModified(False)
+
+        self.stack.setCurrentIndex(2)  # Editor page
+        self.note_editor.setFocus()
+
+    def discard_pending_note(self):
+        """Forget a note that was asked for but never written."""
+        self.pending_path = None
+        self.pending_card_id = None
+
+    def on_editor_changed(self):
+        """Realise a pending note, and keep an unnamed one's row label honest."""
+        self.write_pending_note()
+        self.sync_unnamed_row_label()
+
+    def sync_unnamed_row_label(self):
+        if not self.current_file_path:
             return
 
-        # Generate filename with timestamp
-        timestamp = int(time.time())
-        safe_name = name.replace(" ", "_").replace("/", "_").replace("\\", "_")
-        filename = f"{timestamp}_{safe_name}.md"
+        if not Path(self.current_file_path).stem.isdigit():
+            return
 
-        # Create notes directory if it doesn't exist
-        notes_dir = get_data_directory("tarot-canvas/notes") / card_id
-        notes_dir = str(notes_dir)
+        item = self.notes_list_widget.get_current_item()
+        if item is None or item.data(Qt.ItemDataRole.UserRole) != self.current_file_path:
+            return
+
+        item.setText(notes_model.first_line_of(self.note_editor.toPlainText()))
+
+    def write_pending_note(self):
+        """Give a pending note a file."""
+        if not self.pending_path or not self.note_editor.toPlainText().strip():
+            return
+
+        # A name typed into the header before anything was written belongs in the
+        # filename the note is about to get, not in a rename straight after it
+        file_path = renamed_path(self.pending_path, self.pending_name)
+        card_id = self.pending_card_id
+
         try:
-            os.makedirs(notes_dir, exist_ok=True)
-            logger.info(f"Created/verified notes directory: {notes_dir}")
-        except Exception as e:
-            error_msg = f"Failed to create notes directory: {e}"
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        except OSError as error:
+            error_msg = f"Failed to create notes directory: {error}"
             logger.error(error_msg)
             QMessageBox.critical(self, "Error", error_msg)
             return
 
-        # Create the file
-        file_path = str(Path(notes_dir) / filename)
-        try:
-            with open(file_path, "w", encoding="utf-8") as f:
-                f.write(f"# {name}\n\n")
+        self.pending_path = None
+        self.pending_card_id = None
+        self.current_file_path = file_path
 
-            # Add to list and select it
-            item = self.notes_list_widget.add_note(name, file_path, card_id, select=True)
+        # This both writes the file and re-reads the index that now includes it
+        self.save_note_to_file(file_path)
+        self.note_editor.document().setModified(False)
 
-            # Update all notes cache
-            self.all_notes[name] = {"card_id": card_id, "file_path": file_path}
-
-            # Open the editor with the new note
-            self.open_note_editor(item)
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Could not create note: {e}")
+        note = self.all_notes.get((card_id, file_path))
+        label = row_label(note) if note else ""
+        self.notes_list_widget.add_note(label, file_path, card_id, select=True)
 
     def delete_current_note(self):
         """Delete the currently selected note"""
@@ -328,10 +426,8 @@ class NotesTab(QWidget):
             self.notes_list_widget.remove_item(current_item)
 
             # Remove from all notes cache
-            for name, info in list(self.all_notes.items()):
-                if info["file_path"] == file_path:
-                    del self.all_notes[name]
-                    break
+            self.load_all_notes()
+            note_events().notes_changed.emit()
 
             # Show empty state if no more notes
             if self.notes_list_widget.notes_list.count() == 0:
@@ -341,68 +437,25 @@ class NotesTab(QWidget):
             QMessageBox.critical(self, "Error", f"Could not delete note: {e}")
 
     def rename_current_note(self):
-        """Rename the currently selected note"""
+        """Rename the selected note from the manage menu."""
         current_item = self.notes_list_widget.get_current_item()
         if not current_item:
             return
 
-        # Get current name
-        current_name = current_item.text()
+        file_path = current_item.data(Qt.ItemDataRole.UserRole)
+        current_name = notes_model.display_name_from_filename(os.path.basename(file_path))
 
-        # Ask for new name
         new_name, ok = QInputDialog.getText(
             self, "Rename Note", "Enter a new name for this note:", text=current_name
         )
 
-        if not ok or not new_name or new_name == current_name:
+        if not ok or new_name == current_name:
             return
 
-        # Get the file path
-        file_path = current_item.data(Qt.ItemDataRole.UserRole)
-
-        # Generate new filename
-        dirname = os.path.dirname(file_path)
-        filename = os.path.basename(file_path)
-
-        # Keep the timestamp prefix if it exists
-        if "_" in filename:
-            timestamp = filename.split("_", 1)[0]
-            safe_name = new_name.replace(" ", "_").replace("/", "_").replace("\\", "_")
-            new_filename = f"{timestamp}_{safe_name}.md"
-        else:
-            # If no timestamp, add one
-            timestamp = int(time.time())
-            safe_name = new_name.replace(" ", "_").replace("/", "_").replace("\\", "_")
-            new_filename = f"{timestamp}_{safe_name}.md"
-
-        new_file_path = str(Path(dirname) / new_filename)
-
-        # Rename the file
-        try:
-            os.rename(file_path, new_file_path)
-
-            # Update item
-            current_item.setText(new_name)
-            current_item.setData(Qt.ItemDataRole.UserRole, new_file_path)
-
-            # Update all notes cache
-            card_id = current_item.data(Qt.ItemDataRole.UserRole + 1)
-
-            # Remove old entry
-            for name, info in list(self.all_notes.items()):
-                if info["file_path"] == file_path:
-                    del self.all_notes[name]
-                    break
-
-            # Add new entry
-            self.all_notes[new_name] = {"card_id": card_id, "file_path": new_file_path}
-
-            # Update current file path and title if this is the active note
-            if self.current_file_path == file_path:
-                self.current_file_path = new_file_path
-                self.note_title.setText(new_name)
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Could not rename note: {e}")
+        if self.rename_note_to(file_path, new_name) and self.current_file_path == renamed_path(
+            file_path, new_name
+        ):
+            self.note_title.setText(new_name)
 
     def export_current_note(self):
         """Export the currently selected note to a file"""
@@ -436,50 +489,24 @@ class NotesTab(QWidget):
     # Helper methods
 
     def load_all_notes(self):
-        """Load information about all notes across all cards for linking"""
-        self.all_notes = {}
-
-        # Base notes directory
-        base_dir = get_data_directory("tarot-canvas/notes")
-        base_dir = str(base_dir)
-        if not os.path.exists(base_dir):
-            return
-
-        # Loop through all card directories
-        for card_dir in os.listdir(base_dir):
-            card_path = os.path.join(base_dir, card_dir)
-            if os.path.isdir(card_path):
-                # Loop through all notes in this card directory
-                for filename in os.listdir(card_path):
-                    if filename.endswith(".md"):
-                        file_path = os.path.join(card_path, filename)
-                        display_name = self.get_display_name_from_filename(filename)
-
-                        # Store info about this note
-                        self.all_notes[display_name] = {"card_id": card_dir, "file_path": file_path}
-
-    def get_display_name_from_filename(self, filename):
-        """Extract a display name from a note filename"""
-        # Remove extension
-        name = filename.rsplit(".", 1)[0]
-
-        # Remove timestamp prefix if it exists
-        if "_" in name:
-            parts = name.split("_", 1)
-            if len(parts) > 1 and parts[0].isdigit():
-                name = parts[1]
-
-        # Replace underscores with spaces
-        name = name.replace("_", " ")
-
-        return name
+        """Re-read every note in the library, for linking"""
+        self.notes_index = notes_model.scan()
+        self.all_notes = {
+            (note.card_id, str(note.path)): note
+            for notes in self.notes_index.values()
+            for note in notes
+        }
 
     def get_link_suggestions(self):
         """Get suggestions for auto-completion when linking"""
         suggestions = []
 
-        # Add all note names
-        suggestions.extend(list(self.all_notes.keys()))
+        # Add all note names, first occurrence wins so the order is stable
+        seen = set()
+        for note in self.all_notes.values():
+            if note.title and note.title not in seen:
+                seen.add(note.title)
+                suggestions.append(note.title)
 
         # Add card references if deck manager is available
         if self.parent_tab and hasattr(self.parent_tab, "deck_manager"):
@@ -506,6 +533,14 @@ class NotesTab(QWidget):
 
         self.save_note_to_file(self.current_file_path)
         self.note_editor.document().setModified(False)
+
+    def save_if_modified(self):
+        """Persist the open note if it has unsaved edits."""
+        if self.current_file_path and self.note_editor.document().isModified():
+            self.save_note_to_file(self.current_file_path)
+            self.note_editor.document().setModified(False)
+            return True
+        return False
 
     def save_note_to_file(self, file_path):
         """Save note content to a specific file"""
@@ -536,6 +571,9 @@ class NotesTab(QWidget):
 
             # Update modification time in file metadata
             os.utime(file_path, None)
+
+            self.load_all_notes()
+            note_events().notes_changed.emit()
 
             # Show temporary success message if main window is available
             from PyQt6.QtWidgets import QApplication
@@ -600,16 +638,35 @@ class NotesTab(QWidget):
                     )
                     return
 
+    def find_note_by_title(self, note_name):
+        """A title is not unique across cards: prefer this card's, then the newest.
+
+        An empty needle matches nothing: every unnamed note has title "", so `[[]]` would
+        otherwise resolve to all of them at once.
+        """
+        if not note_name:
+            return None
+
+        matches = [note for note in self.all_notes.values() if note.title == note_name]
+        if not matches:
+            return None
+
+        if self.current_card:
+            card_id = self.current_card.get("id")
+            here = [note for note in matches if note.card_id == card_id]
+            if here:
+                return max(here, key=lambda note: note.modified)
+
+        return max(matches, key=lambda note: note.modified)
+
     def navigate_to_note(self, note_name):
         """Navigate to a specific note by name"""
-        # Check if the note exists in our cache
-        if note_name in self.all_notes:
-            note_info = self.all_notes[note_name]
-
+        note_info = self.find_note_by_title(note_name)
+        if note_info:
             # If it's a note for a different card, navigate to that card first
             if (
                 self.current_card
-                and note_info["card_id"] != self.current_card.get("id")
+                and note_info.card_id != self.current_card.get("id")
                 and self.parent_tab
                 and hasattr(self.parent_tab, "deck_manager")
             ):
@@ -620,7 +677,7 @@ class NotesTab(QWidget):
                     # Find the card by ID
                     cards = getattr(ref_deck, "get_all_cards", lambda: ref_deck._cards)()
                     for card in cards:
-                        if card["id"] == note_info["card_id"]:
+                        if card["id"] == note_info.card_id:
                             # Emit signal to navigate to this card
                             self.parent_tab.navigation_requested.emit(
                                 "open_card_view",
@@ -639,12 +696,11 @@ class NotesTab(QWidget):
     # Add this method to ensure saving when the tab is closed
     def closeEvent(self, event):
         """Save notes when tab is closed"""
-        if self.current_file_path and self.note_editor.document().isModified():
-            self.save_note_to_file(self.current_file_path)
+        self.save_if_modified()
         super().closeEvent(event)
 
     def auto_save(self):
         """Automatically save the current note if modified"""
-        if self.current_file_path and self.note_editor.document().isModified():
-            self.save_note_to_file(self.current_file_path)
-            logger.debug(f"Auto-saved note: {self.current_file_path}")
+        path = self.current_file_path
+        if self.save_if_modified():
+            logger.debug(f"Auto-saved note: {path}")

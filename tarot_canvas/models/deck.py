@@ -3,6 +3,7 @@ import os
 import random
 import tomllib
 
+from tarot_canvas.models.card_ids import COURTS, MAJOR_ARCANA_COUNT, PIPS, SUITS
 from tarot_canvas.utils.logger import logger
 
 CANONICAL_MAJOR_ARCANA_NAMES = {
@@ -150,7 +151,7 @@ class TarotDeck:
         cards.extend(self._load_major_arcana_cards())
 
         # Load minor arcana cards
-        for suit in ["wands", "cups", "swords", "pentacles"]:
+        for suit in SUITS:
             cards.extend(self._load_minor_arcana_cards(suit))
 
         # Add custom cards if any
@@ -177,7 +178,7 @@ class TarotDeck:
         alt_texts = self._load_localized_alt_texts()
 
         # Standard major arcana: 0-21
-        for i in range(22):
+        for i in range(MAJOR_ARCANA_COUNT):
             card_id = f"major_arcana.{i:02d}"
 
             # Try to get name from localized names, fallback to default
@@ -231,14 +232,12 @@ class TarotDeck:
         display_suit = self.get_display_suit_name(suit)
 
         # Process numbered cards (ace through ten)
-        ranks = ["ace", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]
-        for rank in ranks:
+        for rank in PIPS:
             card = self._build_minor_arcana_card(suit, rank, display_suit, names, alt_texts)
             cards.append(card)
 
         # Process court cards
-        courts = ["page", "knight", "queen", "king"]
-        for court in courts:
+        for court in COURTS:
             card = self._build_court_card(suit, court, display_suit, names, alt_texts)
             cards.append(card)
 

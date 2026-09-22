@@ -1,9 +1,22 @@
+import contextlib
 import os
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QFrame, QGridLayout, QLabel, QVBoxLayout, QWidget
 
+from tarot_canvas.models.note_events import note_events
 from tarot_canvas.ui.card_transfer import deck_path_key
+from tarot_canvas.ui.library import units
+from tarot_canvas.ui.tabs.card_view.headings import SECTION_SCALE, TITLE_SCALE, apply_heading
+from tarot_canvas.ui.tabs.card_view.notes_section import NotesSection
+
+
+def _disconnect_on_destroy(connection):
+    def disconnect(_object=None):
+        with contextlib.suppress(RuntimeError, TypeError):
+            note_events().notes_changed.disconnect(connection)
+
+    return disconnect
 
 
 class OverviewTab(QWidget):
@@ -38,11 +51,15 @@ class OverviewTab(QWidget):
         self.description_header = None
         self.description_label = None
 
+        # Notes
+        self.notes_section = None
+
         self.setup_ui()
 
     def setup_ui(self):
         """Set up the overview tab UI"""
         layout = QVBoxLayout(self)
+        layout.setSpacing(0)
 
         if not self.card:
             layout.addWidget(QLabel("No card information available"))
@@ -50,7 +67,7 @@ class OverviewTab(QWidget):
 
         # Card name at the top
         self.name_label = QLabel(self.card["name"])
-        self.name_label.setStyleSheet("font-size: 18px; font-weight: bold;")
+        apply_heading(self.name_label, TITLE_SCALE)
         self.name_label.setObjectName("name_label")
         layout.addWidget(self.name_label)
 
@@ -125,21 +142,30 @@ class OverviewTab(QWidget):
         self.info_grid.addWidget(self.deck_value, 4, 1, Qt.AlignmentFlag.AlignTop)
 
         # Add the frame to the layout with some spacing
-        layout.addSpacing(10)
+        layout.addSpacing(units.LARGE_SPACING)
         layout.addWidget(self.info_frame)
-        layout.addSpacing(10)
+        layout.addSpacing(units.LARGE_SPACING)
 
-        # Add description text to the overview tab
-        self.description_header = QLabel("Description:")
-        self.description_header.setStyleSheet("font-weight: bold;")
+        self.description_header = QLabel("Description")
+        apply_heading(self.description_header, SECTION_SCALE)
         self.description_header.setObjectName("description_header")
         layout.addWidget(self.description_header)
+        layout.addSpacing(units.SMALL_SPACING)
 
         self.description_label = QLabel()
         self.description_label.setWordWrap(True)
         self.description_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.description_label.setObjectName("description_label")
         layout.addWidget(self.description_label)
+
+        layout.addSpacing(units.LARGE_SPACING)
+        self.notes_section = NotesSection(self)
+        self.notes_section.noteActivated.connect(self.on_note_activated)
+        self.notes_section.createRequested.connect(self.on_create_note)
+        layout.addWidget(self.notes_section)
+
+        connection = note_events().notes_changed.connect(self.refresh_notes)
+        self.destroyed.connect(_disconnect_on_destroy(connection))
 
         # Add stretch to push everything to the top
         layout.addStretch()
@@ -233,3 +259,35 @@ class OverviewTab(QWidget):
         elif self.description_label and self.description_header:
             self.description_header.setVisible(False)
             self.description_label.setVisible(False)
+
+        self.refresh_notes()
+
+    def refresh_notes(self):
+        """Re-read this card's notes from the Notes tab's index."""
+        if not self.notes_section:
+            return
+
+        notes_tab = getattr(self.parent_tab, "notes_tab", None)
+        card_id = self.card.get("id") if self.card else None
+        if not notes_tab or not card_id:
+            self.notes_section.set_notes([])
+            return
+
+        self.notes_section.set_notes(notes_tab.notes_index.get(card_id, []))
+
+    def on_note_activated(self, file_path):
+        """Open a listed note where notes are edited, which is the Notes tab."""
+        notes_tab = getattr(self.parent_tab, "notes_tab", None)
+        if not notes_tab:
+            return
+
+        self.parent_tab.show_notes_tab()
+        notes_tab.open_note_path(file_path)
+
+    def on_create_note(self):
+        notes_tab = getattr(self.parent_tab, "notes_tab", None)
+        if not notes_tab:
+            return
+
+        self.parent_tab.show_notes_tab()
+        notes_tab.create_new_note()
