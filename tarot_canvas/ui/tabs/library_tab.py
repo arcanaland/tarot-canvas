@@ -237,12 +237,10 @@ class LibraryTab(BaseTab):
         ]
 
     def _build_sidebar(self):
-        """One row per view, like Dolphin's Places panel: no frame, on the window colour"""
+        """One row per view (inspired by Dolphin's Places panel)"""
         self.sidebar = QListWidget()
         self.sidebar.setViewMode(QListView.ViewMode.ListMode)
         self.sidebar.setFrameShape(QFrame.Shape.NoFrame)
-        # KFilePlacesView makes its viewport transparent; not filling it does the same and
-        # still follows a colour scheme change
         self.sidebar.viewport().setAutoFillBackground(False)
         self.sidebar.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.sidebar.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -260,8 +258,7 @@ class LibraryTab(BaseTab):
             self.sidebar.sizeHintForColumn(0) + 2 * units.LARGE_SPACING + units.GRID_UNIT
         )
 
-        # Centre the first row on the header row, so Decks sits level with the search field.
-        # The header's controls are taller than a row, so its margin alone lands short.
+        # Center the first row on the header row
         spacing = self.sidebar.spacing()
         row_height = self.sidebar.sizeHintForRow(0)
         top = self.header.sizeHint().height() // 2 - row_height // 2 - spacing

@@ -1,5 +1,3 @@
-"""The Library's notes view: every note as a list, newest first, and a per-card pane."""
-
 from PyQt6.QtCore import QEvent, QItemSelectionModel, Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QAbstractItemView,
@@ -49,7 +47,6 @@ class NotesPage(QWidget):
         self.details_pane = NotesDetailsPane()
         self.details_pane.open_card_requested.connect(self.card_activated)
 
-        # A slot's connection dies with the widget, so a closed library hears nothing
         note_events().notes_changed.connect(self.refresh)
 
         self._update_empty_state()
@@ -87,7 +84,7 @@ class NotesPage(QWidget):
         self.list_model.set_deck(deck)
 
     def refresh(self):
-        """Re-read the whole corpus. 78 listdirs at worst, and only after a write."""
+        """Re-read the whole corpus."""
         card_id = self._current_card_id()
         self.list_model.set_index(notes_model.scan(self._base))
         if card_id:
@@ -96,7 +93,7 @@ class NotesPage(QWidget):
         self._refresh_details()
 
     def select_card(self, card_id):
-        """Select the newest note on the card; the list is newest first, so the first row."""
+        """Select the newest note on the card."""
         for row in range(self.list_model.rowCount()):
             index = self.list_model.index(row, 0)
             if index.data(CardIdRole) == card_id:
@@ -134,7 +131,6 @@ class NotesPage(QWidget):
         return index.data(CardIdRole) if index.isValid() else None
 
     def _show_details(self, index):
-        # A note row shows its card: the pane is per-card
         self._show_card(index.data(CardIdRole))
 
     def _show_card(self, card_id):
@@ -144,7 +140,6 @@ class NotesPage(QWidget):
             self.details_changed.emit()
 
     def _details_for_card(self, card_id):
-        """Read from the index, not from a row, so a filtered-out card still shows."""
         if not card_id:
             return None
         return CardNotesDetails(

@@ -4,7 +4,7 @@ import os
 
 import pytest
 from PyQt6.QtCore import QItemSelectionModel, Qt
-from PyQt6.QtGui import QPalette
+from PyQt6.QtGui import QFontDatabase, QPalette
 from PyQt6.QtWidgets import QFrame, QTabBar
 
 from tarot_canvas.models import notes as notes_model
@@ -372,7 +372,13 @@ def test_a_write_keeps_the_selection_and_refreshes_the_pane(library, notes_base)
 # -- words ---------------------------------------------------------------
 
 
-def test_an_unwritten_string_hides_the_element_it_labels(library, notes_base):
+@pytest.fixture
+def unwritten_strings(monkeypatch):
+    for key in ("empty_no_match", "open_card", "search_placeholder"):
+        monkeypatch.setitem(notes_text_module.NOTES_TEXT, key, "")
+
+
+def test_an_unwritten_string_hides_the_element_it_labels(unwritten_strings, library, notes_base):
     """Every string in this view is Adam's; until he writes one, nothing speaks for him."""
     page = notes_view(library)
     page.set_search("nothing matches this")
@@ -393,6 +399,19 @@ def test_a_written_string_shows_its_element(library, notes_base, monkeypatch):
 
     assert not page.details_pane.open_button.isHidden()
     assert page.details_pane.open_button.text() == "Open card"
+
+
+def test_the_card_id_is_bare_and_in_the_system_fixed_width_font(library, notes_base):
+    write_note(notes_base, FOOL)
+    page = notes_view(library)
+    page.refresh()
+
+    select(page, FOOL)
+
+    label = page.details_pane.card_id_label
+    fixed = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
+    assert label.text() == FOOL
+    assert label.font().family() == fixed.family()
 
 
 def test_the_notes_view_uses_no_stylesheet_of_its_own(library):

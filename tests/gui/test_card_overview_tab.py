@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtGui import QFontDatabase
 from PyQt6.QtWidgets import QWidget
 
 from tarot_canvas.ui.tabs.card_view.overview_tab import OverviewTab
@@ -93,3 +94,11 @@ def test_switching_card_type_keeps_the_info_frame(qtbot):
     assert tab.info_frame.isVisible()
     assert tab.number_value.isVisible()
     assert not tab.suit_value.isVisible()
+
+
+def test_the_canonical_id_is_in_the_system_fixed_width_font(qtbot):
+    tab = make_tab(qtbot, MINOR)
+    fixed = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
+
+    assert tab.id_label.text() == "minor_arcana.cups.3"
+    assert tab.id_label.font().family() == fixed.family()

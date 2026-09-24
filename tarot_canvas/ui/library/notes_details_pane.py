@@ -1,9 +1,3 @@
-"""The notes view's details pane: one card, and what is written on it.
-
-Deliberately read-only. Every write to a note goes through the card view's Notes
-tab, so there is one code path that mutates a file and one autosave timer over it.
-"""
-
 from PyQt6.QtCore import QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QFontMetrics, QIcon, QPainter, QPalette
 from PyQt6.QtWidgets import (
@@ -40,7 +34,9 @@ class NotesDetailsPane(QWidget):
             units.scaled_font(self.heading_label.font(), self.HEADING_SCALE, bold=True)
         )
         self.card_id_label = _pane_text()
-        self.card_id_label.setFont(units.scaled_font(self.card_id_label.font(), self.CAPTION_SCALE))
+        self.card_id_label.setFont(
+            units.fixed_font(units.scaled_font(self.card_id_label.font(), self.CAPTION_SCALE))
+        )
         self.card_id_label.setForegroundRole(QPalette.ColorRole.PlaceholderText)
 
         heading_column = QVBoxLayout()
@@ -56,8 +52,6 @@ class NotesDetailsPane(QWidget):
         header.addWidget(self.cover, 0, Qt.AlignmentFlag.AlignTop)
         header.addLayout(heading_column, 1)
 
-        self.notes_group_label = _pane_text()
-        self.notes_group_label.setFont(units.scaled_font(self.notes_group_label.font(), bold=True))
         self.empty_label = _pane_text()
         self.empty_label.setEnabled(False)
 
@@ -71,7 +65,6 @@ class NotesDetailsPane(QWidget):
         body.setSpacing(units.LARGE_SPACING)
         body.addLayout(header)
         body.addSpacing(units.LARGE_SPACING)
-        body.addWidget(self.notes_group_label)
         body.addLayout(self.notes_column)
         body.addWidget(self.empty_label)
         body.addStretch(1)
@@ -85,7 +78,6 @@ class NotesDetailsPane(QWidget):
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.scroll_area.setWidget(content)
 
-        # Hidden until Adam has a word for it; the list opens a card by activation
         self.open_button = QPushButton(QIcon.fromTheme("document-open"), notes_text("open_card"))
         self.open_button.clicked.connect(self._on_open)
         self.open_button.setVisible(bool(notes_text("open_card")))
@@ -112,14 +104,9 @@ class NotesDetailsPane(QWidget):
         self.heading_label.setText(details.name or "")
         self.heading_label.setVisible(bool(details.name))
 
-        label = notes_text("card_id_label")
-        self.card_id_label.setText(f"{label} {details.card_id}" if label else details.card_id)
+        self.card_id_label.setText(details.card_id)
 
         self.cover.set_path(details.cover_path)
-
-        group = notes_text("notes_group_label")
-        self.notes_group_label.setText(group)
-        self.notes_group_label.setVisible(bool(group) and bool(details.notes))
 
         self._rebuild_notes(details.notes)
 
@@ -134,7 +121,6 @@ class NotesDetailsPane(QWidget):
             self.scroll_area.verticalScrollBar().setValue(0)
 
     def note_widgets(self):
-        """The per-note blocks now shown, top to bottom."""
         return [self.notes_column.itemAt(row).widget() for row in range(self.notes_column.count())]
 
     def _rebuild_notes(self, notes):
@@ -154,8 +140,6 @@ class NotesDetailsPane(QWidget):
 
 
 class _NoteBlock(QWidget):
-    """One note: what it's called, when it was written, and how it opens."""
-
     CAPTION_SCALE = 0.85
 
     def __init__(self, note, parent=None):
@@ -169,7 +153,6 @@ class _NoteBlock(QWidget):
         date.setFont(units.scaled_font(date.font(), self.CAPTION_SCALE))
         date.setForegroundRole(QPalette.ColorRole.PlaceholderText)
 
-        # A stub the user made and left says so only once Adam has the words for it
         first_line = notes_model.first_body_line(note) or notes_text("stub_note")
         self.body_label = _ElidedLabel(first_line)
         self.body_label.setVisible(bool(first_line))
@@ -183,7 +166,7 @@ class _NoteBlock(QWidget):
 
 
 class _ElidedLabel(QLabel):
-    """One line of the note, cut at the pane's edge rather than widening it."""
+    """One line of the note."""
 
     def __init__(self, text="", parent=None):
         super().__init__(text, parent)
@@ -204,7 +187,6 @@ class _ElidedLabel(QLabel):
 
 def _pane_text(text=""):
     label = QLabel(text)
-    # A note is the user's own writing, shown as written
     label.setTextFormat(Qt.TextFormat.PlainText)
     label.setWordWrap(True)
     label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)

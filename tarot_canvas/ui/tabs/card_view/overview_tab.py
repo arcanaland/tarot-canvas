@@ -2,7 +2,7 @@ import contextlib
 import os
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QFrame, QGridLayout, QLabel, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from tarot_canvas.models.note_events import note_events
 from tarot_canvas.ui.card_transfer import deck_path_key
@@ -72,10 +72,19 @@ class OverviewTab(QWidget):
         layout.addWidget(self.name_label)
 
         # Card ID below name
-        self.id_label = QLabel(f"ID: {self.card['id']}")
+        id_prefix = QLabel("ID:")
+        id_prefix.setStyleSheet("color: gray;")
+        self.id_label = QLabel(self.card["id"])
+        self.id_label.setFont(units.fixed_font(self.id_label.font()))
         self.id_label.setStyleSheet("color: gray;")
         self.id_label.setObjectName("id_label")
-        layout.addWidget(self.id_label)
+        id_row = QHBoxLayout()
+        id_row.setContentsMargins(0, 0, 0, 0)
+        id_row.setSpacing(units.SMALL_SPACING)
+        id_row.addWidget(id_prefix)
+        id_row.addWidget(self.id_label)
+        id_row.addStretch(1)
+        layout.addLayout(id_row)
 
         # Create a grid for structured information
         self.info_grid = QGridLayout()
@@ -224,7 +233,7 @@ class OverviewTab(QWidget):
             self.name_label.setText(card["name"])
 
         if self.id_label:
-            self.id_label.setText(f"ID: {card['id']}")
+            self.id_label.setText(card["id"])
 
         if self.type_value:
             self.type_value.setText(card["type"].replace("_", " ").title())

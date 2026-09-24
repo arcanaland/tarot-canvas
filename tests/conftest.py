@@ -38,12 +38,7 @@ DECK_MANAGER_CONSUMERS = [
 
 @pytest.fixture(autouse=True)
 def isolated_settings(tmp_path, monkeypatch):
-    """Give each test its own QSettings file.
-
-    QSettings keys its in-process cache by organization and application, not by the
-    path the environment points at, so a moved XDG_CONFIG_HOME alone leaves one
-    test reading what the last one wrote.
-    """
+    """Give each test its own QSettings file."""
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     from tarot_canvas.settings import get_settings
 

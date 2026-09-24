@@ -1,20 +1,15 @@
-"""The notes index as a list: one row per note, newest first.
-
-The list's order is the clock, which the user can't change, so the model filters
-itself rather than sitting behind a proxy.
-"""
-
-from PyQt6.QtCore import QAbstractListModel, QDateTime, QLocale, Qt
+from PyQt6.QtCore import QAbstractListModel, Qt
 
 from tarot_canvas.models import notes as notes_model
 from tarot_canvas.ui.library.deck_model import CoverPathRole, SubtitleRole
 from tarot_canvas.ui.library.notes_text import text as notes_text
+from tarot_canvas.utils.dates import relative_date_from_timestamp
 
 CardIdRole = Qt.ItemDataRole.UserRole + 11
 NoteRole = Qt.ItemDataRole.UserRole + 13
 PreviewRole = Qt.ItemDataRole.UserRole + 15
 
-SUBTITLE_SEPARATOR = " • "  # the deck grid's, so the two views punctuate alike
+SUBTITLE_SEPARATOR = " • "
 
 
 def card_in(deck, card_id):
@@ -22,12 +17,12 @@ def card_in(deck, card_id):
         return None
     try:
         return deck.get_card_by_id(card_id)
-    except Exception:  # a deck is someone else's file; a bad one must not blank the list
+    except Exception:
         return None
 
 
 def card_name(deck, card_id):
-    """The deck's name for the card, falling back to the id it is filed under."""
+    """The deck's name for the card."""
     card = card_in(deck, card_id)
     name = (card or {}).get("name")
     return name or card_id
@@ -39,23 +34,13 @@ def card_cover_path(deck, card_id):
 
 
 def modified_text(modified):
-    """A note's date. Adam's phrasing when he has written one, else the locale's."""
-    stamp = QDateTime.fromSecsSinceEpoch(int(modified))
+    date = relative_date_from_timestamp(modified)
     template = notes_text("relative_date")
-    if template:
-        return template.format(date=QLocale().toString(stamp, QLocale.FormatType.ShortFormat))
-    return QLocale().toString(stamp, QLocale.FormatType.ShortFormat)
+    return template.format(date=date) if template else date
 
 
 class NotesListModel(QAbstractListModel):
-    """One row per note across the whole library, newest first.
-
-    A note under a directory name the app no longer knows as a card appears here and
-    nowhere else, which is the point: it is how such a note stays reachable.
-
-    Each row's preview line is read when the rows are rebuilt, so painting never
-    touches the disk.
-    """
+    """across the whole library"""
 
     def __init__(self, index=None, deck=None, parent=None):
         super().__init__(parent)
@@ -92,11 +77,10 @@ class NotesListModel(QAbstractListModel):
         return self._search
 
     def total_rows(self):
-        """How many rows there would be with no search, so a view can tell the two empties apart."""
         return sum(len(notes) for notes in self._index.values())
 
     def notes_for(self, card_id):
-        """Every note on a card, whether or not the search hides its rows."""
+        """Every note on a card."""
         return self._index.get(card_id, [])
 
     def deck(self):
@@ -119,7 +103,6 @@ class NotesListModel(QAbstractListModel):
         self._rows.sort(key=lambda row: row[0].modified, reverse=True)
 
     def _matches(self, note):
-        """Title and card name first, the body only when nothing cheaper matched."""
         if not self._search:
             return True, None
 

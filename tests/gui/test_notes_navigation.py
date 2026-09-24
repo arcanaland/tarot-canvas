@@ -1,5 +1,3 @@
-"""From a row in the notes list to the note itself, and back to one Library."""
-
 import pytest
 
 from tarot_canvas.models import notes as notes_model

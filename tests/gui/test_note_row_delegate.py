@@ -1,5 +1,3 @@
-"""A note row: the card's art beside a title, the card and date, and a preview line."""
-
 from types import SimpleNamespace
 
 import pytest

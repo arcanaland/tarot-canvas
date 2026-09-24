@@ -3,15 +3,18 @@
 from types import SimpleNamespace
 
 import pytest
+from PyQt6.QtCore import QDateTime
 
 from tarot_canvas.models import notes as notes_model
 from tarot_canvas.models.notes import Note
+from tarot_canvas.ui.library import notes_text as notes_text_module
 from tarot_canvas.ui.library.deck_model import SubtitleRole
 from tarot_canvas.ui.library.notes_model import (
     CardIdRole,
     NoteRole,
     NotesListModel,
     PreviewRole,
+    modified_text,
 )
 
 FOOL = "major_arcana.00"
@@ -183,3 +186,10 @@ def test_a_search_that_matches_nothing_empties_the_list(tmp_path, deck):
 
     assert model.rowCount() == 0
     assert model.total_rows() == 1
+
+
+def test_the_modified_date_reads_like_the_about_box(monkeypatch):
+    monkeypatch.setitem(notes_text_module.NOTES_TEXT, "relative_date", "")
+    yesterday = QDateTime.currentDateTime().addDays(-1).toSecsSinceEpoch()
+
+    assert modified_text(yesterday) == "Yesterday"

@@ -1,5 +1,3 @@
-"""A note as a row: the card's art, then its title, the card and date, and its opening line."""
-
 from dataclasses import dataclass
 
 from PyQt6.QtCore import QRect, QSize, Qt
@@ -13,7 +11,7 @@ from tarot_canvas.ui.library.deck_model import CoverPathRole, SubtitleRole
 from tarot_canvas.ui.library.ghost_paint import paint_placeholder_well
 from tarot_canvas.ui.library.notes_model import PreviewRole
 
-THUMBNAIL_ASPECT = 0.57  # width over height, near enough every tarot card's
+THUMBNAIL_ASPECT = 0.57
 
 
 @dataclass(frozen=True)
@@ -25,8 +23,6 @@ class NoteRowLayout:
 
 
 class NoteRowDelegate(QStyledItemDelegate):
-    """Three lines of text beside a thumbnail as tall as they are, the same for every row."""
-
     def __init__(self, parent=None, cover_cache=None):
         super().__init__(parent)
         self._cover_cache = cover_cache or CoverCache()
@@ -38,7 +34,6 @@ class NoteRowDelegate(QStyledItemDelegate):
         )
 
     def _line_heights(self, option):
-        # Measured unbolded, so selecting a row never moves its lines
         title, small = self._fonts(option, False)
         return QFontMetrics(title).height(), QFontMetrics(small).height()
 

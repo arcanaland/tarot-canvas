@@ -646,10 +646,7 @@ class MainWindow(QMainWindow):
             return None
 
     def new_library_tab(self, view=None):
-        """Raise the Library, making one only if there is none.
-
-        Every link into the Library would otherwise open another copy of it.
-        """
+        """Create one only if there are none"""
         library_tab = self.find_library_tab()
         if library_tab is None:
             library_tab = LibraryTab()
@@ -659,6 +656,7 @@ class MainWindow(QMainWindow):
         if view:
             library_tab.show_view(view)
         self.tab_widget.setCurrentWidget(library_tab)
+
         return library_tab
 
     def find_library_tab(self):
