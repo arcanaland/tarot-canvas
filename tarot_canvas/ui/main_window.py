@@ -645,11 +645,28 @@ class MainWindow(QMainWindow):
             logger.exception("Error creating deck view tab")
             return None
 
-    def new_library_tab(self):
-        library_tab = LibraryTab()
-        self.close_welcome_tab()
-        self.tab_widget.addTab(library_tab, "Library")
+    def new_library_tab(self, view=None):
+        """Raise the Library, making one only if there is none.
+
+        Every link into the Library would otherwise open another copy of it.
+        """
+        library_tab = self.find_library_tab()
+        if library_tab is None:
+            library_tab = LibraryTab()
+            self.close_welcome_tab()
+            self.tab_widget.addTab(library_tab, "Library")
+
+        if view:
+            library_tab.show_view(view)
         self.tab_widget.setCurrentWidget(library_tab)
+        return library_tab
+
+    def find_library_tab(self):
+        for index in range(self.tab_widget.count()):
+            tab = self.tab_widget.widget(index)
+            if isinstance(tab, LibraryTab):
+                return tab
+        return None
 
     def new_card_view_tab(self):
         self.add_card_tab(CardViewTab(), "Card View", close_welcome=True)
@@ -924,7 +941,7 @@ class MainWindow(QMainWindow):
             # Always open the card view for this action
             self.on_explorer_card_selected(action, card, deck)
 
-    def open_card_view_tab(self, card, deck):
+    def open_card_view_tab(self, card, deck, show_notes=False):
         """Open a new tab to view a specific card"""
         # Check if we already have a tab open for this card
         for i in range(self.tab_widget.count()):
@@ -937,12 +954,14 @@ class MainWindow(QMainWindow):
             ):
                 # Tab exists, just select it
                 self.tab_widget.setCurrentWidget(tab)
+                if show_notes and hasattr(tab, "show_notes_tab"):
+                    tab.show_notes_tab()
                 return
 
         # Create a new card view tab
         from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 
-        card_tab = CardViewTab(card=card, deck=deck)
+        card_tab = CardViewTab(card=card, deck=deck, show_notes=show_notes)
         self.add_card_tab(card_tab, card.get("name", "Card"))
 
     def show_faqs(self):

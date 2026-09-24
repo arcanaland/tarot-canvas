@@ -39,11 +39,6 @@ def renamed_path(file_path, new_name):
     return str(Path(directory) / filename)
 
 
-def row_label(note):
-    """name or opening line."""
-    return note.title or note.first_line
-
-
 class NotesTab(QWidget):
     """Tab for managing notes associated with a tarot card"""
 
@@ -188,7 +183,7 @@ class NotesTab(QWidget):
 
         card_notes = self.notes_index.get(card_id, [])
         for note in card_notes:
-            self.notes_list_widget.add_note(row_label(note), str(note.path), card_id)
+            self.notes_list_widget.add_note(notes_model.label(note), str(note.path), card_id)
 
         # Show notes list if there are notes, empty state otherwise
         self.stack.setCurrentIndex(1 if card_notes else 0)
@@ -285,7 +280,7 @@ class NotesTab(QWidget):
 
         if item is not None:
             note = self.all_notes.get((self.pending_card_id or self.card_id(), new_file_path))
-            item.setText(row_label(note) if note else new_name)
+            item.setText(notes_model.label(note) if note else new_name)
 
         note_events().notes_changed.emit()
         return new_file_path
@@ -395,7 +390,7 @@ class NotesTab(QWidget):
         self.note_editor.document().setModified(False)
 
         note = self.all_notes.get((card_id, file_path))
-        label = row_label(note) if note else ""
+        label = notes_model.label(note) if note else ""
         self.notes_list_widget.add_note(label, file_path, card_id, select=True)
 
     def delete_current_note(self):

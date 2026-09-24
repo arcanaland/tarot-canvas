@@ -97,7 +97,7 @@ class NoteRow(ClickableWidget):
         self.title_label = ElidedLabel()
         self.title_label.setObjectName("notes_section_row_title")
         self.title_label.setFont(title_font)
-        self.title_label.set_full_text(note.title or note.first_line)
+        self.title_label.set_full_text(notes_model.label(note))
         layout.addWidget(self.title_label)
 
         self.date_label = ElidedLabel()

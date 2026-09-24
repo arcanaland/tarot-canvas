@@ -275,7 +275,7 @@ class _Header(QWidget):
         self._path = None
         self._on_banner = False
         self._banner = CoverBanner(capacity=4)
-        self.cover = _Cover(QSize(*units.cover_size(units.DENSITY_SMALL)))
+        self.cover = CoverWidget(QSize(*units.cover_size(units.DENSITY_SMALL)))
 
         text = QVBoxLayout()
         text.setContentsMargins(0, 0, 0, 0)
@@ -325,7 +325,7 @@ class _Header(QWidget):
         super().paintEvent(event)
 
 
-class _Cover(QWidget):
+class CoverWidget(QWidget):
     """The cover at a fixed size, or the library's placeholder well"""
 
     def __init__(self, size, parent=None):
