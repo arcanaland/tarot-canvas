@@ -196,6 +196,11 @@ class CardViewTab(BaseTab):
         """Raise the Notes tab, whichever position it sits in."""
         self.info_tabs.setCurrentWidget(self.notes_tab)
 
+    def open_note(self, file_path):
+        """Open one of this card's notes where notes are edited, which is the Notes tab."""
+        self.show_notes_tab()
+        self.notes_tab.open_note_path(file_path)
+
     def on_info_tab_changed(self, _index):
         self.notes_tab.save_if_modified()
 

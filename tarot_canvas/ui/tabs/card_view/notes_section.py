@@ -13,13 +13,13 @@ from PyQt6.QtWidgets import (
 
 from tarot_canvas.models import notes as notes_model
 from tarot_canvas.ui.library import units
+from tarot_canvas.ui.notes_text import text
 from tarot_canvas.ui.palette import ghost_bar, muted_text, subtle_fill, with_text_colour
 from tarot_canvas.ui.tabs.card_view.headings import (
     SECTION_SCALE,
     SUBTITLE_SCALE,
     apply_heading,
 )
-from tarot_canvas.ui.tabs.card_view.notes_text import text
 from tarot_canvas.ui.tabs.card_view.passage_metrics import CORNER_RADIUS
 from tarot_canvas.utils.dates import relative_date_from_timestamp
 
@@ -38,6 +38,7 @@ class ElidedLabel(QLabel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.full_text = ""
+        self.setTextFormat(Qt.TextFormat.PlainText)
         self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
 
     def set_full_text(self, value):
@@ -97,7 +98,7 @@ class NoteRow(ClickableWidget):
         self.title_label = ElidedLabel()
         self.title_label.setObjectName("notes_section_row_title")
         self.title_label.setFont(title_font)
-        self.title_label.set_full_text(note.title or note.first_line)
+        self.title_label.set_full_text(notes_model.label(note))
         layout.addWidget(self.title_label)
 
         self.date_label = ElidedLabel()

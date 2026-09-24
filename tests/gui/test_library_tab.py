@@ -1,3 +1,4 @@
+from functools import lru_cache
 from types import SimpleNamespace
 
 import pytest
@@ -35,11 +36,27 @@ DECKS = [
 ]
 
 
+@lru_cache(maxsize=1)
+def _reference_deck():
+    from tarot_canvas.models.deck import TarotDeck
+    from tests.conftest import MINIMAL_DECK_PATH
+
+    return TarotDeck(str(MINIMAL_DECK_PATH))
+
+
+def deck_manager_stub(decks):
+    """The notes list draws the reference deck, so a library needs one either way."""
+    return SimpleNamespace(
+        get_all_decks=lambda: list(decks),
+        get_reference_deck=_reference_deck,
+    )
+
+
 @pytest.fixture
 def library(qtbot, monkeypatch):
     monkeypatch.setattr(
         "tarot_canvas.ui.tabs.library_tab.deck_manager",
-        SimpleNamespace(get_all_decks=lambda: list(DECKS)),
+        deck_manager_stub(DECKS),
     )
     tab = LibraryTab()
     qtbot.addWidget(tab)
@@ -58,6 +75,9 @@ def test_the_view_draws_no_frame_of_its_own(library):
 def test_no_stylesheet_hardcodes_colours(library):
     assert library.styleSheet() == ""
     assert library.view.styleSheet() == ""
+    assert library.sidebar.styleSheet() == ""
+    assert library.notes_page.list_view.styleSheet() == ""
+    assert library.notes_page.details_pane.styleSheet() == ""
 
 
 def test_the_grid_is_not_capped_at_four_columns(library):
@@ -133,7 +153,7 @@ def test_saved_density_is_restored_on_a_new_tab(library, qtbot, monkeypatch):
 
     monkeypatch.setattr(
         "tarot_canvas.ui.tabs.library_tab.deck_manager",
-        SimpleNamespace(get_all_decks=lambda: list(DECKS)),
+        deck_manager_stub(DECKS),
     )
     reopened = LibraryTab()
     qtbot.addWidget(reopened)
@@ -166,7 +186,7 @@ def test_decks_changed_refreshes_an_open_library(qtbot, monkeypatch):
     decks = list(DECKS)
     monkeypatch.setattr(
         "tarot_canvas.ui.tabs.library_tab.deck_manager",
-        SimpleNamespace(get_all_decks=lambda: list(decks)),
+        deck_manager_stub(decks),
     )
     tab = LibraryTab()
     qtbot.addWidget(tab)
@@ -186,7 +206,7 @@ def test_decks_changed_after_a_library_is_deleted_does_not_crash(qtbot, monkeypa
 
     monkeypatch.setattr(
         "tarot_canvas.ui.tabs.library_tab.deck_manager",
-        SimpleNamespace(get_all_decks=lambda: list(DECKS)),
+        deck_manager_stub(DECKS),
     )
     tab = LibraryTab()
     tab.show()
@@ -205,7 +225,7 @@ def test_decks_changed_after_a_library_is_closed_does_not_crash(qtbot, monkeypat
 
     monkeypatch.setattr(
         "tarot_canvas.ui.tabs.library_tab.deck_manager",
-        SimpleNamespace(get_all_decks=lambda: list(DECKS)),
+        deck_manager_stub(DECKS),
     )
     tab = LibraryTab()
     qtbot.addWidget(tab)
@@ -237,7 +257,7 @@ def installed(monkeypatch):
     decks = list(DECKS)
     monkeypatch.setattr(
         "tarot_canvas.ui.tabs.library_tab.deck_manager",
-        SimpleNamespace(get_all_decks=lambda: list(decks)),
+        deck_manager_stub(decks),
     )
     return decks
 
@@ -320,7 +340,8 @@ def test_a_click_opens_the_pane_on_the_clicked_deck(shown_library, qtbot):
 
 def test_a_keyboard_move_opens_the_pane(shown_library, qtbot):
     shown_library.view.setFocus()
-    shown_library.select_deck_path(DECKS[1].deck_path)
+    # Zodiac, which the default name sort puts second, so Left has somewhere to go
+    shown_library.select_deck_path(DECKS[0].deck_path)
     assert not shown_library.details_pane_is_open()
 
     qtbot.keyClick(shown_library.view, Qt.Key.Key_Left)
@@ -363,7 +384,7 @@ def test_a_close_is_remembered_and_selection_stops_opening_the_pane(
 
     monkeypatch.setattr(
         "tarot_canvas.ui.tabs.library_tab.deck_manager",
-        SimpleNamespace(get_all_decks=lambda: list(DECKS)),
+        deck_manager_stub(DECKS),
     )
     reopened = LibraryTab()
     qtbot.addWidget(reopened)

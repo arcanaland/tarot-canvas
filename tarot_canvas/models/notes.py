@@ -57,6 +57,11 @@ def _strip_heading(line):
     return line.lstrip("#").strip() if ATX_HEADING.match(line) else line
 
 
+def label(note):
+    """name or opening line."""
+    return note.title or note.first_line
+
+
 def first_line_of(content):
     for line in content.splitlines():
         if line.strip():
@@ -137,6 +142,9 @@ def _body_lines(path):
 
 def first_body_line(note):
     """The note's opening line of prose"""
+    if not note.has_body:
+        return ""
+
     lines = _body_lines(note.path)
 
     if not note.title and lines and lines[0] == note.first_line:

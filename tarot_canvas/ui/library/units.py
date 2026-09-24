@@ -1,4 +1,4 @@
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QFontDatabase
 
 SMALL_SPACING = 4
 LARGE_SPACING = 8
@@ -40,4 +40,14 @@ def scaled_font(base, scale=1.0, bold=None):
             font.setPixelSize(max(1, round(font.pixelSize() * scale)))
     if bold is not None:
         font.setBold(bold)
+    return font
+
+
+def fixed_font(base):
+    """The system's fixed-width font at `base`'s size, for canonical card ids."""
+    font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
+    if base.pointSizeF() > 0:
+        font.setPointSizeF(base.pointSizeF())
+    else:
+        font.setPixelSize(base.pixelSize())
     return font
