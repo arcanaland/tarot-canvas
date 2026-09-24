@@ -11,6 +11,9 @@ class BaseTab(QWidget):
     def flush_pending_edits(self):
         """Persist anything this tab is holding unsaved."""
 
+    def about_to_close(self):
+        """The tab is leaving the window for good; finish anything it left pending."""
+
     def set_placeholder(self, text):
         """Helper to show placeholder text in empty tabs"""
         placeholder = QLabel(text)

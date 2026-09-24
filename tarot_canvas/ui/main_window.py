@@ -670,6 +670,11 @@ class MainWindow(QMainWindow):
         self.add_card_tab(CardViewTab(), "Card View", close_welcome=True)
 
     def close_tab(self, index):
+        # removeTab neither deletes the page nor tells it it has gone
+        tab = self.tab_widget.widget(index)
+        if isinstance(tab, BaseTab):
+            tab.about_to_close()
+
         if self.tab_widget.count() > 1:  # Keep at least one tab open
             self.tab_widget.removeTab(index)
         else:

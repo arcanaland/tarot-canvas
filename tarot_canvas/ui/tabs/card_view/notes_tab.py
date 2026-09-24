@@ -3,28 +3,38 @@ import shutil
 import time
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QAction, QIcon
+from PyQt6.QtCore import Qt, QTimer, pyqtSlot
+from PyQt6.QtGui import QAction, QIcon, QKeySequence
 from PyQt6.QtWidgets import (
+    QApplication,
     QFileDialog,
+    QFrame,
     QHBoxLayout,
-    QInputDialog,
     QLineEdit,
     QMenu,
     QMessageBox,
     QPushButton,
     QStackedWidget,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
 from tarot_canvas.models import notes as notes_model
 from tarot_canvas.models.note_events import note_events
+from tarot_canvas.ui.library import units
+from tarot_canvas.ui.library.note_row_delegate import NoteRowDelegate
+from tarot_canvas.ui.library.notes_model import NoteRole, NotesListModel
 from tarot_canvas.ui.notes_text import text
 from tarot_canvas.ui.tabs.card_view.headings import SECTION_SCALE, apply_heading
 from tarot_canvas.ui.tabs.card_view.markdown_editor import MarkdownEditor
-from tarot_canvas.ui.tabs.card_view.notes_list import EmptyStateWidget, NotesListWidget
+from tarot_canvas.ui.tabs.card_view.notes_list import NotesEmptyPage, NotesListPage
+from tarot_canvas.ui.widgets.inline_message import InlineMessage
 from tarot_canvas.utils.logger import logger
+
+# A deleted note waits under this suffix until the delete is committed. scan() lists
+# only *.md, so a staged note has already left every view.
+STAGED_DELETE_SUFFIX = ".deleted"
 
 
 def renamed_path(file_path, new_name):
@@ -54,6 +64,13 @@ class NotesTab(QWidget):
         self.pending_path = None
         self.pending_card_id = None
         self.pending_name = ""
+
+        # (original path, staged path) of a delete that can still be undone
+        self.staged_delete = None
+        # The note a menu was opened on; see action_target
+        self.menu_target = None
+
+        self.setup_actions()
         self.setup_ui()
 
         # Setup auto-save timer (save every 30 seconds)
@@ -61,38 +78,101 @@ class NotesTab(QWidget):
         self.auto_save_timer.timeout.connect(self.auto_save)
         self.auto_save_timer.start(30000)  # 30 seconds
 
+        # Closing the window closes no tab, so quitting is the last chance to commit
+        app = QApplication.instance()
+        if app is not None:
+            app.aboutToQuit.connect(self.commit_pending_delete)
+
+    def setup_actions(self):
+        """One set of actions, shown on the row, in its context menu and in the editor."""
+        self.open_action = QAction(QIcon.fromTheme("document-open"), text("open"), self)
+        self.open_action.triggered.connect(self.open_target)
+
+        self.rename_action = QAction(QIcon.fromTheme("edit-rename"), text("rename"), self)
+        self.rename_action.triggered.connect(self.rename_target)
+
+        self.export_action = QAction(QIcon.fromTheme("document-export"), text("export"), self)
+        self.export_action.triggered.connect(self.export_target)
+
+        self.delete_action = QAction(QIcon.fromTheme("edit-delete"), text("delete"), self)
+        self.delete_action.triggered.connect(self.delete_target)
+
+        # Bound to the list alone: on the tab, Del would delete the note being typed in
+        self.rename_action.setShortcut(QKeySequence(Qt.Key.Key_F2))
+        self.delete_action.setShortcut(QKeySequence(QKeySequence.StandardKey.Delete))
+        for action in (self.rename_action, self.delete_action):
+            action.setShortcutContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+
+        self.note_menu = QMenu(self)
+        self.note_menu.addActions(
+            [self.open_action, self.rename_action, self.export_action, self.delete_action]
+        )
+
+        # The note is already open there
+        self.editor_menu = QMenu(self)
+        self.editor_menu.addActions([self.rename_action, self.export_action, self.delete_action])
+        self.editor_menu.aboutToShow.connect(self.target_open_note)
+
+        for menu in (self.note_menu, self.editor_menu):
+            # A menu hides before it triggers the chosen action, so the target is
+            # forgotten only once that action has run
+            menu.aboutToHide.connect(lambda: QTimer.singleShot(0, self.forget_menu_target))
+
+        self.new_note_action = QAction(QIcon.fromTheme("document-new"), text("create_note"), self)
+        self.new_note_action.triggered.connect(self.create_new_note)
+
+        self.undo_action = QAction(QIcon.fromTheme("edit-undo"), text("undo"), self)
+        self.undo_action.triggered.connect(self.undo_delete)
+
     def setup_ui(self):
         """Set up the notes tab UI"""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        # Hidden, it takes no room, margins included
+        message_row = QVBoxLayout()
+        margin = units.LARGE_SPACING
+        message_row.setContentsMargins(margin, margin, margin, 0)
+        self.message = InlineMessage(close_text=text("dismiss"))
+        self.message.dismissed.connect(self.commit_pending_delete)
+        message_row.addWidget(self.message)
+        layout.addLayout(message_row)
 
         # Create stacked widget to switch between notes list and editor
         self.stack = QStackedWidget()
 
-        # Create empty state widget for when there are no notes
-        self.empty_state = EmptyStateWidget()
-        self.empty_state.createNoteClicked.connect(self.create_new_note)
+        self.empty_page = NotesEmptyPage(self.new_note_action)
 
-        # Create notes list widget
-        self.notes_list_widget = NotesListWidget()
-        self.notes_list_widget.createNoteClicked.connect(self.create_new_note)
-        self.notes_list_widget.noteSelected.connect(self.on_note_selected)
-        self.notes_list_widget.noteDoubleClicked.connect(self.open_note_editor)
+        self.list_model = NotesListModel(
+            parent=self, card_in_subtitle=False, editable=True, stub_preview=text("stub_note")
+        )
+        # Queued: the rename rescans and resets the model the editor is committing to
+        self.list_model.renameRequested.connect(
+            self.rename_note_to, Qt.ConnectionType.QueuedConnection
+        )
+        self.row_delegate = NoteRowDelegate(
+            self, thumbnail=False, menu_button=True, menu_tooltip=text("note_menu_tooltip")
+        )
+        self.row_delegate.menuRequested.connect(
+            lambda index, pos: self.show_note_menu(self.path_at(index), pos)
+        )
 
-        # Add menu to manage notes
-        self.setup_manage_menu()
+        self.list_page = NotesListPage(self.list_model, self.row_delegate)
+        self.list_page.newNoteClicked.connect(self.create_new_note)
+        self.list_view = self.list_page.view
+        self.list_view.activated.connect(lambda index: self.open_note_editor(self.path_at(index)))
+        self.list_view.customContextMenuRequested.connect(self.on_list_context_menu)
+        self.list_view.addActions([self.rename_action, self.delete_action])
 
         # Create editor page
         self.editor_page = QWidget()
         editor_layout = QVBoxLayout(self.editor_page)
         editor_layout.setContentsMargins(0, 0, 0, 0)
+        editor_layout.setSpacing(0)
 
         # Editor header with back button and save button
         editor_header = QWidget()
-        editor_header.setStyleSheet("""
-            background-color: palette(window);
-            border-bottom: 1px solid palette(mid);
-        """)
         header_layout = QHBoxLayout(editor_header)
         header_layout.setContentsMargins(10, 5, 10, 5)
 
@@ -120,43 +200,41 @@ class NotesTab(QWidget):
         save_button.clicked.connect(self.save_current_note)
         header_layout.addWidget(save_button)
 
+        self.editor_menu_button = QToolButton()
+        self.editor_menu_button.setIcon(QIcon.fromTheme("overflow-menu"))
+        self.editor_menu_button.setToolTip(text("note_menu_tooltip"))
+        self.editor_menu_button.setAutoRaise(True)
+        self.editor_menu_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.editor_menu_button.setMenu(self.editor_menu)
+        header_layout.addWidget(self.editor_menu_button)
+
         editor_layout.addWidget(editor_header)
+
+        separator = QFrame()
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setFrameShadow(QFrame.Shadow.Sunken)
+        editor_layout.addWidget(separator)
 
         # Create enhanced markdown editor - no toolbar now
         self.note_editor = MarkdownEditor(self)
         self.note_editor.linkClicked.connect(self.handle_link_click)
-        self.note_editor.document().contentsChanged.connect(self.on_editor_changed)
+        self.note_editor.document().contentsChanged.connect(self.write_pending_note)
         editor_layout.addWidget(self.note_editor)
 
         # Add widgets to stack
-        self.stack.addWidget(self.empty_state)  # Index 0: Empty state
-        self.stack.addWidget(self.notes_list_widget)  # Index 1: Notes list
+        self.stack.addWidget(self.empty_page)  # Index 0: Empty state
+        self.stack.addWidget(self.list_page)  # Index 1: Notes list
         self.stack.addWidget(self.editor_page)  # Index 2: Editor
 
         # Add stack to main layout
         layout.addWidget(self.stack)
 
-    def setup_manage_menu(self):
-        """Set up the manage menu for the notes list"""
-        manage_menu = QMenu(self)
-
-        rename_action = QAction(QIcon.fromTheme("edit-rename"), "Rename Note", self)
-        rename_action.triggered.connect(self.rename_current_note)
-        manage_menu.addAction(rename_action)
-
-        delete_action = QAction(QIcon.fromTheme("edit-delete"), "Delete Note", self)
-        delete_action.triggered.connect(self.delete_current_note)
-        manage_menu.addAction(delete_action)
-
-        export_action = QAction(QIcon.fromTheme("document-export"), "Export Note", self)
-        export_action.triggered.connect(self.export_current_note)
-        manage_menu.addAction(export_action)
-
-        self.notes_list_widget.manage_button.setMenu(manage_menu)
-
     def load_card_notes(self, card):
         """Load existing notes for a card"""
         self.discard_pending_note()
+
+        # Stepping to another card hides the Undo, so the delete it offered is final
+        self.commit_pending_delete()
 
         # Stepping to another card mustn't leave an edit waiting on the autosave timer
         self.save_if_modified()
@@ -176,45 +254,109 @@ class NotesTab(QWidget):
             logger.debug("Passed deck manager to editor")
 
         # The directory is made when the first note is written, not when a card is opened
+        self.current_file_path = None
+        self.refresh_list()
+        self.show_list_or_empty_page()
+
+    # -- the list -----------------------------------------------------------
+
+    def refresh_list(self):
+        """Re-read the index and show this card's notes, keeping the open note selected."""
         self.load_all_notes()
 
-        # Clear the current list
-        self.notes_list_widget.clear_notes()
+        card_id = self.card_id()
+        self.list_model.set_index({card_id: self.notes_index.get(card_id, [])} if card_id else {})
 
-        card_notes = self.notes_index.get(card_id, [])
-        for note in card_notes:
-            self.notes_list_widget.add_note(notes_model.label(note), str(note.path), card_id)
+        if self.current_file_path:
+            index = self.list_model.index_for_path(self.current_file_path)
+            if index.isValid():
+                self.list_view.setCurrentIndex(index)
 
-        # Show notes list if there are notes, empty state otherwise
-        self.stack.setCurrentIndex(1 if card_notes else 0)
+        if self.stack.currentWidget() is not self.editor_page:
+            self.show_list_or_empty_page()
 
-    def on_note_selected(self, item):
-        """Handle selection of a note in the list"""
+    def show_list_or_empty_page(self):
+        has_notes = self.list_model.rowCount() > 0
+        self.stack.setCurrentWidget(self.list_page if has_notes else self.empty_page)
+
+    def path_at(self, index):
+        note = index.data(NoteRole) if index.isValid() else None
+        return str(note.path) if note else None
+
+    def note_at(self, file_path):
+        return self.all_notes.get((self.card_id(), file_path))
+
+    # -- the actions --------------------------------------------------------
+
+    def show_note_menu(self, file_path, global_pos):
+        if not file_path:
+            return
+        self.menu_target = file_path
+        self.note_menu.popup(global_pos)
+
+    def on_list_context_menu(self, pos):
+        index = self.list_view.indexAt(pos)
+        if index.isValid():
+            self.show_note_menu(self.path_at(index), self.list_view.viewport().mapToGlobal(pos))
+
+    def target_open_note(self):
+        self.menu_target = self.current_file_path
+
+    def forget_menu_target(self):
+        self.menu_target = None
+
+    def action_target(self):
+        """The note an action acts on.
+
+        From a menu, the row it opened on or the open note, never the selection. From a
+        key in the list, the highlighted row.
+        """
+        if self.menu_target:
+            return self.menu_target
+        return self.path_at(self.list_view.currentIndex())
+
+    def open_target(self):
+        file_path = self.action_target()
+        index = self.list_model.index_for_path(file_path) if file_path else None
+        if index is not None and index.isValid():
+            self.list_view.setCurrentIndex(index)
+            self.open_note_editor(file_path)
+
+    def rename_target(self):
+        """Rename where the note is shown: in its row, or in the editor's name field."""
+        if self.stack.currentWidget() is self.editor_page:
+            self.note_title.setFocus()
+            self.note_title.selectAll()
+            return
+
+        file_path = self.action_target()
+        index = self.list_model.index_for_path(file_path) if file_path else None
+        if index is not None and index.isValid():
+            self.list_view.setCurrentIndex(index)
+            self.list_view.edit(index)
+
+    def export_target(self):
+        file_path = self.action_target()
+        if file_path:
+            self.export_note(file_path)
+
+    def delete_target(self):
+        file_path = self.action_target()
+        if file_path:
+            self.delete_note(file_path)
+
+    # -- opening and renaming -------------------------------------------------
+
+    def open_note_editor(self, file_path):
+        """Open the editor on a note"""
         self.discard_pending_note()
 
-        if not item:
-            # No item selected
-            self.note_editor.clear()
-            self.note_editor.setEnabled(False)
-            self.current_file_path = None
+        if not file_path:
             return
 
         # Auto-save any previously edited note
         self.save_if_modified()
 
-        # Get the file path from the item
-        file_path = item.data(Qt.ItemDataRole.UserRole)
-        self.current_file_path = file_path
-
-    def open_note_editor(self, item):
-        """Open the editor for the selected note"""
-        self.discard_pending_note()
-
-        if not item:
-            return
-
-        # Get the file path from the item
-        file_path = item.data(Qt.ItemDataRole.UserRole)
         self.current_file_path = file_path
 
         # The field is the note's name. For a nameless note the row is labelled by its
@@ -229,10 +371,11 @@ class NotesTab(QWidget):
 
             # Set the content in the editor
             self.note_editor.setPlainText(content)
+            self.note_editor.setEnabled(True)
             self.note_editor.document().setModified(False)
 
             # Switch to editor page
-            self.stack.setCurrentIndex(2)  # Editor page
+            self.stack.setCurrentWidget(self.editor_page)
 
             # Focus the editor
             self.note_editor.setFocus()
@@ -269,39 +412,21 @@ class NotesTab(QWidget):
             QMessageBox.critical(self, "Error", f"Could not rename note: {error}")
             return None
 
-        item = self.item_for_path(file_path)
-        if item is not None:
-            item.setData(Qt.ItemDataRole.UserRole, new_file_path)
-
         if self.current_file_path == file_path:
             self.current_file_path = new_file_path
 
-        self.load_all_notes()
-
-        if item is not None:
-            note = self.all_notes.get((self.pending_card_id or self.card_id(), new_file_path))
-            item.setText(notes_model.label(note) if note else new_name)
-
+        self.refresh_list()
         note_events().notes_changed.emit()
         return new_file_path
 
     def card_id(self):
         return self.current_card.get("id") if self.current_card else None
 
-    def item_for_path(self, file_path):
-        """The list row holding `file_path`, or None if this card isn't showing it."""
-        listing = self.notes_list_widget.notes_list
-        for index in range(listing.count()):
-            item = listing.item(index)
-            if item.data(Qt.ItemDataRole.UserRole) == file_path:
-                return item
-        return None
-
     def open_note_path(self, file_path):
-        item = self.item_for_path(file_path)
-        if item is not None:
-            self.notes_list_widget.notes_list.setCurrentItem(item)
-            self.open_note_editor(item)
+        index = self.list_model.index_for_path(file_path)
+        if index.isValid():
+            self.list_view.setCurrentIndex(index)
+            self.open_note_editor(file_path)
 
     def show_note_list(self):
         """Return to the note list view"""
@@ -309,11 +434,9 @@ class NotesTab(QWidget):
 
         self.save_if_modified()
 
-        # Show notes list or empty state based on whether there are notes
-        if self.notes_list_widget.notes_list.count() > 0:
-            self.stack.setCurrentIndex(1)  # Notes list
-        else:
-            self.stack.setCurrentIndex(0)  # Empty state
+        # Rows may have been written, named or retitled while the list was hidden
+        self.refresh_list()
+        self.show_list_or_empty_page()
 
     def create_new_note(self):
         """Open the editor on a note that doesn't exist yet."""
@@ -337,31 +460,13 @@ class NotesTab(QWidget):
         self.note_editor.setEnabled(True)
         self.note_editor.document().setModified(False)
 
-        self.stack.setCurrentIndex(2)  # Editor page
+        self.stack.setCurrentWidget(self.editor_page)
         self.note_editor.setFocus()
 
     def discard_pending_note(self):
         """Forget a note that was asked for but never written."""
         self.pending_path = None
         self.pending_card_id = None
-
-    def on_editor_changed(self):
-        """Realise a pending note, and keep an unnamed one's row label honest."""
-        self.write_pending_note()
-        self.sync_unnamed_row_label()
-
-    def sync_unnamed_row_label(self):
-        if not self.current_file_path:
-            return
-
-        if not Path(self.current_file_path).stem.isdigit():
-            return
-
-        item = self.notes_list_widget.get_current_item()
-        if item is None or item.data(Qt.ItemDataRole.UserRole) != self.current_file_path:
-            return
-
-        item.setText(notes_model.first_line_of(self.note_editor.toPlainText()))
 
     def write_pending_note(self):
         """Give a pending note a file."""
@@ -371,7 +476,6 @@ class NotesTab(QWidget):
         # A name typed into the header before anything was written belongs in the
         # filename the note is about to get, not in a rename straight after it
         file_path = renamed_path(self.pending_path, self.pending_name)
-        card_id = self.pending_card_id
 
         try:
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
@@ -389,83 +493,74 @@ class NotesTab(QWidget):
         self.save_note_to_file(file_path)
         self.note_editor.document().setModified(False)
 
-        note = self.all_notes.get((card_id, file_path))
-        label = notes_model.label(note) if note else ""
-        self.notes_list_widget.add_note(label, file_path, card_id, select=True)
+    # -- deleting, undoably ---------------------------------------------------
 
-    def delete_current_note(self):
-        """Delete the currently selected note"""
-        current_item = self.notes_list_widget.get_current_item()
-        if not current_item:
-            return
+    def delete_note(self, file_path):
+        """Take the note out of every view now; remove the file once Undo is gone."""
+        # One Undo at a time: the delete it offered becomes final
+        self.commit_pending_delete()
 
-        # Confirm deletion
-        reply = QMessageBox.question(
-            self,
-            "Delete Note",
-            f"Are you sure you want to delete the note '{current_item.text()}'?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        )
+        if self.current_file_path == file_path:
+            # What Undo brings back is the note as last typed
+            self.save_if_modified()
+            self.current_file_path = None
 
-        if reply != QMessageBox.StandardButton.Yes:
-            return
-
-        # Get the file path
-        file_path = current_item.data(Qt.ItemDataRole.UserRole)
-
-        # Delete the file
+        staged_path = file_path + STAGED_DELETE_SUFFIX
         try:
-            os.remove(file_path)
-
-            # Remove from list
-            self.notes_list_widget.remove_item(current_item)
-
-            # Remove from all notes cache
-            self.load_all_notes()
-            note_events().notes_changed.emit()
-
-            # Show empty state if no more notes
-            if self.notes_list_widget.notes_list.count() == 0:
-                self.stack.setCurrentIndex(0)  # Empty state
-                self.current_file_path = None
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Could not delete note: {e}")
-
-    def rename_current_note(self):
-        """Rename the selected note from the manage menu."""
-        current_item = self.notes_list_widget.get_current_item()
-        if not current_item:
+            os.rename(file_path, staged_path)
+        except OSError as error:
+            QMessageBox.critical(self, "Error", f"Could not delete note: {error}")
             return
 
-        file_path = current_item.data(Qt.ItemDataRole.UserRole)
-        current_name = notes_model.display_name_from_filename(os.path.basename(file_path))
+        self.staged_delete = (file_path, staged_path)
+        self.show_note_list()
+        note_events().notes_changed.emit()
+        self.message.show_message(text("deleted_message"), [self.undo_action])
 
-        new_name, ok = QInputDialog.getText(
-            self, "Rename Note", "Enter a new name for this note:", text=current_name
-        )
-
-        if not ok or new_name == current_name:
+    def undo_delete(self):
+        if not self.staged_delete:
             return
 
-        if self.rename_note_to(file_path, new_name) and self.current_file_path == renamed_path(
-            file_path, new_name
-        ):
-            self.note_title.setText(new_name)
+        file_path, staged_path = self.staged_delete
+        self.staged_delete = None
+        self.message.hide()
 
-    def export_current_note(self):
-        """Export the currently selected note to a file"""
-        current_item = self.notes_list_widget.get_current_item()
-        if not current_item:
+        try:
+            os.rename(staged_path, file_path)
+        except OSError as error:
+            QMessageBox.critical(self, "Error", f"Could not restore note: {error}")
             return
 
-        # Get the file path
-        file_path = current_item.data(Qt.ItemDataRole.UserRole)
+        self.refresh_list()
+        note_events().notes_changed.emit()
+
+    # A real slot, so Qt drops the aboutToQuit connection when the tab is deleted
+    @pyqtSlot()
+    def commit_pending_delete(self):
+        """Make the staged delete final."""
+        if not self.staged_delete:
+            return
+
+        _file_path, staged_path = self.staged_delete
+        self.staged_delete = None
+        self.message.hide()
+
+        try:
+            os.remove(staged_path)
+        except OSError as error:
+            # Left where it is, the file can still be recovered by hand
+            logger.error(f"Could not remove deleted note {staged_path}: {error}")
+
+    def export_note(self, file_path):
+        """Copy a note to a file of the user's choosing"""
+        note = self.note_at(file_path)
+        name = (notes_model.label(note) if note else "") or Path(file_path).stem
 
         # Ask for export location
         export_path, _ = QFileDialog.getSaveFileName(
             self,
             "Export Note",
-            os.path.expanduser(f"~/Documents/{current_item.text()}.md"),
+            os.path.expanduser(f"~/Documents/{name}.md"),
             "Markdown Files (*.md);;All Files (*)",
         )
 
@@ -475,9 +570,6 @@ class NotesTab(QWidget):
         # Copy the file
         try:
             shutil.copy2(file_path, export_path)
-
-            # Show success message
-            QMessageBox.information(self, "Export Successful", f"Note exported to {export_path}")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Could not export note: {e}")
 
@@ -569,13 +661,6 @@ class NotesTab(QWidget):
 
             self.load_all_notes()
             note_events().notes_changed.emit()
-
-            # Show temporary success message if main window is available
-            from PyQt6.QtWidgets import QApplication
-
-            main_window = QApplication.instance().activeWindow()
-            if main_window and hasattr(main_window, "statusBar"):
-                main_window.statusBar().showMessage("Note saved successfully", 3000)
 
         except Exception as e:
             error_msg = f"Could not save note: {e}"
@@ -680,13 +765,8 @@ class NotesTab(QWidget):
                             )
                             return
 
-            # If it's a note for the current card, just select it
-            for i in range(self.notes_list_widget.notes_list.count()):
-                item = self.notes_list_widget.notes_list.item(i)
-                if item.text() == note_name:
-                    self.notes_list_widget.notes_list.setCurrentItem(item)
-                    self.open_note_editor(item)
-                    return
+            # If it's a note for the current card, just open it
+            self.open_note_path(str(note_info.path))
 
     # Add this method to ensure saving when the tab is closed
     def closeEvent(self, event):

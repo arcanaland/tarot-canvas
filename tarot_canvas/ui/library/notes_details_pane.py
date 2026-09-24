@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import (
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.deck_details_pane import CoverWidget
 from tarot_canvas.ui.notes_text import text as notes_text
-from tarot_canvas.ui.tabs.card_view.notes_section import ROW_SPACING, NoteRow
+from tarot_canvas.ui.tabs.card_view.notes_section import NoteRowsView
 
 
 class NotesDetailsPane(QWidget):
@@ -54,9 +54,8 @@ class NotesDetailsPane(QWidget):
         self.empty_label = _pane_text()
         self.empty_label.setEnabled(False)
 
-        self.notes_column = QVBoxLayout()
-        self.notes_column.setContentsMargins(0, 0, 0, 0)
-        self.notes_column.setSpacing(ROW_SPACING)
+        self.note_rows = NoteRowsView()
+        self.note_rows.noteActivated.connect(self._on_note_activated)
 
         margin = units.GRID_UNIT
         body = QVBoxLayout()
@@ -64,7 +63,7 @@ class NotesDetailsPane(QWidget):
         body.setSpacing(units.LARGE_SPACING)
         body.addLayout(header)
         body.addSpacing(units.LARGE_SPACING)
-        body.addLayout(self.notes_column)
+        body.addWidget(self.note_rows)
         body.addWidget(self.empty_label)
         body.addStretch(1)
 
@@ -107,7 +106,8 @@ class NotesDetailsPane(QWidget):
 
         self.cover.set_path(details.cover_path)
 
-        self._rebuild_notes(details.notes)
+        self.note_rows.set_notes(details.notes)
+        self.note_rows.setVisible(bool(details.notes))
 
         empty = notes_text("no_notes_on_card")
         self.empty_label.setText(empty)
@@ -119,23 +119,9 @@ class NotesDetailsPane(QWidget):
         if previous is None or previous.card_id != details.card_id:
             self.scroll_area.verticalScrollBar().setValue(0)
 
-    def note_widgets(self):
-        return [self.notes_column.itemAt(row).widget() for row in range(self.notes_column.count())]
-
-    def _rebuild_notes(self, notes):
-        while self.notes_column.count():
-            item = self.notes_column.takeAt(0)
-            widget = item.widget()
-            if widget is not None:
-                widget.hide()
-                widget.deleteLater()
-
-        for note in notes:
-            row = NoteRow(note)
-            row.clicked.connect(
-                lambda note=note: self.open_note_requested.emit(note.card_id, str(note.path))
-            )
-            self.notes_column.addWidget(row)
+    def _on_note_activated(self, path):
+        if self._details is not None:
+            self.open_note_requested.emit(self._details.card_id, path)
 
     def _on_open(self):
         if self._details is not None:

@@ -163,3 +163,84 @@ def test_the_preview_is_read_with_the_index_not_with_the_row(tmp_path, deck, mon
     monkeypatch.setattr(notes_model, "_body_lines", refuse)
 
     assert model.index(0, 0).data(PreviewRole) == "a leap"
+
+
+# -- a card's own list ---------------------------------------------------
+
+
+def test_the_library_names_the_card_in_the_subtitle(tmp_path, deck):
+    model = NotesListModel({FOOL: [note(tmp_path, FOOL, "One")]}, deck)
+
+    assert model.index(0, 0).data(SubtitleRole).startswith("The Fool")
+
+
+def test_a_cards_own_list_leaves_the_card_out_of_the_subtitle(tmp_path, deck):
+    model = NotesListModel({FOOL: [note(tmp_path, FOOL, "One")]}, deck, card_in_subtitle=False)
+
+    subtitle = model.index(0, 0).data(SubtitleRole)
+
+    assert subtitle
+    assert "The Fool" not in subtitle
+
+
+def test_the_library_is_not_editable(tmp_path, deck):
+    from PyQt6.QtCore import Qt
+
+    model = NotesListModel({FOOL: [note(tmp_path, FOOL, "One")]}, deck)
+    index = model.index(0, 0)
+
+    assert not index.flags() & Qt.ItemFlag.ItemIsEditable
+    with_signal = []
+    model.renameRequested.connect(lambda *args: with_signal.append(args))
+    assert model.setData(index, "Two") is False
+    assert with_signal == []
+
+
+def test_an_editable_list_edits_the_name_not_the_first_line(tmp_path, deck):
+    from PyQt6.QtCore import Qt
+
+    unnamed = note(tmp_path, FOOL, "ignored")._replace(title="", first_line="a line I wrote")
+    path = unnamed.path.with_name("1700000000.md")
+    unnamed.path.rename(path)
+    model = NotesListModel({FOOL: [unnamed._replace(path=path)]}, deck, editable=True)
+    index = model.index(0, 0)
+
+    assert index.flags() & Qt.ItemFlag.ItemIsEditable
+    assert index.data(Qt.ItemDataRole.DisplayRole) == "a line I wrote"
+    assert index.data(Qt.ItemDataRole.EditRole) == ""
+
+
+def test_setting_a_name_asks_the_owner_to_rename_and_changes_nothing(tmp_path, deck):
+    one = note(tmp_path, FOOL, "One")
+    model = NotesListModel({FOOL: [one]}, deck, editable=True)
+    asked = []
+    model.renameRequested.connect(lambda path, name: asked.append((path, name)))
+
+    assert model.setData(model.index(0, 0), "Two") is False
+
+    assert asked == [(str(one.path), "Two")]
+    assert model.index(0, 0).data() == "One"
+
+
+def test_the_library_leaves_a_stubs_preview_blank(tmp_path, deck):
+    model = NotesListModel({FOOL: [note(tmp_path, FOOL, "Stub")]}, deck)
+
+    assert model.index(0, 0).data(PreviewRole) == ""
+
+
+def test_a_stub_preview_stands_in_for_an_empty_body(tmp_path, deck):
+    index = {FOOL: [note(tmp_path, FOOL, "Stub"), note(tmp_path, FOOL, "Full", body="a leap\n")]}
+    model = NotesListModel(index, deck, stub_preview="(empty)")
+
+    previews = {model.index(r, 0).data(): model.index(r, 0).data(PreviewRole) for r in range(2)}
+
+    assert previews == {"Stub": "(empty)", "Full": "a leap"}
+
+
+def test_a_row_is_found_by_its_path(tmp_path, deck):
+    one = note(tmp_path, FOOL, "One", modified=1_700_000_000.0)
+    two = note(tmp_path, FOOL, "Two", modified=1_800_000_000.0)
+    model = NotesListModel({FOOL: [one, two]}, deck)
+
+    assert model.index_for_path(str(one.path)).row() == 1
+    assert not model.index_for_path(str(tmp_path / "gone.md")).isValid()

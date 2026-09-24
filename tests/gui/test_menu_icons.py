@@ -120,15 +120,14 @@ def test_the_card_view_zoom_menu_has_icons(qtbot, minimal_deck):
     assert len({action.icon().name() for action in actions}) == len(actions)
 
 
-def test_the_notes_manage_menu_has_icons(qtbot, minimal_deck):
-    button = make_card_view(qtbot, minimal_deck).notes_tab.notes_list_widget.manage_button
-    actions = button.menu().actions()
+def test_the_note_menu_has_icons(qtbot, minimal_deck):
+    notes = make_card_view(qtbot, minimal_deck).notes_tab
+    actions = notes.note_menu.actions()
 
-    assert not button.icon().isNull()
+    assert not notes.editor_menu_button.icon().isNull()
     assert not any(action.icon().isNull() for action in actions)
     # Destroying user content takes the red trash can
-    delete = next(a for a in actions if a.text() == "Delete Note")
-    assert delete.icon().name() == "edit-delete"
+    assert notes.delete_action.icon().name() == "edit-delete"
 
 
 def test_a_tab_shows_the_icon_of_the_menu_item_that_opens_it(qtbot):

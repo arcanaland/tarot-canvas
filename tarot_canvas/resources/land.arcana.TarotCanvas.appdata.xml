@@ -46,7 +46,7 @@
   </screenshots>
   <releases>
     <!--
-    <release version="1.5.1" date="2026-09-xx" type="development">
+    <release version="1.5.x" date="2026-09-xx" type="development">
       <description>
         <ul>
           <li>Fixed sluggish launch of Find Card panel.</li>
@@ -55,6 +55,16 @@
       </description>
     </release>
     -->
+    <release version="1.5.1" date="2026-09-24" type="development">
+      <description>
+        <p>Quality of life and UX improvements for notes:</p>
+        <ul>
+          <li>Added most recent notes to the card overview.</li>
+          <li>Reworked Notes tab to be more intuitive.</li>
+          <li>Added a Notes section to the library to show notes for all cards.</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.5.0" date="2026-09-14" type="stable">
       <description>
         <p>Major new features include:</p>

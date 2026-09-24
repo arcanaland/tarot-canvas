@@ -28,6 +28,6 @@ def test_a_card_with_notes_lists_them_without_touching_other_cards(qtbot, notes_
 
     tab = open_card_view(qtbot, deck)
 
-    assert tab.notes_tab.notes_list_widget.notes_list.count() == 1
-    assert tab.notes_tab.notes_list_widget.notes_list.item(0).text() == "A Note"
+    assert tab.notes_tab.list_model.rowCount() == 1
+    assert tab.notes_tab.list_model.index(0, 0).data() == "A Note"
     assert sorted(p.name for p in notes_base.iterdir()) == [card["id"]]
