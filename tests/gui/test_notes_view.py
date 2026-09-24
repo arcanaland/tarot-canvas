@@ -1,5 +1,3 @@
-"""The Library's second view: the sidebar, the list and the pane."""
-
 import os
 
 import pytest

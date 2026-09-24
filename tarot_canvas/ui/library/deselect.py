@@ -17,13 +17,10 @@ class _EmptyClickFilter(QObject):
 
 
 def clear_selection(view):
-    """Nothing selected and nothing current, so a refresh doesn't reselect it"""
     view.selectionModel().clear()
 
 
 def deselect_on_empty_click_or_escape(view):
-    """A click on no item deselects, which a single-selection view doesn't do itself,
-    and so does Esc."""
     view.viewport().installEventFilter(_EmptyClickFilter(view))
     escape = QShortcut(QKeySequence(Qt.Key.Key_Escape), view)
     escape.setContext(Qt.ShortcutContext.WidgetShortcut)
