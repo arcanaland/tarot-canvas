@@ -37,13 +37,26 @@ DECK_MANAGER_CONSUMERS = [
 
 
 @pytest.fixture(autouse=True)
-def isolated_settings(tmp_path, monkeypatch):
-    """Give each test its own QSettings file."""
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+def isolated_settings():
+    """Start each test from empty QSettings.
+
+    Qt caches the config path at the first QSettings, so every test shares one file
+    under _TEST_HOME, and clearing it is what isolates them.
+    """
     from tarot_canvas.settings import get_settings
 
     get_settings().clear()
     yield
+
+
+@pytest.fixture
+def notes_base(tmp_path, monkeypatch):
+    """Notes are read from and written under a fresh directory."""
+    from tarot_canvas.models import notes as notes_model
+
+    base = tmp_path / "notes"
+    monkeypatch.setattr(notes_model, "notes_base", lambda: base)
+    return base
 
 
 @pytest.fixture(autouse=True)

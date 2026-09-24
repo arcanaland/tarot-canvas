@@ -1,21 +1,11 @@
 import os
 
-import pytest
-
-from tarot_canvas.models import notes as notes_model
 from tarot_canvas.models.deck import TarotDeck
 from tarot_canvas.models.note_events import note_events
-from tarot_canvas.ui.tabs.card_view import notes_text
+from tarot_canvas.ui import notes_text
 from tarot_canvas.ui.tabs.card_view.notes_section import MAX_ROWS, GhostRow, NoteRow
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tests.conftest import MINIMAL_DECK_PATH
-
-
-@pytest.fixture
-def notes_base(tmp_path, monkeypatch):
-    base = tmp_path / "notes"
-    monkeypatch.setattr(notes_model, "notes_base", lambda: base)
-    return base
 
 
 def write_note(notes_base, card_id, filename, body):

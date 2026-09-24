@@ -285,13 +285,8 @@ class OverviewTab(QWidget):
         self.notes_section.set_notes(notes_tab.notes_index.get(card_id, []))
 
     def on_note_activated(self, file_path):
-        """Open a listed note where notes are edited, which is the Notes tab."""
-        notes_tab = getattr(self.parent_tab, "notes_tab", None)
-        if not notes_tab:
-            return
-
-        self.parent_tab.show_notes_tab()
-        notes_tab.open_note_path(file_path)
+        if hasattr(self.parent_tab, "open_note"):
+            self.parent_tab.open_note(file_path)
 
     def on_create_note(self):
         notes_tab = getattr(self.parent_tab, "notes_tab", None)

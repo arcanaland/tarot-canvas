@@ -1,16 +1,6 @@
-import pytest
-
-from tarot_canvas.models import notes as notes_model
 from tarot_canvas.models.deck import TarotDeck
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tests.conftest import MINIMAL_DECK_PATH
-
-
-@pytest.fixture
-def notes_base(tmp_path, monkeypatch):
-    base = tmp_path / "notes"
-    monkeypatch.setattr(notes_model, "notes_base", lambda: base)
-    return base
 
 
 def open_card_view(qtbot, deck):

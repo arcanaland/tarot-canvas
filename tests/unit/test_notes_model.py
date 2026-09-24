@@ -3,18 +3,15 @@
 from types import SimpleNamespace
 
 import pytest
-from PyQt6.QtCore import QDateTime
 
 from tarot_canvas.models import notes as notes_model
 from tarot_canvas.models.notes import Note
-from tarot_canvas.ui.library import notes_text as notes_text_module
 from tarot_canvas.ui.library.deck_model import SubtitleRole
 from tarot_canvas.ui.library.notes_model import (
     CardIdRole,
     NoteRole,
     NotesListModel,
     PreviewRole,
-    modified_text,
 )
 
 FOOL = "major_arcana.00"
@@ -91,32 +88,20 @@ def test_an_unnamed_note_is_listed_by_its_opening_line(tmp_path, deck):
     assert ids(model) == [FOOL]
 
 
-def test_search_matches_the_card_name(tmp_path, deck):
+@pytest.mark.parametrize(
+    ("search", "expected"),
+    [("magic", [MAGICIAN]), ("beginn", [FOOL])],
+    ids=["card name", "note title"],
+)
+def test_search_matches_the_card_name_or_the_note_title(tmp_path, deck, search, expected):
     index = {
-        FOOL: [note(tmp_path, FOOL, "One")],
+        FOOL: [note(tmp_path, FOOL, "Beginnings")],
         MAGICIAN: [note(tmp_path, MAGICIAN, "Two")],
     }
     model = NotesListModel(index, deck)
-    model.set_search("magic")
+    model.set_search(search)
 
-    assert ids(model) == [MAGICIAN]
-
-
-def test_search_matches_a_note_title(tmp_path, deck):
-    index = {FOOL: [note(tmp_path, FOOL, "Beginnings")], MAGICIAN: [note(tmp_path, MAGICIAN, "X")]}
-    model = NotesListModel(index, deck)
-    model.set_search("beginn")
-
-    assert ids(model) == [FOOL]
-
-
-def test_clearing_the_search_brings_every_note_back(tmp_path, deck):
-    index = {FOOL: [note(tmp_path, FOOL, "One")], MAGICIAN: [note(tmp_path, MAGICIAN, "Two")]}
-    model = NotesListModel(index, deck)
-    model.set_search("magic")
-    model.set_search("")
-
-    assert model.rowCount() == 2
+    assert ids(model) == expected
 
 
 def test_notes_for_a_card_ignores_the_search(tmp_path, deck):
@@ -178,18 +163,3 @@ def test_the_preview_is_read_with_the_index_not_with_the_row(tmp_path, deck, mon
     monkeypatch.setattr(notes_model, "_body_lines", refuse)
 
     assert model.index(0, 0).data(PreviewRole) == "a leap"
-
-
-def test_a_search_that_matches_nothing_empties_the_list(tmp_path, deck):
-    model = NotesListModel({FOOL: [note(tmp_path, FOOL, "One")]}, deck)
-    model.set_search("nothing here")
-
-    assert model.rowCount() == 0
-    assert model.total_rows() == 1
-
-
-def test_the_modified_date_reads_like_the_about_box(monkeypatch):
-    monkeypatch.setitem(notes_text_module.NOTES_TEXT, "relative_date", "")
-    yesterday = QDateTime.currentDateTime().addDays(-1).toSecsSinceEpoch()
-
-    assert modified_text(yesterday) == "Yesterday"

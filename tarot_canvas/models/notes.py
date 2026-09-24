@@ -142,6 +142,9 @@ def _body_lines(path):
 
 def first_body_line(note):
     """The note's opening line of prose"""
+    if not note.has_body:
+        return ""
+
     lines = _body_lines(note.path)
 
     if not note.title and lines and lines[0] == note.first_line:

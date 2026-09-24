@@ -1,4 +1,8 @@
 NOTES_TEXT = {
+    "section_heading": "Personal Notes",
+    "new_note_tooltip": "Create a new note.",
+    "name_placeholder": "Name this note…",
+    "stub_note": "(empty)",
     "view_name": "Notes",
     "search_placeholder": "Search notes…",  # TODO(adam)
     "details_toggle_show": "Show details (Ctrl+I)",  # TODO(adam)
@@ -6,12 +10,10 @@ NOTES_TEXT = {
     "empty_nothing_written": "No notes created yet.",  # TODO(adam)
     "empty_no_match": "Nothing found.",
     "no_notes_on_card": "Nothing for this card.",
-    "stub_note": "(empty)",
     "open_card": "Open note",
-    "relative_date": "{date}",
 }
 
 
+# for keeping slop out (and maybe translation in the future)
 def text(key):
-    """The string for `key`, or "" while Adam hasn't written it."""
     return NOTES_TEXT.get(key) or ""

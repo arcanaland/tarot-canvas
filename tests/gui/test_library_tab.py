@@ -75,6 +75,9 @@ def test_the_view_draws_no_frame_of_its_own(library):
 def test_no_stylesheet_hardcodes_colours(library):
     assert library.styleSheet() == ""
     assert library.view.styleSheet() == ""
+    assert library.sidebar.styleSheet() == ""
+    assert library.notes_page.list_view.styleSheet() == ""
+    assert library.notes_page.details_pane.styleSheet() == ""
 
 
 def test_the_grid_is_not_capped_at_four_columns(library):

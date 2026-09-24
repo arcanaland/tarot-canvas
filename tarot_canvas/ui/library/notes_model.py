@@ -2,7 +2,6 @@ from PyQt6.QtCore import QAbstractListModel, Qt
 
 from tarot_canvas.models import notes as notes_model
 from tarot_canvas.ui.library.deck_model import CoverPathRole, SubtitleRole
-from tarot_canvas.ui.library.notes_text import text as notes_text
 from tarot_canvas.utils.dates import relative_date_from_timestamp
 
 CardIdRole = Qt.ItemDataRole.UserRole + 11
@@ -31,12 +30,6 @@ def card_name(deck, card_id):
 def card_cover_path(deck, card_id):
     card = card_in(deck, card_id)
     return (card or {}).get("image")
-
-
-def modified_text(modified):
-    date = relative_date_from_timestamp(modified)
-    template = notes_text("relative_date")
-    return template.format(date=date) if template else date
 
 
 class NotesListModel(QAbstractListModel):
@@ -115,8 +108,6 @@ class NotesListModel(QAbstractListModel):
         return line is not None, line
 
     def _first_line(self, note):
-        if not note.has_body:
-            return ""
         key = (note.path, note.modified)
         if key not in self._first_lines:
             self._first_lines[key] = notes_model.first_body_line(note)
@@ -146,5 +137,5 @@ class NotesListModel(QAbstractListModel):
 
     def _subtitle(self, note):
         return SUBTITLE_SEPARATOR.join(
-            [card_name(self._deck, note.card_id), modified_text(note.modified)]
+            [card_name(self._deck, note.card_id), relative_date_from_timestamp(note.modified)]
         )

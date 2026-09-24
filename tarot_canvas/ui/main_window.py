@@ -940,7 +940,7 @@ class MainWindow(QMainWindow):
             self.on_explorer_card_selected(action, card, deck)
 
     def open_card_view_tab(self, card, deck, show_notes=False):
-        """Open a new tab to view a specific card"""
+        """Open a tab to view a specific card, or raise the one already open, and return it"""
         # Check if we already have a tab open for this card
         for i in range(self.tab_widget.count()):
             tab = self.tab_widget.widget(i)
@@ -954,13 +954,14 @@ class MainWindow(QMainWindow):
                 self.tab_widget.setCurrentWidget(tab)
                 if show_notes and hasattr(tab, "show_notes_tab"):
                     tab.show_notes_tab()
-                return
+                return tab
 
         # Create a new card view tab
         from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 
         card_tab = CardViewTab(card=card, deck=deck, show_notes=show_notes)
         self.add_card_tab(card_tab, card.get("name", "Card"))
+        return card_tab
 
     def show_faqs(self):
         """Open the FAQ document declared in the metainfo XML"""

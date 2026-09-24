@@ -1,6 +1,6 @@
 from contextlib import contextmanager
 
-from PyQt6.QtCore import QEvent, QItemSelectionModel, QSize, Qt, QTimer, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QItemSelectionModel, QSize, Qt, QTimer, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QIcon, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QAbstractItemView,
@@ -53,8 +53,9 @@ from tarot_canvas.ui.library.deck_model import (
     DeckRole,
     EntryRole,
 )
+from tarot_canvas.ui.library.deselect import deselect_on_empty_click_or_escape
 from tarot_canvas.ui.library.notes_page import NotesPage
-from tarot_canvas.ui.library.notes_text import text as notes_text
+from tarot_canvas.ui.notes_text import text as notes_text
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 
 # The deck view's name. The notes view takes its own from notes_text, which is where
@@ -126,6 +127,7 @@ class LibraryTab(BaseTab):
 
         self.notes_page = NotesPage(deck_manager.get_reference_deck())
         self.notes_page.card_activated.connect(self.on_card_activated)
+        self.notes_page.note_activated.connect(self.on_note_activated)
         self.notes_page.details_changed.connect(self._sync_details_toggle)
 
         # One page per sidebar row, in LIBRARY_VIEWS order
@@ -301,27 +303,10 @@ class LibraryTab(BaseTab):
         self.model.dataChanged.connect(self._on_rows_changed)
         self.model.modelReset.connect(self._follow_shown_deck)
 
-        # A click on no deck deselects, which a single-selection view doesn't do itself,
-        # and so does Esc. The pane keeps showing the deck it showed.
-        self.view.viewport().installEventFilter(self)
-        escape = QShortcut(QKeySequence(Qt.Key.Key_Escape), self.view)
-        escape.setContext(Qt.ShortcutContext.WidgetShortcut)
-        escape.activated.connect(self.clear_selection)
+        # The pane keeps showing the deck it showed
+        deselect_on_empty_click_or_escape(self.view)
 
         return self.view
-
-    def eventFilter(self, watched, event):
-        if (
-            event.type() == QEvent.Type.MouseButtonPress
-            and watched is self.view.viewport()
-            and not self.view.indexAt(event.position().toPoint()).isValid()
-        ):
-            self.clear_selection()
-        return super().eventFilter(watched, event)
-
-    def clear_selection(self):
-        """Nothing selected and nothing current, so a refresh doesn't reselect it"""
-        self.view.selectionModel().clear()
 
     def _build_details(self):
         self.details_container = QWidget()
@@ -431,7 +416,14 @@ class LibraryTab(BaseTab):
 
         main_window = self.window()
         if hasattr(main_window, "open_card_view_tab"):
-            main_window.open_card_view_tab(card, deck, show_notes=True)
+            return main_window.open_card_view_tab(card, deck, show_notes=True)
+        return None
+
+    def on_note_activated(self, card_id, path):
+        """Open the card view on one note."""
+        card_tab = self.on_card_activated(card_id)
+        if card_tab is not None:
+            card_tab.open_note(path)
 
     def on_sort_changed(self):
         key = self.sort_combo.currentData()

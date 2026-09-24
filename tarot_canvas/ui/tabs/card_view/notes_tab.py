@@ -20,10 +20,10 @@ from PyQt6.QtWidgets import (
 
 from tarot_canvas.models import notes as notes_model
 from tarot_canvas.models.note_events import note_events
+from tarot_canvas.ui.notes_text import text
 from tarot_canvas.ui.tabs.card_view.headings import SECTION_SCALE, apply_heading
 from tarot_canvas.ui.tabs.card_view.markdown_editor import MarkdownEditor
 from tarot_canvas.ui.tabs.card_view.notes_list import EmptyStateWidget, NotesListWidget
-from tarot_canvas.ui.tabs.card_view.notes_text import text
 from tarot_canvas.utils.logger import logger
 
 

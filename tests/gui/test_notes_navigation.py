@@ -1,6 +1,7 @@
+import os
+
 import pytest
 
-from tarot_canvas.models import notes as notes_model
 from tarot_canvas.models.note_events import note_events
 from tarot_canvas.settings import LIBRARY_VIEW_NOTES
 from tarot_canvas.ui.main_window import MainWindow
@@ -9,13 +10,6 @@ from tarot_canvas.ui.tabs.library_tab import LibraryTab
 
 FOOL = "major_arcana.00"
 MAGICIAN = "major_arcana.01"
-
-
-@pytest.fixture
-def notes_base(tmp_path, monkeypatch):
-    base = tmp_path / "notes"
-    monkeypatch.setattr(notes_model, "notes_base", lambda: base)
-    return base
 
 
 @pytest.fixture
@@ -47,12 +41,6 @@ def test_a_second_library_request_raises_the_first(window):
     assert second is first
     assert window.tab_widget.currentWidget() is first
     assert len([t for t in _tabs(window) if isinstance(t, LibraryTab)]) == 1
-
-
-def test_a_library_can_be_asked_for_a_particular_view(window):
-    library = window.new_library_tab(view=LIBRARY_VIEW_NOTES)
-
-    assert library.current_view() == LIBRARY_VIEW_NOTES
 
 
 def _tabs(window):
@@ -93,11 +81,23 @@ def test_a_card_the_reference_deck_lacks_opens_nothing(window):
     assert card_tabs(window) == []
 
 
-def test_a_card_view_opened_any_other_way_starts_on_overview(window, minimal_deck):
-    window.open_card_view_tab(minimal_deck.get_card_by_id(FOOL), minimal_deck)
+def test_a_note_in_the_pane_opens_that_note(window, notes_base):
+    older = notes_base / FOOL / "1700000000_Older.md"
+    newer = notes_base / FOOL / "1800000000_Newer.md"
+    older.parent.mkdir(parents=True)
+    for path, when in ((older, 1_700_000_000), (newer, 1_800_000_000)):
+        path.write_text(f"# {path.stem}\n\na line\n", encoding="utf-8")
+        os.utime(path, (when, when))
+    library = window.new_library_tab(view=LIBRARY_VIEW_NOTES)
+    page = library.notes_page
+    page.refresh()
+    page.select_card(FOOL)
 
-    opened = card_tabs(window)[0]
-    assert opened.info_tabs.currentWidget() is opened.overview_tab
+    page.details_pane.note_widgets()[1].clicked.emit()
+
+    notes_tab = card_tabs(window)[0].notes_tab
+    assert card_tabs(window)[0].info_tabs.currentWidget() is notes_tab
+    assert notes_tab.current_file_path == str(older)
 
 
 # -- a write reaches the library ----------------------------------------

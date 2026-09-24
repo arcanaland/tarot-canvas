@@ -1,4 +1,4 @@
-from PyQt6.QtCore import QEvent, QItemSelectionModel, Qt, pyqtSignal
+from PyQt6.QtCore import QItemSelectionModel, Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QFrame,
@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import (
 
 from tarot_canvas.models import notes as notes_model
 from tarot_canvas.models.note_events import note_events
+from tarot_canvas.ui.library.deselect import deselect_on_empty_click_or_escape
 from tarot_canvas.ui.library.note_row_delegate import NoteRowDelegate
 from tarot_canvas.ui.library.notes_details import CardNotesDetails
 from tarot_canvas.ui.library.notes_details_pane import NotesDetailsPane
@@ -19,11 +20,12 @@ from tarot_canvas.ui.library.notes_model import (
     card_cover_path,
     card_name,
 )
-from tarot_canvas.ui.library.notes_text import text as notes_text
+from tarot_canvas.ui.notes_text import text as notes_text
 
 
 class NotesPage(QWidget):
     card_activated = pyqtSignal(str)  # the canonical card id
+    note_activated = pyqtSignal(str, str)  # the canonical card id, the note's path
     details_changed = pyqtSignal()
 
     def __init__(self, deck=None, parent=None, base=None):
@@ -46,6 +48,7 @@ class NotesPage(QWidget):
 
         self.details_pane = NotesDetailsPane()
         self.details_pane.open_card_requested.connect(self.card_activated)
+        self.details_pane.open_note_requested.connect(self.note_activated)
 
         note_events().notes_changed.connect(self.refresh)
 
@@ -70,7 +73,7 @@ class NotesPage(QWidget):
         view.activated.connect(self._on_activated)
         view.clicked.connect(self._show_details)
         view.selectionModel().currentChanged.connect(self._on_current_changed)
-        view.viewport().installEventFilter(self)
+        deselect_on_empty_click_or_escape(view)
         return view
 
     # -- what the library asks of a page ----------------------------------
@@ -103,19 +106,7 @@ class NotesPage(QWidget):
                 return True
         return False
 
-    def clear_selection(self):
-        self.list_view.selectionModel().clear()
-
     # -- selection --------------------------------------------------------
-
-    def eventFilter(self, watched, event):
-        if (
-            event.type() == QEvent.Type.MouseButtonPress
-            and watched is self.list_view.viewport()
-            and not self.list_view.indexAt(event.position().toPoint()).isValid()
-        ):
-            self.clear_selection()
-        return super().eventFilter(watched, event)
 
     def _on_current_changed(self, current, _previous):
         if current.isValid():

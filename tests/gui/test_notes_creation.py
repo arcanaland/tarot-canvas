@@ -1,18 +1,10 @@
 import pytest
 from PyQt6.QtGui import QTextCursor
 
-from tarot_canvas.models import notes as notes_model
 from tarot_canvas.models.deck import TarotDeck
 from tarot_canvas.ui.tabs.card_view import notes_tab as notes_tab_module
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tests.conftest import MINIMAL_DECK_PATH
-
-
-@pytest.fixture
-def notes_base(tmp_path, monkeypatch):
-    base = tmp_path / "notes"
-    monkeypatch.setattr(notes_model, "notes_base", lambda: base)
-    return base
 
 
 @pytest.fixture

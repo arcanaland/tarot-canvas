@@ -1,25 +1,24 @@
 from PyQt6.QtCore import QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QFontMetrics, QIcon, QPainter, QPalette
+from PyQt6.QtGui import QIcon, QPalette
 from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
     QPushButton,
     QScrollArea,
-    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
 
-from tarot_canvas.models import notes as notes_model
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.deck_details_pane import CoverWidget
-from tarot_canvas.ui.library.notes_model import modified_text
-from tarot_canvas.ui.library.notes_text import text as notes_text
+from tarot_canvas.ui.notes_text import text as notes_text
+from tarot_canvas.ui.tabs.card_view.notes_section import ROW_SPACING, NoteRow
 
 
 class NotesDetailsPane(QWidget):
     open_card_requested = pyqtSignal(str)  # the canonical card id
+    open_note_requested = pyqtSignal(str, str)  # the canonical card id, the note's path
 
     HEADING_SCALE = 1.4
     CAPTION_SCALE = 0.85
@@ -57,7 +56,7 @@ class NotesDetailsPane(QWidget):
 
         self.notes_column = QVBoxLayout()
         self.notes_column.setContentsMargins(0, 0, 0, 0)
-        self.notes_column.setSpacing(units.LARGE_SPACING)
+        self.notes_column.setSpacing(ROW_SPACING)
 
         margin = units.GRID_UNIT
         body = QVBoxLayout()
@@ -132,57 +131,15 @@ class NotesDetailsPane(QWidget):
                 widget.deleteLater()
 
         for note in notes:
-            self.notes_column.addWidget(_NoteBlock(note))
+            row = NoteRow(note)
+            row.clicked.connect(
+                lambda note=note: self.open_note_requested.emit(note.card_id, str(note.path))
+            )
+            self.notes_column.addWidget(row)
 
     def _on_open(self):
         if self._details is not None:
             self.open_card_requested.emit(self._details.card_id)
-
-
-class _NoteBlock(QWidget):
-    CAPTION_SCALE = 0.85
-
-    def __init__(self, note, parent=None):
-        super().__init__(parent)
-        self.note = note
-
-        title = _pane_text(notes_model.label(note))
-        title.setFont(units.scaled_font(title.font(), bold=True))
-
-        date = _pane_text(modified_text(note.modified))
-        date.setFont(units.scaled_font(date.font(), self.CAPTION_SCALE))
-        date.setForegroundRole(QPalette.ColorRole.PlaceholderText)
-
-        first_line = notes_model.first_body_line(note) or notes_text("stub_note")
-        self.body_label = _ElidedLabel(first_line)
-        self.body_label.setVisible(bool(first_line))
-
-        column = QVBoxLayout(self)
-        column.setContentsMargins(0, 0, 0, 0)
-        column.setSpacing(0)
-        column.addWidget(title)
-        column.addWidget(date)
-        column.addWidget(self.body_label)
-
-
-class _ElidedLabel(QLabel):
-    """One line of the note."""
-
-    def __init__(self, text="", parent=None):
-        super().__init__(text, parent)
-        self.setTextFormat(Qt.TextFormat.PlainText)
-        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-
-    def paintEvent(self, _event):
-        painter = QPainter(self)
-        painter.setPen(self.palette().text().color())
-        metrics = QFontMetrics(self.font())
-        painter.drawText(
-            self.rect(),
-            int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter),
-            metrics.elidedText(self.text(), Qt.TextElideMode.ElideRight, self.width()),
-        )
-        painter.end()
 
 
 def _pane_text(text=""):
