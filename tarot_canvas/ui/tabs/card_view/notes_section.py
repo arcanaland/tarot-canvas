@@ -80,7 +80,7 @@ class NoteRowsView(QListView):
 
     def set_notes(self, notes):
         notes = list(notes)
-        self.list_model.set_index({notes[0].card_id: notes} if notes else {})
+        self.list_model.set_card_notes(notes[0].card_id if notes else None, notes)
         self._fit()
 
     def _fit(self):

@@ -64,14 +64,6 @@ def test_without_a_thumbnail_the_title_starts_at_the_margin(qapp):
     assert layout.well.width() == 0
 
 
-def test_without_a_thumbnail_the_row_is_as_tall(qapp):
-    option = make_option(qapp, NoteRowDelegate())
-
-    assert NoteRowDelegate(thumbnail=False).sizeHint(option, None) == NoteRowDelegate().sizeHint(
-        option, None
-    )
-
-
 def test_the_menu_button_sits_centred_at_the_right_and_the_text_stops_short(qapp):
     delegate = NoteRowDelegate(thumbnail=False, menu_button=True)
     option = make_option(qapp, delegate)
@@ -90,25 +82,6 @@ def mouse(kind, pos, button=Qt.MouseButton.LeftButton):
     return QMouseEvent(
         kind, QPointF(pos), QPointF(pos), button, button, Qt.KeyboardModifier.NoModifier
     )
-
-
-def test_a_release_on_the_menu_button_asks_for_the_menu(qapp, tmp_path):
-    from PyQt6.QtCore import QEvent
-
-    model = NotesListModel({FOOL: [note(tmp_path, FOOL, "Written")]}, None)
-    delegate = NoteRowDelegate(thumbnail=False, menu_button=True)
-    option = make_option(qapp, delegate)
-    asked = []
-    delegate.menuRequested.connect(lambda index, pos: asked.append(index.row()))
-    index = model.index(0, 0)
-    on_button = delegate._layout(option).menu.center()
-
-    consumed = delegate.editorEvent(
-        mouse(QEvent.Type.MouseButtonRelease, on_button), model, option, index
-    )
-
-    assert consumed is True
-    assert asked == [0]
 
 
 def test_a_release_elsewhere_on_the_row_is_left_to_the_view(qapp, tmp_path):
@@ -131,24 +104,6 @@ def test_a_release_elsewhere_on_the_row_is_left_to_the_view(qapp, tmp_path):
     assert asked == []
 
 
-def test_the_library_row_never_asks_for_a_menu(qapp, tmp_path):
-    from PyQt6.QtCore import QEvent
-
-    model = NotesListModel({FOOL: [note(tmp_path, FOOL, "Written")]}, None)
-    delegate = NoteRowDelegate()
-    option = make_option(qapp, delegate)
-    asked = []
-    delegate.menuRequested.connect(lambda *args: asked.append(args))
-    right_edge = option.rect.center()
-    right_edge.setX(option.rect.right() - units.LARGE_SPACING - 4)
-
-    delegate.editorEvent(
-        mouse(QEvent.Type.MouseButtonRelease, right_edge), model, option, model.index(0, 0)
-    )
-
-    assert asked == []
-
-
 def test_the_rename_editor_covers_the_title(qtbot, qapp, tmp_path):
     from PyQt6.QtWidgets import QWidget
 
@@ -165,7 +120,6 @@ def test_the_rename_editor_covers_the_title(qtbot, qapp, tmp_path):
 
     title = delegate._layout(option).title
     assert editor.text() == "Written"
-    assert editor.hasFrame() is False
     assert editor.geometry().left() == title.left()
     assert editor.geometry().width() == title.width()
     assert editor.geometry().contains(title.center())

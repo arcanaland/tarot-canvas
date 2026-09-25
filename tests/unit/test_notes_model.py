@@ -222,19 +222,17 @@ def test_setting_a_name_asks_the_owner_to_rename_and_changes_nothing(tmp_path, d
     assert model.index(0, 0).data() == "One"
 
 
-def test_the_library_leaves_a_stubs_preview_blank(tmp_path, deck):
-    model = NotesListModel({FOOL: [note(tmp_path, FOOL, "Stub")]}, deck)
-
-    assert model.index(0, 0).data(PreviewRole) == ""
-
-
-def test_a_stub_preview_stands_in_for_an_empty_body(tmp_path, deck):
+def test_a_stub_preview_stands_in_for_an_empty_body_and_is_blank_by_default(tmp_path, deck):
     index = {FOOL: [note(tmp_path, FOOL, "Stub"), note(tmp_path, FOOL, "Full", body="a leap\n")]}
-    model = NotesListModel(index, deck, stub_preview="(empty)")
 
-    previews = {model.index(r, 0).data(): model.index(r, 0).data(PreviewRole) for r in range(2)}
+    def previews(model):
+        return {model.index(r, 0).data(): model.index(r, 0).data(PreviewRole) for r in range(2)}
 
-    assert previews == {"Stub": "(empty)", "Full": "a leap"}
+    assert previews(NotesListModel(index, deck)) == {"Stub": "", "Full": "a leap"}
+    assert previews(NotesListModel(index, deck, stub_preview="(empty)")) == {
+        "Stub": "(empty)",
+        "Full": "a leap",
+    }
 
 
 def test_a_row_is_found_by_its_path(tmp_path, deck):

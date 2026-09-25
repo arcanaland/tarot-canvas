@@ -117,6 +117,7 @@ class NotesTab(QWidget):
             menu.aboutToHide.connect(lambda: QTimer.singleShot(0, self.forget_menu_target))
 
         self.new_note_action = QAction(QIcon.fromTheme("document-new"), text("create_note"), self)
+        self.new_note_action.setToolTip(text("new_note_tooltip"))
         self.new_note_action.triggered.connect(self.create_new_note)
 
         self.undo_action = QAction(QIcon.fromTheme("edit-undo"), text("undo"), self)
@@ -156,8 +157,7 @@ class NotesTab(QWidget):
             lambda index, pos: self.show_note_menu(self.path_at(index), pos)
         )
 
-        self.list_page = NotesListPage(self.list_model, self.row_delegate)
-        self.list_page.newNoteClicked.connect(self.create_new_note)
+        self.list_page = NotesListPage(self.list_model, self.row_delegate, self.new_note_action)
         self.list_view = self.list_page.view
         self.list_view.activated.connect(lambda index: self.open_note_editor(self.path_at(index)))
         self.list_view.customContextMenuRequested.connect(self.on_list_context_menu)
@@ -266,12 +266,8 @@ class NotesTab(QWidget):
         self.load_all_notes()
 
         card_id = self.card_id()
-        self.list_model.set_index({card_id: self.notes_index.get(card_id, [])} if card_id else {})
-
-        if self.current_file_path:
-            index = self.list_model.index_for_path(self.current_file_path)
-            if index.isValid():
-                self.list_view.setCurrentIndex(index)
+        self.list_model.set_card_notes(card_id, self.notes_index.get(card_id, []))
+        self.select_path(self.current_file_path)
 
         if self.stack.currentWidget() is not self.editor_page:
             self.show_list_or_empty_page()
@@ -279,6 +275,13 @@ class NotesTab(QWidget):
     def show_list_or_empty_page(self):
         has_notes = self.list_model.rowCount() > 0
         self.stack.setCurrentWidget(self.list_page if has_notes else self.empty_page)
+
+    def select_path(self, file_path):
+        """Select the row holding `file_path`, and return its index; invalid if it isn't listed."""
+        index = self.list_model.index_for_path(file_path)
+        if index.isValid():
+            self.list_view.setCurrentIndex(index)
+        return index
 
     def path_at(self, index):
         note = index.data(NoteRole) if index.isValid() else None
@@ -313,11 +316,7 @@ class NotesTab(QWidget):
         return self.path_at(self.list_view.currentIndex())
 
     def open_target(self):
-        file_path = self.action_target()
-        index = self.list_model.index_for_path(file_path) if file_path else None
-        if index is not None and index.isValid():
-            self.list_view.setCurrentIndex(index)
-            self.open_note_editor(file_path)
+        self.open_note_path(self.action_target())
 
     def rename_target(self):
         if self.stack.currentWidget() is self.editor_page:
@@ -325,10 +324,8 @@ class NotesTab(QWidget):
             self.note_title.selectAll()
             return
 
-        file_path = self.action_target()
-        index = self.list_model.index_for_path(file_path) if file_path else None
-        if index is not None and index.isValid():
-            self.list_view.setCurrentIndex(index)
+        index = self.select_path(self.action_target())
+        if index.isValid():
             self.list_view.edit(index)
 
     def export_target(self):
@@ -417,9 +414,7 @@ class NotesTab(QWidget):
         return self.current_card.get("id") if self.current_card else None
 
     def open_note_path(self, file_path):
-        index = self.list_model.index_for_path(file_path)
-        if index.isValid():
-            self.list_view.setCurrentIndex(index)
+        if self.select_path(file_path).isValid():
             self.open_note_editor(file_path)
 
     def show_note_list(self):

@@ -67,6 +67,10 @@ class NotesListModel(QAbstractListModel):
         self._rebuild()
         self.endResetModel()
 
+    def set_card_notes(self, card_id, notes):
+        """Show one card's notes, or none without a card."""
+        self.set_index({card_id: list(notes)} if card_id else {})
+
     def set_deck(self, deck):
         self.beginResetModel()
         self._deck = deck

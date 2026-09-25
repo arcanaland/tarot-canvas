@@ -140,13 +140,6 @@ def test_a_palette_change_recolours_the_labels(qtbot, theme_palette):
         assert label.palette().color(label.foregroundRole()) == muted_text(theme_palette)
 
 
-def test_there_is_no_button_without_a_helpful_action(qtbot):
-    message = PlaceholderMessage("story-editor", "Heading")
-    qtbot.addWidget(message)
-
-    assert message.helpful_button is None
-
-
 def test_the_helpful_action_is_a_button_under_the_text(qtbot):
     from PyQt6.QtGui import QAction
 

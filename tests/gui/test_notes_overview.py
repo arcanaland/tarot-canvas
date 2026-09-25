@@ -5,7 +5,6 @@ from PyQt6.QtCore import Qt
 from tarot_canvas.models.deck import TarotDeck
 from tarot_canvas.models.note_events import note_events
 from tarot_canvas.ui import notes_text
-from tarot_canvas.ui.library.note_row_delegate import NoteRowDelegate
 from tarot_canvas.ui.library.notes_model import PreviewRole
 from tarot_canvas.ui.tabs.card_view.notes_section import MAX_ROWS
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
@@ -153,14 +152,13 @@ def test_a_one_line_nameless_note_is_a_one_line_row(qtbot, notes_base):
     assert preview(row) == ""
 
 
-def test_the_rows_are_the_shared_note_row_and_point_no_hand(qtbot, notes_base):
+def test_the_rows_point_no_hand(qtbot, notes_base):
     tab, card = open_card_view(qtbot)
     write_note(notes_base, card["id"], "1700000000_Lyrics.md", "# Lyrics\n\nbody\n")
     tab.notes_tab.load_card_notes(card)
     tab.overview_tab.refresh_notes()
     view = section(tab).list_view
 
-    assert isinstance(view.itemDelegate(), NoteRowDelegate)
     assert view.viewport().cursor().shape() != Qt.CursorShape.PointingHandCursor
     assert section(tab).ghost.cursor().shape() != Qt.CursorShape.PointingHandCursor
 

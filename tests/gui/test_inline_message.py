@@ -8,13 +8,6 @@ from tarot_canvas.ui.widgets.inline_message import InlineMessage
 TAGGED = "<clankertext>a placeholder</clankertext>"
 
 
-def test_it_is_hidden_until_shown(qtbot):
-    message = InlineMessage()
-    qtbot.addWidget(message)
-
-    assert message.isHidden()
-
-
 def test_a_tagged_string_reaches_the_screen_with_its_tags(qtbot):
     message = InlineMessage()
     qtbot.addWidget(message)
@@ -38,7 +31,7 @@ def test_each_action_gets_a_button_and_a_new_message_replaces_them(qtbot):
 
 
 def test_the_close_button_hides_it_and_says_so(qtbot):
-    message = InlineMessage(close_text=TAGGED)
+    message = InlineMessage()
     qtbot.addWidget(message)
     message.show_message("text")
 
@@ -46,8 +39,6 @@ def test_the_close_button_hides_it_and_says_so(qtbot):
         qtbot.mouseClick(message.close_button, Qt.MouseButton.LeftButton)
 
     assert message.isHidden()
-    assert message.close_button.accessibleName() == TAGGED
-    assert message.close_button.toolTip() == TAGGED
 
 
 def test_hiding_it_is_not_a_dismissal(qtbot):

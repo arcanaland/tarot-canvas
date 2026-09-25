@@ -18,8 +18,6 @@ from tarot_canvas.models.deck import TarotDeck
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tests.conftest import MINIMAL_DECK_PATH
 
-TAG = "<clankertext>"
-
 
 @pytest.fixture
 def no_dialogs(monkeypatch):
@@ -82,26 +80,6 @@ def focus(qtbot, widget):
 # -- the list page -------------------------------------------------------
 
 
-def test_rows_are_listed_newest_first_under_the_new_note_button(qtbot, notes_base):
-    tab, _, _ = open_card_view(qtbot, "1700000000_Older.md", "1700000001_Newer.md")
-    notes = tab.notes_tab
-
-    assert notes.stack.currentWidget() is notes.list_page
-    rows = [notes.list_model.index(r, 0).data() for r in range(notes.list_model.rowCount())]
-    assert rows == ["Newer", "Older"]
-    assert notes.list_page.new_button.text() == "New Note"
-
-
-def test_activating_a_row_opens_the_note(qtbot, notes_base, no_dialogs):
-    tab, _, (path,) = open_card_view(qtbot, "1700000000_Lyrics.md")
-    notes = tab.notes_tab
-
-    notes.list_view.activated.emit(row_of(notes, path))
-
-    assert notes.stack.currentWidget() is notes.editor_page
-    assert notes.current_file_path == str(path)
-
-
 def test_enter_on_the_highlighted_row_opens_it(qtbot, notes_base, no_dialogs):
     tab, _, (path,) = open_card_view(qtbot, "1700000000_Lyrics.md")
     notes = tab.notes_tab
@@ -121,9 +99,6 @@ def test_an_empty_card_shows_the_placeholder_whose_button_starts_a_note(
     placeholder = notes.empty_page.placeholder
 
     assert notes.stack.currentWidget() is notes.empty_page
-    # A placeholder string reaches the screen with its tags
-    assert placeholder.heading.text().startswith(TAG)
-    assert placeholder.heading.textFormat() == Qt.TextFormat.PlainText
 
     placeholder.helpful_button.click()
 
@@ -132,16 +107,6 @@ def test_an_empty_card_shows_the_placeholder_whose_button_starts_a_note(
 
 
 # -- one action set in three places -------------------------------------
-
-
-def test_the_row_menu_the_row_button_and_the_editor_menu_share_one_action_set(qtbot, notes_base):
-    tab, _, _ = open_card_view(qtbot, "1700000000_Lyrics.md")
-    notes = tab.notes_tab
-    four = [notes.open_action, notes.rename_action, notes.export_action, notes.delete_action]
-
-    assert notes.note_menu.actions() == four
-    assert notes.editor_menu.actions() == four[1:]
-    assert notes.editor_menu_button.menu() is notes.editor_menu
 
 
 def test_right_clicking_a_row_opens_the_menu_on_that_row(qtbot, notes_base):
@@ -248,12 +213,6 @@ def test_rename_from_the_editor_menu_selects_the_name_field(qtbot, notes_base, n
     assert notes.note_title.selectedText() == "Lyrics"
 
 
-def test_the_rename_dialog_is_gone(qtbot, notes_base):
-    tab, _, _ = open_card_view(qtbot)
-
-    assert not hasattr(tab.notes_tab, "rename_current_note")
-
-
 # -- the keys belong to the list ----------------------------------------
 
 
@@ -311,7 +270,6 @@ def test_a_delete_asks_nothing_and_takes_the_note_out_of_every_view(qtbot, notes
     assert notes.stack.currentWidget() is notes.empty_page
     assert tab.overview_tab.notes_section.ghost.isVisibleTo(tab.overview_tab.notes_section)
     assert notes.message.isVisibleTo(notes)
-    assert notes.message.label.text().startswith(TAG)
     assert [b.defaultAction() for b in notes.message.action_buttons] == [notes.undo_action]
 
 

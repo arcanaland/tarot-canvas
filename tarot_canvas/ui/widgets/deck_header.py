@@ -40,7 +40,6 @@ MEASURE_CHARACTERS = 85
 
 COLLAPSED_COVER_UNITS = 3
 
-# placeholder copy, Adam's to replace
 BUY_TEXT = "Buy Deck"
 BUY_ICON = "wallet-open"
 

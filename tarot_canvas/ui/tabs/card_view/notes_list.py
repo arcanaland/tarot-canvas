@@ -1,5 +1,4 @@
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QIcon
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QFrame,
@@ -37,9 +36,7 @@ class NotesEmptyPage(QWidget):
 class NotesListPage(QWidget):
     """A card's notes, one row each, under a New Note button"""
 
-    newNoteClicked = pyqtSignal()
-
-    def __init__(self, model, delegate, parent=None):
+    def __init__(self, model, delegate, new_note_action, parent=None):
         super().__init__(parent)
 
         layout = QVBoxLayout(self)
@@ -52,12 +49,9 @@ class NotesListPage(QWidget):
         header.addStretch()
 
         self.new_button = QToolButton()
-        self.new_button.setIcon(QIcon.fromTheme("document-new"))
-        self.new_button.setText(text("new_note"))
-        self.new_button.setToolTip(text("new_note_tooltip"))
+        self.new_button.setDefaultAction(new_note_action)
         self.new_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.new_button.setAutoRaise(True)
-        self.new_button.clicked.connect(self.newNoteClicked.emit)
         header.addWidget(self.new_button)
 
         layout.addLayout(header)
