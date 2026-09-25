@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [project]
 name = "tarot-canvas"
-version = "1.5.0"
+version = "1.5.1"
 description = "Explore and arrange tarot decks"
 authors = [{name = "Adam Fidel", email = "adam@arcana.land"}]
 readme = "README.md"

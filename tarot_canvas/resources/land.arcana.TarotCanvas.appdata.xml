@@ -55,7 +55,7 @@
       </description>
     </release>
     -->
-    <release version="1.5.1" date="2026-09-24" type="development">
+    <release version="1.5.1" date="2026-09-25" type="stable">
       <description>
         <p>Quality of life and UX improvements for notes:</p>
         <ul>
