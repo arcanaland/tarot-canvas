@@ -1,32 +1,29 @@
 """The card Overview's notes section"""
 
-from PyQt6.QtCore import QRectF, Qt, pyqtSignal
-from PyQt6.QtGui import QFont, QFontMetrics, QPainter
+from PyQt6.QtCore import QEvent, QRectF, Qt, pyqtSignal
+from PyQt6.QtGui import QFontMetrics, QPainter
 from PyQt6.QtWidgets import (
+    QFrame,
     QHBoxLayout,
     QLabel,
+    QListView,
     QSizePolicy,
     QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
-from tarot_canvas.models import notes as notes_model
 from tarot_canvas.ui.library import units
+from tarot_canvas.ui.library.note_row_delegate import NoteRowDelegate
+from tarot_canvas.ui.library.notes_model import NoteRole, NotesListModel
 from tarot_canvas.ui.notes_text import text
-from tarot_canvas.ui.palette import ghost_bar, muted_text, subtle_fill, with_text_colour
-from tarot_canvas.ui.tabs.card_view.headings import (
-    SECTION_SCALE,
-    SUBTITLE_SCALE,
-    apply_heading,
-)
+from tarot_canvas.ui.palette import ghost_bar, subtle_fill
+from tarot_canvas.ui.tabs.card_view.headings import SECTION_SCALE, apply_heading
 from tarot_canvas.ui.tabs.card_view.passage_metrics import CORNER_RADIUS
-from tarot_canvas.utils.dates import relative_date_from_timestamp
 
 MAX_ROWS = 3
 
 PADDING = units.LARGE_SPACING
-ROW_SPACING = units.SMALL_SPACING
 
 # Fractions of the ghost well's inner width
 GHOST_TITLE_WIDTH = 0.40
@@ -34,34 +31,10 @@ GHOST_BODY_WIDTH = 0.85
 GHOST_BAR_HEIGHT = 0.6  # of the font height of the line each bar stands in for
 
 
-class ElidedLabel(QLabel):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.full_text = ""
-        self.setTextFormat(Qt.TextFormat.PlainText)
-        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-
-    def set_full_text(self, value):
-        self.full_text = value
-        self._elide()
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self._elide()
-
-    def _elide(self):
-        metrics = QFontMetrics(self.font())
-        self.setText(metrics.elidedText(self.full_text, Qt.TextElideMode.ElideRight, self.width()))
-
-
 class ClickableWidget(QWidget):
-    """A row or a ghost"""
+    """A ghost"""
 
     clicked = pyqtSignal()
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton and self.rect().contains(event.pos()):
@@ -81,41 +54,49 @@ class ClickableWidget(QWidget):
         pass
 
 
-class NoteRow(ClickableWidget):
-    def __init__(self, note, parent=None):
+class NoteRowsView(QListView):
+    """A few of one card's notes as the shared note row, as tall as its rows."""
+
+    noteActivated = pyqtSignal(str)  # the note's path
+
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.note = note
-        self.setObjectName("notes_section_row")
+        self.list_model = NotesListModel(
+            parent=self, card_in_subtitle=False, stub_preview=text("stub_note")
+        )
+        self.row_delegate = NoteRowDelegate(self, thumbnail=False)
+        self.setModel(self.list_model)
+        self.setItemDelegate(self.row_delegate)
+        self.setUniformItemSizes(True)
+
+        # Part of the page around it
+        self.setFrameShape(QFrame.Shape.NoFrame)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.viewport().setAutoFillBackground(False)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(PADDING, PADDING, PADDING, PADDING)
-        layout.setSpacing(0)
+        self.activated.connect(self._on_activated)
 
-        title_font = QFont(self.font())
-        title_font.setBold(bool(note.title) or note.first_line_is_heading)
+    def set_notes(self, notes):
+        notes = list(notes)
+        self.list_model.set_card_notes(notes[0].card_id if notes else None, notes)
+        self._fit()
 
-        self.title_label = ElidedLabel()
-        self.title_label.setObjectName("notes_section_row_title")
-        self.title_label.setFont(title_font)
-        self.title_label.set_full_text(notes_model.label(note))
-        layout.addWidget(self.title_label)
+    def _fit(self):
+        rows = self.list_model.rowCount()
+        row_height = self.sizeHintForRow(0) if rows else 0
+        self.setFixedHeight(rows * row_height + 2 * self.frameWidth())
 
-        self.date_label = ElidedLabel()
-        self.date_label.setObjectName("notes_section_row_date")
-        self.date_label.setFont(units.scaled_font(self.font(), SUBTITLE_SCALE))
-        self.date_label.setPalette(with_text_colour(self.palette(), muted_text(self.palette())))
-        self.date_label.set_full_text(relative_date_from_timestamp(note.modified))
-        self.date_label.setVisible(bool(self.date_label.full_text))
-        layout.addWidget(self.date_label)
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.FontChange:
+            self._fit()
 
-        self.preview_label = ElidedLabel()
-        self.preview_label.setObjectName("notes_section_row_preview")
-        layout.addSpacing(units.SMALL_SPACING)
-        preview = notes_model.first_body_line(note) if note.has_body else text("stub_note")
-        self.preview_label.set_full_text(preview)
-        self.preview_label.setVisible(bool(preview))
-        layout.addWidget(self.preview_label)
+    def _on_activated(self, index):
+        note = index.data(NoteRole)
+        if note is not None:
+            self.noteActivated.emit(str(note.path))
 
 
 class GhostRow(ClickableWidget):
@@ -176,29 +157,18 @@ class NotesSection(QWidget):
 
         layout.addLayout(header)
 
-        self.rows = QVBoxLayout()
-        self.rows.setContentsMargins(0, 0, 0, 0)
-        self.rows.setSpacing(ROW_SPACING)
-        layout.addLayout(self.rows)
+        self.ghost = GhostRow()
+        self.ghost.clicked.connect(self.createRequested.emit)
+        layout.addWidget(self.ghost)
+
+        self.list_view = NoteRowsView()
+        self.list_view.noteActivated.connect(self.noteActivated.emit)
+        layout.addWidget(self.list_view)
 
         self.set_notes([])
 
     def set_notes(self, notes):
         """Show this card's notes, newest first or a ghost"""
-        while self.rows.count():
-            item = self.rows.takeAt(0)
-            widget = item.widget()
-            if widget is not None:
-                widget.setParent(None)
-                widget.deleteLater()
-
-        if not notes:
-            ghost = GhostRow()
-            ghost.clicked.connect(self.createRequested.emit)
-            self.rows.addWidget(ghost)
-            return
-
-        for note in notes[:MAX_ROWS]:
-            row = NoteRow(note)
-            row.clicked.connect(lambda path=str(note.path): self.noteActivated.emit(path))
-            self.rows.addWidget(row)
+        self.list_view.set_notes(notes[:MAX_ROWS])
+        self.ghost.setVisible(not notes)
+        self.list_view.setVisible(bool(notes))

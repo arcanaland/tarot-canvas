@@ -225,7 +225,6 @@ class MainWindow(QMainWindow):
 
         self.fullscreen_tab_action = QAction("&Fullscreen", self)
         self.fullscreen_tab_action.setShortcuts([QKeySequence("Ctrl+Shift+F"), QKeySequence("F11")])
-        self.fullscreen_tab_action.setStatusTip("Fullscreen the current tab (Ctrl+Shift+F or F)")
         self.fullscreen_tab_action.setIcon(QIcon.fromTheme("view-fullscreen"))
         self.fullscreen_tab_action.setCheckable(True)
         self.fullscreen_tab_action.triggered.connect(self.toggle_tab_fullscreen)
@@ -670,6 +669,11 @@ class MainWindow(QMainWindow):
         self.add_card_tab(CardViewTab(), "Card View", close_welcome=True)
 
     def close_tab(self, index):
+        # removeTab neither deletes the page nor tells it it has gone
+        tab = self.tab_widget.widget(index)
+        if isinstance(tab, BaseTab):
+            tab.about_to_close()
+
         if self.tab_widget.count() > 1:  # Keep at least one tab open
             self.tab_widget.removeTab(index)
         else:

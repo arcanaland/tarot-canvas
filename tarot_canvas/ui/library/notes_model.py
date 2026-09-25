@@ -1,4 +1,4 @@
-from PyQt6.QtCore import QAbstractListModel, Qt
+from PyQt6.QtCore import QAbstractListModel, QModelIndex, Qt, pyqtSignal
 
 from tarot_canvas.models import notes as notes_model
 from tarot_canvas.ui.library.deck_model import CoverPathRole, SubtitleRole
@@ -33,12 +33,28 @@ def card_cover_path(deck, card_id):
 
 
 class NotesListModel(QAbstractListModel):
-    """across the whole library"""
+    """across the whole library, or one card's notes"""
 
-    def __init__(self, index=None, deck=None, parent=None):
+    # the note's path and name
+    renameRequested = pyqtSignal(str, str)
+
+    def __init__(
+        self,
+        index=None,
+        deck=None,
+        parent=None,
+        *,
+        card_in_subtitle=True,
+        editable=False,
+        stub_preview="",
+    ):
         super().__init__(parent)
         self._index = dict(index or {})
         self._deck = deck
+        self._card_in_subtitle = card_in_subtitle
+        self._editable = editable
+        # The preview line of a note with nothing past its heading
+        self._stub_preview = stub_preview
         self._search = ""
         self._rows = []  # (note, preview line)
         self._first_lines = {}  # (path, modified) -> first body line, until the index changes
@@ -50,6 +66,10 @@ class NotesListModel(QAbstractListModel):
         self._first_lines.clear()
         self._rebuild()
         self.endResetModel()
+
+    def set_card_notes(self, card_id, notes):
+        """Show one card's notes, or none without a card."""
+        self.set_index({card_id: list(notes)} if card_id else {})
 
     def set_deck(self, deck):
         self.beginResetModel()
@@ -78,6 +98,13 @@ class NotesListModel(QAbstractListModel):
 
     def deck(self):
         return self._deck
+
+    def index_for_path(self, path):
+        """The row holding the note at `path`, or an invalid index."""
+        for row, (note, _preview) in enumerate(self._rows):
+            if str(note.path) == str(path):
+                return self.index(row, 0)
+        return QModelIndex()
 
     def rowCount(self, parent=None):
         if parent is not None and parent.isValid():
@@ -108,10 +135,28 @@ class NotesListModel(QAbstractListModel):
         return line is not None, line
 
     def _first_line(self, note):
+        if not note.has_body:
+            return self._stub_preview
+
         key = (note.path, note.modified)
         if key not in self._first_lines:
             self._first_lines[key] = notes_model.first_body_line(note)
         return self._first_lines[key]
+
+    def flags(self, index):
+        flags = super().flags(index)
+        if self._editable and index.isValid():
+            flags |= Qt.ItemFlag.ItemIsEditable
+        return flags
+
+    def setData(self, index, value, role=Qt.ItemDataRole.EditRole):
+        if not self._editable or role != Qt.ItemDataRole.EditRole or not index.isValid():
+            return False
+
+        note, _preview = self._rows[index.row()]
+        self.renameRequested.emit(str(note.path), str(value))
+        # Nothing here changed: the rename, if it happens, rescans the index
+        return False
 
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
         if not index.isValid() or not 0 <= index.row() < len(self._rows):
@@ -121,6 +166,8 @@ class NotesListModel(QAbstractListModel):
 
         if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.AccessibleTextRole):
             return notes_model.label(note)
+        if role == Qt.ItemDataRole.EditRole and self._editable:
+            return notes_model.display_name_from_filename(note.path.name)
         if role == NoteRole:
             return note
         if role == CardIdRole:
@@ -136,6 +183,7 @@ class NotesListModel(QAbstractListModel):
         return None
 
     def _subtitle(self, note):
-        return SUBTITLE_SEPARATOR.join(
-            [card_name(self._deck, note.card_id), relative_date_from_timestamp(note.modified)]
-        )
+        date = relative_date_from_timestamp(note.modified)
+        if not self._card_in_subtitle:
+            return date
+        return SUBTITLE_SEPARATOR.join([card_name(self._deck, note.card_id), date])

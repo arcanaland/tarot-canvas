@@ -6,6 +6,9 @@ MUTED_TEXT_OPACITY = 0.75
 SUBTLE_FILL_ALPHA = 0.04
 GHOST_BAR_ALPHA = 0.10
 
+# Highlight alpha behind an inline message
+MESSAGE_FILL_ALPHA = 0.20
+
 
 def _text(palette):
     return palette.color(QPalette.ColorRole.WindowText)
@@ -46,3 +49,16 @@ def with_text_colour(palette, colour):
     palette = QPalette(palette)
     palette.setColor(QPalette.ColorRole.WindowText, colour)
     return palette
+
+
+def message_fill(palette):
+    """The background of an inline message: Highlight, faint over Window."""
+    return blend(
+        palette.color(QPalette.ColorRole.Highlight),
+        palette.color(QPalette.ColorRole.Window),
+        MESSAGE_FILL_ALPHA,
+    )
+
+
+def message_border(palette):
+    return palette.color(QPalette.ColorRole.Highlight)

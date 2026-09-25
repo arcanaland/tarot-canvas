@@ -1,6 +1,6 @@
 from PyQt6.QtCore import QEvent, QPointF, QRect, Qt
 from PyQt6.QtGui import QFont, QIcon, QImage, QPainter
-from PyQt6.QtWidgets import QLabel, QSizePolicy, QStyle, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QLabel, QPushButton, QSizePolicy, QStyle, QVBoxLayout, QWidget
 
 from tarot_canvas.ui.palette import muted_text, with_text_colour
 
@@ -74,10 +74,15 @@ class _WrappedLabel(QLabel):
 
 
 class PlaceholderMessage(QWidget):
-    def __init__(self, icon_name, text="", explanation="", footnote="", parent=None):
+    def __init__(
+        self, icon, text="", explanation="", footnote="", parent=None, helpful_action=None
+    ):
         super().__init__(parent)
-        # No substitute: a theme without the icon gets no icon
-        self.icon = QIcon.fromTheme(icon_name) if QIcon.hasThemeIcon(icon_name) else None
+        # A theme icon name or a QIcon of our own. No substitute: a theme without the icon
+        # gets no icon
+        if isinstance(icon, str):
+            icon = QIcon.fromTheme(icon) if QIcon.hasThemeIcon(icon) else None
+        self.icon = icon
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -96,6 +101,8 @@ class PlaceholderMessage(QWidget):
             label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             label.setHidden(not label.text())
             layout.addWidget(label, alignment=Qt.AlignmentFlag.AlignHCenter)
+        # A placeholder string's tags are shown, not parsed
+        self.heading.setTextFormat(Qt.TextFormat.PlainText)
         for label in (self.explanation, self.footnote):
             label.setOpenExternalLinks(True)
             label.setTextInteractionFlags(
@@ -103,9 +110,26 @@ class PlaceholderMessage(QWidget):
                 | Qt.TextInteractionFlag.LinksAccessibleByKeyboard
             )
 
+        # Kirigami's helpfulAction: the one thing to do about the emptiness
+        self.helpful_action = helpful_action
+        self.helpful_button = None
+        if helpful_action is not None:
+            self.helpful_button = QPushButton(self)
+            self.helpful_button.clicked.connect(helpful_action.trigger)
+            helpful_action.changed.connect(self._sync_helpful_button)
+            self._sync_helpful_button()
+            layout.addWidget(self.helpful_button, alignment=Qt.AlignmentFlag.AlignHCenter)
+
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
         self._apply_fonts()
         self._apply_colours()
+
+    def _sync_helpful_button(self):
+        action = self.helpful_action
+        self.helpful_button.setText(action.text())
+        self.helpful_button.setIcon(action.icon())
+        self.helpful_button.setEnabled(action.isEnabled())
+        self.helpful_button.setVisible(action.isVisible())
 
     def _labels(self):
         return (self.heading, self.explanation, self.footnote)

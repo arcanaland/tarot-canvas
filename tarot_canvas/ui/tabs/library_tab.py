@@ -235,7 +235,7 @@ class LibraryTab(BaseTab):
         """(view, name, theme icon) per sidebar row, in LIBRARY_VIEWS order"""
         return [
             (LIBRARY_VIEW_DECKS, DECKS_VIEW_NAME, "view-list-icons"),
-            (LIBRARY_VIEW_NOTES, notes_text("view_name"), "view-pim-notes"),
+            (LIBRARY_VIEW_NOTES, notes_text("view_name"), "story-editor"),
         ]
 
     def _build_sidebar(self):

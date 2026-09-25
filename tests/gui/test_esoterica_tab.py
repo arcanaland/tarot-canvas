@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QIcon, QPalette, QPixmap
+from PyQt6.QtGui import QPalette, QPixmap
 from PyQt6.QtWidgets import QLabel
 
 from tarot_canvas.models.esoterica import Passage
@@ -156,15 +156,6 @@ def test_the_faq_anchor_names_a_heading_in_the_faq():
     assert esoterica_tab.ESOTERICA_FAQ_ANCHOR in slugs
 
 
-@pytest.fixture
-def theme_has_icon(monkeypatch):
-    """Any icon name resolves to an opaque square"""
-    pixmap = QPixmap(16, 16)
-    pixmap.fill(Qt.GlobalColor.black)
-    monkeypatch.setattr(QIcon, "hasThemeIcon", staticmethod(lambda _: True))
-    monkeypatch.setattr(QIcon, "fromTheme", staticmethod(lambda _: QIcon(pixmap)))
-
-
 def test_the_header_names_the_tab_as_the_empty_page_does(qtbot, stub_manager):
     stub_manager([Passage("A", None, "One.")])
 
@@ -173,8 +164,18 @@ def test_the_header_names_the_tab_as_the_empty_page_does(qtbot, stub_manager):
     assert tab.header_label.text() == esoterica_tab.PLACEHOLDER_HEADING
 
 
+@pytest.fixture
+def opaque_header_icon(monkeypatch, tmp_path):
+    """The header's icon file is an opaque square"""
+    pixmap = QPixmap(16, 16)
+    pixmap.fill(Qt.GlobalColor.black)
+    path = tmp_path / "opaque.png"
+    pixmap.save(str(path))
+    monkeypatch.setattr(esoterica_tab, "HEADER_ICON", path)
+
+
 def test_the_header_icon_takes_the_header_text_colour(
-    qtbot, stub_manager, theme_has_icon, theme_palette
+    qtbot, stub_manager, opaque_header_icon, theme_palette
 ):
     stub_manager([Passage("A", None, "One.")])
     tab = make_tab(qtbot)
@@ -187,9 +188,7 @@ def test_the_header_icon_takes_the_header_text_colour(
     assert image.pixelColor(image.rect().center()).rgb() == text
 
 
-def test_with_no_header_icon_the_header_is_text_alone(
-    qtbot, stub_manager, theme_has_icon, monkeypatch
-):
+def test_with_no_header_icon_the_header_is_text_alone(qtbot, stub_manager, monkeypatch):
     monkeypatch.setattr(esoterica_tab, "HEADER_ICON", None)
     stub_manager([Passage("A", None, "One.")])
 

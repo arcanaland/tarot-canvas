@@ -138,3 +138,40 @@ def test_a_palette_change_recolours_the_labels(qtbot, theme_palette):
 
     for label in (message.heading, message.explanation, message.footnote):
         assert label.palette().color(label.foregroundRole()) == muted_text(theme_palette)
+
+
+def test_the_helpful_action_is_a_button_under_the_text(qtbot):
+    from PyQt6.QtGui import QAction
+
+    action = QAction("Do the thing")
+    message = PlaceholderMessage("story-editor", "Heading", helpful_action=action)
+    qtbot.addWidget(message)
+    layout = message.layout()
+
+    assert message.helpful_button.text() == "Do the thing"
+    assert layout.indexOf(message.helpful_button) > layout.indexOf(message.heading)
+    with qtbot.waitSignal(action.triggered):
+        qtbot.mouseClick(message.helpful_button, Qt.MouseButton.LeftButton)
+
+
+def test_the_button_follows_its_action(qtbot):
+    from PyQt6.QtGui import QAction
+
+    action = QAction("Before")
+    message = PlaceholderMessage("story-editor", "Heading", helpful_action=action)
+    qtbot.addWidget(message)
+
+    action.setText("After")
+    action.setEnabled(False)
+
+    assert message.helpful_button.text() == "After"
+    assert not message.helpful_button.isEnabled()
+
+
+def test_a_tagged_heading_is_shown_with_its_tags(qtbot):
+    tagged = "<clankertext>a heading</clankertext>"
+    message = PlaceholderMessage("story-editor", tagged)
+    qtbot.addWidget(message)
+
+    assert message.heading.text() == tagged
+    assert message.heading.textFormat() == Qt.TextFormat.PlainText

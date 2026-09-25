@@ -208,6 +208,11 @@ class CardViewTab(BaseTab):
         """This card's tab is no longer the visible one; the open note is written."""
         self.notes_tab.save_if_modified()
 
+    def about_to_close(self):
+        self.notes_tab.save_if_modified()
+        # Its Undo goes with the tab
+        self.notes_tab.commit_pending_delete()
+
     def load_image(self):
         """Load the card image into the zoomable view"""
         if (

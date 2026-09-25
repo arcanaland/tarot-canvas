@@ -11,6 +11,17 @@ NOTES_TEXT = {
     "empty_no_match": "Nothing found.",
     "no_notes_on_card": "Nothing for this card.",
     "open_card": "Open note",
+    "new_note": "New Note",
+    "create_note": "Create New Note",
+    "rename": "Rename Note",
+    "delete": "Delete Note",
+    "export": "Export Note",
+    "open": "Open",
+    "empty_heading": "No notes yet.",
+    "deleted_message": "Note deleted.",
+    "undo": "Undo",
+    "dismiss": "Dismiss",
+    "note_menu_tooltip": "Manage note…",
 }
 
 

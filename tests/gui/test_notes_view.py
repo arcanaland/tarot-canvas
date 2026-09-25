@@ -11,7 +11,7 @@ from tarot_canvas.settings import (
     LIBRARY_VIEWS,
     get_settings,
 )
-from tarot_canvas.ui.library.notes_model import CardIdRole
+from tarot_canvas.ui.library.notes_model import CardIdRole, PreviewRole
 from tarot_canvas.ui.tabs.library_tab import LibraryTab
 
 FOOL = "major_arcana.00"
@@ -195,10 +195,10 @@ def test_the_pane_shows_the_first_line_of_each_note(library, notes_base):
     page.refresh()
 
     select(page, FOOL)
-    rows = page.details_pane.note_widgets()
+    rows = page.details_pane.note_rows.list_model
 
-    assert len(rows) == 1
-    assert rows[0].preview_label.full_text == "a leap into thin air"
+    assert rows.rowCount() == 1
+    assert rows.index(0, 0).data(PreviewRole) == "a leap into thin air"
 
 
 # -- staying current -----------------------------------------------------

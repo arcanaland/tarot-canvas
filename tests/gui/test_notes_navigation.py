@@ -93,7 +93,8 @@ def test_a_note_in_the_pane_opens_that_note(window, notes_base):
     page.refresh()
     page.select_card(FOOL)
 
-    page.details_pane.note_widgets()[1].clicked.emit()
+    rows = page.details_pane.note_rows
+    rows.activated.emit(rows.list_model.index(1, 0))
 
     notes_tab = card_tabs(window)[0].notes_tab
     assert card_tabs(window)[0].info_tabs.currentWidget() is notes_tab

@@ -1,8 +1,8 @@
 import pytest
 from PyQt6.QtGui import QTextCursor
+from PyQt6.QtWidgets import QInputDialog
 
 from tarot_canvas.models.deck import TarotDeck
-from tarot_canvas.ui.tabs.card_view import notes_tab as notes_tab_module
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tests.conftest import MINIMAL_DECK_PATH
 
@@ -12,7 +12,7 @@ def no_dialogs(monkeypatch):
     def refuse(*args, **kwargs):
         raise AssertionError("the creation path opened a dialog")
 
-    monkeypatch.setattr(notes_tab_module.QInputDialog, "getText", staticmethod(refuse))
+    monkeypatch.setattr(QInputDialog, "getText", staticmethod(refuse))
 
 
 def open_card_view(qtbot, deck=None):
@@ -79,28 +79,22 @@ def test_a_nameless_note_is_listed_by_its_first_line(qtbot, notes_base, no_dialo
 
     notes.create_new_note()
     qtbot.keyClicks(notes.note_editor, "a line I came with")
+    notes.show_note_list()
 
-    listing = notes.notes_list_widget.notes_list
-    assert listing.count() == 1
-    assert listing.item(0).text() == "a line I came with"
+    assert notes.list_model.rowCount() == 1
+    assert notes.list_model.index(0, 0).data() == "a line I came with"
 
 
-def test_renaming_a_nameless_note_keeps_its_timestamp(qtbot, notes_base, monkeypatch):
+def test_renaming_a_nameless_note_keeps_its_timestamp(qtbot, notes_base, no_dialogs):
     tab, card = open_card_view(qtbot)
     card_dir = notes_base / card["id"]
     card_dir.mkdir(parents=True)
     (card_dir / "1700000000.md").write_text("a line I came with\n", encoding="utf-8")
     tab.notes_tab.load_card_notes(card)
 
-    listing = tab.notes_tab.notes_list_widget.notes_list
-    listing.setCurrentItem(listing.item(0))
-    monkeypatch.setattr(
-        notes_tab_module.QInputDialog, "getText", staticmethod(lambda *a, **k: ("Lyrics", True))
-    )
+    tab.notes_tab.list_model.setData(tab.notes_tab.list_model.index(0, 0), "Lyrics")
 
-    tab.notes_tab.rename_current_note()
-
-    assert sorted(p.name for p in card_dir.iterdir()) == ["1700000000_Lyrics.md"]
+    qtbot.waitUntil(lambda: sorted(p.name for p in card_dir.iterdir()) == ["1700000000_Lyrics.md"])
 
 
 def test_a_nameless_note_is_not_offered_to_the_link_completer(qtbot, notes_base, no_dialogs):
