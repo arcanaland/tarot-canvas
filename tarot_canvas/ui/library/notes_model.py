@@ -35,7 +35,7 @@ def card_cover_path(deck, card_id):
 class NotesListModel(QAbstractListModel):
     """across the whole library, or one card's notes"""
 
-    # the note's path and the name asked for; the owner renames the file
+    # the note's path and name
     renameRequested = pyqtSignal(str, str)
 
     def __init__(
@@ -51,7 +51,6 @@ class NotesListModel(QAbstractListModel):
         super().__init__(parent)
         self._index = dict(index or {})
         self._deck = deck
-        # A card's own list has no use for the card's name
         self._card_in_subtitle = card_in_subtitle
         self._editable = editable
         # The preview line of a note with nothing past its heading
@@ -164,7 +163,6 @@ class NotesListModel(QAbstractListModel):
         if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.AccessibleTextRole):
             return notes_model.label(note)
         if role == Qt.ItemDataRole.EditRole and self._editable:
-            # The name, never the first-line label: that is content, not a name
             return notes_model.display_name_from_filename(note.path.name)
         if role == NoteRole:
             return note

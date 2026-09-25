@@ -35,9 +35,7 @@ class NoteRowDelegate(QStyledItemDelegate):
     ):
         super().__init__(parent)
         self._cover_cache = cover_cache or CoverCache()
-        # A card's own list has no use for the card's art
         self._thumbnail = thumbnail
-        # A visible way to the row's actions, so right-click is never the only one
         self._menu_button = menu_button
         self._menu_tooltip = menu_tooltip
 

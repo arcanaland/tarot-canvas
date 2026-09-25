@@ -66,10 +66,8 @@ class NotesListPage(QWidget):
         self.view.setModel(model)
         self.view.setItemDelegate(delegate)
         self.view.setUniformItemSizes(True)
-        # A card usually has one note, so no frame and no stripes around it
         self.view.setFrameShape(QFrame.Shape.NoFrame)
         self.view.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        # Renaming starts from the Rename action only; a double-click opens the note
         self.view.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)

@@ -69,7 +69,7 @@ class NoteRowsView(QListView):
         self.setItemDelegate(self.row_delegate)
         self.setUniformItemSizes(True)
 
-        # Part of the page around it, not a box of its own
+        # Part of the page around it
         self.setFrameShape(QFrame.Shape.NoFrame)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)

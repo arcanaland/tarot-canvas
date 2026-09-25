@@ -6,7 +6,7 @@ MUTED_TEXT_OPACITY = 0.75
 SUBTLE_FILL_ALPHA = 0.04
 GHOST_BAR_ALPHA = 0.10
 
-# Highlight alpha behind an inline message, as KMessageWidget fills it
+# Highlight alpha behind an inline message
 MESSAGE_FILL_ALPHA = 0.20
 
 

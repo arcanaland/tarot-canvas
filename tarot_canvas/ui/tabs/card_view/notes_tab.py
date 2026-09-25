@@ -32,8 +32,7 @@ from tarot_canvas.ui.tabs.card_view.notes_list import NotesEmptyPage, NotesListP
 from tarot_canvas.ui.widgets.inline_message import InlineMessage
 from tarot_canvas.utils.logger import logger
 
-# A deleted note waits under this suffix until the delete is committed. scan() lists
-# only *.md, so a staged note has already left every view.
+# A deleted note is renamed under this suffix until the delete is committed.
 STAGED_DELETE_SUFFIX = ".deleted"
 
 
@@ -97,7 +96,6 @@ class NotesTab(QWidget):
         self.delete_action = QAction(QIcon.fromTheme("edit-delete"), text("delete"), self)
         self.delete_action.triggered.connect(self.delete_target)
 
-        # Bound to the list alone: on the tab, Del would delete the note being typed in
         self.rename_action.setShortcut(QKeySequence(Qt.Key.Key_F2))
         self.delete_action.setShortcut(QKeySequence(QKeySequence.StandardKey.Delete))
         for action in (self.rename_action, self.delete_action):
@@ -309,11 +307,7 @@ class NotesTab(QWidget):
         self.menu_target = None
 
     def action_target(self):
-        """The note an action acts on.
-
-        From a menu, the row it opened on or the open note, never the selection. From a
-        key in the list, the highlighted row.
-        """
+        """The note an action acts on."""
         if self.menu_target:
             return self.menu_target
         return self.path_at(self.list_view.currentIndex())
@@ -326,7 +320,6 @@ class NotesTab(QWidget):
             self.open_note_editor(file_path)
 
     def rename_target(self):
-        """Rename where the note is shown: in its row, or in the editor's name field."""
         if self.stack.currentWidget() is self.editor_page:
             self.note_title.setFocus()
             self.note_title.selectAll()
@@ -362,9 +355,7 @@ class NotesTab(QWidget):
 
         self.current_file_path = file_path
 
-        # The field is the note's name. For a nameless note the row is labelled by its
-        # first line, which is content — putting that in the name field would offer to
-        # rename the note to its own text.
+        # note's name. For nameless notes, the row is labelled by its first line
         self.note_title.setText(notes_model.display_name_from_filename(os.path.basename(file_path)))
 
         # Load the note content
@@ -390,7 +381,7 @@ class NotesTab(QWidget):
         new_name = self.note_title.text().strip()
 
         if self.pending_path:
-            # No file to rename yet; the name is held for whoever creates it
+            # No file to rename yet
             self.pending_name = new_name
             return
 
@@ -476,8 +467,6 @@ class NotesTab(QWidget):
         if not self.pending_path or not self.note_editor.toPlainText().strip():
             return
 
-        # A name typed into the header before anything was written belongs in the
-        # filename the note is about to get, not in a rename straight after it
         file_path = renamed_path(self.pending_path, self.pending_name)
 
         try:
@@ -537,7 +526,6 @@ class NotesTab(QWidget):
         self.refresh_list()
         note_events().notes_changed.emit()
 
-    # A real slot, so Qt drops the aboutToQuit connection when the tab is deleted
     @pyqtSlot()
     def commit_pending_delete(self):
         """Make the staged delete final."""
