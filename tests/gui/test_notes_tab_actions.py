@@ -437,3 +437,18 @@ def test_export_copies_the_note_and_says_nothing(
 
     assert target.read_bytes() == path.read_bytes()
     assert offered[0].endswith("Lyrics.md")
+
+
+def test_save_is_enabled_only_while_there_is_something_to_save(qtbot, notes_base, no_dialogs):
+    tab, _, (path,) = open_card_view(qtbot, "1700000000_Lyrics.md")
+    notes = tab.notes_tab
+    notes.open_note_path(str(path))
+    assert not notes.save_button.isEnabled()
+
+    notes.note_editor.moveCursor(QTextCursor.MoveOperation.End)
+    qtbot.keyClicks(notes.note_editor, "typed")
+    assert notes.save_button.isEnabled()
+
+    notes.save_button.click()
+    assert not notes.save_button.isEnabled()
+    assert "typed" in path.read_text(encoding="utf-8")

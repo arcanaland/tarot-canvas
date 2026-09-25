@@ -1,4 +1,5 @@
 import html
+from importlib.resources import files
 
 from PyQt6.QtCore import QEvent, Qt
 from PyQt6.QtGui import QIcon, QPainter, QPalette
@@ -35,7 +36,7 @@ from tarot_canvas.ui.widgets.placeholder_message import (
 )
 from tarot_canvas.utils.logger import logger
 
-PLACEHOLDER_ICON = "view-pim-notes"
+PLACEHOLDER_ICON = files("tarot_canvas.resources.icons").joinpath("esoterica.svg")
 
 PLACEHOLDER_HEADING = "Esoterica"
 PLACEHOLDER_EXPLANATION = 'Per-card meanings, associations and symbolism will show up here. See the <a href="{faq}">Frequently Asked Questions</a> for how to add your own.'
@@ -189,9 +190,9 @@ class EsotericaTab(QWidget):
         header_layout.setContentsMargins(0, 5, 0, 0)
 
         self.header_icon = None
-        if HEADER_ICON and QIcon.hasThemeIcon(HEADER_ICON):
+        if HEADER_ICON:
             self.header_icon = TintedIcon(
-                QIcon.fromTheme(HEADER_ICON), HEADER_ICON_SIZE, colour=_window_text
+                QIcon(str(HEADER_ICON)), HEADER_ICON_SIZE, colour=_window_text
             )
             header_layout.addWidget(self.header_icon)
 
@@ -226,7 +227,7 @@ class EsotericaTab(QWidget):
 
         # Above the ghosts, never over them
         self.placeholder = PlaceholderMessage(
-            PLACEHOLDER_ICON,
+            QIcon(str(PLACEHOLDER_ICON)),
             PLACEHOLDER_HEADING,
             _with_faq_link(PLACEHOLDER_EXPLANATION),
             _with_faq_link(PLACEHOLDER_FOOTNOTE),

@@ -225,7 +225,6 @@ class MainWindow(QMainWindow):
 
         self.fullscreen_tab_action = QAction("&Fullscreen", self)
         self.fullscreen_tab_action.setShortcuts([QKeySequence("Ctrl+Shift+F"), QKeySequence("F11")])
-        self.fullscreen_tab_action.setStatusTip("Fullscreen the current tab (Ctrl+Shift+F or F)")
         self.fullscreen_tab_action.setIcon(QIcon.fromTheme("view-fullscreen"))
         self.fullscreen_tab_action.setCheckable(True)
         self.fullscreen_tab_action.triggered.connect(self.toggle_tab_fullscreen)

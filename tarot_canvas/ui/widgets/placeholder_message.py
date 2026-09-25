@@ -75,11 +75,14 @@ class _WrappedLabel(QLabel):
 
 class PlaceholderMessage(QWidget):
     def __init__(
-        self, icon_name, text="", explanation="", footnote="", parent=None, helpful_action=None
+        self, icon, text="", explanation="", footnote="", parent=None, helpful_action=None
     ):
         super().__init__(parent)
-        # No substitute: a theme without the icon gets no icon
-        self.icon = QIcon.fromTheme(icon_name) if QIcon.hasThemeIcon(icon_name) else None
+        # A theme icon name or a QIcon of our own. No substitute: a theme without the icon
+        # gets no icon
+        if isinstance(icon, str):
+            icon = QIcon.fromTheme(icon) if QIcon.hasThemeIcon(icon) else None
+        self.icon = icon
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)

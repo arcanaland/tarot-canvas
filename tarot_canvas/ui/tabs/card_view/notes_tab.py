@@ -193,12 +193,12 @@ class NotesTab(QWidget):
         header_layout.addWidget(self.note_title)
 
         # Save button
-        save_button = QPushButton()
-        save_button.setIcon(QIcon.fromTheme("document-save"))
-        save_button.setToolTip("Save note (Ctrl+S)")
-        save_button.setMaximumSize(32, 32)
-        save_button.clicked.connect(self.save_current_note)
-        header_layout.addWidget(save_button)
+        self.save_button = QPushButton()
+        self.save_button.setIcon(QIcon.fromTheme("document-save"))
+        self.save_button.setToolTip("Save note (Ctrl+S)")
+        self.save_button.setMaximumSize(32, 32)
+        self.save_button.clicked.connect(self.save_current_note)
+        header_layout.addWidget(self.save_button)
 
         self.editor_menu_button = QToolButton()
         self.editor_menu_button.setIcon(QIcon.fromTheme("overflow-menu"))
@@ -219,6 +219,9 @@ class NotesTab(QWidget):
         self.note_editor = MarkdownEditor(self)
         self.note_editor.linkClicked.connect(self.handle_link_click)
         self.note_editor.document().contentsChanged.connect(self.write_pending_note)
+        # A save says nothing; Save greys out instead
+        self.save_button.setEnabled(False)
+        self.note_editor.document().modificationChanged.connect(self.save_button.setEnabled)
         editor_layout.addWidget(self.note_editor)
 
         # Add widgets to stack
