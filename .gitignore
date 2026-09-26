@@ -21,3 +21,5 @@ vendor/
 agents/
 .claude
 *.local.md
+
+bench-*.json
