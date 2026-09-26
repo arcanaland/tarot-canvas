@@ -13,12 +13,10 @@ from tarot_canvas.ui.canvas.card_item import DraggableCardItem
 from tarot_canvas.ui.canvas.detail import load_card_art
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 
-# The same proportions and height as a reference deck's h1200 art
 SYNTHETIC_ART_SIZE = QSize(720, 1200)
 SYNTHETIC_ART_COUNT = 8
 ART_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
 
-# Long enough for the tab's startup timers (last one at 1000ms) to have fired
 SETTLE_MS = 1200
 
 LAYOUT_SEED = 1909
@@ -80,7 +78,7 @@ def pump(ms):
 
 
 class BenchCanvas:
-    """A shown CanvasTab whose motion is stepped by the bench, not its MotionClock."""
+    """A CanvasTab to bench."""
 
     def __init__(self, viewport="raster", size=DEFAULT_SIZE, art=()):
         self.viewport_kind = viewport
@@ -184,7 +182,6 @@ class BenchCanvas:
         pump(50)
 
     def scroll_to(self, point):
-        """Scroll so point is the viewport's top-left, in scrollbar units."""
         self.tab.view.grow_scene_rect()
         self.tab.view.horizontalScrollBar().setValue(round(point.x()))
         self.tab.view.verticalScrollBar().setValue(round(point.y()))
@@ -203,11 +200,7 @@ class BenchCanvas:
         image.save(str(path))
 
     def _read_gl(self):
-        """The viewport's framebuffer as last painted.
-
-        grabFramebuffer would re-render through paintGL, which QGraphicsView leaves empty:
-        it paints the viewport with a QPainter in paintEvent instead.
-        """
+        """The viewport's framebuffer as last painted."""
         from PyQt6.QtGui import QImage
 
         widget, functions = self._gl

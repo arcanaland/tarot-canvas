@@ -17,11 +17,7 @@ class BenchError(Exception):
 
 
 def isolate_home():
-    """Point $HOME and XDG at a scratch directory, as tests/conftest.py does.
-
-    Opening a canvas reads and writes QSettings, and the bench must never touch the
-    user's.
-    """
+    """Point $HOME and XDG at a scratch directory"""
     home = Path(tempfile.mkdtemp(prefix="tarot-canvas-bench-"))
     os.environ["HOME"] = str(home)
     os.environ["XDG_CONFIG_HOME"] = str(home / ".config")
@@ -52,11 +48,7 @@ def select_platform(platform, dpr, scratch):
 
 
 def unthrottle(msaa):
-    """Render as fast as possible instead of at the display's refresh rate.
-
-    With vsync on, a GL frame blocks on the compositor and every frame measures ~16.7ms
-    no matter how much work it did.
-    """
+    """Render as fast as possible (avoid vsync)"""
     from PyQt6.QtGui import QSurfaceFormat
 
     fmt = QSurfaceFormat.defaultFormat()

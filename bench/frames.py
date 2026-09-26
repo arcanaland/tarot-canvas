@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import QApplication
 
 from bench.env import BenchError
 
-# The simulated time between frames: the canvas's own tick
+# The simulated time between frames
 DT = 1 / 60
 # Frame budgets at 60 and 120 Hz
 BUDGETS_MS = (1000 / 60, 1000 / 120)
