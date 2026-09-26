@@ -1,7 +1,5 @@
-import os
-
 from PyQt6.QtCore import QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QKeySequence, QPixmap, QShortcut
+from PyQt6.QtGui import QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QDialog,
@@ -14,13 +12,20 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from tarot_canvas.models.card_search import CardTerms, Query
 from tarot_canvas.models.deck_manager import deck_manager
+from tarot_canvas.ui.library.cover_cache import CoverCache
+
+THUMBNAIL_SIZE = QSize(25, 40)
+
+# Shared by every palette, so reopening one decodes nothing
+_THUMBNAILS = CoverCache(capacity=128)
 
 
 class CommandPaletteItem(QWidget):
     """Custom widget for command palette items with card image thumbnail"""
 
-    def __init__(self, card, deck, parent=None):
+    def __init__(self, card, deck, device_pixel_ratio=1.0, parent=None):
         super().__init__(parent)
         self.card = card
         self.deck = deck
@@ -28,20 +33,13 @@ class CommandPaletteItem(QWidget):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(5, 5, 5, 5)
 
-        # Card thumbnail
-        image_path = card.get("image")
-        if image_path and os.path.exists(image_path):
-            pixmap = QPixmap(image_path)
-            icon_label = QLabel()
-            pixmap = pixmap.scaledToHeight(40, Qt.TransformationMode.SmoothTransformation)
+        # Card thumbnail, decoded at display size; left empty if there is no image
+        icon_label = QLabel()
+        icon_label.setFixedSize(THUMBNAIL_SIZE)
+        pixmap = _THUMBNAILS.get(card.get("image"), THUMBNAIL_SIZE, device_pixel_ratio)
+        if pixmap is not None:
             icon_label.setPixmap(pixmap)
-            icon_label.setFixedSize(25, 40)
-            layout.addWidget(icon_label)
-        else:
-            # Placeholder if no image
-            empty_label = QLabel()
-            empty_label.setFixedSize(25, 40)
-            layout.addWidget(empty_label)
+        layout.addWidget(icon_label)
 
         # Card information
         info_layout = QVBoxLayout()
@@ -76,6 +74,19 @@ class CommandPaletteItem(QWidget):
     def set_action_hint(self, text):
         """Update the action hint text"""
         self.action_label.setText(text)
+
+
+class ResultItem(QListWidgetItem):
+    """A result row that sorts by search tier, then by deck order"""
+
+    def __init__(self, card, deck, position):
+        super().__init__()
+        self.terms = CardTerms(card, deck.get_name())
+        self.position = position
+        self.order = (False, 0, position)
+
+    def __lt__(self, other):
+        return self.order < other.order
 
 
 class CommandPalette(QDialog):
@@ -140,20 +151,20 @@ class CommandPalette(QDialog):
             for card in reference_deck._cards:
                 self.cards.append((card, reference_deck))
 
-        # Initially populate with reference deck cards
-        self.populate_results(self.cards)
+        self.build_results()
 
-    def populate_results(self, card_deck_pairs):
-        """Populate the results list with the given cards"""
-        self.results_list.clear()
+    def build_results(self):
+        """Build one row per card; filtering hides rows rather than rebuilding them"""
+        window = self.parentWidget()
+        device_pixel_ratio = window.devicePixelRatioF() if window else 1.0
 
-        for card, deck in card_deck_pairs:
+        for position, (card, deck) in enumerate(self.cards):
             # Create list item
-            item = QListWidgetItem()
+            item = ResultItem(card, deck, position)
             item.setSizeHint(QSize(0, 60))  # Set appropriate height
 
             # Create and add custom widget
-            card_widget = CommandPaletteItem(card, deck)
+            card_widget = CommandPaletteItem(card, deck, device_pixel_ratio)
 
             # Set action hint based on active tab type
             action_text = "Add to Canvas" if self.active_tab_type == "canvas" else "Open"
@@ -166,40 +177,46 @@ class CommandPalette(QDialog):
             self.results_list.addItem(item)
             self.results_list.setItemWidget(item, card_widget)
 
-        # Select first item if available
-        if self.results_list.count() > 0:
-            self.results_list.setCurrentRow(0)
+        self.select_first_visible()
+
+    def visible_rows(self):
+        return [
+            row
+            for row in range(self.results_list.count())
+            if not self.results_list.isRowHidden(row)
+        ]
+
+    def select_first_visible(self):
+        rows = self.visible_rows()
+        self.results_list.setCurrentRow(rows[0] if rows else -1)
 
     def filter_results(self):
-        """Filter results based on search text"""
-        search_text = self.search_input.text().lower()
+        """Hide the cards that don't match, and rank the rest best first"""
+        query = Query(self.search_input.text())
 
-        if not search_text:
-            # Show all cards
-            self.populate_results(self.cards)
+        items = [self.results_list.item(row) for row in range(self.results_list.count())]
+        for item in items:
+            tier = item.terms.tier(query)
+            # Misses sort last; they are hidden anyway
+            item.order = (tier is None, tier or 0, item.position)
+
+        # Sorting moves rows, and each row's widget moves with it
+        self.results_list.sortItems()
+        for item in items:
+            item.setHidden(item.order[0])
+
+        self.select_first_visible()
+
+    def step_selection(self, step):
+        """Move the selection by one visible row, wrapping at either end"""
+        rows = self.visible_rows()
+        if not rows:
             return
-
-        # Filter cards by name, type, suit, and rank
-        filtered_cards = []
-        for card, deck in self.cards:
-            card_name = card.get("name", "").lower()
-            card_type = card.get("type", "").lower()
-            card_suit = card.get("suit", "").lower()
-            card_rank = card.get("rank", "").lower()
-            deck_name = deck.get_name().lower()
-
-            # Check if any field contains the search text
-            if (
-                search_text in card_name
-                or search_text in card_type
-                or search_text in card_suit
-                or search_text in card_rank
-                or search_text in deck_name
-            ):
-                filtered_cards.append((card, deck))
-
-        # Populate with filtered results
-        self.populate_results(filtered_cards)
+        current = self.results_list.currentRow()
+        if current not in rows:
+            self.results_list.setCurrentRow(rows[0])
+            return
+        self.results_list.setCurrentRow(rows[(rows.index(current) + step) % len(rows)])
 
     def on_item_activated(self, item):
         """Handle item activation (double-click or Enter key)"""
@@ -216,26 +233,18 @@ class CommandPalette(QDialog):
         if event.key() == Qt.Key.Key_Return or event.key() == Qt.Key.Key_Enter:
             # If an item is selected, activate it
             current_item = self.results_list.currentItem()
-            if current_item:
+            if current_item and not current_item.isHidden():
                 self.on_item_activated(current_item)
         elif event.key() == Qt.Key.Key_Up:
             # Handle up key when in search input
-            if self.search_input.hasFocus() and self.results_list.count() > 0:
-                current_row = self.results_list.currentRow()
-                if current_row > 0:
-                    self.results_list.setCurrentRow(current_row - 1)
-                else:
-                    self.results_list.setCurrentRow(self.results_list.count() - 1)
+            if self.search_input.hasFocus() and self.visible_rows():
+                self.step_selection(-1)
                 event.accept()
                 return
         elif event.key() == Qt.Key.Key_Down:
             # Handle down key when in search input
-            if self.search_input.hasFocus() and self.results_list.count() > 0:
-                current_row = self.results_list.currentRow()
-                if current_row < self.results_list.count() - 1:
-                    self.results_list.setCurrentRow(current_row + 1)
-                else:
-                    self.results_list.setCurrentRow(0)
+            if self.search_input.hasFocus() and self.visible_rows():
+                self.step_selection(1)
                 event.accept()
                 return
 
