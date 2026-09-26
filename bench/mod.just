@@ -29,13 +29,18 @@ headless *args:
   trap 'rm -rf "$out"' EXIT
   printf -v forwarded '%q ' "$@"
   cat >"$out/session.sh" <<EOF
-  uv run python -m bench --platform wayland --viewport raster,gl $forwarded >$out/stdout 2>$out/stderr
+  uv run python -u -m bench --platform wayland --viewport raster,gl $forwarded >$out/stdout 2>$out/stderr
   echo \$? >$out/status
   EOF
-  WAYLAND_DISPLAY= {{compositor}} --socket tarot-canvas-bench --exit-with-session "bash $out/session.sh" \
-    >"$out/compositor.log" 2>&1 || true
-  cat "$out/stdout"
-  grep -v -e ' - INFO - ' -e ' - WARNING - ' "$out/stderr" >&2 || true
+  touch "$out/stdout"
+  # One socket per run, so two benches can run side by side
+  WAYLAND_DISPLAY= {{compositor}} --socket "tarot-canvas-bench-$$" --exit-with-session "bash $out/session.sh" \
+    >"$out/compositor.log" 2>&1 &
+  compositor=$!
+  # Rows as they finish, not all at the end
+  tail -n +1 -f --pid="$compositor" "$out/stdout"
+  wait "$compositor" || true
+  grep -v -e ' - INFO - ' -e ' - WARNING - ' "$out/stderr" >&2 2>/dev/null || true
   if [ ! -s "$out/status" ]; then
     echo "bench: the compositor exited before the bench did:" >&2
     tail -20 "$out/compositor.log" >&2

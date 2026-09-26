@@ -80,7 +80,7 @@ def pump(ms):
 class BenchCanvas:
     """A CanvasTab to bench."""
 
-    def __init__(self, viewport="raster", size=DEFAULT_SIZE, art=()):
+    def __init__(self, viewport="raster", size=DEFAULT_SIZE, art=(), cache_background=True):
         self.viewport_kind = viewport
         self.art = [(*load_card_art(str(path)), str(path)) for path in art]
         self.ambient = False
@@ -88,6 +88,10 @@ class BenchCanvas:
         tab = CanvasTab()
         if viewport == "gl":
             self._use_gl(tab)
+        if not cache_background:
+            from PyQt6.QtWidgets import QGraphicsView
+
+            tab.view.setCacheMode(QGraphicsView.CacheModeFlag.CacheNone)
         tab.resize(size)
         tab.show()
         pump(SETTLE_MS)

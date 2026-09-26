@@ -41,12 +41,18 @@ def parser():
     p.add_argument("--list", action="store_true", help="print workload names and exit")
     p.add_argument("--cards", type=_counts, default=[16], help="card counts, e.g. 1,8,32")
     p.add_argument("--viewport", type=_viewports, default=["raster"], help="raster,gl")
-    p.add_argument("--frames", type=int, default=600, help="timed frames per run")
-    p.add_argument("--warmup", type=int, default=120, help="untimed frames before each run")
-    p.add_argument("--runs", type=int, default=5, help="runs per cell")
+    p.add_argument("--frames", type=int, default=300, help="timed frames per run")
+    p.add_argument("--warmup", type=int, default=60, help="untimed frames before each run")
+    p.add_argument("--runs", type=int, default=3, help="runs per cell")
     p.add_argument("--size", type=_size, default=(1600, 1000), help="tab size, WxH")
     p.add_argument("--art", type=Path, help="a directory of card art (default: synthetic)")
     p.add_argument("--msaa", type=int, default=0, help="GL multisample count")
+    p.add_argument(
+        "--cache",
+        choices=("background", "none"),
+        default="background",
+        help="the view's cache mode; the app caches its background",
+    )
     p.add_argument("--dpr", type=float, default=1.0, help="device pixel ratio (offscreen only)")
     p.add_argument(
         "--platform",
@@ -88,12 +94,13 @@ def bench(args):
         "runs": args.runs,
         "size": list(args.size),
         "msaa": args.msaa,
+        "cache": args.cache,
         "art": str(args.art) if args.art else "synthetic",
     }
     meta = None
     results = []
     for kind in args.viewport:
-        canvas = BenchCanvas(kind, QSize(*args.size), art)
+        canvas = BenchCanvas(kind, QSize(*args.size), art, args.cache == "background")
         if meta is None:
             meta = {
                 "machine": machine(),
@@ -124,7 +131,8 @@ def bench(args):
                 }
                 results.append(result)
                 print(row(result), flush=True)
-                if args.snapshot:
+                # A multisampled framebuffer has to be resolved before it can be read
+                if args.snapshot and not (kind == "gl" and args.msaa):
                     args.snapshot.mkdir(parents=True, exist_ok=True)
                     canvas.snapshot(args.snapshot / f"{workload.name}-{kind}-{count}.png")
         canvas.close()

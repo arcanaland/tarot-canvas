@@ -16,7 +16,8 @@ def describe(meta):
     config = meta["config"]
     lines = [
         f"platform {meta['platform']}  dpr {meta['dpr']:g}  viewport {meta['viewport_size'][0]}x{meta['viewport_size'][1]}"
-        f"  frames {config['frames']} x{config['runs']} runs (+{config['warmup']} warmup)",
+        f"  frames {config['frames']} x{config['runs']} runs (+{config['warmup']} warmup)"
+        f"  cache {config.get('cache', 'background')}",
         f"qt {machine['qt']}  python {machine['python']}  cpu {machine['cpu']}  governor {machine['governor']}",
     ]
     if meta.get("gl_renderer"):
