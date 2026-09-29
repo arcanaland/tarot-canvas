@@ -3,8 +3,10 @@ import shutil
 import pytest
 from PyQt6.QtCore import QPoint, QPointF, QRect, QSize, Qt
 from PyQt6.QtGui import QColor, QMouseEvent, QPixmap
+from PyQt6.QtWidgets import QTabWidget
 
 from tarot_canvas.models.deck import TarotDeck
+from tarot_canvas.ui.tabs import card_view_tab
 from tarot_canvas.ui.tabs.card_view.card_bar import DeckBar
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tests.conftest import MINIMAL_DECK_PATH
@@ -513,3 +515,35 @@ def test_the_hint_ends_up_where_the_settled_layout_says(qtbot, big_image_deck):
     qtbot.waitUntil(lambda: toast.pos() == view.clear_band_position(toast.size()))
     assert view.clear_band_position(toast.size()) is not None  # a real band
     assert not toast.geometry().intersects(view.image_viewport_rect())
+
+
+# -- the side tab strip --------------------------------------------------
+
+
+def test_the_side_tabs_stay_on_the_east_edge_on_every_platform(qtbot, big_image_deck, monkeypatch):
+    monkeypatch.setattr(card_view_tab.platform, "system", lambda: "Linux")
+    tab = make_tab(qtbot, big_image_deck, 900, 700)
+
+    assert tab.info_tabs.tabPosition() == QTabWidget.TabPosition.East
+
+
+def test_only_the_mac_style_gets_document_mode_on_the_side_tabs(qtbot, big_image_deck, monkeypatch):
+    """Breeze draws a document-mode bar at main-tab size, far too big for a side
+    strip; the macOS style draws capsules of rotated text without it."""
+    monkeypatch.setattr(card_view_tab.platform, "system", lambda: "Linux")
+    assert not make_tab(qtbot, big_image_deck, 900, 700).info_tabs.documentMode()
+
+    monkeypatch.setattr(card_view_tab.platform, "system", lambda: "Darwin")
+    assert make_tab(qtbot, big_image_deck, 900, 700).info_tabs.documentMode()
+
+
+def test_fullscreen_restores_the_document_mode_the_platform_chose(
+    qtbot, big_image_deck, monkeypatch
+):
+    monkeypatch.setattr(card_view_tab.platform, "system", lambda: "Darwin")
+    tab = make_tab(qtbot, big_image_deck, 1200, 700)
+
+    tab.exit_fullscreen(tab.enter_fullscreen())
+
+    assert tab.info_tabs.tabPosition() == QTabWidget.TabPosition.East
+    assert tab.info_tabs.documentMode()

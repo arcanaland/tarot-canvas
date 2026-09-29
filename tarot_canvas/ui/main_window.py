@@ -343,11 +343,12 @@ class MainWindow(QMainWindow):
     def init_ui(self):
         # Create main layout
         main_layout = QVBoxLayout()
-        main_layout.setContentsMargins(4, 4, 4, 4)
+        main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(2)
 
         # Create splitter for explorer panel and tab area
         self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.main_splitter.setHandleWidth(1)
 
         # Create and add card explorer panel
         self.card_explorer = CardExplorerPanel()
@@ -365,6 +366,7 @@ class MainWindow(QMainWindow):
 
         # Create tab widget
         self.tab_widget = QTabWidget()
+        self.tab_widget.setDocumentMode(True)
         self.tab_widget.setTabsClosable(True)
         self.tab_widget.tabCloseRequested.connect(self.close_tab)
 
@@ -398,7 +400,7 @@ class MainWindow(QMainWindow):
 
         # Create search button and put it in the tab corner
         search_button = QToolButton()
-        search_button.setIcon(QIcon.fromTheme("search"))
+        search_button.setIcon(QIcon.fromTheme("search", QIcon.fromTheme("edit-find")))
         search_button.setToolTip("Search Cards (Ctrl+P)")
         search_button.clicked.connect(self.show_command_palette)
 

@@ -124,6 +124,7 @@ class CardExplorerPanel(QWidget):
 
         # Tree view for cards
         self.tree_view = CardTreeView()
+        self.tree_view.setFrameShape(QFrame.Shape.NoFrame)
         self.tree_view.setHeaderHidden(True)
         self.tree_view.setAnimated(True)
         self.tree_view.setIndentation(15)

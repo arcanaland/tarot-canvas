@@ -1,4 +1,5 @@
 import os
+import platform
 import random
 from functools import partial
 from typing import ClassVar
@@ -149,6 +150,10 @@ class CardViewTab(BaseTab):
 
         # East on the normal view, but North for fullscreen
         self.info_tabs.setTabPosition(QTabWidget.TabPosition.East)
+
+        # looks weird on macOS if it's East and not doc mode
+        if platform.system() == "Darwin":
+            self.info_tabs.setDocumentMode(True)
 
         # Tab 1: Overview
         self.overview_tab = OverviewTab(self.card, self.deck, self)
