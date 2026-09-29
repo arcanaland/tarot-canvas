@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import (
 
 from tarot_canvas.models import notes as notes_model
 from tarot_canvas.models.note_events import note_events
+from tarot_canvas.ui.activate_on_return import activate_on_return
 from tarot_canvas.ui.library.deselect import deselect_on_empty_click_or_escape
 from tarot_canvas.ui.library.note_row_delegate import NoteRowDelegate
 from tarot_canvas.ui.library.notes_details import CardNotesDetails
@@ -71,6 +72,7 @@ class NotesPage(QWidget):
         view.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
 
         view.activated.connect(self._on_activated)
+        activate_on_return(view)
         view.clicked.connect(self._show_details)
         view.selectionModel().currentChanged.connect(self._on_current_changed)
         deselect_on_empty_click_or_escape(view)

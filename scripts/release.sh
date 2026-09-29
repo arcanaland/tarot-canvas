@@ -115,7 +115,8 @@ phase_prepare() {
   if [ "$NEW_VERSION" != "$CURRENT_VERSION" ]; then
     echo "== updating version..."
     uv version "$NEW_VERSION"
-    sed -i "s/__version__ = \".*\"/__version__ = \"$NEW_VERSION\"/" "$VERSION_FILE"
+    sed -i.bak "s/__version__ = \".*\"/__version__ = \"$NEW_VERSION\"/" "$VERSION_FILE"
+    rm "$VERSION_FILE.bak"
     echo -e "${GREEN}== version updated to $NEW_VERSION${NC}"
   else
     echo "== version unchanged"

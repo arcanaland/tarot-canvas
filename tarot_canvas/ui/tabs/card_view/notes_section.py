@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from tarot_canvas.ui.activate_on_return import activate_on_return
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.note_row_delegate import NoteRowDelegate
 from tarot_canvas.ui.library.notes_model import NoteRole, NotesListModel
@@ -77,6 +78,7 @@ class NoteRowsView(QListView):
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         self.activated.connect(self._on_activated)
+        activate_on_return(self)
 
     def set_notes(self, notes):
         notes = list(notes)
