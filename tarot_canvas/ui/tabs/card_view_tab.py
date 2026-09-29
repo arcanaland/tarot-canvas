@@ -1,4 +1,5 @@
 import os
+import platform
 import random
 from functools import partial
 from typing import ClassVar
@@ -147,12 +148,12 @@ class CardViewTab(BaseTab):
 
         self.info_tabs = QTabWidget()
 
-        # East on the normal view, but North for fullscreen.
-        # Document mode is what keeps the macOS style drawing a tab strip
-        # here rather than a stack of rounded capsules.
+        # East on the normal view, but North for fullscreen
         self.info_tabs.setTabPosition(QTabWidget.TabPosition.East)
-        self.info_tabs.setDocumentMode(True)
-        self.info_tabs.tabBar().setExpanding(False)
+
+        # looks weird on macOS if it's East and not doc mode
+        if platform.system() == "Darwin":
+            self.info_tabs.setDocumentMode(True)
 
         # Tab 1: Overview
         self.overview_tab = OverviewTab(self.card, self.deck, self)
