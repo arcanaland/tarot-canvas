@@ -152,6 +152,7 @@ class CardViewTab(BaseTab):
         # here rather than a stack of rounded capsules.
         self.info_tabs.setTabPosition(QTabWidget.TabPosition.East)
         self.info_tabs.setDocumentMode(True)
+        self.info_tabs.tabBar().setExpanding(False)
 
         # Tab 1: Overview
         self.overview_tab = OverviewTab(self.card, self.deck, self)
