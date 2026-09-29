@@ -147,8 +147,11 @@ class CardViewTab(BaseTab):
 
         self.info_tabs = QTabWidget()
 
-        # East on the normal view, but North for fullscreen
+        # East on the normal view, but North for fullscreen.
+        # Document mode is what keeps the macOS style drawing a tab strip
+        # here rather than a stack of rounded capsules.
         self.info_tabs.setTabPosition(QTabWidget.TabPosition.East)
+        self.info_tabs.setDocumentMode(True)
 
         # Tab 1: Overview
         self.overview_tab = OverviewTab(self.card, self.deck, self)
