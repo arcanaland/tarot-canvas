@@ -37,6 +37,7 @@ from tarot_canvas.settings import (
     get_settings,
     record_deck_opened,
 )
+from tarot_canvas.ui.activate_on_return import activate_on_return
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.catalog_client import deck_catalog
 from tarot_canvas.ui.library.deck_delegate import DeckDelegate
@@ -293,6 +294,7 @@ class LibraryTab(BaseTab):
         self.view.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
 
         self.view.activated.connect(self.on_deck_activated)
+        activate_on_return(self.view)
         self.view.clicked.connect(self.on_deck_clicked)
         self.view.selectionModel().currentChanged.connect(self.on_current_changed)
         self.proxy_model.modelReset.connect(self._update_empty_state)
