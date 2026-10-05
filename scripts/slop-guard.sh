@@ -4,7 +4,7 @@ set -euo pipefail
 pattern='(^|[^[:alnum:]_])(RFC|ADR|TASK)-[0-9]+'
 
 if [ $# -eq 0 ]; then
-  source=()
+  source=(--untracked)
   set -- '*.py' '*.sh' '*.just' 'justfile'
 else
   source=(--cached)

@@ -389,7 +389,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "pyqt6", specifier = ">=6.5.0,<7.0.0" },
+    { name = "pyqt6", specifier = ">=6.8.0,<7.0.0" },
     { name = "requests", specifier = ">=2.31.0,<3.0.0" },
     { name = "xdg-base-dirs", specifier = ">=6.0.2,<7.0.0" },
 ]

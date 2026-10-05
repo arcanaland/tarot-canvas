@@ -22,7 +22,7 @@ classifiers = [
     "Topic :: Utilities",
 ]
 dependencies = [
-    "PyQt6>=6.5.0,<7.0.0",
+    "PyQt6>=6.8.0,<7.0.0",
     "requests>=2.31.0,<3.0.0",
     "xdg-base-dirs>=6.0.2,<7.0.0",
 ]
