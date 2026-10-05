@@ -1,4 +1,5 @@
 import os
+import sys
 
 from PyQt6.QtCore import QPoint, Qt, pyqtSignal
 from PyQt6.QtGui import QDrag, QIcon, QPixmap, QStandardItem, QStandardItemModel
@@ -87,14 +88,14 @@ class CardExplorerPanel(QWidget):
     # Signal emitted when the header's close button is clicked
     close_requested = pyqtSignal()
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, platform=sys.platform):
         super().__init__(parent)
         self.current_deck = None
-        self.setup_ui()
+        self.setup_ui(platform)
         self.populate_deck_selector()
         deck_events().decks_changed.connect(self.refresh)
 
-    def setup_ui(self):
+    def setup_ui(self, platform=sys.platform):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -119,6 +120,9 @@ class CardExplorerPanel(QWidget):
         self.close_button.setAccessibleName("Hide Card Explorer")
         self.close_button.clicked.connect(self.close_requested)
         header_layout.addWidget(self.close_button)
+        if platform == "darwin":
+            # No Mac sidebar has one; ⌘E and the View menu hide it there
+            self.close_button.hide()
 
         layout.addLayout(header_layout)
 

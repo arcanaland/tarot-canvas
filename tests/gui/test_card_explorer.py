@@ -6,8 +6,8 @@ from tarot_canvas.ui.card_transfer import CARD_MIME, card_from_mime
 from tarot_canvas.ui.components.card_explorer import CardExplorerPanel
 
 
-def panel(qtbot):
-    widget = CardExplorerPanel()
+def panel(qtbot, platform="linux"):
+    widget = CardExplorerPanel(platform=platform)
     qtbot.addWidget(widget)
     return widget
 
@@ -43,6 +43,20 @@ def test_the_close_button_asks_to_be_closed(qtbot):
     explorer = panel(qtbot)
     with qtbot.waitSignal(explorer.close_requested, timeout=1000):
         explorer.close_button.click()
+
+
+def test_the_close_button_shows_on_linux(qtbot):
+    explorer = panel(qtbot)
+    explorer.show()
+
+    assert explorer.close_button.isVisible()
+
+
+def test_macos_has_no_close_button(qtbot):
+    explorer = panel(qtbot, platform="darwin")
+    explorer.show()
+
+    assert not explorer.close_button.isVisible()
 
 
 def test_preferred_width_follows_the_selected_deck(qtbot):

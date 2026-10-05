@@ -1,7 +1,8 @@
 import os
+import sys
 from enum import Enum
 
-from PyQt6.QtCore import QObject, QSettings, pyqtSignal
+from PyQt6.QtCore import QObject, QSettings, Qt, pyqtSignal
 from PyQt6.QtWidgets import QApplication, QStyleFactory
 
 from tarot_canvas.utils.logger import logger
@@ -79,7 +80,7 @@ class ThemeManager(QObject):
         self.theme_changed.emit(theme_type.value)
         logger.info(f"Theme changed to: {theme_type.value}")
 
-    def _apply_theme(self):
+    def _apply_theme(self, platform=sys.platform):
         """Apply the current theme to the application"""
         app = QApplication.instance()
         if not app:
@@ -87,6 +88,10 @@ class ThemeManager(QObject):
             return
 
         theme = self._current_theme
+
+        if platform == "darwin":
+            self._apply_theme_macos(app, theme)
+            return
 
         # Special handling for Flatpak
         if self._in_flatpak:
@@ -142,6 +147,24 @@ class ThemeManager(QObject):
                 border: 1px solid #777777;
             }
             """)
+
+    def _apply_theme_macos(self, app, theme):
+        """Keep the native style under every theme; Light and Dark only pick its colour scheme.
+
+        Breeze doesn't exist on a Mac, so the Light and Dark paths below would fall
+        back to Fusion: permanent scrollbars and boxed tab close buttons.
+        """
+        app.setStyle(QStyleFactory.create("macOS"))
+        app.setStyleSheet("")
+
+        hints = app.styleHints()
+        if theme == ThemeType.LIGHT:
+            hints.setColorScheme(Qt.ColorScheme.Light)
+        elif theme == ThemeType.DARK:
+            hints.setColorScheme(Qt.ColorScheme.Dark)
+        else:  # SYSTEM
+            hints.unsetColorScheme()
+        logger.info(f"Applying {theme.value} theme with the macOS style")
 
     def _apply_theme_flatpak(self, app, theme):
         """Apply theme specifically for Flatpak environment"""
