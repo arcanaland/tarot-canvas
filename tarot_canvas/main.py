@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
 from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.models.reference_deck import ReferenceDeck
 from tarot_canvas.ui.main_window import MainWindow
+from tarot_canvas.utils.bundle_name import set_bundle_name
 from tarot_canvas.utils.logger import logger
 from tarot_canvas.utils.theme_manager import ThemeManager
 
@@ -133,11 +134,15 @@ def main():
     # Suppress Qt warnings about Wayland
     os.environ["QT_LOGGING_RULES"] = "qt.qpa.wayland=false"
 
+    # for macOS
+    set_bundle_name("Tarot Canvas")
+
     # Initialize the application
     app = QApplication(sys.argv)
     app.setApplicationName("tarot-canvas")
     app.setApplicationDisplayName("Tarot Canvas")
     app.setDesktopFileName(os.environ.get("FLATPAK_ID", "land.arcana.TarotCanvas"))
+    app.setWindowIcon(QIcon(str(files("tarot_canvas.resources.icons").joinpath("icon.png"))))
 
     # Initialize and apply theme
     logger.info("Initializing theme manager")
