@@ -149,11 +149,6 @@ class ThemeManager(QObject):
             """)
 
     def _apply_theme_macos(self, app, theme):
-        """Keep the native style under every theme; Light and Dark only pick its colour scheme.
-
-        Breeze doesn't exist on a Mac, so the Light and Dark paths below would fall
-        back to Fusion: permanent scrollbars and boxed tab close buttons.
-        """
         app.setStyle(QStyleFactory.create("macOS"))
         app.setStyleSheet("")
 

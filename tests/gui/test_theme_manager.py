@@ -109,8 +109,6 @@ def test_macos_themes_choose_only_the_colour_scheme(app, theme, calls):
     assert app.hints.calls == calls
 
 
-# What main@c7c2137 does on Linux, which the macOS theming must leave exactly as it was:
-# (style, Window colour or "standard", stylesheet, or None when it is left alone)
 LINUX = {
     (False, True, ThemeType.SYSTEM): ("Breeze", "standard", ""),
     (False, True, ThemeType.LIGHT): ("Breeze", "standard", ""),
