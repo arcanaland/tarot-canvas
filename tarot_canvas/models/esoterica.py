@@ -6,7 +6,6 @@ import os
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import NamedTuple
 
 from tarot_canvas.models.card_ids import COURTS, PIPS
 from tarot_canvas.models.esoterica_registry import (
@@ -20,14 +19,6 @@ from tarot_canvas.utils.logger import logger
 from tarot_canvas.utils.path_helper import get_esoterica_directories
 
 SUPPORTED_SCHEMA_MAJORS = {"1"}
-
-
-class Passage(NamedTuple):
-    """One source's text for one card, ready to render."""
-
-    source_name: str
-    author: str | None
-    text: str
 
 
 @dataclass(frozen=True)
@@ -253,24 +244,6 @@ class EsotericaManager:
     def has_sources(self):
         """Whether any file could be read. A file in the older format doesn't count."""
         return bool(self.sources)
-
-    def get_passages_for_card(self, card_id):
-        canonical = str(card_id).split(":", 1)[0]
-
-        passages = []
-        for source in self.sources.values():
-            target = source["cards"].get(canonical)
-            if not isinstance(target, dict):
-                continue
-            slot = target.get("passages")
-            if not isinstance(slot, dict):
-                continue
-            text = slot.get("text")
-            if not isinstance(text, str) or not text.strip():
-                continue
-            passages.append(Passage(source["name"], source["author"], text))
-
-        return passages
 
     def read_card(self, card_id):
         """
