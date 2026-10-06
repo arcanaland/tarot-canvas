@@ -94,7 +94,7 @@ def _italic(label):
 
 
 def _spelled(value):
-    """A value as TOML gave it: never title-cased, booleans spelled as TOML spells them"""
+    """A value as TOML gave it"""
     if isinstance(value, bool):
         return "true" if value else "false"
     if isinstance(value, tuple):
@@ -112,7 +112,7 @@ def _row_label(text, text_format):
 
 
 def prose_row(value):
-    """Paragraphs of the source's prose; an array is joined into one paragraph"""
+    """Paragraphs of the source's prose"""
     return _row_label(_body_html(_spelled(value)), Qt.TextFormat.RichText)
 
 
@@ -129,7 +129,7 @@ def list_row(value):
 
 
 def affirmation_row(value):
-    """Indented and italic: the reader's own first-person line, not the author's claim"""
+    """Indented and italic"""
     label = prose_row(value)
     label.setContentsMargins(PADDING, 0, 0, 0)
     _italic(label)
@@ -188,7 +188,7 @@ class PassageWidget(QFrame):
         layout.setContentsMargins(PADDING, PADDING, PADDING, PADDING)
         layout.setSpacing(TITLE_TO_AUTHOR)
 
-        # Whose voice this is, first but quiet: the reader came for what it says
+        # Whose voice this is
         credit = (reading.name, reading.author) if reading.author else (reading.name,)
         self.source = QLabel(label_for("joiner").join(credit))
         self.source.setTextFormat(Qt.TextFormat.PlainText)
@@ -196,7 +196,7 @@ class PassageWidget(QFrame):
         self.source.setFont(units.scaled_font(self.source.font(), SUBTITLE_SCALE))
         layout.addWidget(self.source)
 
-        # The frame's one heading: the author's own name for the card, or else the keywords
+        # The frame's heading: the author's own name for the card, or else the keywords
         own = list(reading.entries)
         lead = tuple(entry.value for entry in own if entry.role is Role.EPITHET)
         if not lead:
