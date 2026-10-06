@@ -370,3 +370,59 @@ def test_a_card_no_source_mentions_reads_as_nothing(root):
     write(root, "notes.toml", '[card."major_arcana.00".passages]\ntext = "Mine."\n')
 
     assert EsotericaManager([root]).read_card("major_arcana.01") == []
+
+
+# The families the show menu can offer
+
+
+def test_an_essay_source_has_no_families(root):
+    write(root, "a.toml", '[card."major_arcana.00".passages]\ntext = "Prose."\n')
+
+    assert EsotericaManager([root]).families_present() == frozenset()
+
+
+def test_families_are_found_on_any_card_and_in_any_group(root):
+    write(
+        root,
+        "a.toml",
+        """
+        [card."major_arcana.00".passages]
+        advice.work = "Work."
+        [card."minor_arcana.cups.two".correspondences]
+        element = "water"
+        [group.ranks.queen.passages]
+        advice.timing = "Soon."
+        """,
+    )
+    write(
+        root,
+        "b.toml",
+        """
+        [card."major_arcana.18".passages]
+        text = "Prose."
+        [group.custom.lunar]
+        cards = ["major_arcana.18"]
+        passages.symbols.moon = "The moon."
+        """,
+    )
+
+    assert EsotericaManager([root]).families_present() == {
+        "advice",
+        "correspondences",
+        "divinatory",
+        "symbols",
+        "groups",
+    }
+
+
+def test_a_group_with_nothing_renderable_is_not_a_family(root):
+    write(
+        root,
+        "a.toml",
+        '[card."major_arcana.00".passages]\ntext = "Prose."\n'
+        '[group.all.passages]\nx_unknown = "Only this."\n',
+    )
+
+    manager = EsotericaManager([root])
+    assert manager.has_sources()
+    assert manager.families_present() == frozenset()

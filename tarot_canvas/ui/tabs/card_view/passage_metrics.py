@@ -9,8 +9,13 @@ CORNER_RADIUS = 4
 TITLE_PIXEL_SIZE = 16
 TITLE_TO_AUTHOR = 0  # the HIG's title-to-subtitle spacing
 HEADING_TO_BODY = 8  # largeSpacing; the HIG's row says smallSpacing (4). Tune by eye
+# The source line and lead to the first row: as far as the frame's edge is from them, and
+# further than rows are from each other, so they read as the frame's header
+HEADER_TO_ROWS = PADDING
 BODY_LINE_HEIGHT = 1.3  # of the font's own line height
 PARAGRAPH_GAP = 12  # Qt's default <p> margin, which the passages had before
+LIST_ITEM_GAP = 3  # between a list's items, such as a source's questions. Tune by eye
+FOLD_INDENT = 16  # a fold inside a fold, such as one group among the groups. Tune by eye
 
 MEASURE_CHARS = 85
 _PROSE_SAMPLE = "the quick brown fox jumps over the lazy dog "
