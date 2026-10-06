@@ -32,7 +32,7 @@ class Passage(NamedTuple):
 
 @dataclass(frozen=True)
 class Entry:
-    """One passage or correspondence, with the value exactly as TOML gave it."""
+    """One passage or correspondence (exactly from TOML)."""
 
     slot: str
     key: str  # the full dotted entry key
@@ -42,7 +42,7 @@ class Entry:
 
 @dataclass(frozen=True)
 class GroupReading:
-    """What one source says about a group the card belongs to. It is the group's, not the card's."""
+    """What a single source says about a group the card belongs to.."""
 
     group: str
     family: str
@@ -85,7 +85,7 @@ _VALIDATORS = {PASSAGES: _is_passage_value, CORRESPONDENCES: _is_correspondence_
 
 
 def _walk(table, prefix=""):
-    """Yield (dotted key, value) for every leaf, in file order. A table is a nesting step."""
+    """Yield (dotted key, value) for every leaf, in file order.."""
     for key, value in table.items():
         if isinstance(value, dict):
             yield from _walk(value, f"{prefix}{key}.")
@@ -94,7 +94,7 @@ def _walk(table, prefix=""):
 
 
 def _flatten(target):
-    """One target's passages and correspondences, in registry order. Malformed entries are skipped."""
+    """One target's passages and correspondences in registry order."""
     found = []
     file_index = 0
     for slot in (PASSAGES, CORRESPONDENCES):
@@ -120,7 +120,6 @@ def _is_renderable(entries):
 def groups_for(card_id):
     """
     The builtin groups a canonical card ID belongs to, narrowest first.
-    Membership comes from the ID alone, so a deck's custom suit or rank still counts.
     """
     parts = str(card_id).split(".")
     if parts[0] == "major_arcana":
@@ -130,7 +129,8 @@ def groups_for(card_id):
 
     _, suit, rank = parts
     groups = [f"suits.{suit}", f"ranks.{rank}"]
-    # A custom rank is in neither class; the spec doesn't guess where it belongs.
+
+    # A custom rank is in neither class
     if rank in PIPS:
         groups.append("classes.pip")
     elif rank in COURTS:
@@ -140,7 +140,7 @@ def groups_for(card_id):
 
 
 def _custom_groups_for(groups, canonical):
-    """A source's own groups that list the card, in file order. They mean nothing outside it."""
+    """A source's own groups that list the card, in file order."""
     custom = groups.get("custom")
     if not isinstance(custom, dict):
         return ()
@@ -274,8 +274,7 @@ class EsotericaManager:
 
     def read_card(self, card_id):
         """
-        What every source says about a card: its own entries and those of each group it is in.
-        Sources come back in load order, the same on every card.
+        What every source says about a card
         """
         canonical = str(card_id).split(":", 1)[0]
 

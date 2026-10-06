@@ -1,10 +1,3 @@
-"""
-What each registered esoterica entry key is for, and the order a reader meets them in.
-
-Position in ``_ORDER`` is the sort order. Spellings that share a row share a position, so a key
-the spec later registers without its ``x_`` prefix lands where the prefixed one did.
-"""
-
 from enum import Enum, auto
 
 
@@ -26,7 +19,7 @@ class Role(Enum):
 PASSAGES = "passages"
 CORRESPONDENCES = "correspondences"
 
-# Every key under passages.symbols is a symbol; among themselves they keep the book's order.
+# Every key under passages.symbols is a symbol
 _SYMBOLS_PREFIX = "symbols."
 
 _ORDER = (
@@ -67,7 +60,7 @@ _ORDER = (
     (CORRESPONDENCES, ("hebrew_letter_meaning",), Role.CORRESPONDENCES),
     (CORRESPONDENCES, ("hebrew_letter_value",), Role.CORRESPONDENCES),
     (CORRESPONDENCES, ("x_hebrew_letter_alt",), Role.CORRESPONDENCES),
-    # Unknown correspondences sort here, after the known ones.
+    # Unknown correspondences sort here
     (PASSAGES, ("x_suit_cards",), Role.GROUP_NOTES),
 )
 
@@ -97,15 +90,11 @@ def role_of(slot, key):
 
 
 def is_divinatory(key):
-    """Whether a passage key is fortune-telling rather than reading."""
+    """Whether a passage key is fortune-telling."""
     return role_of(PASSAGES, key) is Role.DIVINATORY
 
 
 def sort_key(slot, key, file_index):
-    """
-    Registry position first; file order breaks ties, which only symbols and unknown keys have.
-    An unknown key keeps its place in the file, after every known key of its slot.
-    """
     found = _lookup(slot, key)
     if found:
         position = found[0]
