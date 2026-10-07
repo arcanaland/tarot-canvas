@@ -1,3 +1,4 @@
+import logging
 import tomllib
 
 import pytest
@@ -8,7 +9,7 @@ from tarot_canvas.models.esoterica import (
     _flatten,
     groups_for,
 )
-from tarot_canvas.models.esoterica_registry import Role
+from tarot_canvas.models.esoterica_registry import PASSAGES, SYMBOLS, Role
 
 
 def write(root, relative_path, text):
@@ -33,12 +34,14 @@ def keys(entries):
 def test_entries_come_back_in_registry_order_whatever_the_file_order():
     target = tomllib.loads(
         """
+        [symbols]
+        b.text = "b"
+        a.text = "a"
+
         [passages]
         shadow = "s"
         keywords = ["k"]
-        symbols.b = "b"
         light = "l"
-        symbols.a = "a"
         advice.timing = "t"
         advice.work = "w"
         """
@@ -51,8 +54,8 @@ def test_entries_come_back_in_registry_order_whatever_the_file_order():
         "light",
         "shadow",
         "advice.work",
-        "symbols.b",
-        "symbols.a",
+        "b",
+        "a",
         "advice.timing",
     ]
 
@@ -92,6 +95,108 @@ def test_correspondences_keep_their_toml_types():
     )
 
     assert [entry.value for entry in _flatten(target)] == [0, 1.5, True]
+
+
+# The symbols slot
+
+
+def test_each_symbol_is_one_entry_in_file_order_with_its_printed_heading():
+    target = tomllib.loads(
+        """
+        [symbols.the_sun]
+        label = "The Sun"
+        text = "Warmth."
+
+        [symbols.a_dog]
+        text = "Loyalty."
+        """
+    )
+
+    assert _flatten(target) == (
+        Entry(SYMBOLS, "the_sun", Role.SYMBOLS, "Warmth.", "The Sun"),
+        Entry(SYMBOLS, "a_dog", Role.SYMBOLS, "Loyalty."),
+    )
+    assert _flatten(target)[1].label is None
+
+
+def test_a_symbol_without_text_or_that_is_not_a_table_is_skipped():
+    target = tomllib.loads(
+        """
+        [symbols]
+        loose = "Not a table."
+        untitled = { label = "No text" }
+        blank = { text = "  " }
+        listed = { text = ["Not", "a string"] }
+        kept = { text = "Kept.", x_other = "ignored" }
+        """
+    )
+
+    assert keys(_flatten(target)) == ["kept"]
+
+
+@pytest.mark.parametrize("label", ['""', '"  "', "3", '["The Sun"]'])
+def test_a_blank_or_non_string_label_is_no_label(label):
+    target = tomllib.loads(f'symbols.sun = {{ text = "Warmth.", label = {label} }}')
+
+    (entry,) = _flatten(target)
+    assert entry.label is None
+
+
+def test_the_marseille_image_is_a_symbol_and_sorts_after_the_symbols():
+    target = tomllib.loads(
+        """
+        [passages]
+        x_marseille_image = "Two batons."
+        advice.fortune_telling = "Soon."
+
+        [symbols.globe]
+        text = "The world."
+        """
+    )
+
+    entries = _flatten(target)
+
+    assert keys(entries) == ["globe", "x_marseille_image", "advice.fortune_telling"]
+    assert entries[1] == Entry(PASSAGES, "x_marseille_image", Role.SYMBOLS, "Two batons.")
+
+
+LEGACY_SYMBOLS = """
+[card."major_arcana.00".passages]
+text = "Fool."
+symbols.dog = "The dog."
+
+[card."major_arcana.01".passages]
+symbols.wand = "The wand."
+
+[group.all.passages]
+symbols.sky = "The sky."
+"""
+
+
+def test_the_draft_spelling_of_symbols_is_not_read(root):
+    write(root, "book.toml", LEGACY_SYMBOLS)
+    manager = EsotericaManager([root])
+
+    (fool,) = manager.read_card("major_arcana.00")
+
+    assert keys(fool.entries) == ["text"]
+    assert fool.groups == ()
+    assert manager.read_card("major_arcana.01") == []
+    assert manager.families_present() == frozenset()
+
+
+def test_the_draft_spelling_warns_once_per_file(root, caplog):
+    write(root, "a.toml", LEGACY_SYMBOLS)
+    write(root, "b.toml", LEGACY_SYMBOLS)
+    write(root, "c.toml", '[card."major_arcana.00".symbols.dog]\ntext = "The dog."\n')
+
+    with caplog.at_level(logging.WARNING):
+        EsotericaManager([root])
+
+    warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 2
+    assert [w.split(":")[0] for w in warnings] == [str(root / "a.toml"), str(root / "b.toml")]
+    assert all("symbols.<name>" in w for w in warnings)
 
 
 # Membership
@@ -190,8 +295,10 @@ questions = ["What do you feel?", "Whose feeling is it?"]
 advice.work = "Listen."
 advice.relationships = "Listen harder."
 advice.fortune_telling = "A woman with water signs."
-symbols.cup = "Closed, ornate."
-symbols.shore = "Between land and sea."
+
+[card."minor_arcana.cups.queen".symbols]
+cup = { text = "Closed, ornate.", label = "The Cup" }
+shore = { text = "Between land and sea." }
 
 [card."minor_arcana.cups.queen".correspondences]
 x_hebrew_letter_alt = "heh"
@@ -225,8 +332,8 @@ def test_a_card_reads_every_entry_in_registry_order(court):
         "questions",
         "advice.relationships",
         "advice.work",
-        "symbols.cup",
-        "symbols.shore",
+        "cup",
+        "shore",
         "advice.fortune_telling",
         "element",
         "hebrew_letter_value",
@@ -237,6 +344,10 @@ def test_a_card_reads_every_entry_in_registry_order(court):
         "passages", "keywords", Role.KEYWORDS, ("empathy", "intuition")
     )
     assert (court.name, court.author) == ("A Structured Book", "Jane Doe")
+    assert [(e.slot, e.role, e.label) for e in court.entries if e.slot == SYMBOLS] == [
+        (SYMBOLS, Role.SYMBOLS, "The Cup"),
+        (SYMBOLS, Role.SYMBOLS, None),
+    ]
 
 
 def test_an_unknown_key_is_kept_with_no_role_and_last(court):
@@ -292,8 +403,8 @@ def test_an_annotating_source_is_credited_to_the_annotator(root):
         title = "A Classic"
         author = "The Original Author"
 
-        [card."major_arcana.00".passages]
-        symbols.dog = "The dog."
+        [card."major_arcana.00".symbols.dog]
+        text = "The dog."
         """,
     )
 
@@ -402,7 +513,7 @@ def test_families_are_found_on_any_card_and_in_any_group(root):
         text = "Prose."
         [group.custom.lunar]
         cards = ["major_arcana.18"]
-        passages.symbols.moon = "The moon."
+        symbols.moon.text = "The moon."
         """,
     )
 
@@ -413,6 +524,33 @@ def test_families_are_found_on_any_card_and_in_any_group(root):
         "symbols",
         "groups",
     }
+
+
+def test_a_source_with_only_symbols_has_the_symbols_family(root):
+    write(root, "a.toml", '[card."major_arcana.00".symbols.dog]\ntext = "The dog."\n')
+
+    assert EsotericaManager([root]).families_present() == {"symbols"}
+
+
+def test_a_group_can_have_symbols(root):
+    write(
+        root,
+        "a.toml",
+        """
+        [card."major_arcana.00".passages]
+        text = "Fool."
+
+        [group.arcana.major.symbols.crown]
+        label = "The Crown"
+        text = "Rule."
+        """,
+    )
+
+    (reading,) = EsotericaManager([root]).read_card("major_arcana.00")
+
+    (group,) = reading.groups
+    assert group.group == "arcana.major"
+    assert group.entries == (Entry(SYMBOLS, "crown", Role.SYMBOLS, "Rule.", "The Crown"),)
 
 
 def test_a_group_with_nothing_renderable_is_not_a_family(root):

@@ -29,9 +29,10 @@ GROUPS = "groups"
 
 PASSAGES = "passages"
 CORRESPONDENCES = "correspondences"
+SYMBOLS = "symbols"
 
-# Every key under passages.symbols is a symbol
-_SYMBOLS_PREFIX = "symbols."
+# Every key in the symbols slot is a symbol
+_ANY_SYMBOL = "*"
 
 _ORDER = (
     (PASSAGES, ("x_subtitle",), Role.EPITHET),
@@ -52,7 +53,8 @@ _ORDER = (
     (PASSAGES, ("advice.work",), Role.ADVICE),
     (PASSAGES, ("advice.spirituality",), Role.ADVICE),
     (PASSAGES, ("advice.personal_growth",), Role.ADVICE),
-    (PASSAGES, (_SYMBOLS_PREFIX,), Role.SYMBOLS),
+    (SYMBOLS, (_ANY_SYMBOL,), Role.SYMBOLS),
+    (PASSAGES, ("x_marseille_image",), Role.SYMBOLS),
     (PASSAGES, ("advice.fortune_telling",), Role.DIVINATORY),
     (PASSAGES, ("advice.timing",), Role.DIVINATORY),
     (CORRESPONDENCES, ("number",), Role.CORRESPONDENCES),
@@ -89,8 +91,8 @@ _UNKNOWN_PASSAGE = len(_ORDER)
 
 
 def _lookup(slot, key):
-    if slot == PASSAGES and key.startswith(_SYMBOLS_PREFIX):
-        key = _SYMBOLS_PREFIX
+    if slot == SYMBOLS:
+        key = _ANY_SYMBOL
     return _POSITIONS.get((slot, key))
 
 
