@@ -153,7 +153,6 @@ def line_row(value):
 def list_row(value):
     """Each string a bullet, such as a source's questions"""
     items = value if isinstance(value, tuple) else (value,)
-    # Spaced as the prose is, and a little apart, so each reads as its own line
     bullets = "".join(
         f'<li style="margin-top: {LIST_ITEM_GAP if i else 0}px; {_line_height()}">'
         f"{html.escape(_spelled(item))}</li>"
@@ -323,14 +322,14 @@ class PassageWidget(QFrame):
         form_widget = QWidget()
         form = QFormLayout(form_widget)
         form.setContentsMargins(0, 0, 0, 0)
-        # Breeze and macOS keep fields at their size hint, which gives a value that wraps its
-        # first line's height and cuts the rest
         form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+
         for text, entry in shown:
             heading = QLabel(text)
             heading.setTextFormat(Qt.TextFormat.PlainText)
             self.headings.append(heading)
             form.addRow(heading, line_row(entry.value))
+
         return form_widget
 
     def _family(self, role, entries):
