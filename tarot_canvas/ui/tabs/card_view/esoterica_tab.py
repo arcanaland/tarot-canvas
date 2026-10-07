@@ -2,30 +2,43 @@ import html
 from importlib.resources import files
 from itertools import groupby
 
-from PyQt6.QtCore import QEvent, Qt
+from PyQt6.QtCore import QEvent, Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QIcon, QPainter, QPalette
 from PyQt6.QtWidgets import (
     QFormLayout,
     QFrame,
     QHBoxLayout,
     QLabel,
+    QMenu,
     QScrollArea,
     QStackedWidget,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
 from tarot_canvas.about import FALLBACK_URLS, load_about_data
 from tarot_canvas.models.esoterica import get_esoterica_manager
-from tarot_canvas.models.esoterica_registry import Role
+from tarot_canvas.models.esoterica_events import esoterica_events
+from tarot_canvas.models.esoterica_registry import FAMILIES, GROUPS, Role
+from tarot_canvas.settings import (
+    get_esoterica_expanded,
+    get_esoterica_hidden,
+    set_esoterica_expanded,
+    set_esoterica_hidden,
+)
 from tarot_canvas.ui.esoterica_text import label_for
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.palette import muted_text, subtle_fill, with_text_colour
+from tarot_canvas.ui.tabs.card_view.fold import Fold
 from tarot_canvas.ui.tabs.card_view.ghost_passages import GhostPassages
 from tarot_canvas.ui.tabs.card_view.headings import SECTION_SCALE, SUBTITLE_SCALE, apply_heading
 from tarot_canvas.ui.tabs.card_view.passage_metrics import (
     BODY_LINE_HEIGHT,
+    FOLD_INDENT,
+    HEADER_TO_ROWS,
     HEADING_TO_BODY,
+    LIST_ITEM_GAP,
     PADDING,
     PARAGRAPH_GAP,
     PASSAGE_SPACING,
@@ -54,6 +67,11 @@ HEADER_ICON_SIZE = 22
 
 ESOTERICA_FAQ_ANCHOR = "3-how-do-i-add-my-own-esoterica"
 
+SHOW_MENU_ICON = "view-filter"
+
+# The show menu's entries, in order
+SHOWABLE = (*FAMILIES.values(), GROUPS)
+
 # Pages of EsotericaTab.stack
 PASSAGES_PAGE = 0  # sources loaded: this card's passages, or a line saying there are none
 PLACEHOLDER_PAGE = 1  # no sources loaded at all
@@ -69,18 +87,29 @@ def _with_faq_link(text):
     return text.replace("{faq}", esoterica_faq_url()) if "{faq}" in text else text
 
 
+def _line_height():
+    return f"line-height: {round(BODY_LINE_HEIGHT * 100)}%"
+
+
 def _body_html(text):
     """A passage's text as rich text: paragraphs at blank lines, line breaks at newlines.
 
     Escaped first: this is a file the user dropped in a directory.
     """
-    line_height = round(BODY_LINE_HEIGHT * 100)
     return "".join(
-        f'<p style="margin: {PARAGRAPH_GAP if i else 0}px 0 0 0; line-height: {line_height}%">'
+        f'<p style="margin: {PARAGRAPH_GAP if i else 0}px 0 0 0; {_line_height()}">'
         + paragraph.replace("\n", "<br>")
         + "</p>"
         for i, paragraph in enumerate(html.escape(text).split("\n\n"))
     )
+
+
+def _show_menu_icon():
+    return QIcon.fromTheme(SHOW_MENU_ICON)
+
+
+def _without(ids, family):
+    return [i for i in ids if i != family]
 
 
 def _window_text(palette):
@@ -124,7 +153,11 @@ def line_row(value):
 def list_row(value):
     """Each string a bullet, such as a source's questions"""
     items = value if isinstance(value, tuple) else (value,)
-    bullets = "".join(f"<li>{html.escape(_spelled(item))}</li>" for item in items)
+    bullets = "".join(
+        f'<li style="margin-top: {LIST_ITEM_GAP if i else 0}px; {_line_height()}">'
+        f"{html.escape(_spelled(item))}</li>"
+        for i, item in enumerate(items)
+    )
     return _row_label(f"<ul>{bullets}</ul>", Qt.TextFormat.RichText)
 
 
@@ -147,13 +180,25 @@ def _stack(widgets, spacing):
     return box
 
 
-# Rows of these roles sit together under one label
-_FAMILIES = {
-    Role.ADVICE: "family.advice",
-    Role.SYMBOLS: "family.symbols",
-    Role.DIVINATORY: "family.divinatory",
-    Role.CORRESPONDENCES: "family.correspondences",
-}
+def _family_label_key(family):
+    return f"family.{family}"
+
+
+def _group_fold_id(group):
+    """Every suit shares one fold, every rank another, and so on"""
+    return f"group.{group.family}"
+
+
+def _counted(text, count):
+    # The label goes in last, so a brace in it is never read as a field
+    return label_for("count").replace("{count}", str(count)).replace("{label}", text) or text
+
+
+def _muted(palette, colour):
+    palette = with_text_colour(palette, colour)
+    palette.setColor(QPalette.ColorRole.ButtonText, colour)
+    return palette
+
 
 # Group families whose label is shared by every member
 _SHARED_GROUP_LABELS = {"suits", "ranks", "all", "custom"}
@@ -169,17 +214,25 @@ class PassageWidget(QFrame):
     """Everything one source says about one card, in one frame.
 
     Its labels are the edition's words, from `esoterica_text`; a row whose label is empty is
-    not drawn at all. Nothing from two sources ever shares a frame.
+    not drawn at all. Nothing from two sources ever shares a frame. Each family and group is a
+    fold, open if its id is in `expanded`; a family in `hidden` is not drawn.
     """
 
-    def __init__(self, reading, card=None, parent=None):
+    # A fold's id, and whether it is now open
+    fold_toggled = pyqtSignal(str, bool)
+
+    def __init__(self, reading, card=None, parent=None, expanded=(), hidden=()):
         super().__init__(parent)
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setFrameShadow(QFrame.Shadow.Sunken)
         self.card = card or {}
+        self.expanded = set(expanded)
+        self.hidden = set(hidden)
 
         # The edition's labels, which take the muted colour
         self.headings = []
+        # Fold id -> the folds with that id, in order
+        self.folds = {}
         # The source's principal text, where it has one
         self.body = None
 
@@ -211,11 +264,11 @@ class PassageWidget(QFrame):
             layout.addWidget(self.lead)
 
         own = [entry for entry in own if entry.role is not Role.EPITHET]
-        rows = self._rows(own) + [
-            block for group in reading.groups if (block := self._group(group)) is not None
-        ]
+        rows = self._rows(own)
+        if (groups := self._groups(reading.groups)) is not None:
+            rows.append(groups)
         for i, row in enumerate(rows):
-            layout.addSpacing(PARAGRAPH_GAP if i else HEADING_TO_BODY)
+            layout.addSpacing(PARAGRAPH_GAP if i else HEADER_TO_ROWS)
             layout.addWidget(row)
 
         self._apply_colours()
@@ -254,6 +307,14 @@ class PassageWidget(QFrame):
             return self._labelled(entry.key, lambda: affirmation_row(value))
         return self._labelled(entry.key, lambda: prose_row(value))
 
+    def _fold(self, fold_id, text, body, count):
+        """A family's or group's rows under a header that opens and closes them"""
+        fold = Fold(_counted(text, count), body, fold_id in self.expanded)
+        apply_heading(fold.header, SUBTITLE_SCALE)
+        fold.toggled.connect(lambda expanded: self.fold_toggled.emit(fold_id, expanded))
+        self.folds.setdefault(fold_id, []).append(fold)
+        return fold
+
     def _correspondences(self, entries):
         shown = [(label_for(entry.key), entry) for entry in entries if label_for(entry.key)]
         if not shown:
@@ -261,20 +322,25 @@ class PassageWidget(QFrame):
         form_widget = QWidget()
         form = QFormLayout(form_widget)
         form.setContentsMargins(0, 0, 0, 0)
+        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+
         for text, entry in shown:
             heading = QLabel(text)
             heading.setTextFormat(Qt.TextFormat.PlainText)
             self.headings.append(heading)
             form.addRow(heading, line_row(entry.value))
+
         return form_widget
 
     def _family(self, role, entries):
-        """One label over a run of rows, or None if the label or every row is hidden"""
-        text = label_for(_FAMILIES[role])
-        if not text:
+        """One fold over a run of rows, or None if the family, its label or every row is hidden"""
+        family = FAMILIES[role]
+        text = label_for(_family_label_key(family))
+        if family in self.hidden or not text:
             return None
         if role is Role.CORRESPONDENCES:
             body = self._correspondences(entries)
+            count = body.layout().rowCount() if body is not None else 0
         else:
             if role is Role.SYMBOLS:
                 # A symbol's key is a build-time slug, never a heading
@@ -282,21 +348,34 @@ class PassageWidget(QFrame):
             else:
                 rows = [row for entry in entries if (row := self._row(entry)) is not None]
             body = _stack(rows, PARAGRAPH_GAP) if rows else None
+            count = len(rows)
         if body is None:
             return None
-        return _stack([self._heading(text), body], HEADING_TO_BODY)
+        return self._fold(family, text, body, count)
 
     def _rows(self, entries):
         """The widgets for entries in registry order; a hidden row is never built"""
         rows = []
         known = [entry for entry in entries if entry.role is not None]
         for role, run in groupby(known, key=lambda entry: entry.role):
-            if role in _FAMILIES:
+            if role in FAMILIES:
                 built = [self._family(role, list(run))]
             else:
                 built = [self._row(entry) for entry in run]
             rows += [row for row in built if row is not None]
         return rows
+
+    def _groups(self, groups):
+        """Every group the card is in, as folds inside one fold, as the show menu offers them"""
+        text = label_for(_family_label_key(GROUPS))
+        if GROUPS in self.hidden or not text:
+            return None
+        blocks = [block for group in groups if (block := self._group(group)) is not None]
+        if not blocks:
+            return None
+        body = _stack(blocks, PARAGRAPH_GAP)
+        body.setContentsMargins(FOLD_INDENT, 0, 0, 0)
+        return self._fold(GROUPS, text, body, len(blocks))
 
     def _group(self, group):
         """What the source says of a group the card is in, under the group's label"""
@@ -314,12 +393,13 @@ class PassageWidget(QFrame):
         self.body = own_body
         if not rows:
             return None
-        return _stack([self._heading(text), _stack(rows, PARAGRAPH_GAP)], HEADING_TO_BODY)
+        return self._fold(_group_fold_id(group), text, _stack(rows, PARAGRAPH_GAP), len(rows))
 
     def _apply_colours(self):
         muted = muted_text(self.palette())
-        for label in [self.source, *self.headings]:
-            label.setPalette(with_text_colour(label.palette(), muted))
+        headers = [fold.header for folds in self.folds.values() for fold in folds]
+        for label in [self.source, *self.headings, *headers]:
+            label.setPalette(_muted(label.palette(), muted))
 
     def changeEvent(self, event):
         super().changeEvent(event)
@@ -347,6 +427,9 @@ class EsotericaTab(QWidget):
 
         self.setup_ui()
 
+        # A slot of this tab's, so Qt drops the connection when the tab is deleted
+        esoterica_events().display_changed.connect(self._on_display_changed)
+
     def setup_ui(self):
         """Set up the esoterica tab UI"""
         main_layout = QVBoxLayout(self)
@@ -367,7 +450,7 @@ class EsotericaTab(QWidget):
 
         # One reading column, about 85 characters wide and centred when the view is wider
         # (passage_metrics). The header is inside it, so it lines up with the passages.
-        scroll_area = QScrollArea()
+        self.scroll_area = scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_area.setFrameShape(QFrame.Shape.NoFrame)
         scroll_area.setAlignment(Qt.AlignmentFlag.AlignHCenter)
@@ -390,6 +473,7 @@ class EsotericaTab(QWidget):
         self.header_label = apply_heading(QLabel(PLACEHOLDER_HEADING), SECTION_SCALE)
         header_layout.addWidget(self.header_label)
         header_layout.addStretch()
+        header_layout.addWidget(self._show_menu_button())
         self.content_layout.addLayout(header_layout)
 
         # Sources are loaded, but none has anything for this card
@@ -404,6 +488,63 @@ class EsotericaTab(QWidget):
         page_layout.addWidget(scroll_area)
         self._apply_column_width()
         return page
+
+    def _show_menu_button(self):
+        """A menu that hides a family on every card, offering only the families sources have"""
+        self.show_button = QToolButton()
+        self.show_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.show_button.setAutoRaise(True)
+        self.show_menu = QMenu(self.show_button)
+        self.show_button.setMenu(self.show_menu)
+
+        # Family id -> its checkable entry
+        self.show_actions = {}
+        present = get_esoterica_manager().families_present()
+        hidden = get_esoterica_hidden()
+        for family in SHOWABLE:
+            text = label_for(_family_label_key(family))
+            if family not in present or not text:
+                continue
+            action = self.show_menu.addAction(text)
+            action.setCheckable(True)
+            action.setChecked(family not in hidden)
+            action.toggled.connect(
+                lambda shown, family=family: self._on_show_toggled(family, shown)
+            )
+            self.show_actions[family] = action
+
+        icon = _show_menu_icon()
+        if not icon.isNull():
+            self.show_button.setIcon(icon)
+        else:
+            self.show_button.setText(label_for("show_menu"))
+        self.show_button.setToolTip(label_for("show_menu_tooltip"))
+        self.show_button.setVisible(
+            bool(self.show_actions) and (not icon.isNull() or bool(self.show_button.text()))
+        )
+        return self.show_button
+
+    def _on_show_toggled(self, family, shown):
+        hidden = _without(get_esoterica_hidden(), family)
+        set_esoterica_hidden(hidden if shown else [*hidden, family])
+
+    def _on_fold_toggled(self, fold_id, expanded):
+        ids = _without(get_esoterica_expanded(), fold_id)
+        set_esoterica_expanded([*ids, fold_id] if expanded else ids)
+
+    @pyqtSlot()
+    def _on_display_changed(self):
+        """Another fold opened or a family was hidden, here or in another card's tab"""
+        hidden = get_esoterica_hidden()
+        for family, action in self.show_actions.items():
+            action.blockSignals(True)
+            action.setChecked(family not in hidden)
+            action.blockSignals(False)
+
+        bar = self.scroll_area.verticalScrollBar()
+        position = bar.value()
+        self.update_card_info(self.card)
+        bar.setValue(position)
 
     def _apply_column_width(self):
         self.content_widget.setMaximumWidth(column_width(self.content_widget.font()))
@@ -470,15 +611,20 @@ class EsotericaTab(QWidget):
         self.no_content.setVisible(False)
 
         # One frame per source
+        expanded, hidden = get_esoterica_expanded(), get_esoterica_hidden()
         for reading in readings:
-            passage_widget = PassageWidget(reading, card, self)
+            passage_widget = PassageWidget(reading, card, self, expanded, hidden)
+            passage_widget.fold_toggled.connect(self._on_fold_toggled)
             self.content_layout.insertWidget(self.content_layout.count() - 1, passage_widget)
+            # Now rather than when the layout gets to it, or the scroll range is briefly empty
+            passage_widget.show()
             self.passage_widgets.append(passage_widget)
 
     def clear_passages(self):
         """Remove all passage widgets"""
         for widget in self.passage_widgets:
             self.content_layout.removeWidget(widget)
+            widget.hide()
             widget.deleteLater()
         self.passage_widgets = []
 

@@ -3,12 +3,21 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QPalette, QPixmap
-from PyQt6.QtWidgets import QFormLayout, QLabel
+from PyQt6.QtCore import QCoreApplication, QEvent, Qt
+from PyQt6.QtGui import QIcon, QPalette, QPixmap
+from PyQt6.QtWidgets import (
+    QFormLayout,
+    QLabel,
+    QProxyStyle,
+    QStyle,
+    QStyleFactory,
+    QToolButton,
+)
 
 from tarot_canvas.models.esoterica import Entry, GroupReading, SourceReading
+from tarot_canvas.models.esoterica_events import esoterica_events
 from tarot_canvas.models.esoterica_registry import CORRESPONDENCES, PASSAGES, Role, role_of
+from tarot_canvas.settings import set_esoterica_expanded
 from tarot_canvas.ui import esoterica_text
 from tarot_canvas.ui.palette import muted_text
 from tarot_canvas.ui.tabs.card_view import esoterica_tab
@@ -19,7 +28,7 @@ from tarot_canvas.ui.tabs.card_view.esoterica_tab import (
     PassageWidget,
 )
 from tarot_canvas.ui.tabs.card_view.passage_metrics import (
-    HEADING_TO_BODY,
+    HEADER_TO_ROWS,
     PADDING,
     TITLE_TO_AUTHOR,
     column_width,
@@ -28,13 +37,30 @@ from tarot_canvas.ui.tabs.card_view.passage_metrics import (
 CARD = {"name": "The Star", "id": "major_arcana.17", "type": "major_arcana", "number": 17}
 
 
+# Formats rather than labels; they keep their shipped values
+FORMATS = ("joiner", "count")
+
+
+@pytest.fixture(autouse=True)
+def blank_labels(monkeypatch):
+    """Every test starts with every label empty and fills the ones it needs, so none depends
+    on what the edition ships"""
+    for key in esoterica_text.ESOTERICA_TEXT:
+        if key not in FORMATS:
+            monkeypatch.setitem(esoterica_text.ESOTERICA_TEXT, key, "")
+
+
 @pytest.fixture
 def stub_manager(monkeypatch):
     """Nothing in this file may touch the user's esoterica directory."""
 
-    def _apply(readings, has_sources=True):
+    def _apply(readings, has_sources=True, families=frozenset()):
+        # A dict gives each card id its own readings
+        by_card = readings if isinstance(readings, dict) else None
         manager = SimpleNamespace(
-            read_card=lambda _card_id: readings, has_sources=lambda: has_sources
+            read_card=lambda card_id: by_card.get(card_id, []) if by_card else readings,
+            has_sources=lambda: has_sources,
+            families_present=lambda: frozenset(families),
         )
         monkeypatch.setattr(esoterica_tab, "get_esoterica_manager", lambda: manager)
 
@@ -47,7 +73,8 @@ def essay(name, author, text):
 
 
 def labels(widget):
-    return [label.text() for label in widget.findChildren(QLabel)]
+    """Every label's text, and every fold header's, in creation order"""
+    return [child.text() for child in widget.findChildren((QLabel, QToolButton)) if child.text()]
 
 
 def text_colour(label):
@@ -233,7 +260,7 @@ def test_source_and_lead_group_apart_from_the_body(qtbot):
     source, lead, body = widget.source, widget.lead, widget.body
     assert source.x() == widget.frameWidth() + PADDING
     assert lead.y() - source.geometry().bottom() - 1 == TITLE_TO_AUTHOR
-    assert body.y() - lead.geometry().bottom() - 1 == HEADING_TO_BODY
+    assert body.y() - lead.geometry().bottom() - 1 == HEADER_TO_ROWS
 
 
 def test_body_lines_are_spaced_wider_than_the_font_sets_them(qtbot):
@@ -328,7 +355,7 @@ def label(monkeypatch):
 @pytest.fixture
 def every_label(label):
     for key in esoterica_text.ESOTERICA_TEXT:
-        if key != "joiner":
+        if key not in FORMATS:
             label(key, f"[{key}]")
 
 
@@ -446,6 +473,51 @@ def test_a_correspondence_without_a_label_is_not_drawn(qtbot, label):
     assert form_rows(widget) == [("Astrology", "saturn in libra")]
 
 
+class FieldsStayAtSizeHint(QProxyStyle):
+    """Lays out forms as Breeze and macOS do"""
+
+    def styleHint(self, hint, option=None, widget=None, returnData=None):
+        if hint == QStyle.StyleHint.SH_FormLayoutFieldGrowthPolicy:
+            return QFormLayout.FieldGrowthPolicy.FieldsStayAtSizeHint.value
+        return super().styleHint(hint, option, widget, returnData)
+
+
+@pytest.fixture
+def size_hint_forms(qapp):
+    original = qapp.style().name()
+    qapp.setStyle(FieldsStayAtSizeHint(QStyleFactory.create(original)))
+    yield
+    qapp.setStyle(QStyleFactory.create(original))
+
+
+def test_a_wrapping_correspondence_is_never_cut_to_one_line(qtbot, label, size_hint_forms):
+    label("family.correspondences", "Correspondences")
+    label("numerology", "Numerology")
+    reading = SourceReading(
+        "A", None, (correspondence("numerology", "9 (fullness, readiness, ripeness)"),), ()
+    )
+    widget = make_widget(qtbot, reading)
+    widget.folds["correspondences"][0].header.click()
+    show(qtbot, widget, 700, 300)
+
+    (form,) = widget.findChildren(QFormLayout)
+    value = form.itemAt(0, QFormLayout.ItemRole.FieldRole).widget()
+    assert value.height() >= value.heightForWidth(value.width())
+    assert value.heightForWidth(value.width()) == value.fontMetrics().height()
+
+
+def test_questions_are_spaced_apart_like_the_prose(qtbot):
+    questions = ("What would happen?", "How can I?", "Who has walked this path?")
+    spaced = esoterica_tab.list_row(questions)
+    tight = QLabel("<ul>" + "".join(f"<li>{q}</li>" for q in questions) + "</ul>")
+    tight.setWordWrap(True)
+    qtbot.addWidget(spaced)
+    qtbot.addWidget(tight)
+
+    gaps = 2 * esoterica_tab.LIST_ITEM_GAP
+    assert spaced.heightForWidth(600) > tight.heightForWidth(600) + gaps
+
+
 def test_correspondence_values_are_spelled_as_toml_spells_them():
     assert esoterica_tab._spelled(True) == "true"
     assert esoterica_tab._spelled(20) == "20"
@@ -474,7 +546,7 @@ def test_questions_are_a_list_of_escaped_strings(qtbot, label):
     widget = make_widget(qtbot, many_rows())
 
     (questions,) = (text for text in labels(widget) if "<ul>" in text)
-    assert questions.count("<li>") == 2
+    assert questions.count("<li ") == 2
     assert "Who &lt;listens&gt;?" in questions
 
 
@@ -506,12 +578,13 @@ def suit_group(text="Water and feeling."):
 
 
 def test_the_suit_group_names_the_suit_in_the_decks_own_word(qtbot, label):
+    label("family.groups", "Groups")
     label("group.suits", "On {suit}")
 
     widget = make_widget(qtbot, many_rows(groups=(suit_group(),)), QUEEN)
 
     texts = labels(widget)
-    assert "Water and feeling." in texts[texts.index("On Chalices") + 1]
+    assert "Water and feeling." in texts[texts.index("On Chalices 1") + 1]
 
 
 def test_a_group_without_a_label_is_not_drawn(qtbot):
@@ -521,8 +594,268 @@ def test_a_group_without_a_label_is_not_drawn(qtbot):
 
 
 def test_a_groups_prose_is_not_the_cards_body(qtbot, label):
+    label("family.groups", "Groups")
     label("group.suits", "On {suit}")
 
     widget = make_widget(qtbot, SourceReading("A", None, (), (suit_group(),)), QUEEN)
 
+    assert "group.suits" in widget.folds
     assert widget.body is None
+
+
+def court_groups():
+    rank = GroupReading("ranks.queen", "ranks", (entry("text", "Queens."),))
+    court = GroupReading("classes.court", "classes", (entry("text", "Courts."),))
+    return (suit_group(), rank, court)
+
+
+def test_every_group_folds_inside_one_groups_fold(qtbot, every_label):
+    widget = make_widget(qtbot, many_rows(groups=court_groups()), QUEEN)
+
+    (outer,) = widget.folds["groups"]
+    assert outer.header.text() == "[family.groups] 3"
+    assert not outer.is_expanded()
+    inner = [widget.folds[key][0] for key in ("group.suits", "group.ranks", "group.classes")]
+    assert all(outer.content.isAncestorOf(fold) for fold in inner)
+
+
+def test_the_groups_fold_is_the_frames_last_row(qtbot, every_label):
+    widget = make_widget(qtbot, many_rows(groups=court_groups()), QUEEN)
+
+    rows = [widget.layout().itemAt(i).widget() for i in range(widget.layout().count())]
+    assert [row for row in rows if row is not None][-1] is widget.folds["groups"][0]
+
+
+def test_without_a_groups_label_no_group_is_drawn(qtbot, every_label, label):
+    label("family.groups", "")
+
+    widget = make_widget(qtbot, many_rows(groups=court_groups()), QUEEN)
+
+    assert not any(key.startswith("group") for key in widget.folds)
+    assert "Queens." not in all_text(widget)
+
+
+# Folds and the show menu
+
+
+SWORDS = {"name": "Queen of Swords", "id": "minor_arcana.swords.queen", "display_suit": "Swords"}
+
+COURT_FAMILIES = {"advice", "symbols", "divinatory", "correspondences", "groups"}
+
+
+def first_fold(tab, fold_id, frame=0):
+    return tab.passage_widgets[frame].folds[fold_id][0]
+
+
+def is_open(tab, fold_id):
+    folds = [fold for frame in tab.passage_widgets for fold in frame.folds.get(fold_id, [])]
+    assert folds
+    return all(fold.is_expanded() and not fold.content.isHidden() for fold in folds)
+
+
+def test_every_fold_starts_closed_and_says_how_many_rows_it_holds(qtbot, stub_manager, every_label):
+    stub_manager([many_rows()])
+    tab = make_tab(qtbot)
+
+    (frame,) = tab.passage_widgets
+    assert set(frame.folds) == {"advice", "symbols", "divinatory", "correspondences"}
+    assert not any(fold.is_expanded() for folds in frame.folds.values() for fold in folds)
+    assert first_fold(tab, "advice").header.text() == "[family.advice] 2"
+    assert first_fold(tab, "correspondences").header.text() == "[family.correspondences] 4"
+
+
+def test_the_rows_outside_any_family_are_never_folded(qtbot, stub_manager, every_label):
+    stub_manager([many_rows()])
+    tab = make_tab(qtbot)
+
+    folded = {
+        label
+        for folds in tab.passage_widgets[0].folds.values()
+        for fold in folds
+        for label in fold.content.findChildren(QLabel)
+    }
+    light = next(label for label in frame_labels(tab) if "Light prose." in label.text())
+    assert light not in folded
+    assert not light.isHidden()
+
+
+def test_an_open_fold_stays_open_on_the_next_card(qtbot, stub_manager, every_label):
+    stub_manager([many_rows()])
+    tab = make_tab(qtbot)
+
+    first_fold(tab, "advice").header.click()
+    tab.update_card_info(QUEEN)
+
+    assert is_open(tab, "advice")
+    assert not is_open(tab, "symbols")
+
+
+def test_opening_a_fold_in_one_card_tab_opens_it_in_another(qtbot, stub_manager, every_label):
+    stub_manager([many_rows()])
+    here, there = make_tab(qtbot), make_tab(qtbot)
+
+    first_fold(here, "symbols").header.click()
+
+    assert is_open(there, "symbols")
+    first_fold(there, "symbols").header.click()
+    assert not is_open(here, "symbols")
+
+
+def test_a_suits_fold_opened_on_cups_is_open_on_swords(qtbot, stub_manager, every_label):
+    swords = GroupReading("suits.swords", "suits", (entry("text", "Air and thought."),))
+    stub_manager(
+        {
+            QUEEN["id"]: [many_rows(groups=(suit_group(),))],
+            SWORDS["id"]: [many_rows(groups=(swords,))],
+        }
+    )
+    tab = EsotericaTab(QUEEN)
+    qtbot.addWidget(tab)
+
+    first_fold(tab, "group.suits").header.click()
+    tab.update_card_info(SWORDS)
+
+    assert is_open(tab, "group.suits")
+    assert "Air and thought." in all_text(first_fold(tab, "group.suits"))
+
+
+@pytest.fixture
+def menu_icon(monkeypatch):
+    """The theme has an icon for the show menu"""
+    pixmap = QPixmap(16, 16)
+    pixmap.fill(Qt.GlobalColor.black)
+    monkeypatch.setattr(esoterica_tab, "_show_menu_icon", lambda: QIcon(pixmap))
+
+
+def menu_entries(tab):
+    return [action.text() for action in tab.show_menu.actions()]
+
+
+def frame_labels(tab):
+    """The current frames' labels; frames a re-render replaced may not be deleted yet"""
+    return [label for frame in tab.passage_widgets for label in frame.findChildren(QLabel)]
+
+
+def divinatory_text(tab):
+    return [label for label in frame_labels(tab) if "Timing prose." in label.text()]
+
+
+def test_hiding_a_family_removes_it_from_every_frame_in_every_tab(
+    qtbot, stub_manager, every_label, menu_icon
+):
+    stub_manager([many_rows("A"), many_rows("B")], families=COURT_FAMILIES)
+    here, there = make_tab(qtbot), make_tab(qtbot)
+    first_fold(here, "divinatory").header.click()
+
+    here.show_actions["divinatory"].setChecked(False)
+
+    for tab in (here, there):
+        assert [frame.folds.get("divinatory") for frame in tab.passage_widgets] == [None, None]
+        assert divinatory_text(tab) == []
+        assert not tab.show_actions["divinatory"].isChecked()
+        assert any("Work advice." in label.text() for label in frame_labels(tab))
+
+    there.show_actions["divinatory"].setChecked(True)
+
+    for tab in (here, there):
+        assert is_open(tab, "divinatory")
+        assert len(divinatory_text(tab)) == 2
+
+
+def test_hiding_groups_hides_every_group_fold(qtbot, stub_manager, every_label, menu_icon):
+    stub_manager([many_rows(groups=(suit_group(),))], families=COURT_FAMILIES)
+    tab = EsotericaTab(QUEEN)
+    qtbot.addWidget(tab)
+
+    tab.show_actions["groups"].setChecked(False)
+
+    (frame,) = tab.passage_widgets
+    assert "group.suits" not in frame.folds
+    assert not any("Water and feeling." in label.text() for label in frame_labels(tab))
+
+
+def test_a_frame_left_empty_by_hiding_is_still_drawn(qtbot, stub_manager, every_label, menu_icon):
+    only_advice = SourceReading("Terse", None, (entry("advice.work", "Work advice."),), ())
+    stub_manager([only_advice], families={"advice"})
+    tab = make_tab(qtbot)
+
+    tab.show_actions["advice"].setChecked(False)
+
+    (frame,) = tab.passage_widgets
+    assert labels(frame) == ["Terse"]
+
+
+def test_with_only_essays_there_is_no_show_menu(qtbot, stub_manager, every_label, menu_icon):
+    stub_manager([essay("A", None, "One.")])
+    tab = make_tab(qtbot)
+
+    assert tab.show_actions == {}
+    assert tab.show_button.isHidden()
+
+
+def test_the_menu_offers_only_the_families_sources_have_in_order(
+    qtbot, stub_manager, every_label, menu_icon
+):
+    stub_manager([many_rows()], families={"groups", "divinatory", "advice"})
+    tab = make_tab(qtbot)
+
+    assert menu_entries(tab) == ["[family.advice]", "[family.divinatory]", "[family.groups]"]
+    assert all(action.isChecked() for action in tab.show_menu.actions())
+    assert not tab.show_button.isHidden()
+
+
+def test_a_family_with_no_label_has_no_menu_entry(
+    qtbot, stub_manager, every_label, label, menu_icon
+):
+    label("family.symbols", "")
+    stub_manager([many_rows()], families=COURT_FAMILIES)
+    tab = make_tab(qtbot)
+
+    assert "symbols" not in tab.show_actions
+    assert len(menu_entries(tab)) == 4
+
+
+def test_without_a_theme_icon_the_menu_shows_its_label_or_nothing(
+    qtbot, stub_manager, label, monkeypatch
+):
+    monkeypatch.setattr(esoterica_tab, "_show_menu_icon", lambda: QIcon())
+    label("family.advice", "Advice")
+    stub_manager([many_rows()], families={"advice"})
+    assert make_tab(qtbot).show_button.isHidden()
+
+    label("show_menu", "Show")
+    label("show_menu_tooltip", "Which families to show")
+    tab = make_tab(qtbot)
+
+    assert not tab.show_button.isHidden()
+    assert tab.show_button.text() == "Show"
+    assert tab.show_button.toolTip() == "Which families to show"
+
+
+def test_a_deleted_tab_no_longer_hears_display_changes(qtbot, stub_manager, every_label):
+    stub_manager([many_rows()])
+    events = esoterica_events()
+    before = events.receivers(events.display_changed)
+    tab = EsotericaTab(CARD)
+    assert events.receivers(events.display_changed) == before + 1
+
+    tab.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete.value)
+
+    assert events.receivers(events.display_changed) == before
+    set_esoterica_expanded(["advice"])
+
+
+def test_the_tab_that_opened_a_fold_keeps_its_scroll_position(qtbot, stub_manager, every_label):
+    stub_manager([many_rows(str(i)) for i in range(6)])
+    tab = make_tab(qtbot)
+    show(qtbot, tab, 600, 400)
+    bar = tab.scroll_area.verticalScrollBar()
+    assert bar.maximum() > 300
+    bar.setValue(300)
+
+    first_fold(tab, "advice", frame=3).header.click()
+    # The new frames are laid out and the old ones deleted
+    qtbot.wait(50)
+
+    assert bar.value() == 300

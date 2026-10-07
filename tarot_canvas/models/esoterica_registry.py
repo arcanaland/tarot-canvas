@@ -16,6 +16,17 @@ class Role(Enum):
     GROUP_NOTES = auto()
 
 
+# The roles whose rows sit together in one block, by the block's id
+FAMILIES = {
+    Role.ADVICE: "advice",
+    Role.SYMBOLS: "symbols",
+    Role.DIVINATORY: "divinatory",
+    Role.CORRESPONDENCES: "correspondences",
+}
+
+# Every group's content, as one family
+GROUPS = "groups"
+
 PASSAGES = "passages"
 CORRESPONDENCES = "correspondences"
 
@@ -34,8 +45,8 @@ _ORDER = (
     (PASSAGES, ("approach",), Role.CHARACTER),
     (PASSAGES, ("story",), Role.CHARACTER),
     (PASSAGES, ("x_mythical_spiritual",), Role.CHARACTER),
-    (PASSAGES, ("questions",), Role.PROMPTS),
     (PASSAGES, ("affirmation",), Role.PROMPTS),
+    (PASSAGES, ("questions",), Role.PROMPTS),
     (PASSAGES, ("x_note",), Role.NOTES),
     (PASSAGES, ("advice.relationships",), Role.ADVICE),
     (PASSAGES, ("advice.work",), Role.ADVICE),

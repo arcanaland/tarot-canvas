@@ -3,6 +3,8 @@ import time
 
 from PyQt6.QtCore import QSettings
 
+from tarot_canvas.models.esoterica_events import esoterica_events
+
 SETTINGS_ORGANIZATION = "ArcanaLand"
 SETTINGS_APPLICATION = "TarotCanvas"
 
@@ -67,6 +69,10 @@ LIBRARY_VIEW_NOTES = "notes"
 LIBRARY_VIEWS = (LIBRARY_VIEW_DECKS, LIBRARY_VIEW_NOTES)
 LIBRARY_VIEW_DEFAULT = LIBRARY_VIEW_DECKS
 
+# Lists of family ids; an id this version doesn't know matches nothing and is kept
+ESOTERICA_EXPANDED_KEY = "esoterica/expanded"
+ESOTERICA_HIDDEN_KEY = "esoterica/hidden"
+
 DECK_HEADER_EXPANDED_KEY = "deck_view/header_expanded"
 DECK_HEADER_EXPANDED_DEFAULT = True
 
@@ -98,6 +104,39 @@ def record_deck_opened(deck_path, when=None):
         keep = sorted(recent.items(), key=lambda item: item[1], reverse=True)
         recent = dict(keep[:LIBRARY_RECENT_LIMIT])
     get_settings().setValue(LIBRARY_RECENT_KEY, json.dumps(recent))
+
+
+def _string_list(key):
+    """A stored list, which QSettings may hand back as None, one bare str, or a list"""
+    stored = get_settings().value(key)
+    if stored is None:
+        return []
+    if isinstance(stored, str):
+        return [stored] if stored else []
+    return [str(item) for item in stored]
+
+
+def get_esoterica_expanded():
+    """The esoterica folds that are open, on every card"""
+    return _string_list(ESOTERICA_EXPANDED_KEY)
+
+
+def get_esoterica_hidden():
+    """The esoterica families the show menu has unchecked"""
+    return _string_list(ESOTERICA_HIDDEN_KEY)
+
+
+def _set_esoterica_list(key, ids):
+    get_settings().setValue(key, list(ids))
+    esoterica_events().display_changed.emit()
+
+
+def set_esoterica_expanded(ids):
+    _set_esoterica_list(ESOTERICA_EXPANDED_KEY, ids)
+
+
+def set_esoterica_hidden(ids):
+    _set_esoterica_list(ESOTERICA_HIDDEN_KEY, ids)
 
 
 def _is_number(value):

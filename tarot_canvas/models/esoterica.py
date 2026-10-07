@@ -10,6 +10,8 @@ from pathlib import Path
 from tarot_canvas.models.card_ids import COURTS, PIPS
 from tarot_canvas.models.esoterica_registry import (
     CORRESPONDENCES,
+    FAMILIES,
+    GROUPS,
     PASSAGES,
     Role,
     role_of,
@@ -167,6 +169,32 @@ def _read_groups(groups, canonical):
     return tuple(readings)
 
 
+def _group_targets(groups):
+    """Every group table in a source, whether or not any card is in it"""
+    for family, node in groups.items():
+        if not isinstance(node, dict):
+            continue
+        if family == "all":
+            yield node
+            continue
+        yield from (target for target in node.values() if isinstance(target, dict))
+
+
+def _families_in(source):
+    """The families a source has on some card or group"""
+    found = set()
+    targets = [target for target in source["cards"].values() if isinstance(target, dict)]
+    for target in targets:
+        found.update(FAMILIES.get(entry.role) for entry in _flatten(target))
+    for target in _group_targets(source["groups"]):
+        entries = _flatten(target)
+        if _is_renderable(entries):
+            found.add(GROUPS)
+            found.update(FAMILIES.get(entry.role) for entry in entries)
+    found.discard(None)
+    return found
+
+
 def _read_source(path):
     """Parse one file, or return None if can't be parsed."""
     try:
@@ -215,6 +243,7 @@ class EsotericaManager:
     def __init__(self, roots=None):
         # Keyed by path relative to the root it was found under
         self.sources = {}
+        self._families = frozenset()
         self.load_sources(roots)
 
     def load_sources(self, roots=None):
@@ -239,11 +268,16 @@ class EsotericaManager:
                 if source is not None:
                     self.sources[key] = source
 
+        self._families = frozenset().union(*map(_families_in, self.sources.values()))
         logger.info(f"Loaded {len(self.sources)} esoterica sources")
 
     def has_sources(self):
         """Whether any file could be read. A file in the older format doesn't count."""
         return bool(self.sources)
+
+    def families_present(self):
+        """The family ids (and `groups`) some loaded source has on some card or group"""
+        return self._families
 
     def read_card(self, card_id):
         """

@@ -861,7 +861,11 @@ def test_ctrl_c_in_esoterica_copies_the_text_not_the_card(qtbot, clipboard, monk
 
     entry = Entry("passages", "text", Role.PRINCIPAL, "Selectable passage text.")
     readings = [SourceReading("A Source", None, (entry,), ())]
-    manager = SimpleNamespace(read_card=lambda _card_id: readings, has_sources=lambda: True)
+    manager = SimpleNamespace(
+        read_card=lambda _card_id: readings,
+        has_sources=lambda: True,
+        families_present=frozenset,
+    )
     monkeypatch.setattr(esoterica_tab, "get_esoterica_manager", lambda: manager)
 
     window, card_view = make_window_with_card_view(qtbot)

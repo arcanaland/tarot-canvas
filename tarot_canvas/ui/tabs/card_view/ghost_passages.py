@@ -8,7 +8,7 @@ from tarot_canvas.ui.palette import ghost_bar, subtle_fill
 from tarot_canvas.ui.tabs.card_view.passage_metrics import (
     BODY_LINE_HEIGHT,
     CORNER_RADIUS,
-    HEADING_TO_BODY,
+    HEADER_TO_ROWS,
     PADDING,
     PASSAGE_SPACING,
     SIDE_MARGIN,
@@ -36,7 +36,7 @@ def ghost_layout(font, width):
     # (width fraction, line height, text height, gap after)
     lines = [
         (TITLE_WIDTH, title, title, TITLE_TO_AUTHOR),
-        (AUTHOR_WIDTH, body, body, HEADING_TO_BODY),
+        (AUTHOR_WIDTH, body, body, HEADER_TO_ROWS),
     ]
     lines += [(fraction, body * BODY_LINE_HEIGHT, body, 0) for fraction in BODY_WIDTHS]
 
