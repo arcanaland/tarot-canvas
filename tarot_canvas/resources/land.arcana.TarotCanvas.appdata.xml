@@ -24,6 +24,10 @@
       <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/main-window.webp</image>
     </screenshot>
     <screenshot>
+      <caption>Card meanings and other esoterica</caption>
+      <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/esoterica-view.webp</image>
+    </screenshot>
+    <screenshot>
       <caption>View of an entire deck</caption>
       <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/deck-view.webp</image>
     </screenshot>
@@ -36,25 +40,29 @@
       <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/library-view.webp</image>
     </screenshot>
     <screenshot>
-      <caption>Support for custom esoterica and passages</caption>
-      <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/esoterica-view.webp</image>
-    </screenshot>
-    <screenshot>
       <caption>Take custom notes attached to cards</caption>
       <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/notes-view.webp</image>
     </screenshot>
   </screenshots>
   <releases>
     <!--
-    <release version="1.5.x" date="2026-09-xx" type="development">
+    <release version="1.6.1" date="2026-10-xx" type="development">
       <description>
         <ul>
-          <li>Fixed sluggish launch of Find Card panel.</li>
           <li>Use hardware acceleration to improve performance of canvas motion.</li>
         </ul>
       </description>
     </release>
     -->
+    <release version="1.6.0" date="2026-10-10" type="development">
+      <description>
+        <p>Overhauled esoterica tab (card meanings) and bundled a large dataset out-of-the-box.</p>
+        <p>Other changes:</p>
+        <ul>
+          <li>Fixed sluggish launch of Find Card panel.</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.5.1" date="2026-09-25" type="stable">
       <description>
         <p>Quality of life and UX improvements for notes:</p>
