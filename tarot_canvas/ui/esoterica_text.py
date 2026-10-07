@@ -16,6 +16,7 @@ ESOTERICA_TEXT = {
     "advice.work": "Work",
     "advice.spirituality": "Spirituality",
     "advice.personal_growth": "Personal growth",
+    "x_marseille_image": "",
     "advice.fortune_telling": "A Potential Future",
     "advice.timing": "Timing",
     "x_suit_cards": "The suit's cards",

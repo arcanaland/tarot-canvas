@@ -3,6 +3,7 @@ import pytest
 from tarot_canvas.models.esoterica_registry import (
     CORRESPONDENCES,
     PASSAGES,
+    SYMBOLS,
     Role,
     is_divinatory,
     role_of,
@@ -28,7 +29,7 @@ PASSAGE_ROLES = [
     ("advice.work", Role.ADVICE),
     ("advice.spirituality", Role.ADVICE),
     ("advice.personal_growth", Role.ADVICE),
-    ("symbols.the_dog", Role.SYMBOLS),
+    ("x_marseille_image", Role.SYMBOLS),
     ("advice.fortune_telling", Role.DIVINATORY),
     ("advice.timing", Role.DIVINATORY),
 ]
@@ -94,9 +95,21 @@ def test_an_unprefixed_spelling_takes_the_x_spelling_position(key):
     assert sort_key(CORRESPONDENCES, key, 0)[0] == sort_key(CORRESPONDENCES, f"x_{key}", 0)[0]
 
 
-def test_any_symbol_is_a_symbol_and_symbols_keep_file_order():
-    assert role_of(PASSAGES, "symbols.anything") is Role.SYMBOLS
-    assert sort_key(PASSAGES, "symbols.zebra", 1) < sort_key(PASSAGES, "symbols.apple", 2)
+def test_any_key_in_the_symbols_slot_is_a_symbol_and_symbols_keep_file_order():
+    assert role_of(SYMBOLS, "anything") is Role.SYMBOLS
+    assert sort_key(SYMBOLS, "zebra", 1) < sort_key(SYMBOLS, "apple", 2)
+
+
+def test_symbols_sort_after_advice_and_before_the_marseille_image():
+    assert sort_key(PASSAGES, "advice.personal_growth", 99) < sort_key(SYMBOLS, "zebra", 0)
+    assert sort_key(SYMBOLS, "zebra", 99) < sort_key(PASSAGES, "x_marseille_image", 0)
+    assert sort_key(PASSAGES, "x_marseille_image", 99) < sort_key(
+        PASSAGES, "advice.fortune_telling", 0
+    )
+
+
+def test_the_draft_spelling_of_a_symbol_is_not_a_symbol():
+    assert role_of(PASSAGES, "symbols.the_dog") is None
 
 
 def test_a_key_in_the_wrong_slot_is_unknown():

@@ -13,6 +13,7 @@ from tarot_canvas.models.esoterica_registry import (
     FAMILIES,
     GROUPS,
     PASSAGES,
+    SYMBOLS,
     Role,
     role_of,
     sort_key,
@@ -25,12 +26,13 @@ SUPPORTED_SCHEMA_MAJORS = {"1"}
 
 @dataclass(frozen=True)
 class Entry:
-    """One passage or correspondence (exactly from TOML)."""
+    """One passage, correspondence or symbol (exactly from TOML)."""
 
     slot: str
-    key: str  # the full dotted entry key
+    key: str  # the full dotted entry key; a symbol's bare name
     role: Role | None  # None for a key the registry doesn't know
     value: str | int | float | bool | tuple
+    label: str | None = None  # a symbol's printed heading, if the source gives one
 
 
 @dataclass(frozen=True)
@@ -74,7 +76,11 @@ def _is_correspondence_value(value):
     return _is_correspondence_scalar(value)
 
 
-_VALIDATORS = {PASSAGES: _is_passage_value, CORRESPONDENCES: _is_correspondence_value}
+_VALIDATORS = {
+    PASSAGES: _is_passage_value,
+    CORRESPONDENCES: _is_correspondence_value,
+    SYMBOLS: _is_passage_text,
+}
 
 
 def _walk(table, prefix=""):
@@ -86,21 +92,49 @@ def _walk(table, prefix=""):
             yield f"{prefix}{key}", value
 
 
+def _is_legacy_symbols(key, value):
+    """passages.symbols.<name>, the draft spelling of the symbols slot, which is no longer read"""
+    return key == SYMBOLS and isinstance(value, dict)
+
+
+def _has_legacy_symbols(target):
+    passages = target.get(PASSAGES)
+    if not isinstance(passages, dict):
+        return False
+    return any(_is_legacy_symbols(key, value) and value for key, value in passages.items())
+
+
+def _items(slot, table):
+    """(key, value, label) for every entry in a slot, in file order. Only a symbol has a label."""
+    if slot != SYMBOLS:
+        if slot == PASSAGES:
+            table = {k: v for k, v in table.items() if not _is_legacy_symbols(k, v)}
+        for key, value in _walk(table):
+            yield key, value, None
+        return
+    # Each direct child is one symbol: a table with text, and its printed heading if it has one
+    for name, symbol in table.items():
+        if not isinstance(symbol, dict):
+            symbol = {}
+        label = symbol.get("label")
+        yield name, symbol.get("text"), label if _is_passage_text(label) else None
+
+
 def _flatten(target):
-    """One target's passages and correspondences in registry order."""
+    """One target's passages, correspondences and symbols in registry order."""
     found = []
     file_index = 0
-    for slot in (PASSAGES, CORRESPONDENCES):
+    for slot in (PASSAGES, CORRESPONDENCES, SYMBOLS):
         table = target.get(slot)
         if not isinstance(table, dict):
             continue
-        for key, value in _walk(table):
+        for key, value, label in _items(slot, table):
             file_index += 1
             if not _VALIDATORS[slot](value):
                 continue
             if isinstance(value, list):
                 value = tuple(value)
-            entry = Entry(slot, key, role_of(slot, key), value)
+            entry = Entry(slot, key, role_of(slot, key), value, label)
             found.append((sort_key(slot, key, file_index), entry))
     found.sort(key=lambda pair: pair[0])
     return tuple(entry for _, entry in found)
@@ -228,6 +262,13 @@ def _read_source(path):
     groups = content.get("group")
     if not isinstance(groups, dict):
         groups = {}
+
+    targets = [*cards.values(), *_group_targets(groups)]
+    if any(_has_legacy_symbols(target) for target in targets if isinstance(target, dict)):
+        logger.warning(
+            f"{path}: symbols under passages are a draft spelling, which is no longer read. "
+            f'Symbols now live under [card."<canonical id>".symbols.<name>], with text = "…".'
+        )
 
     return {
         "path": path,

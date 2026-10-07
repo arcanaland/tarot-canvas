@@ -16,7 +16,13 @@ from PyQt6.QtWidgets import (
 
 from tarot_canvas.models.esoterica import Entry, GroupReading, SourceReading
 from tarot_canvas.models.esoterica_events import esoterica_events
-from tarot_canvas.models.esoterica_registry import CORRESPONDENCES, PASSAGES, Role, role_of
+from tarot_canvas.models.esoterica_registry import (
+    CORRESPONDENCES,
+    PASSAGES,
+    SYMBOLS,
+    Role,
+    role_of,
+)
 from tarot_canvas.settings import set_esoterica_expanded
 from tarot_canvas.ui import esoterica_text
 from tarot_canvas.ui.palette import muted_text
@@ -314,6 +320,10 @@ def correspondence(key, value):
     return entry(key, value, CORRESPONDENCES)
 
 
+def symbol(name, text, label=None):
+    return Entry(SYMBOLS, name, Role.SYMBOLS, text, label)
+
+
 def many_rows(name="The Queen's Book", entries=(), groups=()):
     """Shaped like a book that writes many short sections per card, in registry order"""
     return SourceReading(
@@ -329,8 +339,8 @@ def many_rows(name="The Queen's Book", entries=(), groups=()):
             entry("affirmation", "I listen."),
             entry("advice.relationships", "Relationship advice."),
             entry("advice.work", "Work advice."),
-            entry("symbols.the_cup", "The cup prose."),
-            entry("symbols.the_sea", "The sea prose."),
+            symbol("the_cup", "The cup prose.", "The Cup"),
+            symbol("the_sea", "The sea prose."),
             entry("advice.timing", "Timing prose."),
             correspondence("element", "water"),
             correspondence("astrology", "saturn in libra"),
@@ -538,6 +548,88 @@ def test_a_symbol_has_no_heading_of_its_own(qtbot, every_label):
 
     assert "The cup prose." in all_text(widget)
     assert "the_cup" not in all_text(widget)
+    assert "the_sea" not in all_text(widget)
+
+
+def symbols_fold(widget):
+    (fold,) = widget.folds["symbols"]
+    return fold
+
+
+def label_with(widget, text):
+    (found,) = (label for label in widget.findChildren(QLabel) if text in label.text())
+    return found
+
+
+def test_a_printed_heading_sits_above_its_symbol_in_the_paragraphs_face(
+    qtbot, theme_palette, label
+):
+    label("family.symbols", "Symbols")
+    widget = make_widget(qtbot, many_rows())
+    widget.setPalette(theme_palette)
+    symbols_fold(widget).header.click()
+    show(qtbot, widget, 600)
+
+    heading, paragraph = label_with(widget, "The Cup"), label_with(widget, "The cup prose.")
+    assert heading.text() == "The Cup"
+    above = heading.mapTo(widget, heading.rect().bottomLeft()).y()
+    assert above <= paragraph.mapTo(widget, paragraph.rect().topLeft()).y()
+    assert heading.font().family() == paragraph.font().family()
+    assert heading.font().pointSizeF() == paragraph.font().pointSizeF()
+    assert heading.font().bold()
+    assert not paragraph.font().bold()
+    # The source's words, not the edition's
+    assert heading not in widget.headings
+    assert text_colour(heading) == text_colour(paragraph)
+
+
+def test_a_symbol_without_a_printed_heading_is_its_paragraph_alone(qtbot, label):
+    label("family.symbols", "Symbols")
+    widget = make_widget(qtbot, many_rows())
+
+    texts = [found.text() for found in symbols_fold(widget).content.findChildren(QLabel)]
+    assert texts == [
+        "The Cup",
+        esoterica_tab._body_html("The cup prose."),
+        esoterica_tab._body_html("The sea prose."),
+    ]
+    assert symbols_fold(widget).header.text() == "Symbols 2"
+
+
+def marseille_reading():
+    """Symbols, then the image, in registry order as the manager gives them"""
+    return SourceReading(
+        "A Guide",
+        None,
+        (
+            symbol("the_sun", "The sun prose.", "The Sun"),
+            symbol("the_moon", "The moon prose."),
+            entry("x_marseille_image", "Two batons."),
+            entry("advice.timing", "Timing prose."),
+        ),
+        (),
+    )
+
+
+def test_the_marseille_image_is_hidden_while_its_label_is_empty(qtbot, label):
+    label("family.symbols", "Symbols")
+    widget = make_widget(qtbot, marseille_reading())
+
+    assert "Two batons." not in all_text(widget)
+    assert symbols_fold(widget).header.text() == "Symbols 2"
+
+
+def test_a_labelled_marseille_image_is_the_last_row_in_the_symbols_fold(qtbot, label):
+    label("family.symbols", "Symbols")
+    label("x_marseille_image", "The Marseille card")
+    widget = make_widget(qtbot, marseille_reading())
+
+    fold = symbols_fold(widget)
+    texts = [found.text() for found in fold.content.findChildren(QLabel)]
+    assert texts[:2] == ["The Sun", esoterica_tab._body_html("The sun prose.")]
+    assert texts[-2] == "The Marseille card"
+    assert texts[-1] == esoterica_tab._body_html("Two batons.")
+    assert fold.header.text() == "Symbols 3"
 
 
 def test_questions_are_a_list_of_escaped_strings(qtbot, label):

@@ -20,7 +20,7 @@ from PyQt6.QtWidgets import (
 from tarot_canvas.about import FALLBACK_URLS, load_about_data
 from tarot_canvas.models.esoterica import get_esoterica_manager
 from tarot_canvas.models.esoterica_events import esoterica_events
-from tarot_canvas.models.esoterica_registry import FAMILIES, GROUPS, Role
+from tarot_canvas.models.esoterica_registry import FAMILIES, GROUPS, SYMBOLS, Role
 from tarot_canvas.settings import (
     get_esoterica_expanded,
     get_esoterica_hidden,
@@ -143,6 +143,15 @@ def _row_label(text, text_format):
 def prose_row(value):
     """Paragraphs of the source's prose"""
     return _row_label(_body_html(_spelled(value)), Qt.TextFormat.RichText)
+
+
+def printed_heading(text):
+    """A heading the source prints, in its paragraph's face and size, bold"""
+    label = _row_label(text, Qt.TextFormat.PlainText)
+    font = label.font()
+    font.setBold(True)
+    label.setFont(font)
+    return label
 
 
 def line_row(value):
@@ -307,6 +316,15 @@ class PassageWidget(QFrame):
             return self._labelled(entry.key, lambda: affirmation_row(value))
         return self._labelled(entry.key, lambda: prose_row(value))
 
+    def _symbol(self, entry):
+        """A symbol's paragraph, under its printed heading if the source gives one"""
+        if entry.slot != SYMBOLS:
+            return self._row(entry)
+        body = prose_row(entry.value)
+        if entry.label is None:
+            return body
+        return _stack([printed_heading(entry.label), body], HEADING_TO_BODY)
+
     def _fold(self, fold_id, text, body, count):
         """A family's or group's rows under a header that opens and closes them"""
         fold = Fold(_counted(text, count), body, fold_id in self.expanded)
@@ -342,11 +360,9 @@ class PassageWidget(QFrame):
             body = self._correspondences(entries)
             count = body.layout().rowCount() if body is not None else 0
         else:
-            if role is Role.SYMBOLS:
-                # A symbol's key is a build-time slug, never a heading
-                rows = [prose_row(entry.value) for entry in entries]
-            else:
-                rows = [row for entry in entries if (row := self._row(entry)) is not None]
+            # A symbol's key is a build-time slug, never a heading
+            make_row = self._symbol if role is Role.SYMBOLS else self._row
+            rows = [row for entry in entries if (row := make_row(entry)) is not None]
             body = _stack(rows, PARAGRAPH_GAP) if rows else None
             count = len(rows)
         if body is None:
