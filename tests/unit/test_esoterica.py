@@ -1,9 +1,25 @@
+import logging
+
 import pytest
 
 from tarot_canvas.models.esoterica import EsotericaManager
+from tarot_canvas.models.esoterica_events import esoterica_events
+from tarot_canvas.settings import set_esoterica_disabled
+
+FROM_PATH = object()
 
 
-def write(root, relative_path, text):
+def write(root, relative_path, text, identifier=FROM_PATH):
+    """A source file. Only a source with an identifier is read, so each gets one from its
+    path unless the test names one, or passes None for a file without"""
+    if identifier is FROM_PATH:
+        identifier = f"test/{relative_path}"
+    if identifier is not None:
+        line = f'identifier = "{identifier}"'
+        if "[meta]" in text:
+            text = text.replace("[meta]", f"[meta]\n{line}", 1)
+        else:
+            text = f"[meta]\n{line}\n{text}"
     path = root / relative_path
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
@@ -77,22 +93,135 @@ def test_every_source_with_the_card_renders_separately(root):
     assert [r.name for r in readings] == ["a", "b"]
 
 
-def test_the_first_root_wins_for_the_same_relative_path(root, tmp_path):
+def fool(text):
+    return f'[card."major_arcana.00".passages]\ntext = "{text}"\n'
+
+
+@pytest.fixture
+def roots(tmp_path):
+    """Shaped like the user's root, the shared one and a bundled one, in that order"""
+    return [tmp_path / "user", tmp_path / "shared", tmp_path / "bundled"]
+
+
+def test_an_earlier_root_shadows_the_same_identifier_whatever_the_filename(roots):
+    user, _, bundled = roots
+    mine = write(user, "my-copy.toml", fool("Mine."), identifier="land.arcana/book")
+    write(bundled, "books/the-book-2014.toml", fool("Bundled."), identifier="land.arcana/book")
+    manager = EsotericaManager(roots)
+
+    assert [text_of(r) for r in manager.read_card("major_arcana.00")] == ["Mine."]
+    assert manager.sources["land.arcana/book"]["root"] == user
+
+    mine.unlink()
+    manager.reload()
+
+    assert [text_of(r) for r in manager.read_card("major_arcana.00")] == ["Bundled."]
+    assert manager.sources["land.arcana/book"]["root"] == bundled
+
+
+def test_different_identifiers_are_two_sources_even_with_the_same_path(root, tmp_path):
     shared = tmp_path / "shared"
-    write(root, "notes.toml", THREE_LINES)
-    write(shared, "notes.toml", '[card."major_arcana.00".passages]\ntext = "Shadowed."\n')
-
-    readings = EsotericaManager([root, shared]).read_card("major_arcana.00")
-
-    assert [text_of(r) for r in readings] == ["These are my notes for The Fool."]
-
-
-def test_the_same_name_under_different_paths_is_two_sources(root, tmp_path):
-    shared = tmp_path / "shared"
-    write(root, "notes.toml", THREE_LINES)
-    write(shared, "books/notes.toml", '[card."major_arcana.00".passages]\ntext = "Also me."\n')
+    write(root, "notes.toml", THREE_LINES, identifier="me/notes")
+    write(shared, "notes.toml", fool("Also me."), identifier="someone-else/notes")
 
     assert len(EsotericaManager([root, shared]).read_card("major_arcana.00")) == 2
+
+
+def test_the_same_identifier_twice_in_one_root_reads_the_first_path_and_warns(root, caplog):
+    first = write(root, "a.toml", fool("First."), identifier="me/notes")
+    second = write(root, "b/notes.toml", fool("Second."), identifier="me/notes")
+
+    with caplog.at_level(logging.WARNING):
+        manager = EsotericaManager([root])
+
+    assert [text_of(r) for r in manager.read_card("major_arcana.00")] == ["First."]
+    (warning,) = (r.getMessage() for r in caplog.records if r.levelno == logging.WARNING)
+    assert str(first) in warning
+    assert str(second) in warning
+
+
+def test_a_source_with_no_identifier_is_not_read_and_says_why(root, caplog):
+    path = write(root, "anonymous.toml", THREE_LINES, identifier=None)
+    write(root, "blank.toml", THREE_LINES, identifier="  ")
+
+    with caplog.at_level(logging.WARNING):
+        manager = EsotericaManager([root])
+
+    assert manager.sources == {}
+    assert manager.read_card("major_arcana.00") == []
+    assert not manager.has_sources()
+    warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 2
+    assert str(path) in warnings[0]
+    assert "[meta].identifier" in warnings[0]
+
+
+def test_the_identifier_is_stripped(root):
+    write(root, "notes.toml", THREE_LINES, identifier="  me/notes ")
+
+    assert list(EsotericaManager([root]).sources) == ["me/notes"]
+
+
+ADVICE = '[card."major_arcana.00".passages]\nadvice.work = "Work."\n'
+SYMBOLS = '[card."major_arcana.00".symbols.dog]\ntext = "The dog."\n'
+
+
+def test_disabling_a_source_hides_it_at_once_and_enabling_brings_it_back(root):
+    write(root, "a.toml", ADVICE, identifier="a")
+    write(root, "b.toml", SYMBOLS, identifier="b")
+    manager = EsotericaManager([root])
+
+    set_esoterica_disabled(["b"])
+
+    assert [r.name for r in manager.read_card("major_arcana.00")] == ["a"]
+    assert manager.families_present() == {"advice"}
+    assert set(manager.sources) == {"a", "b"}
+
+    set_esoterica_disabled([])
+
+    assert [r.name for r in manager.read_card("major_arcana.00")] == ["a", "b"]
+    assert manager.families_present() == {"advice", "symbols"}
+
+
+def test_with_every_source_disabled_there_are_sources_but_none_enabled(root):
+    write(root, "a.toml", ADVICE, identifier="a")
+    manager = EsotericaManager([root])
+    assert manager.has_enabled_sources()
+
+    set_esoterica_disabled(["a"])
+
+    assert manager.has_sources()
+    assert not manager.has_enabled_sources()
+    assert manager.read_card("major_arcana.00") == []
+    assert manager.families_present() == frozenset()
+
+
+def test_an_unknown_identifier_in_the_disabled_list_is_harmless(root):
+    write(root, "a.toml", ADVICE, identifier="a")
+    manager = EsotericaManager([root])
+
+    set_esoterica_disabled(["x/from-another-machine"])
+
+    assert manager.has_enabled_sources()
+    assert [r.name for r in manager.read_card("major_arcana.00")] == ["a"]
+
+
+def test_reload_finds_a_new_file_and_says_so_once(root, qtbot):
+    write(root, "a.toml", ADVICE, identifier="a")
+    manager = EsotericaManager([root])
+    write(root, "b.toml", SYMBOLS, identifier="b")
+    emitted = []
+    connection = esoterica_events().sources_changed.connect(lambda: emitted.append(True))
+
+    try:
+        with qtbot.waitSignal(esoterica_events().sources_changed, timeout=1000):
+            manager.reload()
+    finally:
+        esoterica_events().sources_changed.disconnect(connection)
+
+    assert emitted == [True]
+    assert set(manager.sources) == {"a", "b"}
+    assert manager.families_present() == {"advice", "symbols"}
 
 
 def test_a_card_nobody_wrote_about_has_no_readings(root):

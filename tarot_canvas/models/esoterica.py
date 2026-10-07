@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from tarot_canvas.models.card_ids import COURTS, PIPS
+from tarot_canvas.models.esoterica_events import esoterica_events
 from tarot_canvas.models.esoterica_registry import (
     CORRESPONDENCES,
     FAMILIES,
@@ -18,6 +19,7 @@ from tarot_canvas.models.esoterica_registry import (
     role_of,
     sort_key,
 )
+from tarot_canvas.settings import get_esoterica_disabled
 from tarot_canvas.utils.logger import logger
 from tarot_canvas.utils.path_helper import get_esoterica_directories
 
@@ -280,11 +282,20 @@ def _read_source(path):
     }
 
 
+def _identifier(meta):
+    identifier = meta.get("identifier")
+    if isinstance(identifier, str) and identifier.strip():
+        return identifier.strip()
+    return None
+
+
 class EsotericaManager:
     def __init__(self, roots=None):
-        # Keyed by path relative to the root it was found under
+        # None means the path helper's roots, looked up again at each load
+        self._roots = roots
+        # Keyed by [meta].identifier: in root order, then by path within a root.
+        # Disabled sources are kept; they are filtered out on each read.
         self.sources = {}
-        self._families = frozenset()
         self.load_sources(roots)
 
     def load_sources(self, roots=None):
@@ -301,24 +312,54 @@ class EsotericaManager:
             if not root.is_dir():
                 continue
 
+            # Identifier -> the path that claimed it in this root
+            claimed = {}
             for path in sorted(root.glob("**/*.toml")):
-                key = str(path.relative_to(root))
-                if key in self.sources:
-                    continue  # The first root wins.
                 source = _read_source(path)
-                if source is not None:
-                    self.sources[key] = source
+                if source is None:
+                    continue
+                identifier = _identifier(source["meta"])
+                if identifier is None:
+                    logger.warning(f"{path}: [meta].identifier is missing, so it is not read")
+                    continue
+                if identifier in claimed:
+                    logger.warning(
+                        f"{path} and {claimed[identifier]} have the same identifier "
+                        f"{identifier!r}; only {claimed[identifier]} is read"
+                    )
+                    continue
+                if identifier in self.sources:
+                    # An earlier root wins, and that is not reported
+                    logger.debug(f"{path}: {identifier!r} is shadowed by an earlier root")
+                    continue
+                claimed[identifier] = path
+                source["root"] = root
+                source["families"] = frozenset(_families_in(source))
+                self.sources[identifier] = source
 
-        self._families = frozenset().union(*map(_families_in, self.sources.values()))
         logger.info(f"Loaded {len(self.sources)} esoterica sources")
 
+    def reload(self):
+        """Read every root again, for files added, removed or changed since the last load"""
+        self.load_sources(self._roots)
+        esoterica_events().sources_changed.emit()
+
+    def _enabled(self):
+        disabled = set(get_esoterica_disabled())
+        return [source for key, source in self.sources.items() if key not in disabled]
+
     def has_sources(self):
-        """Whether any file could be read. A file in the older format doesn't count."""
+        """Whether any source could be read, enabled or not. A file with no identifier, or in
+        the older format, doesn't count."""
         return bool(self.sources)
 
+    def has_enabled_sources(self):
+        """Whether any source that could be read is turned on"""
+        return bool(self._enabled())
+
     def families_present(self):
-        """The family ids (and `groups`) some loaded source has on some card or group"""
-        return self._families
+        """The family ids (and `groups`) some enabled source has on some card or group"""
+        return frozenset().union(*(source["families"] for source in self._enabled()))
 
     def read_card(self, card_id):
         """
@@ -327,7 +368,7 @@ class EsotericaManager:
         canonical = str(card_id).split(":", 1)[0]
 
         readings = []
-        for source in self.sources.values():
+        for source in self._enabled():
             target = source["cards"].get(canonical)
             entries = _flatten(target) if isinstance(target, dict) else ()
             groups = _read_groups(source["groups"], canonical)

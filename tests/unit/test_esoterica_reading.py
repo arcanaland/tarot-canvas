@@ -11,8 +11,20 @@ from tarot_canvas.models.esoterica import (
 )
 from tarot_canvas.models.esoterica_registry import PASSAGES, SYMBOLS, Role
 
+FROM_PATH = object()
 
-def write(root, relative_path, text):
+
+def write(root, relative_path, text, identifier=FROM_PATH):
+    """A source file. Only a source with an identifier is read, so each gets one from its
+    path unless the test names one, or passes None for a file without"""
+    if identifier is FROM_PATH:
+        identifier = f"test/{relative_path}"
+    if identifier is not None:
+        line = f'identifier = "{identifier}"'
+        if "[meta]" in text:
+            text = text.replace("[meta]", f"[meta]\n{line}", 1)
+        else:
+            text = f"[meta]\n{line}\n{text}"
     path = root / relative_path
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")

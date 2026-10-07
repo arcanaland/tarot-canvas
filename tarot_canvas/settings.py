@@ -72,6 +72,7 @@ LIBRARY_VIEW_DEFAULT = LIBRARY_VIEW_DECKS
 # Lists of family ids; an id this version doesn't know matches nothing and is kept
 ESOTERICA_EXPANDED_KEY = "esoterica/expanded"
 ESOTERICA_HIDDEN_KEY = "esoterica/hidden"
+ESOTERICA_DISABLED_KEY = "esoterica/disabled"
 
 DECK_HEADER_EXPANDED_KEY = "deck_view/header_expanded"
 DECK_HEADER_EXPANDED_DEFAULT = True
@@ -137,6 +138,16 @@ def set_esoterica_expanded(ids):
 
 def set_esoterica_hidden(ids):
     _set_esoterica_list(ESOTERICA_HIDDEN_KEY, ids)
+
+
+def get_esoterica_disabled():
+    """The identifiers of the esoterica sources that are turned off"""
+    return _string_list(ESOTERICA_DISABLED_KEY)
+
+
+def set_esoterica_disabled(ids):
+    get_settings().setValue(ESOTERICA_DISABLED_KEY, list(ids))
+    esoterica_events().sources_changed.emit()
 
 
 def _is_number(value):
