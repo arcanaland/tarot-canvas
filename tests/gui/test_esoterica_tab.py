@@ -3,7 +3,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from PyQt6.QtCore import QCoreApplication, QEvent, Qt
+from PyQt6.QtCore import QCoreApplication, QEvent, QPoint, QRect, QSize, Qt
 from PyQt6.QtGui import QIcon, QPalette, QPixmap
 from PyQt6.QtWidgets import (
     QFormLayout,
@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (
     QToolButton,
 )
 
-from tarot_canvas.models.esoterica import Entry, GroupReading, SourceReading
+from tarot_canvas.models.esoterica import Entry, EsotericaManager, GroupReading, SourceReading
 from tarot_canvas.models.esoterica_events import esoterica_events
 from tarot_canvas.models.esoterica_registry import (
     CORRESPONDENCES,
@@ -23,7 +23,7 @@ from tarot_canvas.models.esoterica_registry import (
     Role,
     role_of,
 )
-from tarot_canvas.settings import set_esoterica_expanded
+from tarot_canvas.settings import set_esoterica_disabled, set_esoterica_expanded
 from tarot_canvas.ui import esoterica_text
 from tarot_canvas.ui.palette import muted_text
 from tarot_canvas.ui.tabs.card_view import esoterica_tab
@@ -39,6 +39,7 @@ from tarot_canvas.ui.tabs.card_view.passage_metrics import (
     TITLE_TO_AUTHOR,
     column_width,
 )
+from tarot_canvas.ui.widgets import contextual_help
 
 CARD = {"name": "The Star", "id": "major_arcana.17", "type": "major_arcana", "number": 17}
 
@@ -65,7 +66,7 @@ def stub_manager(monkeypatch):
         by_card = readings if isinstance(readings, dict) else None
         manager = SimpleNamespace(
             read_card=lambda card_id: by_card.get(card_id, []) if by_card else readings,
-            has_sources=lambda: has_sources,
+            has_enabled_sources=lambda: has_sources,
             families_present=lambda: frozenset(families),
         )
         monkeypatch.setattr(esoterica_tab, "get_esoterica_manager", lambda: manager)
@@ -170,14 +171,12 @@ def test_with_no_sources_at_all_the_placeholder_shows(qtbot, stub_manager):
 def test_the_faq_token_becomes_a_link_to_the_esoterica_section(qtbot, stub_manager, monkeypatch):
     stub_manager([], has_sources=False)
     monkeypatch.setattr(esoterica_tab, "PLACEHOLDER_EXPLANATION", '<a href="{faq}">x</a>')
-    monkeypatch.setattr(esoterica_tab, "PLACEHOLDER_FOOTNOTE", '<a href="{faq}">y</a>')
 
     tab = make_tab(qtbot)
 
     url = esoterica_tab.esoterica_faq_url()
     assert url.endswith("/docs/FAQs.md#" + esoterica_tab.ESOTERICA_FAQ_ANCHOR)
     assert f'href="{url}"' in tab.placeholder.explanation.text()
-    assert f'href="{url}"' in tab.placeholder.footnote.text()
 
 
 def github_slug(heading):
@@ -288,7 +287,7 @@ def test_a_wide_view_centres_a_capped_reading_column(qtbot, stub_manager):
     assert abs(column.x() - (viewport.width() - column.width()) / 2) <= 1
 
 
-def test_a_narrow_view_gives_the_column_all_its_width(qtbot, stub_manager):
+def test_a_narrow_view_gives_the_column_all_its_width(qtbot, stub_manager, help_icon):
     stub_manager([essay("A", "B", LONG_TEXT)])
     tab = make_tab(qtbot)
     show(qtbot, tab, 400)
@@ -951,3 +950,258 @@ def test_the_tab_that_opened_a_fold_keeps_its_scroll_position(qtbot, stub_manage
     qtbot.wait(50)
 
     assert bar.value() == 300
+
+
+# The sources change while a tab is open
+
+
+def source_file(root, identifier, body):
+    path = root / f"{identifier}.toml"
+    path.write_text(f'[meta]\nidentifier = "{identifier}"\nname = "{identifier}"\n{body}')
+
+
+STAR_ADVICE = f'[card."{CARD["id"]}".passages]\nadvice.work = "Advice for the star."\n'
+STAR_SYMBOLS = f'[card."{CARD["id"]}".symbols.bird]\ntext = "The bird in the tree."\n'
+STAR_ESSAY = f'[card."{CARD["id"]}".passages]\ntext = "An essay on the star."\n'
+
+
+@pytest.fixture
+def scratch_sources(monkeypatch, tmp_path):
+    """A real manager over a scratch root holding one file per source"""
+
+    def _apply(**sources):
+        for identifier, body in sources.items():
+            source_file(tmp_path, identifier, body)
+        manager = EsotericaManager([tmp_path])
+        monkeypatch.setattr(esoterica_tab, "get_esoterica_manager", lambda: manager)
+        return manager
+
+    return _apply
+
+
+def test_disabling_the_only_source_flips_the_open_tab_to_the_placeholder_and_back(
+    qtbot, scratch_sources, every_label
+):
+    scratch_sources(advice=STAR_ADVICE)
+    tab = make_tab(qtbot)
+    assert tab.stack.currentIndex() == PASSAGES_PAGE
+
+    set_esoterica_disabled(["advice"])
+
+    assert tab.stack.currentIndex() == PLACEHOLDER_PAGE
+    assert tab.passage_widgets == []
+
+    set_esoterica_disabled([])
+
+    assert tab.stack.currentIndex() == PASSAGES_PAGE
+    assert "Advice for the star." in all_text(tab.passage_widgets[0])
+
+
+def test_every_open_tab_follows_the_sources(qtbot, scratch_sources, every_label):
+    scratch_sources(advice=STAR_ADVICE)
+    tabs = [make_tab(qtbot), make_tab(qtbot)]
+
+    set_esoterica_disabled(["advice"])
+
+    assert [tab.stack.currentIndex() for tab in tabs] == [PLACEHOLDER_PAGE] * 2
+
+
+def test_disabling_the_source_with_symbols_drops_them_from_the_show_menu(
+    qtbot, scratch_sources, every_label, menu_icon
+):
+    scratch_sources(advice=STAR_ADVICE, symbols=STAR_SYMBOLS)
+    tab = make_tab(qtbot)
+    assert set(tab.show_actions) == {"advice", "symbols"}
+
+    set_esoterica_disabled(["symbols"])
+
+    assert set(tab.show_actions) == {"advice"}
+    assert menu_entries(tab) == ["[family.advice]"]
+    assert not tab.show_button.isHidden()
+
+
+def test_the_show_menu_hides_when_the_sources_left_have_no_families(
+    qtbot, scratch_sources, every_label, menu_icon
+):
+    scratch_sources(essay=STAR_ESSAY, symbols=STAR_SYMBOLS)
+    tab = make_tab(qtbot)
+    assert not tab.show_button.isHidden()
+
+    set_esoterica_disabled(["symbols"])
+
+    assert tab.stack.currentIndex() == PASSAGES_PAGE
+    assert tab.show_actions == {}
+    assert menu_entries(tab) == []
+    assert tab.show_button.isHidden()
+
+
+def test_a_deleted_tab_no_longer_hears_source_changes(qtbot, scratch_sources, every_label):
+    scratch_sources(advice=STAR_ADVICE)
+    events = esoterica_events()
+    before = events.receivers(events.sources_changed)
+    tab = EsotericaTab(CARD)
+    assert events.receivers(events.sources_changed) == before + 1
+
+    tab.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete.value)
+
+    assert events.receivers(events.sources_changed) == before
+    set_esoterica_disabled(["advice"])
+
+
+def test_a_source_change_keeps_the_scroll_position(qtbot, scratch_sources, every_label):
+    scratch_sources(
+        **{
+            f"essay{i}": f'[card."{CARD["id"]}".passages]\ntext = "{LONG_TEXT}"\n' for i in range(3)
+        },
+        symbols=STAR_SYMBOLS,
+    )
+    tab = make_tab(qtbot)
+    show(qtbot, tab, 600, 400)
+    bar = tab.scroll_area.verticalScrollBar()
+    bar.setValue(300)
+
+    set_esoterica_disabled(["symbols"])
+    qtbot.wait(50)
+
+    assert bar.value() == 300
+
+
+# The help button
+
+
+@pytest.fixture
+def help_icon(monkeypatch):
+    """The theme has a help icon"""
+    pixmap = QPixmap(16, 16)
+    pixmap.fill(Qt.GlobalColor.black)
+    monkeypatch.setattr(contextual_help, "_help_icon", lambda: QIcon(pixmap))
+
+
+def header_items(tab):
+    header = tab.content_layout.itemAt(0).layout()
+    return [header.itemAt(i) for i in range(header.count())]
+
+
+def test_the_help_button_sits_between_the_stretch_and_the_show_menu(qtbot, stub_manager):
+    stub_manager([essay("A", None, "One.")])
+    tab = make_tab(qtbot)
+
+    items = header_items(tab)
+    widgets = [item.widget() for item in items]
+    help_at = widgets.index(tab.help_button)
+    assert items[help_at - 1].spacerItem() is not None
+    assert widgets[help_at + 1] is tab.show_button
+
+
+def open_help(qtbot, tab):
+    show(qtbot, tab, 800)
+    qtbot.mouseClick(tab.help_button, Qt.MouseButton.LeftButton)
+    popup = tab.help_button.popup
+    qtbot.waitUntil(popup.isVisible)
+    return popup
+
+
+def test_the_help_button_opens_the_placeholders_explanation_and_faq_link(
+    qtbot, stub_manager, help_icon
+):
+    stub_manager([essay("A", None, "One.")])
+    tab = make_tab(qtbot)
+
+    popup = open_help(qtbot, tab)
+
+    url = esoterica_tab.esoterica_faq_url()
+    assert popup.label.text() == esoterica_tab.PLACEHOLDER_EXPLANATION.replace("{faq}", url)
+    assert f'href="{url}"' in popup.label.text()
+    assert popup.label.openExternalLinks()
+    assert popup.label.textFormat() == Qt.TextFormat.RichText
+    assert popup.y() >= tab.help_button.mapToGlobal(tab.help_button.rect().bottomLeft()).y()
+
+
+def test_the_help_popup_wraps_at_a_paragraphs_width(qtbot, stub_manager, help_icon):
+    stub_manager([essay("A", None, "One.")])
+    tab = make_tab(qtbot)
+
+    popup = open_help(qtbot, tab)
+
+    assert popup.label.wordWrap()
+    assert popup.label.width() <= contextual_help.MAX_TEXT_WIDTH
+
+
+def test_escape_closes_the_help_popup(qtbot, stub_manager, help_icon):
+    stub_manager([essay("A", None, "One.")])
+    tab = make_tab(qtbot)
+    popup = open_help(qtbot, tab)
+
+    qtbot.keyClick(popup, Qt.Key.Key_Escape)
+
+    qtbot.waitUntil(lambda: not popup.isVisible())
+
+
+def test_clicking_the_help_button_again_closes_the_popup_for_good(qtbot, stub_manager, help_icon):
+    stub_manager([essay("A", None, "One.")])
+    tab = make_tab(qtbot)
+    popup = open_help(qtbot, tab)
+
+    qtbot.mouseClick(tab.help_button, Qt.MouseButton.LeftButton)
+    qtbot.wait(50)
+
+    assert not popup.isVisible()
+
+
+SCREEN = QRect(0, 0, 800, 600)
+
+
+@pytest.mark.parametrize(
+    ("anchor", "expected"),
+    [
+        (QPoint(100, 100), QPoint(100, 100)),  # room below and to the right
+        (QPoint(700, 100), QPoint(500, 100)),  # pulled back from the right edge
+        (QPoint(100, 550), QPoint(100, 500)),  # lifted off the bottom
+        (QPoint(-50, -50), QPoint(0, 0)),  # pushed in from the top left
+    ],
+)
+def test_the_help_popup_is_placed_on_screen(anchor, expected):
+    position = contextual_help.placed(anchor, QSize(300, 100), SCREEN)
+
+    assert position == expected
+    assert SCREEN.contains(QRect(position, QSize(300, 100)))
+
+
+def test_the_help_button_is_not_on_the_placeholder(qtbot, stub_manager, help_icon):
+    stub_manager([], has_sources=False)
+    tab = make_tab(qtbot)
+    show(qtbot, tab, 800)
+
+    assert not tab.help_button.isVisible()
+
+
+def test_without_a_theme_icon_the_help_button_shows_its_tooltip(qtbot, stub_manager, monkeypatch):
+    monkeypatch.setattr(contextual_help, "_help_icon", lambda: QIcon())
+    monkeypatch.setattr(esoterica_tab, "HELP_BUTTON_TOOLTIP", "Help")
+    stub_manager([essay("A", None, "One.")])
+
+    tab = make_tab(qtbot)
+
+    assert tab.help_button.icon().isNull()
+    assert tab.help_button.text() == "Help"
+    assert not tab.help_button.isHidden()
+
+
+def test_with_no_icon_and_no_tooltip_there_is_no_help_button(qtbot, stub_manager, monkeypatch):
+    monkeypatch.setattr(contextual_help, "_help_icon", lambda: QIcon())
+    monkeypatch.setattr(esoterica_tab, "HELP_BUTTON_TOOLTIP", "")
+    stub_manager([essay("A", None, "One.")])
+
+    assert make_tab(qtbot).help_button.isHidden()
+
+
+def test_the_help_button_is_named_and_tipped_by_its_constants(qtbot, stub_manager, help_icon):
+    stub_manager([essay("A", None, "One.")])
+
+    tab = make_tab(qtbot)
+
+    assert tab.help_button.toolTip() == esoterica_tab.HELP_BUTTON_TOOLTIP
+    assert tab.help_button.accessibleName() == esoterica_tab.HELP_BUTTON_ACCESSIBLE_NAME
+    assert tab.help_button.text() == ""
+    assert not tab.help_button.icon().isNull()
