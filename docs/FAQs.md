@@ -94,6 +94,8 @@ text = "These are my permanent notes for the Ten of Cups."
 
 Save it as a `.toml` file in the folder at `~/.var/app/land.arcana.TarotCanvas/data/tarot/esoterica/`.
 
-![Screenshot of the above esoterica file for The Fool](https://github.com/user-attachments/assets/35b3c96c-4757-404a-b08f-015c8af62df1)
+<img width="2150" height="1516" alt="Screenshot_20261008_174224-1" src="https://github.com/user-attachments/assets/e1f22b2d-d1c4-4aca-b2c0-af91300f59bf" />
+
+
 > [!NOTE]
 > See the official [Esoterica Specification](https://github.com/arcanaland/specifications/blob/deck-v2/ESOTERICA.md) for the supported fields.
