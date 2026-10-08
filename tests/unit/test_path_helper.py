@@ -69,6 +69,7 @@ def test_esoterica_shares_the_shape_of_decks(flatpak_env):
     assert path_helper.get_esoterica_directories() == [
         data / "tarot/esoterica",
         path_helper.EXTERNAL_ESOTERICA_PATH,
+        path_helper.BUNDLED_ESOTERICA_PATH,
     ]
 
 
@@ -86,7 +87,31 @@ def test_outside_flatpak_esoterica_has_no_external_path(monkeypatch, tmp_path):
     monkeypatch.setattr(path_helper.os.path, "exists", lambda p: False)
     monkeypatch.setattr(path_helper, "xdg_data_home", lambda: tmp_path)
 
-    assert path_helper.get_esoterica_directories() == [tmp_path / "tarot/esoterica"]
+    assert path_helper.get_esoterica_directories() == [
+        tmp_path / "tarot/esoterica",
+        path_helper.BUNDLED_ESOTERICA_PATH,
+    ]
+
+
+def test_bundled_esoterica_is_last_under_flatpak(flatpak_env):
+    flatpak_env("land.arcana.TarotCanvas")
+    roots = path_helper.get_esoterica_directories()
+
+    assert roots[-1] == path_helper.BUNDLED_ESOTERICA_PATH
+    assert roots[-2] == path_helper.EXTERNAL_ESOTERICA_PATH
+    assert roots[0] != path_helper.BUNDLED_ESOTERICA_PATH
+    assert path_helper.BUNDLED_ESOTERICA_PATH.is_dir()
+
+
+def test_bundled_esoterica_is_last_outside_flatpak(monkeypatch, tmp_path):
+    monkeypatch.setattr(path_helper.os.path, "exists", lambda p: False)
+    monkeypatch.setattr(path_helper, "xdg_data_home", lambda: tmp_path)
+    roots = path_helper.get_esoterica_directories()
+
+    assert roots[-1] == path_helper.BUNDLED_ESOTERICA_PATH
+    assert roots[-2] == tmp_path / "tarot/esoterica"
+    assert roots[0] != path_helper.BUNDLED_ESOTERICA_PATH
+    assert path_helper.BUNDLED_ESOTERICA_PATH.is_dir()
 
 
 def test_cache_directory_honours_xdg_cache_home(monkeypatch, tmp_path):

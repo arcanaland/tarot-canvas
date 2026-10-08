@@ -1,0 +1,40 @@
+schema = 1
+note = "Provenance for the built file beside this one."
+
+[build]
+builder = "sources/mcelroy/build.py"
+identifier = "land.arcana/esoterica/mcelroy-a-guide-to-tarot-card-meanings-2014"
+
+[input]
+path = "input/mcelroy.txt"
+sha256 = "4f365123c518c05beb013a784b79e9a742c823ae221e626a5ab5a009d2c1e317"
+lines = 2658
+
+[output]
+path = "dist/mcelroy-a-guide-to-tarot-card-meanings-2014.toml"
+sha256 = "342e65dd89eea1a7257f05e0c669aa5c3d5b3ffddf27a30377826fd83270e0dd"
+
+[counts]
+lines = 2658
+cards = 78
+majors = 22
+minors = 56
+keywords = 78
+light = 78
+shadow = 78
+advice = 468
+symbols = 279
+marseille_image = 52
+questions = 234
+notes = 3
+archetype = 22
+hebrew = 22
+numbers = 22
+planetary = 22
+mythical_spiritual = 22
+numerology = 40
+astrology = 40
+affirmation = 56
+personality = 16
+elemental = 16
+story = 78
