@@ -65,15 +65,13 @@ You should now be able use the canvas view with "My Custom Tarot" selected in th
 
 ## 3. How Do I Add My Own Esoterica?
 
-Tarot Canvas currently only supports a very narrow set of esoterica notes.
-
-Essentially, you can create a "passage" per-card by manually adding a file with the following format:
+You can add your own esoterica by manually adding a file with the following format:
 
 ```toml
 [meta]
 name = "My Custom Esoterica"
 author = "Jane Doe"
-
+identifier = "com.example/esoterica/my-custom-esoterica"
 
 [card."major_arcana.00".passages]
 text = "These are my permanent notes for The Fool."
@@ -98,4 +96,4 @@ Save it as a `.toml` file in the folder at `~/.var/app/land.arcana.TarotCanvas/d
 
 ![Screenshot of the above esoterica file for The Fool](https://github.com/user-attachments/assets/35b3c96c-4757-404a-b08f-015c8af62df1)
 > [!NOTE]
-> The official [Esoterica Specification](https://github.com/arcanaland/specifications/blob/deck-v2/ESOTERICA.md) is still under development. Once it is finalized, support will be added to Tarot Canvas and the default corpus containing astrological, alchemical and esoteric knowledge ([McElroy esoterica pack](https://github.com/arcanaland/esoterica/releases/tag/mcelroy%2Fv0.5)) will be included out of the box.
+> See the official [Esoterica Specification](https://github.com/arcanaland/specifications/blob/deck-v2/ESOTERICA.md) for the supported fields.

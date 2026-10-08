@@ -47,6 +47,7 @@ from tarot_canvas.ui.tabs.card_view.passage_metrics import (
     TOP_MARGIN,
     column_width,
 )
+from tarot_canvas.ui.widgets.contextual_help import ContextualHelpButton
 from tarot_canvas.ui.widgets.placeholder_message import (
     ICON_SIZE,
     PlaceholderMessage,
@@ -60,7 +61,8 @@ PLACEHOLDER_HEADING = "Esoterica"
 PLACEHOLDER_EXPLANATION = 'Per-card meanings, associations and symbolism will show up here. See the <a href="{faq}">Frequently Asked Questions</a> for how to add your own.'
 NO_CONTENT_TEXT = "No esoteric content available for this card."
 
-PLACEHOLDER_FOOTNOTE = "A complete corpus containing astrological, alchemical and esoteric data is still under development and will be included here out of the box eventually."
+HELP_BUTTON_TOOLTIP = "About Esoterica"
+HELP_BUTTON_ACCESSIBLE_NAME = "About Esoterica"
 
 HEADER_ICON = PLACEHOLDER_ICON
 HEADER_ICON_SIZE = 22
@@ -74,7 +76,7 @@ SHOWABLE = (*FAMILIES.values(), GROUPS)
 
 # Pages of EsotericaTab.stack
 PASSAGES_PAGE = 0  # sources loaded: this card's passages, or a line saying there are none
-PLACEHOLDER_PAGE = 1  # no sources loaded at all
+PLACEHOLDER_PAGE = 1  # no source loaded, or every one disabled
 
 
 def esoterica_faq_url():
@@ -443,8 +445,9 @@ class EsotericaTab(QWidget):
 
         self.setup_ui()
 
-        # A slot of this tab's, so Qt drops the connection when the tab is deleted
+        # Slots of this tab's, so Qt drops the connections when the tab is deleted
         esoterica_events().display_changed.connect(self._on_display_changed)
+        esoterica_events().sources_changed.connect(self._on_sources_changed)
 
     def setup_ui(self):
         """Set up the esoterica tab UI"""
@@ -489,6 +492,12 @@ class EsotericaTab(QWidget):
         self.header_label = apply_heading(QLabel(PLACEHOLDER_HEADING), SECTION_SCALE)
         header_layout.addWidget(self.header_label)
         header_layout.addStretch()
+        self.help_button = ContextualHelpButton(
+            _with_faq_link(PLACEHOLDER_EXPLANATION),
+            HELP_BUTTON_TOOLTIP,
+            HELP_BUTTON_ACCESSIBLE_NAME,
+        )
+        header_layout.addWidget(self.help_button)
         header_layout.addWidget(self._show_menu_button())
         self.content_layout.addLayout(header_layout)
 
@@ -513,6 +522,19 @@ class EsotericaTab(QWidget):
         self.show_menu = QMenu(self.show_button)
         self.show_button.setMenu(self.show_menu)
 
+        icon = _show_menu_icon()
+        if not icon.isNull():
+            self.show_button.setIcon(icon)
+        else:
+            self.show_button.setText(label_for("show_menu"))
+        self.show_button.setToolTip(label_for("show_menu_tooltip"))
+
+        self._fill_show_menu()
+        return self.show_button
+
+    def _fill_show_menu(self):
+        """The show menu's entries, for the families the enabled sources have now"""
+        self.show_menu.clear()
         # Family id -> its checkable entry
         self.show_actions = {}
         present = get_esoterica_manager().families_present()
@@ -529,16 +551,10 @@ class EsotericaTab(QWidget):
             )
             self.show_actions[family] = action
 
-        icon = _show_menu_icon()
-        if not icon.isNull():
-            self.show_button.setIcon(icon)
-        else:
-            self.show_button.setText(label_for("show_menu"))
-        self.show_button.setToolTip(label_for("show_menu_tooltip"))
         self.show_button.setVisible(
-            bool(self.show_actions) and (not icon.isNull() or bool(self.show_button.text()))
+            bool(self.show_actions)
+            and (not self.show_button.icon().isNull() or bool(self.show_button.text()))
         )
-        return self.show_button
 
     def _on_show_toggled(self, family, shown):
         hidden = _without(get_esoterica_hidden(), family)
@@ -557,6 +573,16 @@ class EsotericaTab(QWidget):
             action.setChecked(family not in hidden)
             action.blockSignals(False)
 
+        self._redraw()
+
+    @pyqtSlot()
+    def _on_sources_changed(self):
+        """A source was added, removed, enabled or disabled"""
+        self._fill_show_menu()
+        self._redraw()
+
+    def _redraw(self):
+        """This card again, where the reader left it"""
         bar = self.scroll_area.verticalScrollBar()
         position = bar.value()
         self.update_card_info(self.card)
@@ -575,7 +601,6 @@ class EsotericaTab(QWidget):
             QIcon(str(PLACEHOLDER_ICON)),
             PLACEHOLDER_HEADING,
             _with_faq_link(PLACEHOLDER_EXPLANATION),
-            _with_faq_link(PLACEHOLDER_FOOTNOTE),
         )
         page_layout.addWidget(self.placeholder)
         page_layout.addWidget(GhostPassages(), 1)
@@ -588,8 +613,7 @@ class EsotericaTab(QWidget):
 
     def update_card_info(self, card):
         """Update displayed content based on the card"""
-        # Nothing reloads the sources while the app runs yet, so this can't change
-        has_sources = get_esoterica_manager().has_sources()
+        has_sources = get_esoterica_manager().has_enabled_sources()
         self.stack.setCurrentIndex(PASSAGES_PAGE if has_sources else PLACEHOLDER_PAGE)
 
         self.card = card

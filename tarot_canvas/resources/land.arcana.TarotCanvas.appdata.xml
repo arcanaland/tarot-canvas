@@ -54,7 +54,7 @@
       </description>
     </release>
     -->
-    <release version="1.6.0" date="2026-10-10" type="development">
+    <release version="1.6.0" date="2026-10-08" type="stable">
       <description>
         <p>Overhauled esoterica tab (card meanings) and bundled a large dataset out-of-the-box.</p>
         <p>Other changes:</p>
