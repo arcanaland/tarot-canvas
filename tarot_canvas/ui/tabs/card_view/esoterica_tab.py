@@ -588,7 +588,7 @@ class EsotericaTab(QWidget):
 
     def update_card_info(self, card):
         """Update displayed content based on the card"""
-        # Loaded once per process, so this can't change while the app runs
+        # Nothing reloads the sources while the app runs yet, so this can't change
         has_sources = get_esoterica_manager().has_sources()
         self.stack.setCurrentIndex(PASSAGES_PAGE if has_sources else PLACEHOLDER_PAGE)
 
