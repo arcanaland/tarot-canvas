@@ -26,6 +26,38 @@ lint:
   uv run ruff format --check tarot_canvas tests
   ./scripts/slop-guard.sh
 
+# Refresh the bundled esoterica from a release, checked against its SHA256SUMS
+[group('dev')]
+esoterica-bundle TAG:
+  #!/bin/bash
+  set -euo pipefail
+
+  base="https://github.com/arcanaland/esoterica/releases/download/{{TAG}}"
+  files=(
+    mcelroy-a-guide-to-tarot-card-meanings-2014.toml
+    PROVENANCE.toml
+    LicenseRef-McElroy-Uncopyright.txt
+  )
+  dest=tarot_canvas/resources/esoterica
+  tmp="$(mktemp -d)"
+  trap 'rm -rf "$tmp"' EXIT
+
+  for f in "${files[@]}" SHA256SUMS; do
+    curl -fsSL -o "$tmp/$f" "$base/$f"
+  done
+
+  # Every bundled file must be listed, and match
+  for f in "${files[@]}"; do
+    sum="$(awk -v f="$f" '$2 == f { print $1 }' "$tmp/SHA256SUMS")"
+    [ -n "$sum" ] || { echo "$f is not in SHA256SUMS" >&2; exit 1; }
+    (cd "$tmp" && echo "$sum  $f" | sha256sum -c -)
+  done
+
+  mkdir -p "$dest"
+  for f in "${files[@]}"; do
+    cp "$tmp/$f" "$dest/"
+  done
+
 [group('dev')]
 fmt:
   uv run ruff format tarot_canvas tests
