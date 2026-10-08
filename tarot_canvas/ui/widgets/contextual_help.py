@@ -6,7 +6,7 @@ from tarot_canvas.ui.tabs.card_view.passage_metrics import column_width
 
 ICON = "help-contextual"
 
-# The HIG's wrap width for a paragraph
+# from the HIG
 MAX_TEXT_WIDTH = 450
 
 
@@ -47,8 +47,6 @@ class HelpPopup(QFrame):
         self.label.setFixedWidth(min(cap, one_line))
 
     def paintEvent(self, event):
-        # A menu's surface: a frame styles draw for no other popup (Breeze draws a StyledPanel
-        # popup as bare text over whatever is under it)
         painter = QPainter(self)
         option = QStyleOption()
         option.initFrom(self)
@@ -56,8 +54,6 @@ class HelpPopup(QFrame):
         self.style().drawPrimitive(QStyle.PrimitiveElement.PE_FrameMenu, option, painter, self)
 
     def mousePressEvent(self, event):
-        # A click on the button closes the popup. Where Qt replays that press to the widget
-        # under it (Windows), it would reach the button and reopen the popup
         button = self.button
         if button.rect().contains(button.mapFromGlobal(event.globalPosition().toPoint())):
             self.setAttribute(Qt.WidgetAttribute.WA_NoMouseReplay)
@@ -76,11 +72,7 @@ class HelpPopup(QFrame):
 
 
 class ContextualHelpButton(QToolButton):
-    """A help icon that opens a short explanation, with links, under itself.
-
-    Not a tooltip: a link in one can't be relied on to be clickable. Without a theme icon it
-    shows its tooltip as its label, and with neither it isn't shown at all.
-    """
+    """A help icon that opens a short explanation"""
 
     def __init__(self, text, tooltip="", accessible_name="", parent=None):
         super().__init__(parent)
