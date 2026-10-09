@@ -201,6 +201,10 @@ class CardViewTab(BaseTab):
         """Raise the Notes tab, whichever position it sits in."""
         self.info_tabs.setCurrentWidget(self.notes_tab)
 
+    def show_esoterica_tab(self):
+        """Raise the Esoterica tab, whichever position it sits in."""
+        self.info_tabs.setCurrentWidget(self.esoterica_tab)
+
     def open_note(self, file_path):
         """Open one of this card's notes where notes are edited, which is the Notes tab."""
         self.show_notes_tab()

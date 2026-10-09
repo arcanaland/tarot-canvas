@@ -1,22 +1,50 @@
 import contextlib
+import html
 import os
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PyQt6.QtCore import QEvent, Qt
+from PyQt6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
+from tarot_canvas.models.esoterica import get_esoterica_manager
+from tarot_canvas.models.esoterica_events import esoterica_events
+from tarot_canvas.models.esoterica_registry import Role
 from tarot_canvas.models.note_events import note_events
 from tarot_canvas.ui.card_transfer import deck_path_key
+from tarot_canvas.ui.esoterica_text import label_for
 from tarot_canvas.ui.library import units
-from tarot_canvas.ui.tabs.card_view.headings import SECTION_SCALE, TITLE_SCALE, apply_heading
+from tarot_canvas.ui.palette import muted_text, with_text_colour
+from tarot_canvas.ui.tabs.card_view.esoterica_tab import lead_of, lead_row
+from tarot_canvas.ui.tabs.card_view.headings import (
+    SUBTITLE_SCALE,
+    TITLE_SCALE,
+    apply_heading,
+)
 from tarot_canvas.ui.tabs.card_view.notes_section import NotesSection
+from tarot_canvas.ui.tabs.card_view.passage_metrics import TITLE_TO_AUTHOR
+
+# Whose words head the Overview, in order of preference
+HEADLINE_ROLES = (Role.KEYWORDS, Role.EPITHET)
 
 
-def _disconnect_on_destroy(connection):
+def _disconnect_on_destroy(signal, connection):
     def disconnect(_object=None):
         with contextlib.suppress(RuntimeError, TypeError):
-            note_events().notes_changed.disconnect(connection)
+            signal.disconnect(connection)
 
     return disconnect
+
+
+def headline_of(readings):
+    """The headline's source and entries, or None.
+
+    By role first, then by source: the first source in root order with keywords, else the
+    first with an epithet, so the headline's voice stays the same from card to card.
+    """
+    for role in HEADLINE_ROLES:
+        for reading in readings:
+            if (lead := lead_of(reading, (role,))) is not None:
+                return reading, lead[1]
+    return None
 
 
 class OverviewTab(QWidget):
@@ -28,27 +56,18 @@ class OverviewTab(QWidget):
         self.card = card
         self.deck = deck
 
-        # Create properties for both minor arcana and major arcana to avoid
-        # having to recreate UI when switching between card types
         self.name_label = None
-        self.id_label = None
-        self.type_value = None
+        # The type and the number, or suit and rank; then the deck as a link
+        self.subtitle = None
         self.deck_value = None
-        self.info_frame = None
-        self.info_grid = None
 
-        # Minor arcana specific
-        self.suit_label = None
-        self.suit_value = None
-        self.rank_label = None
-        self.rank_value = None
+        # The first source's keywords, and its author (or else its name) under them
+        self.headline = None
+        self.lead = None
+        self.headline_source = None
+        self.headline_source_name = None
 
-        # Major arcana specific
-        self.number_label = None
-        self.number_value = None
-
-        # Description
-        self.description_header = None
+        # The deck's description of the art
         self.description_label = None
 
         # Notes
@@ -71,97 +90,47 @@ class OverviewTab(QWidget):
         self.name_label.setObjectName("name_label")
         layout.addWidget(self.name_label)
 
-        # Card ID below name
-        id_prefix = QLabel("ID:")
-        id_prefix.setStyleSheet("color: gray;")
-        self.id_label = QLabel(self.card["id"])
-        self.id_label.setFont(units.fixed_font(self.id_label.font()))
-        self.id_label.setStyleSheet("color: gray;")
-        self.id_label.setObjectName("id_label")
-        id_row = QHBoxLayout()
-        id_row.setContentsMargins(0, 0, 0, 0)
-        id_row.setSpacing(units.SMALL_SPACING)
-        id_row.addWidget(id_prefix)
-        id_row.addWidget(self.id_label)
-        id_row.addStretch(1)
-        layout.addLayout(id_row)
+        # Two subtitle lines directly under the name: what the card is, then where it is from
+        self.subtitle = QLabel()
+        self.subtitle.setObjectName("subtitle")
+        self.subtitle.setWordWrap(True)
+        self.subtitle.setTextFormat(Qt.TextFormat.PlainText)
+        self.subtitle.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        layout.addWidget(self.subtitle)
 
-        # Create a grid for structured information
-        self.info_grid = QGridLayout()
-        self.info_grid.setVerticalSpacing(8)
-        self.info_grid.setHorizontalSpacing(12)
-        self.info_grid.setColumnStretch(1, 1)  # Make value column expandable
-
-        # Add a frame around the structured info
-        self.info_frame = QFrame()
-        self.info_frame.setFrameShape(QFrame.Shape.StyledPanel)
-        self.info_frame.setFrameShadow(QFrame.Shadow.Sunken)
-        self.info_frame.setStyleSheet("background-color: rgba(0, 0, 0, 0.03);")
-        self.info_frame.setLayout(self.info_grid)
-
-        # Add card type (always present)
-        type_label = QLabel("Type:")
-        type_label.setStyleSheet("font-weight: bold;")
-        type_label.setObjectName("type_label")
-        self.type_value = QLabel(self.card["type"].replace("_", " ").title())
-        self.type_value.setObjectName("type_value")
-        self.info_grid.addWidget(type_label, 0, 0, Qt.AlignmentFlag.AlignTop)
-        self.info_grid.addWidget(self.type_value, 0, 1, Qt.AlignmentFlag.AlignTop)
-
-        # Create all possible fields for both card types, hide the ones we don't need
-
-        # Create suit and rank fields (for minor arcana)
-        self.suit_label = QLabel("Suit:")
-        self.suit_label.setStyleSheet("font-weight: bold;")
-        self.suit_label.setObjectName("suit_label")
-        self.suit_value = QLabel()
-        self.suit_value.setObjectName("suit_value")
-        self.info_grid.addWidget(self.suit_label, 1, 0, Qt.AlignmentFlag.AlignTop)
-        self.info_grid.addWidget(self.suit_value, 1, 1, Qt.AlignmentFlag.AlignTop)
-
-        self.rank_label = QLabel("Rank:")
-        self.rank_label.setStyleSheet("font-weight: bold;")
-        self.rank_label.setObjectName("rank_label")
-        self.rank_value = QLabel()
-        self.rank_value.setObjectName("rank_value")
-        self.info_grid.addWidget(self.rank_label, 2, 0, Qt.AlignmentFlag.AlignTop)
-        self.info_grid.addWidget(self.rank_value, 2, 1, Qt.AlignmentFlag.AlignTop)
-
-        # Create number field (for major arcana)
-        self.number_label = QLabel("Number:")
-        self.number_label.setStyleSheet("font-weight: bold;")
-        self.number_label.setObjectName("number_label")
-        self.number_value = QLabel()
-        self.number_value.setObjectName("number_value")
-        self.info_grid.addWidget(self.number_label, 3, 0, Qt.AlignmentFlag.AlignTop)
-        self.info_grid.addWidget(self.number_value, 3, 1, Qt.AlignmentFlag.AlignTop)
-
-        # Add deck (always present)
-        deck_label = QLabel("Deck:")
-        deck_label.setStyleSheet("font-weight: bold;")
-        deck_label.setObjectName("deck_label")
         self.deck_value = QLabel()
         self.deck_value.setObjectName("deck_value")
-        self.update_deck_link()  # Set the deck link
+        self.deck_value.setWordWrap(True)
         self.deck_value.setTextFormat(Qt.TextFormat.RichText)
         self.deck_value.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         self.deck_value.setOpenExternalLinks(False)
         self.deck_value.linkActivated.connect(self.on_deck_link_clicked)
-        self.info_grid.addWidget(deck_label, 4, 0, Qt.AlignmentFlag.AlignTop)
-        self.info_grid.addWidget(self.deck_value, 4, 1, Qt.AlignmentFlag.AlignTop)
+        layout.addWidget(self.deck_value)
 
-        # Add the frame to the layout with some spacing
-        layout.addSpacing(units.LARGE_SPACING)
-        layout.addWidget(self.info_frame)
-        layout.addSpacing(units.LARGE_SPACING)
+        # Its top margin goes with it when there is no headline
+        self.headline = QWidget()
+        self.headline.setObjectName("headline")
+        headline_layout = QVBoxLayout(self.headline)
+        headline_layout.setContentsMargins(0, units.LARGE_SPACING, 0, 0)
+        headline_layout.setSpacing(TITLE_TO_AUTHOR)
+        self.headline_source = QLabel()
+        self.headline_source.setObjectName("headline_source")
+        self.headline_source.setWordWrap(True)
+        self.headline_source.setTextFormat(Qt.TextFormat.RichText)
+        self.headline_source.setTextInteractionFlags(
+            Qt.TextInteractionFlag.LinksAccessibleByMouse
+            | Qt.TextInteractionFlag.LinksAccessibleByKeyboard
+        )
+        self.headline_source.setOpenExternalLinks(False)
+        self.headline_source.setFont(units.scaled_font(self.headline_source.font(), SUBTITLE_SCALE))
+        self.headline_source.linkActivated.connect(self.on_headline_source_clicked)
+        headline_layout.addWidget(self.headline_source)
+        layout.addWidget(self.headline)
 
-        self.description_header = QLabel("Description")
-        apply_heading(self.description_header, SECTION_SCALE)
-        self.description_header.setObjectName("description_header")
-        layout.addWidget(self.description_header)
-        layout.addSpacing(units.SMALL_SPACING)
-
+        # Set well apart from the keywords, which are the source's words and not the deck's.
+        # Its top margin goes with it when the deck has no description.
         self.description_label = QLabel()
+        self.description_label.setContentsMargins(0, units.GRID_UNIT, 0, 0)
         self.description_label.setWordWrap(True)
         self.description_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.description_label.setObjectName("description_label")
@@ -173,21 +142,70 @@ class OverviewTab(QWidget):
         self.notes_section.createRequested.connect(self.on_create_note)
         layout.addWidget(self.notes_section)
 
-        connection = note_events().notes_changed.connect(self.refresh_notes)
-        self.destroyed.connect(_disconnect_on_destroy(connection))
+        for signal, slot in (
+            (note_events().notes_changed, self.refresh_notes),
+            (esoterica_events().sources_changed, self.refresh_headline),
+        ):
+            connection = signal.connect(slot)
+            self.destroyed.connect(_disconnect_on_destroy(signal, connection))
 
         # Add stretch to push everything to the top
         layout.addStretch()
 
+        self._apply_colours()
+
         # Now show/hide and update the appropriate fields based on the current card
         self.update_card_info(self.card, self.deck)
 
+    def _apply_colours(self):
+        muted = muted_text(self.palette())
+        self.subtitle.setPalette(with_text_colour(self.subtitle.palette(), muted))
+        self._draw_headline_source()
+
+    def _draw_headline_source(self):
+        """The source's name as a link in the muted colour. A QLabel's rich text takes its
+        link colour from the application, not the label's palette, so it goes inline."""
+        if self.headline_source_name is None:
+            return
+        colour = muted_text(self.palette()).name()
+        self.headline_source.setText(
+            f"<a href='esoterica:' style='color: {colour}'>"
+            f"{html.escape(self.headline_source_name)}</a>"
+        )
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.PaletteChange and self.subtitle:
+            self._apply_colours()
+
+    def _deck_link(self):
+        if not self.deck:
+            return None
+        return (
+            f"<a href='deck:{html.escape(str(self.deck.deck_path))}'>"
+            f"{html.escape(self.deck.get_name())}</a>"
+        )
+
+    def update_subtitle(self):
+        """The type, then the number or the suit and rank, under the name"""
+        if not self.subtitle or not self.card:
+            return
+        card = self.card
+        facts = [card["type"].replace("_", " ").title()]
+        if card["type"] == "minor_arcana":
+            facts.append(card.get("display_suit", card["suit"].capitalize()))
+            facts.append(card.get("display_rank", card["rank"].capitalize()))
+        elif card["type"] == "major_arcana":
+            facts.append(str(card["number"]))
+        self.subtitle.setText(label_for("joiner").join(facts))
+
     def update_deck_link(self):
-        """Update the deck link in the overview tab"""
-        if self.deck and self.deck_value:
-            self.deck_value.setText(
-                f"<a href='deck:{self.deck.deck_path}'>{self.deck.get_name()}</a>"
-            )
+        """The deck's name, as a link to it, on the line under the subtitle"""
+        if not self.deck_value:
+            return
+        link = self._deck_link()
+        self.deck_value.setText(link or "")
+        self.deck_value.setVisible(link is not None)
 
     def on_deck_link_clicked(self, link):
         """Handle clicks on the deck link"""
@@ -228,48 +246,51 @@ class OverviewTab(QWidget):
         self.card = card
         self.deck = deck
 
-        # Update basic info - directly update the labels
         if self.name_label:
             self.name_label.setText(card["name"])
 
-        if self.id_label:
-            self.id_label.setText(card["id"])
-
-        if self.type_value:
-            self.type_value.setText(card["type"].replace("_", " ").title())
-
-        # Show/hide the per-type rows. Only the individual label/value widgets are
-        # toggled: every one of them is parented to info_frame, so touching
-        # parentWidget() here would hide the whole information block.
-        is_minor = card["type"] == "minor_arcana"
-        is_major = card["type"] == "major_arcana"
-
-        if is_minor:
-            self.suit_value.setText(card.get("display_suit", card["suit"].capitalize()))
-            self.rank_value.setText(card.get("display_rank", card["rank"].capitalize()))
-        elif is_major:
-            self.number_value.setText(str(card["number"]))
-
-        for widget in (self.suit_label, self.suit_value, self.rank_label, self.rank_value):
-            widget.setVisible(is_minor)
-        for widget in (self.number_label, self.number_value):
-            widget.setVisible(is_major)
-
-        # Update deck link
+        self.update_subtitle()
         self.update_deck_link()
+        self.refresh_headline()
 
         # Update description
         has_description = "alt_text" in card and card["alt_text"]
 
-        if has_description and self.description_label and self.description_header:
-            self.description_label.setText(card["alt_text"])
-            self.description_header.setVisible(True)
-            self.description_label.setVisible(True)
-        elif self.description_label and self.description_header:
-            self.description_header.setVisible(False)
-            self.description_label.setVisible(False)
+        if self.description_label:
+            self.description_label.setText(card["alt_text"] if has_description else "")
+            self.description_label.setVisible(bool(has_description))
 
         self.refresh_notes()
+
+    def refresh_headline(self):
+        """Read this card's keywords again from the enabled sources."""
+        if not self.headline:
+            return
+
+        if self.lead is not None:
+            self.headline.layout().removeWidget(self.lead)
+            self.lead.deleteLater()
+            self.lead = None
+
+        card_id = self.card.get("id") if self.card else None
+        headline = headline_of(get_esoterica_manager().read_card(card_id)) if card_id else None
+        if headline is None:
+            self.headline.setVisible(False)
+            return
+
+        reading, entries = headline
+        self.lead = lead_row(entries)
+        self.lead.setObjectName("lead")
+        self.headline.layout().insertWidget(0, self.lead)
+        # A byline: the author is shorter than the title and reads as a credit
+        self.headline_source_name = reading.author or reading.name
+        self.headline_source.setToolTip(reading.name if reading.author else "")
+        self._draw_headline_source()
+        self.headline.setVisible(True)
+
+    def on_headline_source_clicked(self, _link):
+        if hasattr(self.parent_tab, "show_esoterica_tab"):
+            self.parent_tab.show_esoterica_tab()
 
     def refresh_notes(self):
         """Re-read this card's notes from the Notes tab's index."""

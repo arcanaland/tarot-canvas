@@ -8,6 +8,9 @@ SECTION_SCALE = 1.2
 
 SUBTITLE_SCALE = 0.85
 
+# A quiet heading over a group, such as the Overview's notes: body size, bold and muted
+LABEL_SCALE = 1.0
+
 
 def apply_heading(label, scale):
     """Set label in a bolded copy of its own font at scale."""
