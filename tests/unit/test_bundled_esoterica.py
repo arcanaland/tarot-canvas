@@ -4,7 +4,7 @@ import logging
 import pytest
 
 from tarot_canvas.models.card_ids import CANONICAL_CARD_IDS
-from tarot_canvas.models.esoterica import EsotericaManager
+from tarot_canvas.models.esoterica import RWS, EsotericaManager
 from tarot_canvas.models.esoterica_registry import Role
 from tarot_canvas.utils.path_helper import BUNDLED_ESOTERICA_PATH, get_esoterica_directories
 
@@ -13,8 +13,8 @@ IDENTIFIER = "land.arcana/esoterica/mcelroy-a-guide-to-tarot-card-meanings-2014"
 
 # From the release's SHA256SUMS. A new release means updating these by hand.
 PINNED_SHA256 = {
-    SOURCE_FILE: "342e65dd89eea1a7257f05e0c669aa5c3d5b3ffddf27a30377826fd83270e0dd",
-    "PROVENANCE.toml": "55ffc65396ceda7cff48cd9a4fa53eeb02dc1b668919578594c9228bf969e533",
+    SOURCE_FILE: "82c6bb8f5ce5ebdbcbb13719863f326b3081bd8c8e867d5e58b81c33f874ccaa",
+    "PROVENANCE.toml": "4c921dddc596ef0349de2fc9c8dbd8282ebb413094cb2602794a19814b446e03",
     "LicenseRef-McElroy-Uncopyright.txt": (
         "f7f06e183c2ca43fdf4b6ad0036ed37f14cc77410a5f514e4238797cb342279e"
     ),
@@ -61,6 +61,12 @@ def test_some_major_has_a_labelled_symbol(scratch):
         if entry.role is Role.SYMBOLS and entry.label
     ]
     assert labelled
+
+
+def test_the_bundle_is_written_for_the_rider_waite_smith_pattern(scratch):
+    manager = EsotericaManager([scratch, BUNDLED_ESOTERICA_PATH])
+
+    assert manager.sources[IDENTIFIER]["pattern"] == RWS
 
 
 def test_loading_the_bundle_logs_no_warning(scratch, caplog):

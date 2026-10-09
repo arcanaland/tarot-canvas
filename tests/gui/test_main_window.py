@@ -862,7 +862,7 @@ def test_ctrl_c_in_esoterica_copies_the_text_not_the_card(qtbot, clipboard, monk
     entry = Entry("passages", "text", Role.PRINCIPAL, "Selectable passage text.")
     readings = [SourceReading("A Source", None, (entry,), ())]
     manager = SimpleNamespace(
-        read_card=lambda _card_id: readings,
+        read_card=lambda _card_id, deck=None: readings,
         has_enabled_sources=lambda: True,
         families_present=frozenset,
     )

@@ -248,3 +248,90 @@ def test_a_file_in_the_older_format_is_not_a_source(root):
     write(root, "old.toml", '[meta]\nid = "old-notes"\n\n[passages]\ntext = "Old."\n')
 
     assert not EsotericaManager([root]).has_sources()
+
+
+# [meta].related
+
+FOOL = '[card."major_arcana.00".passages]\ntext = "The Fool."\n'
+
+
+def relations(root, related, extra=""):
+    write(root, "a.toml", f"[meta]\n{extra}related = {related}\n{FOOL}", identifier="a")
+    source = EsotericaManager([root]).sources["a"]
+    return source["pattern"], source["about"]
+
+
+def related_warnings(caplog):
+    return [
+        r.getMessage()
+        for r in caplog.records
+        if r.levelno == logging.WARNING and "[meta].related" in r.getMessage()
+    ]
+
+
+def test_a_source_without_related_has_no_pattern_and_is_about_nothing(root):
+    write(root, "a.toml", FOOL, identifier="a")
+    source = EsotericaManager([root]).sources["a"]
+
+    assert (source["pattern"], source["about"]) == (None, frozenset())
+
+
+def test_related_gives_the_pattern_and_every_about_target(root, caplog):
+    with caplog.at_level(logging.WARNING):
+        found = relations(
+            root,
+            '[{ rel = "pattern", target = "x/pattern/a" },'
+            ' { rel = "about", target = "x/deck/b" },'
+            ' { rel = "about", target = "x/pattern/c" },'
+            ' { rel = "seating", target = "x/deck/d" }]',
+        )
+
+    assert found == ("x/pattern/a", frozenset({"x/deck/b", "x/pattern/c"}))
+    assert related_warnings(caplog) == []
+
+
+def test_related_that_is_not_an_array_is_not_read_and_says_so(root, caplog):
+    with caplog.at_level(logging.WARNING):
+        found = relations(root, '"x/pattern/a"')
+
+    assert found == (None, frozenset())
+    (warning,) = related_warnings(caplog)
+    assert "a.toml" in warning
+
+
+@pytest.mark.parametrize(
+    "entry",
+    ['"x/pattern/a"', '{ rel = "pattern" }', '{ rel = "pattern", target = "" }', "3"],
+)
+def test_a_malformed_entry_is_skipped_with_a_warning(root, caplog, entry):
+    with caplog.at_level(logging.WARNING):
+        found = relations(root, f'[{entry}, {{ rel = "about", target = "x/deck/b" }}]')
+
+    assert found == (None, frozenset({"x/deck/b"}))
+    (warning,) = related_warnings(caplog)
+    assert "a.toml" in warning
+
+
+def test_two_patterns_are_read_as_none_and_warned_about(root, caplog):
+    with caplog.at_level(logging.WARNING):
+        found = relations(
+            root,
+            '[{ rel = "pattern", target = "x/pattern/a" },'
+            ' { rel = "pattern", target = "x/pattern/b" }]',
+        )
+
+    assert found == (None, frozenset())
+    (warning,) = related_warnings(caplog)
+    assert "more than one pattern" in warning
+
+
+def test_an_overlay_ignores_related(root, caplog):
+    with caplog.at_level(logging.WARNING):
+        found = relations(
+            root,
+            '[{ rel = "pattern", target = "x/pattern/a" }, "malformed"]',
+            extra='translates = "x/esoterica/original"\n',
+        )
+
+    assert found == (None, frozenset())
+    assert related_warnings(caplog) == []

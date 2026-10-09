@@ -25,6 +25,18 @@ from tarot_canvas.utils.path_helper import get_esoterica_directories
 
 SUPPORTED_SCHEMA_MAJORS = {"1"}
 
+RWS = "land.arcana/pattern/rider-waite-smith"
+TDM = "land.arcana/pattern/tarot-de-marseille"
+
+# Where a card a source wrote for one pattern sits in a deck of the other: for a pair of
+# patterns, canonical ID -> the ID the source wrote that card at
+RESEATS = {
+    frozenset({RWS, TDM}): {
+        "major_arcana.08": "major_arcana.11",
+        "major_arcana.11": "major_arcana.08",
+    },
+}
+
 
 @dataclass(frozen=True)
 class Entry:
@@ -54,6 +66,14 @@ class SourceReading:
     author: str | None
     entries: tuple[Entry, ...]
     groups: tuple[GroupReading, ...]
+    # The source is about the deck being read for
+    about_deck: bool = False
+    # The canonical ID the entries were read from, when it isn't the card's
+    written_at: str | None = None
+    # The source and the deck are of patterns with no known seating between them
+    divergent: bool = False
+    # The pattern the source declares, when it was read for a deck
+    pattern: str | None = None
 
 
 def _is_passage_text(value):
@@ -231,6 +251,62 @@ def _families_in(source):
     return found
 
 
+def _read_related(path, meta):
+    """[meta].related as (the pattern or None, the frozenset of `about` targets)."""
+    related = meta.get("related")
+    # An overlay takes its relations from the source it translates
+    if related is None or "translates" in meta:
+        return None, frozenset()
+    if not isinstance(related, list):
+        logger.warning(f"{path}: [meta].related is not an array, so it is not read")
+        return None, frozenset()
+
+    patterns = []
+    about = set()
+    for entry in related:
+        target = entry.get("target") if isinstance(entry, dict) else None
+        if not isinstance(target, str) or not target.strip():
+            logger.warning(f"{path}: an entry in [meta].related has no target; skipping it")
+            continue
+        if entry.get("rel") == "pattern":
+            patterns.append(target.strip())
+        elif entry.get("rel") == "about":
+            about.add(target.strip())
+
+    if len(patterns) > 1:
+        logger.warning(
+            f"{path}: [meta].related names more than one pattern, so it is read as having none"
+        )
+        patterns = []
+    return (patterns[0] if patterns else None), frozenset(about)
+
+
+def _is_deck_identifier(target):
+    """<ns>/deck/<name>, as opposed to a pattern's <ns>/pattern/<name>"""
+    parts = target.split("/")
+    return len(parts) == 3 and parts[1] == "deck"
+
+
+def _decks_about(source):
+    return {target for target in source["about"] if _is_deck_identifier(target)}
+
+
+def _is_shown_on(source, identifier):
+    """A source about some decks is read only on one of them"""
+    decks = _decks_about(source)
+    return not decks or identifier in decks
+
+
+def _seat(canonical, deck_pattern, source_pattern):
+    """(the ID the source wrote this card at, whether the patterns have no known seating)"""
+    if deck_pattern is None or source_pattern is None or deck_pattern == source_pattern:
+        return canonical, False
+    swaps = RESEATS.get(frozenset({deck_pattern, source_pattern}))
+    if swaps is None:
+        return canonical, True
+    return swaps.get(canonical, canonical), False
+
+
 def _read_source(path):
     """Parse one file, or return None if can't be parsed."""
     try:
@@ -272,9 +348,13 @@ def _read_source(path):
             f'Symbols now live under [card."<canonical id>".symbols.<name>], with text = "…".'
         )
 
+    pattern, about = _read_related(path, meta)
+
     return {
         "path": path,
         "meta": meta,
+        "pattern": pattern,
+        "about": about,
         "cards": cards,
         "groups": groups,
         "name": meta.get("name") or path.stem,
@@ -361,20 +441,44 @@ class EsotericaManager:
         """The family ids (and `groups`) some enabled source has on some card or group"""
         return frozenset().union(*(source["families"] for source in self._enabled()))
 
-    def read_card(self, card_id):
+    def read_card(self, card_id, deck=None):
         """
-        What every source says about a card
+        What every source says about a card. Given the deck it is shown on, a source about
+        another deck is left out, one about this deck comes first, and a card is read from
+        where the source's pattern seats it.
         """
         canonical = str(card_id).split(":", 1)[0]
 
+        sources = self._enabled()
+        if deck is not None:
+            identifier = deck.get_identifier()
+            sources = [source for source in sources if _is_shown_on(source, identifier)]
+            sources.sort(key=lambda source: identifier not in _decks_about(source))
+
         readings = []
-        for source in self._enabled():
-            target = source["cards"].get(canonical)
+        for source in sources:
+            about_deck = False
+            written_at, divergent = canonical, False
+            if deck is not None:
+                about_deck = identifier in _decks_about(source)
+                written_at, divergent = _seat(canonical, deck.get_pattern(), source["pattern"])
+            target = source["cards"].get(written_at)
             entries = _flatten(target) if isinstance(target, dict) else ()
             groups = _read_groups(source["groups"], canonical)
             if not _is_renderable(entries) and not groups:
                 continue
-            readings.append(SourceReading(source["name"], source["author"], entries, groups))
+            readings.append(
+                SourceReading(
+                    source["name"],
+                    source["author"],
+                    entries,
+                    groups,
+                    about_deck=about_deck,
+                    written_at=written_at if written_at != canonical else None,
+                    divergent=divergent,
+                    pattern=source["pattern"] if deck is not None else None,
+                )
+            )
 
         return readings
 

@@ -65,7 +65,7 @@ def stub_manager(monkeypatch):
         # A dict gives each card id its own readings
         by_card = readings if isinstance(readings, dict) else None
         manager = SimpleNamespace(
-            read_card=lambda card_id: by_card.get(card_id, []) if by_card else readings,
+            read_card=lambda card_id, deck=None: by_card.get(card_id, []) if by_card else readings,
             has_enabled_sources=lambda: has_sources,
             families_present=lambda: frozenset(families),
         )
@@ -1205,3 +1205,87 @@ def test_the_help_button_is_named_and_tipped_by_its_constants(qtbot, stub_manage
     assert tab.help_button.accessibleName() == esoterica_tab.HELP_BUTTON_ACCESSIBLE_NAME
     assert tab.help_button.text() == ""
     assert not tab.help_button.icon().isNull()
+
+
+# A card the source wrote at another seat
+
+MARSEILLE = SimpleNamespace(
+    get_identifier=lambda: None,
+    get_pattern=lambda: "land.arcana/pattern/tarot-de-marseille",
+    get_card_by_id=lambda card_id: {"major_arcana.11": {"name": "La <Force>"}}.get(card_id),
+)
+
+
+def reseated(written_at="major_arcana.11"):
+    return SourceReading(
+        "A Guide",
+        "An Author",
+        (Entry(PASSAGES, "text", Role.PRINCIPAL, "Strength."),),
+        (),
+        written_at=written_at,
+        pattern="land.arcana/pattern/rider-waite-smith",
+    )
+
+
+@pytest.fixture
+def reseat_labels(monkeypatch):
+    for key, value in {
+        "reseated": "from {card} ({card_id}): {deck_pattern} / {source_pattern}",
+        "pattern.land.arcana/pattern/rider-waite-smith": "RWS",
+        "pattern.land.arcana/pattern/tarot-de-marseille": "TdM",
+    }.items():
+        monkeypatch.setitem(esoterica_text.ESOTERICA_TEXT, key, value)
+
+
+def test_a_reseated_reading_has_an_info_icon_beside_the_byline_tipped_with_where(
+    qtbot, reseat_labels
+):
+    widget = PassageWidget(reseated(), CARD, deck=MARSEILLE)
+    qtbot.addWidget(widget)
+    widget.show()
+
+    icon = widget.reseated
+    assert icon.isVisible()
+    assert icon.text() == ""
+    assert icon.toolTip() == "from La &lt;Force&gt; (<code>major_arcana.11</code>): TdM / RWS"
+    assert icon.pixmap().deviceIndependentSize().height() == widget.source.fontMetrics().height()
+    assert icon.geometry().center().y() == widget.source.geometry().center().y()
+    assert icon.geometry().left() > widget.source.geometry().left()
+
+
+def test_a_card_the_deck_lacks_is_named_by_its_id(qtbot, reseat_labels):
+    widget = PassageWidget(reseated("major_arcana.08"), CARD, deck=MARSEILLE)
+    qtbot.addWidget(widget)
+
+    assert widget.reseated.toolTip().startswith(
+        "from major_arcana.08 (<code>major_arcana.08</code>)"
+    )
+
+
+def test_a_reading_where_it_is_has_no_icon(qtbot, reseat_labels):
+    widget = PassageWidget(reseated(None), CARD, deck=MARSEILLE)
+    qtbot.addWidget(widget)
+    widget.show()
+
+    assert not widget.reseated.isVisible()
+    assert widget.reseated.toolTip() == ""
+
+
+def test_the_tab_reads_for_the_deck_it_was_given_and_keeps_it(qtbot, monkeypatch):
+    asked = []
+    manager = SimpleNamespace(
+        read_card=lambda card_id, deck=None: asked.append(deck) or [],
+        has_enabled_sources=lambda: True,
+        families_present=frozenset,
+    )
+    monkeypatch.setattr(esoterica_tab, "get_esoterica_manager", lambda: manager)
+    other = SimpleNamespace()
+
+    tab = EsotericaTab(CARD, MARSEILLE)
+    qtbot.addWidget(tab)
+    tab.update_card_info(CARD)
+    tab.update_card_info(CARD, other)
+    tab.update_card_info(CARD)
+
+    assert asked[0] is MARSEILLE
+    assert asked[-3:] == [MARSEILLE, other, other]

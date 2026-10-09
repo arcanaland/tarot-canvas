@@ -1,9 +1,10 @@
 import html
 from importlib.resources import files
 from itertools import groupby
+from math import ceil
 
-from PyQt6.QtCore import QEvent, Qt, pyqtSignal, pyqtSlot
-from PyQt6.QtGui import QIcon, QPainter, QPalette
+from PyQt6.QtCore import QEvent, QSize, Qt, pyqtSignal, pyqtSlot
+from PyQt6.QtGui import QIcon, QPainter, QPalette, QTextDocument
 from PyQt6.QtWidgets import (
     QFormLayout,
     QFrame,
@@ -12,6 +13,7 @@ from PyQt6.QtWidgets import (
     QMenu,
     QScrollArea,
     QStackedWidget,
+    QStyle,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -245,6 +247,68 @@ def _group_label_key(group):
     return f"group.{group.group}"
 
 
+def _pattern_name(identifier):
+    return label_for(f"pattern.{identifier}") or identifier or ""
+
+
+def reseated_note(reading, deck):
+    """Where the source wrote this card's text, when it isn't the card's own ID; else None"""
+    if not reading.written_at or deck is None:
+        return None
+    card = deck.get_card_by_id(reading.written_at)
+    slots = {
+        "card": (card or {}).get("name") or reading.written_at,
+        "card_id": reading.written_at,
+        "deck_pattern": _pattern_name(deck.get_pattern()),
+        "source_pattern": _pattern_name(reading.pattern),
+    }
+    slots = {key: html.escape(str(value)) for key, value in slots.items()}
+    slots["card_id"] = f"<code>{slots['card_id']}</code>"
+    return label_for("reseated").format(**slots)
+
+
+def draw_reseated_icon(icon_label, note, byline):
+    """An information icon the height of the byline's line, tipped with the note; hidden without one"""
+    icon_label.setToolTip(note or "")
+    icon_label.setVisible(note is not None)
+    if note is None:
+        return
+    icon = QIcon.fromTheme("dialog-information")
+    if icon.isNull():
+        icon = icon_label.style().standardIcon(QStyle.StandardPixmap.SP_MessageBoxInformation)
+    size = byline.fontMetrics().height()
+    icon_label.setPixmap(icon.pixmap(QSize(size, size), icon_label.devicePixelRatioF()))
+
+
+class Byline(QLabel):
+    """A word-wrapped label that asks for its whole text on one line, so beside an icon it
+    wraps only when the row is too narrow, not at QLabel's guess"""
+
+    def sizeHint(self):
+        hint = super().sizeHint()
+        document = QTextDocument()
+        document.setDefaultFont(self.font())
+        document.setDocumentMargin(0)
+        if self.textFormat() == Qt.TextFormat.PlainText:
+            document.setPlainText(self.text())
+        else:
+            document.setHtml(self.text())
+        margins = self.contentsMargins()
+        width = ceil(document.idealWidth()) + margins.left() + margins.right()
+        return QSize(max(width, hint.width()), hint.height())
+
+
+def byline_row(byline, icon_label):
+    """The byline with the icon just after it"""
+    row = QHBoxLayout()
+    row.setContentsMargins(0, 0, 0, 0)
+    row.setSpacing(units.SMALL_SPACING)
+    row.addWidget(byline)
+    row.addWidget(icon_label)
+    row.addStretch(1)
+    return row
+
+
 class PassageWidget(QFrame):
     """Everything one source says about one card, in one frame.
 
@@ -256,7 +320,7 @@ class PassageWidget(QFrame):
     # A fold's id, and whether it is now open
     fold_toggled = pyqtSignal(str, bool)
 
-    def __init__(self, reading, card=None, parent=None, expanded=(), hidden=()):
+    def __init__(self, reading, card=None, parent=None, expanded=(), hidden=(), deck=None):
         super().__init__(parent)
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setFrameShadow(QFrame.Shadow.Sunken)
@@ -278,11 +342,15 @@ class PassageWidget(QFrame):
 
         # Whose voice this is
         credit = (reading.name, reading.author) if reading.author else (reading.name,)
-        self.source = QLabel(label_for("joiner").join(credit))
+        self.source = Byline(label_for("joiner").join(credit))
         self.source.setTextFormat(Qt.TextFormat.PlainText)
         self.source.setWordWrap(True)
         self.source.setFont(units.scaled_font(self.source.font(), SUBTITLE_SCALE))
-        layout.addWidget(self.source)
+        # Beside it, an icon when the source wrote this card's text at another ID
+        self.reseated = QLabel()
+        self.reseated.setObjectName("reseated")
+        draw_reseated_icon(self.reseated, reseated_note(reading, deck), self.source)
+        layout.addLayout(byline_row(self.source, self.reseated))
 
         # The frame's heading: the author's own name for the card, or else the keywords
         own = list(reading.entries)
@@ -455,9 +523,10 @@ class PassageWidget(QFrame):
 class EsotericaTab(QWidget):
     """Tab displaying esoteric information about a tarot card"""
 
-    def __init__(self, card=None, parent=None):
+    def __init__(self, card=None, deck=None, parent=None):
         super().__init__(parent)
         self.card = card
+        self.deck = deck
         self.parent_tab = parent
 
         # Currently displayed passages
@@ -631,8 +700,11 @@ class EsotericaTab(QWidget):
         if event.type() == QEvent.Type.FontChange:
             self._apply_column_width()
 
-    def update_card_info(self, card):
-        """Update displayed content based on the card"""
+    def update_card_info(self, card, deck=None):
+        """Update displayed content based on the card, and the deck it is shown on if given"""
+        if deck is not None:
+            self.deck = deck
+
         has_sources = get_esoterica_manager().has_enabled_sources()
         self.stack.setCurrentIndex(PASSAGES_PAGE if has_sources else PLACEHOLDER_PAGE)
 
@@ -658,7 +730,7 @@ class EsotericaTab(QWidget):
 
         logger.debug(f"Reading esoterica for card: {card_id}")
 
-        readings = get_esoterica_manager().read_card(card_id)
+        readings = get_esoterica_manager().read_card(card_id, deck=self.deck)
 
         if not readings:
             logger.debug(f"No esoterica found for card: {card_id}")
@@ -673,7 +745,7 @@ class EsotericaTab(QWidget):
         # One frame per source
         expanded, hidden = get_esoterica_expanded(), get_esoterica_hidden()
         for reading in readings:
-            passage_widget = PassageWidget(reading, card, self, expanded, hidden)
+            passage_widget = PassageWidget(reading, card, self, expanded, hidden, self.deck)
             passage_widget.fold_toggled.connect(self._on_fold_toggled)
             self.content_layout.insertWidget(self.content_layout.count() - 1, passage_widget)
             # Now rather than when the layout gets to it, or the scroll range is briefly empty
