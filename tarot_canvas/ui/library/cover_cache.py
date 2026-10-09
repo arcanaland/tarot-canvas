@@ -1,7 +1,8 @@
 """Scaled, device-pixel-ratio-aware cover pixmaps, cached by request."""
 
-from PyQt6.QtCore import QSize, Qt
-from PyQt6.QtGui import QImageReader, QPixmap
+from PyQt6.QtGui import QPixmap
+
+from tarot_canvas.ui.canvas.detail import art_size, fit_device_size, read_art
 
 
 class CoverCache:
@@ -30,23 +31,14 @@ class CoverCache:
         if not path:
             return None
 
-        reader = QImageReader(str(path))
-        reader.setAutoTransform(True)
-        source = reader.size()
+        source = art_size(path)
         if not source.isValid() or source.isEmpty():
             return None
 
-        # Fit inside the well in logical pixels, then decode at device pixels.
-        target = source.scaled(well_size, Qt.AspectRatioMode.KeepAspectRatio)
-        if target.isEmpty():
+        size = fit_device_size(source, well_size, device_pixel_ratio)
+        if size.isEmpty():
             return None
-        device_target = QSize(
-            max(1, round(target.width() * device_pixel_ratio)),
-            max(1, round(target.height() * device_pixel_ratio)),
-        )
-        reader.setScaledSize(device_target)
-
-        image = reader.read()
+        image = read_art(str(path), size)
         if image.isNull():
             return None
 

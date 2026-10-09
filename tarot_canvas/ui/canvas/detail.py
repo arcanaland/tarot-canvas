@@ -5,7 +5,7 @@ import weakref
 
 from PyQt6 import sip
 from PyQt6.QtCore import QObject, QRunnable, QSize, Qt, QThreadPool, pyqtSignal, pyqtSlot
-from PyQt6.QtGui import QImage, QImageReader, QPixmap
+from PyQt6.QtGui import QImage, QImageIOHandler, QImageReader, QPixmap
 
 # The largest a card is placed on the canvas, in logical px
 CARD_MAX_SIZE = QSize(300, 500)
@@ -44,12 +44,37 @@ def detail_level(device_scale, highest):
     return max(1, min(highest, math.ceil(device_scale - 1e-9)))
 
 
+def fit_device_size(source, well, dpr):
+    """source fitted into well, in device px, never larger than source."""
+    fitted = source.scaled(well, Qt.AspectRatioMode.KeepAspectRatio)
+    if fitted.isEmpty():
+        return QSize()
+    device = QSize(max(1, round(fitted.width() * dpr)), max(1, round(fitted.height() * dpr)))
+    if device.width() > source.width() or device.height() > source.height():
+        return QSize(source)
+    return device
+
+
+def _rotates(reader):
+    return bool(reader.transformation() & QImageIOHandler.Transformation.TransformationRotate90)
+
+
+def art_size(path):
+    """The size of the art at path once its EXIF orientation is applied."""
+    reader = QImageReader(str(path))
+    reader.setAutoTransform(True)
+    return reader.size().transposed() if _rotates(reader) else reader.size()
+
+
 def read_art(path, size=None):
     """Decode the art at path."""
     reader = QImageReader(path)
-    source = reader.size()
+    reader.setAutoTransform(True)
+    rotates = _rotates(reader)
+    source = reader.size().transposed() if rotates else reader.size()
     if size is not None and source.isValid() and size.width() < source.width():
-        reader.setScaledSize(size)
+        # The reader scales before it rotates
+        reader.setScaledSize(size.transposed() if rotates else size)
     image = reader.read()
     if image.isNull():
         return image
@@ -62,7 +87,7 @@ def read_art(path, size=None):
 
 def load_card_art(path):
     """(base pixmap, source size."""
-    source = QImageReader(path).size()
+    source = art_size(path)
     if not source.isValid():
         image = read_art(path)
         if image.isNull():
