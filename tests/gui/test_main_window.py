@@ -880,3 +880,82 @@ def test_ctrl_c_in_esoterica_copies_the_text_not_the_card(qtbot, clipboard, monk
 
     assert clipboard.text() == "Selectable"
     assert not clipboard.mimeData().hasFormat(CARD_MIME)
+
+
+def window_with_tabs(qtbot, count):
+    window = make_shown_window(qtbot)
+    while window.tab_widget.count() < count:
+        window.new_canvas_tab()
+    window.tab_widget.setCurrentIndex(0)
+    window.activateWindow()
+    qtbot.waitActive(window)
+    # A shortcut needs a focus widget to be delivered from
+    window.card_explorer.setFocus()
+    qtbot.waitUntil(window.isActiveWindow)
+    return window
+
+
+def alt(qtbot, widget, key):
+    qtbot.keyClick(widget, key, Qt.KeyboardModifier.AltModifier)
+
+
+def test_alt_and_a_number_picks_the_tab_at_that_position(qtbot):
+    window = window_with_tabs(qtbot, 3)
+
+    alt(qtbot, window, Qt.Key.Key_3)
+    assert window.tab_widget.currentIndex() == 2
+
+    alt(qtbot, window, Qt.Key.Key_1)
+    assert window.tab_widget.currentIndex() == 0
+
+
+def test_alt_and_a_number_past_the_last_tab_does_nothing(qtbot):
+    window = window_with_tabs(qtbot, 2)
+
+    alt(qtbot, window, Qt.Key.Key_5)
+    assert window.tab_widget.currentIndex() == 0
+
+
+def test_alt_9_picks_the_last_tab_however_many_there_are(qtbot):
+    window = window_with_tabs(qtbot, 3)
+    alt(qtbot, window, Qt.Key.Key_9)
+    assert window.tab_widget.currentIndex() == 2
+
+    while window.tab_widget.count() < 12:
+        window.new_canvas_tab()
+    alt(qtbot, window, Qt.Key.Key_9)
+    assert window.tab_widget.currentIndex() == 11
+
+
+def test_alt_8_still_means_the_eighth_tab(qtbot):
+    window = window_with_tabs(qtbot, 12)
+
+    alt(qtbot, window, Qt.Key.Key_8)
+    assert window.tab_widget.currentIndex() == 7
+
+
+def test_alt_and_a_number_works_from_inside_a_tab(qtbot):
+    window = window_with_tabs(qtbot, 2)
+    tab = window.tab_widget.widget(0)
+    tab.view.setFocus()
+
+    alt(qtbot, tab.view, Qt.Key.Key_2)
+    assert window.tab_widget.currentIndex() == 1
+
+
+def test_the_tab_numbers_are_bound_exactly_once_and_survive_fullscreen(qtbot):
+    window = make_shown_window(qtbot)
+    for number in range(1, 10):
+        key = QKeySequence(f"Alt+{number}")
+        actions = [a for a in window.findChildren(QAction) if key in a.shortcuts()]
+        shortcuts = [s for s in window.findChildren(QShortcut) if s.key() == key]
+        assert len(actions) + len(shortcuts) == 1
+        assert actions[0] in window.actions()
+
+
+def test_the_tab_numbers_use_cmd_on_macos(qtbot):
+    window = make_shown_window(qtbot)
+    window.add_tab_number_shortcuts(platform="darwin")
+
+    assert window.tab_number_actions[0].shortcut() == QKeySequence("Ctrl+1")
+    assert window.tab_number_actions[8].shortcut() == QKeySequence("Ctrl+9")
