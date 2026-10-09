@@ -1,15 +1,20 @@
 import logging
 import tomllib
+from types import SimpleNamespace
 
 import pytest
 
 from tarot_canvas.models.esoterica import (
+    RWS,
+    TDM,
     Entry,
     EsotericaManager,
+    SourceReading,
     _flatten,
     groups_for,
 )
 from tarot_canvas.models.esoterica_registry import PASSAGES, SYMBOLS, Role
+from tarot_canvas.settings import set_esoterica_disabled
 
 FROM_PATH = object()
 
@@ -576,3 +581,204 @@ def test_a_group_with_nothing_renderable_is_not_a_family(root):
     manager = EsotericaManager([root])
     assert manager.has_sources()
     assert manager.families_present() == frozenset()
+
+
+# Reading for a deck
+
+THOTH = "land.arcana/pattern/thoth"
+
+
+def stub_deck(identifier=None, pattern=None):
+    return SimpleNamespace(get_identifier=lambda: identifier, get_pattern=lambda: pattern)
+
+
+def seated(text, cards=("00", "08", "11")):
+    """A source whose text for each major names the ID it was written at"""
+    body = "".join(f'[card."major_arcana.{n}".passages]\ntext = "Written at {n}."\n' for n in cards)
+    return f"[meta]\n{text}\n{body}"
+
+
+def related(*entries):
+    return "related = [" + ", ".join(f'{{ rel = "{r}", target = "{t}" }}' for r, t in entries) + "]"
+
+
+def text(reading):
+    (entry,) = reading.entries
+    return entry.value
+
+
+def names(readings):
+    return [reading.name for reading in readings]
+
+
+@pytest.fixture
+def mixed(root):
+    """An unrelated source, one about a deck, and one written for a pattern"""
+    write(root, "1-plain.toml", seated('name = "plain"'), identifier="plain")
+    write(
+        root,
+        "2-mine.toml",
+        seated(f'name = "mine"\n{related(("about", "x/deck/mine"))}'),
+        identifier="mine",
+    )
+    write(
+        root,
+        "3-other.toml",
+        seated(f'name = "other"\n{related(("about", "x/deck/other"))}'),
+        identifier="other",
+    )
+    write(
+        root, "4-rws.toml", seated(f'name = "rws"\n{related(("pattern", RWS))}'), identifier="rws"
+    )
+    return EsotericaManager([root])
+
+
+def test_without_a_deck_every_source_is_read_as_before(mixed):
+    readings = mixed.read_card("major_arcana.08")
+
+    assert names(readings) == ["plain", "mine", "other", "rws"]
+    assert [text(r) for r in readings] == ["Written at 08."] * 4
+    assert all(r == SourceReading(r.name, r.author, r.entries, r.groups) for r in readings)
+
+
+def test_a_source_about_this_deck_comes_first_and_one_about_another_is_left_out(mixed):
+    readings = mixed.read_card("major_arcana.00", deck=stub_deck("x/deck/mine"))
+
+    assert names(readings) == ["mine", "plain", "rws"]
+    assert [r.about_deck for r in readings] == [True, False, False]
+
+
+def test_a_deck_with_no_identifier_reads_no_source_about_a_deck(mixed):
+    readings = mixed.read_card("major_arcana.00", deck=stub_deck(None))
+
+    assert names(readings) == ["plain", "rws"]
+
+
+def test_a_source_about_several_decks_is_read_on_each_of_them(root):
+    write(
+        root,
+        "a.toml",
+        seated(related(("about", "x/deck/a"), ("about", "x/deck/b"))),
+        identifier="a",
+    )
+    manager = EsotericaManager([root])
+
+    assert len(manager.read_card("major_arcana.00", deck=stub_deck("x/deck/b"))) == 1
+    assert manager.read_card("major_arcana.00", deck=stub_deck("x/deck/c")) == []
+
+
+def test_a_source_about_a_pattern_is_neither_left_out_nor_put_first(root):
+    write(root, "1.toml", seated('name = "plain"'), identifier="plain")
+    write(root, "2.toml", seated(f'name = "pat"\n{related(("about", RWS))}'), identifier="pat")
+    readings = EsotericaManager([root]).read_card("major_arcana.00", deck=stub_deck("x/deck/d"))
+
+    assert names(readings) == ["plain", "pat"]
+    assert not any(r.about_deck for r in readings)
+
+
+def test_the_disabled_set_wins_over_a_source_about_this_deck(mixed):
+    set_esoterica_disabled(["mine"])
+
+    readings = mixed.read_card("major_arcana.00", deck=stub_deck("x/deck/mine"))
+
+    assert names(readings) == ["plain", "rws"]
+
+
+@pytest.mark.parametrize(("card", "written"), [("08", "11"), ("11", "08")])
+def test_a_rws_source_on_a_marseille_deck_reads_strength_and_justice_swapped(mixed, card, written):
+    (reading,) = (
+        r
+        for r in mixed.read_card(f"major_arcana.{card}", deck=stub_deck(None, TDM))
+        if r.name == "rws"
+    )
+
+    assert text(reading) == f"Written at {written}."
+    assert reading.written_at == f"major_arcana.{written}"
+    assert reading.pattern == RWS
+    assert not reading.divergent
+
+
+def test_a_marseille_source_on_a_rws_deck_is_swapped_too(root):
+    write(root, "a.toml", seated(related(("pattern", TDM))), identifier="a")
+    (reading,) = EsotericaManager([root]).read_card("major_arcana.11", deck=stub_deck(None, RWS))
+
+    assert text(reading) == "Written at 08."
+    assert reading.written_at == "major_arcana.08"
+
+
+def test_a_card_neither_pattern_moves_is_read_where_it_is(mixed):
+    (reading,) = (
+        r for r in mixed.read_card("major_arcana.00", deck=stub_deck(None, TDM)) if r.name == "rws"
+    )
+
+    assert text(reading) == "Written at 00."
+    assert reading.written_at is None
+
+
+@pytest.mark.parametrize(
+    ("deck_pattern", "source_pattern"), [(None, RWS), (TDM, None), (TDM, TDM), (None, None)]
+)
+def test_nothing_moves_unless_both_patterns_are_declared_and_differ(
+    root, deck_pattern, source_pattern
+):
+    meta = related(("pattern", source_pattern)) if source_pattern else ""
+    write(root, "a.toml", seated(meta), identifier="a")
+    (reading,) = EsotericaManager([root]).read_card(
+        "major_arcana.08", deck=stub_deck(None, deck_pattern)
+    )
+
+    assert text(reading) == "Written at 08."
+    assert reading.written_at is None
+    assert not reading.divergent
+
+
+def test_patterns_with_no_known_seating_are_divergent_and_unmoved(mixed):
+    (reading,) = (
+        r
+        for r in mixed.read_card("major_arcana.08", deck=stub_deck(None, THOTH))
+        if r.name == "rws"
+    )
+
+    assert text(reading) == "Written at 08."
+    assert reading.written_at is None
+    assert reading.divergent
+
+
+def test_a_card_the_source_wrote_only_at_the_other_seat_is_still_read(root):
+    write(root, "a.toml", seated(related(("pattern", RWS)), cards=("11",)), identifier="a")
+    manager = EsotericaManager([root])
+
+    assert manager.read_card("major_arcana.08") == []
+    (reading,) = manager.read_card("major_arcana.08", deck=stub_deck(None, TDM))
+    assert text(reading) == "Written at 11."
+
+
+GROUPED = f"""
+[meta]
+{related(("pattern", RWS))}
+
+[card."major_arcana.08".passages]
+text = "Written at 08."
+
+[card."major_arcana.11".passages]
+text = "Written at 11."
+
+[group.arcana.major.passages]
+text = "Every major."
+
+[group.custom.eights]
+cards = ["major_arcana.08"]
+passages.text = "The eights."
+"""
+
+
+def test_groups_are_read_for_the_card_and_never_moved(root):
+    write(root, "a.toml", GROUPED, identifier="a")
+    manager = EsotericaManager([root])
+
+    (plain,) = manager.read_card("major_arcana.08")
+    (moved,) = manager.read_card("major_arcana.08", deck=stub_deck(None, TDM))
+
+    assert text(moved) == "Written at 11."
+    assert moved.groups == plain.groups
+    assert [g.group for g in moved.groups] == ["custom.eights", "arcana.major"]

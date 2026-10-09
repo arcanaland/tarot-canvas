@@ -1,3 +1,4 @@
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
@@ -50,7 +51,7 @@ EPITHET_ONLY = SourceReading(
 def readings(monkeypatch):
     """What the enabled sources say about every card; nothing reads the user's directory"""
     current = []
-    manager = SimpleNamespace(read_card=lambda card_id: list(current))
+    manager = SimpleNamespace(read_card=lambda card_id, deck=None: list(current))
     monkeypatch.setattr(overview_tab, "get_esoterica_manager", lambda: manager)
     return current
 
@@ -233,3 +234,61 @@ def test_the_description_is_set_apart_from_the_keywords(qtbot, readings):
     tab = make_tab(qtbot, MAJOR)
 
     assert tab.description_label.contentsMargins().top() == units.GRID_UNIT
+
+
+# A headline written at another seat
+
+MARSEILLE = SimpleNamespace(
+    deck_path="/decks/marseille",
+    get_name=lambda: "Marseille",
+    get_identifier=lambda: None,
+    get_pattern=lambda: "land.arcana/pattern/tarot-de-marseille",
+    get_card_by_id=lambda card_id: {"major_arcana.11": {"name": "La Force"}}.get(card_id),
+)
+
+
+def test_a_reseated_headline_has_an_info_icon_tipped_with_the_note(qtbot, readings):
+    readings.append(
+        replace(
+            MCELROY, written_at="major_arcana.11", pattern="land.arcana/pattern/rider-waite-smith"
+        )
+    )
+
+    tab = make_tab(qtbot, MAJOR, MARSEILLE)
+    tab.show()
+
+    icon = tab.headline_reseated
+    assert icon.isVisible()
+    assert not icon.pixmap().isNull()
+    assert (
+        icon.pixmap().deviceIndependentSize().height() == tab.headline_source.fontMetrics().height()
+    )
+    assert "La Force (<code>major_arcana.11</code>)" in icon.toolTip()
+    assert "Marseille deck" in icon.toolTip()
+    assert "Rider-Waite-Smith" in icon.toolTip()
+    assert tab.headline_source.toolTip() == "A Guide to Tarot Card Meanings"
+
+
+def test_a_headline_read_where_it_is_has_no_icon(qtbot, readings):
+    readings.append(MCELROY)
+
+    tab = make_tab(qtbot, MAJOR, MARSEILLE)
+    tab.show()
+
+    assert not tab.headline_reseated.isVisible()
+    assert tab.headline_reseated.toolTip() == ""
+
+
+def test_the_icon_goes_when_the_next_card_is_read_where_it_is(qtbot, readings):
+    readings.append(
+        replace(
+            MCELROY, written_at="major_arcana.11", pattern="land.arcana/pattern/rider-waite-smith"
+        )
+    )
+    tab = make_tab(qtbot, MAJOR, MARSEILLE)
+    tab.show()
+
+    readings[:] = [MCELROY]
+    tab.update_card_info(MAJOR, MARSEILLE)
+
+    assert not tab.headline_reseated.isVisible()

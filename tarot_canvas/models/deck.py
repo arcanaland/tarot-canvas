@@ -66,6 +66,7 @@ class TarotDeck:
         self._suit_aliases = self._extract_suit_aliases()
         self._court_aliases = self._extract_court_aliases()
         self._excluded_cards, self._excluded_reason = self._extract_excluded_cards()  # New
+        self._pattern = self._extract_pattern()
 
         # Load cards
         self._cards = self._load_all_cards()
@@ -123,6 +124,26 @@ class TarotDeck:
             logger.debug(f"Deck '{self.get_name()}' has {len(excluded)} excluded cards")
 
         return excluded, reason
+
+    def _extract_pattern(self):
+        """The target of the deck's one `pattern` relation, or None."""
+        related = self._metadata.get("deck", {}).get("related")
+        if not isinstance(related, list):
+            return None
+        targets = [
+            entry.get("target")
+            for entry in related
+            if isinstance(entry, dict) and entry.get("rel") == "pattern"
+        ]
+        if len(targets) > 1:
+            logger.warning(
+                f"{self.deck_path}: [deck].related names more than one pattern, "
+                f"so the deck is read as having none"
+            )
+            return None
+        if not targets or not isinstance(targets[0], str) or not targets[0].strip():
+            return None
+        return targets[0].strip()
 
     def _card_entry(self, card_id):
         """The [cards."<id>"] table for a card"""
@@ -505,6 +526,10 @@ class TarotDeck:
     def get_identifier(self):
         """Get the v2 [deck].identifier or None."""
         return self._deck_field("identifier")
+
+    def get_pattern(self):
+        """Get the identifier of the pattern the deck realizes, or None."""
+        return self._pattern
 
     def get_schema_version(self):
         """Get the deck-spec schema version the deck declares, or None."""

@@ -13,7 +13,14 @@ from tarot_canvas.ui.card_transfer import deck_path_key
 from tarot_canvas.ui.esoterica_text import label_for
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.palette import muted_text, with_text_colour
-from tarot_canvas.ui.tabs.card_view.esoterica_tab import lead_of, lead_row
+from tarot_canvas.ui.tabs.card_view.esoterica_tab import (
+    Byline,
+    byline_row,
+    draw_reseated_icon,
+    lead_of,
+    lead_row,
+    reseated_note,
+)
 from tarot_canvas.ui.tabs.card_view.headings import (
     SUBTITLE_SCALE,
     TITLE_SCALE,
@@ -35,7 +42,14 @@ def _disconnect_on_destroy(signal, connection):
 
 
 def headline_of(readings):
-    """The headline's source and entries, or None."""
+    """The headline's source and entries, or None. A source about this deck leads with
+    whatever it has, before any other source's keywords."""
+    for reading in readings:
+        if not reading.about_deck:
+            continue
+        for role in HEADLINE_ROLES:
+            if (lead := lead_of(reading, (role,))) is not None:
+                return reading, lead[1]
     for role in HEADLINE_ROLES:
         for reading in readings:
             if (lead := lead_of(reading, (role,))) is not None:
@@ -62,6 +76,8 @@ class OverviewTab(QWidget):
         self.lead = None
         self.headline_source = None
         self.headline_source_name = None
+        # Beside the byline when the headline's text was written for another card
+        self.headline_reseated = None
 
         # The deck's description of the art
         self.description_label = None
@@ -109,7 +125,7 @@ class OverviewTab(QWidget):
         headline_layout = QVBoxLayout(self.headline)
         headline_layout.setContentsMargins(0, units.LARGE_SPACING, 0, 0)
         headline_layout.setSpacing(TITLE_TO_AUTHOR)
-        self.headline_source = QLabel()
+        self.headline_source = Byline()
         self.headline_source.setObjectName("headline_source")
         self.headline_source.setWordWrap(True)
         self.headline_source.setTextFormat(Qt.TextFormat.RichText)
@@ -120,7 +136,10 @@ class OverviewTab(QWidget):
         self.headline_source.setOpenExternalLinks(False)
         self.headline_source.setFont(units.scaled_font(self.headline_source.font(), SUBTITLE_SCALE))
         self.headline_source.linkActivated.connect(self.on_headline_source_clicked)
-        headline_layout.addWidget(self.headline_source)
+        self.headline_reseated = QLabel()
+        self.headline_reseated.setObjectName("headline_reseated")
+        self.headline_reseated.setVisible(False)
+        headline_layout.addLayout(byline_row(self.headline_source, self.headline_reseated))
         layout.addWidget(self.headline)
 
         # Set well apart from the keywords, which are the source's words and not the deck's.
@@ -267,7 +286,8 @@ class OverviewTab(QWidget):
             self.lead = None
 
         card_id = self.card.get("id") if self.card else None
-        headline = headline_of(get_esoterica_manager().read_card(card_id)) if card_id else None
+        readings = get_esoterica_manager().read_card(card_id, deck=self.deck) if card_id else []
+        headline = headline_of(readings)
         if headline is None:
             self.headline.setVisible(False)
             return
@@ -280,6 +300,9 @@ class OverviewTab(QWidget):
         self.headline_source_name = reading.author or reading.name
         self.headline_source.setToolTip(reading.name if reading.author else "")
         self._draw_headline_source()
+        draw_reseated_icon(
+            self.headline_reseated, reseated_note(reading, self.deck), self.headline_source
+        )
         self.headline.setVisible(True)
 
     def on_headline_source_clicked(self, _link):

@@ -1,3 +1,8 @@
+import logging
+
+import pytest
+
+
 def test_minimal_deck_loads_expected_cards(minimal_deck):
     cards = minimal_deck.get_all_cards()
 
@@ -275,3 +280,47 @@ def test_a_supplied_name_is_used_where_the_face_prints_none(tmp_path):
     )
     by_id = {c["id"]: c for c in deck.get_all_cards()}
     assert by_id["major_arcana.13"]["name"] == "Time"
+
+
+PATTERN_DECK = """
+[deck]
+schema_version = "2.0"
+name = "Patterned"
+version = "1.0"
+"""
+
+
+@pytest.mark.parametrize(
+    ("related", "pattern"),
+    [
+        ('[{ rel = "pattern", target = "x/pattern/a" }]', "x/pattern/a"),
+        (
+            '[{ rel = "about", target = "x/deck/b" }, { rel = "pattern", target = "x/pattern/a" }]',
+            "x/pattern/a",
+        ),
+        (None, None),
+        ('"x/pattern/a"', None),
+        ('["x/pattern/a"]', None),
+        ('[{ rel = "pattern" }]', None),
+        ('[{ rel = "pattern", target = "" }]', None),
+        ('[{ rel = "pattern", target = 3 }]', None),
+        ('[{ rel = "companion", target = "x/deck/b" }]', None),
+    ],
+)
+def test_the_pattern_is_the_target_of_the_one_pattern_relation(tmp_path, related, pattern):
+    toml = PATTERN_DECK + (f"related = {related}\n" if related is not None else "")
+    assert _write_deck(tmp_path, toml).get_pattern() == pattern
+
+
+def test_two_patterns_are_read_as_none_and_warned_about_once(tmp_path, caplog):
+    toml = PATTERN_DECK + (
+        'related = [{ rel = "pattern", target = "x/pattern/a" },'
+        ' { rel = "pattern", target = "x/pattern/b" }]\n'
+    )
+    with caplog.at_level(logging.WARNING):
+        deck = _write_deck(tmp_path, toml)
+        deck.get_pattern()
+
+    assert deck.get_pattern() is None
+    warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert len([w for w in warnings if "more than one pattern" in w]) == 1

@@ -160,7 +160,7 @@ class CardViewTab(BaseTab):
         self.info_tabs.addTab(self.overview_tab, "Overview")
 
         # Tab 2: Esoterica
-        self.esoterica_tab = EsotericaTab(self.card, self)
+        self.esoterica_tab = EsotericaTab(self.card, self.deck, self)
         self.info_tabs.addTab(self.esoterica_tab, "Esoterica")
 
         # Tab 3: Notes
@@ -456,7 +456,7 @@ class CardViewTab(BaseTab):
             # update_card_info ran against the outgoing card's index
             self.overview_tab.refresh_notes()
             if hasattr(self.esoterica_tab, "update_card_info"):
-                self.esoterica_tab.update_card_info(card)
+                self.esoterica_tab.update_card_info(card, self.deck)
             self.update_tab_name()
 
             self.deck_bar.update_decks(card, self.deck, self.deck_manager)

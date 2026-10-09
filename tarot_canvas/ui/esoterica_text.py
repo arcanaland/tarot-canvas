@@ -58,6 +58,16 @@ ESOTERICA_TEXT = {
     "group.arcana.minor": "For the minor arcana",
     "group.all": "For every card",
     "group.custom": "{name}",
+    # Under a source's byline, when its text for this card is from another canonical ID.
+    # {card} is the deck's name for that card and {card_id} its ID; the patterns are named
+    # by the pattern.* keys below
+    "reseated": (
+        "Text originally from {card} ({card_id}) because this is a {deck_pattern} deck "
+        "and the text is for {source_pattern}"
+    ),
+    "pattern.land.arcana/pattern/rider-waite-smith": "Rider-Waite-Smith",
+    "pattern.land.arcana/pattern/tarot-de-marseille": "Marseille",
+    "pattern.land.arcana/pattern/thoth": "Thoth",
 }
 
 # A registered key and its x_ spelling share one label
