@@ -46,7 +46,7 @@
   </screenshots>
   <releases>
     <!--
-    <release version="1.6.1" date="2026-10-xx" type="development">
+    <release version="1.6.x" date="2026-10-xx" type="development">
       <description>
         <ul>
           <li>Use hardware acceleration to improve performance of canvas motion.</li>
@@ -54,6 +54,12 @@
       </description>
     </release>
     -->
+    <release version="1.6.1" date="2026-10-08" type="stable">
+      <description>
+        <p>Add keywords to card overview tab.</p>
+        <p>Fix Flathub metadata.</p>
+      </description>
+    </release>
     <release version="1.6.0" date="2026-10-08" type="stable">
       <description>
         <p>Overhauled esoterica tab (card meanings) and bundled a large dataset out-of-the-box.</p>
@@ -116,7 +122,7 @@
   </releases>
   <branding>
     <color type="primary" scheme_preference="light">#d9c0fa</color>
-    <color type="primary" scheme_preference="dark">#af7faf</color>
+    <color type="primary" scheme_preference="dark">#3d2a5c</color>
   </branding>
   <url type="homepage">https://github.com/arcanaland/tarot-canvas</url>
   <url type="bugtracker">https://github.com/arcanaland/tarot-canvas/issues</url>
