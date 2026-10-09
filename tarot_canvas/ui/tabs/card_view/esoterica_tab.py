@@ -161,6 +161,30 @@ def line_row(value):
     return _row_label(_spelled(value), Qt.TextFormat.PlainText)
 
 
+LEAD_ROLES = (Role.EPITHET, Role.KEYWORDS)
+
+
+def lead_of(reading, roles=LEAD_ROLES):
+    """What heads a source's frame, as (role, entries), or None.
+
+    The first of `roles` the source has for the card: every epithet, or its first keywords.
+    """
+    for role in roles:
+        entries = tuple(entry for entry in reading.entries if entry.role is role)
+        if role is Role.KEYWORDS:
+            entries = entries[:1]
+        if entries:
+            return role, entries
+    return None
+
+
+def lead_row(entries):
+    """A lead's values on one line, bold, at SECTION_SCALE"""
+    label = line_row(tuple(entry.value for entry in entries))
+    label.setFont(units.scaled_font(label.font(), SECTION_SCALE, bold=True))
+    return label
+
+
 def list_row(value):
     """Each string a bullet, such as a source's questions"""
     items = value if isinstance(value, tuple) else (value,)
@@ -262,16 +286,12 @@ class PassageWidget(QFrame):
 
         # The frame's heading: the author's own name for the card, or else the keywords
         own = list(reading.entries)
-        lead = tuple(entry.value for entry in own if entry.role is Role.EPITHET)
-        if not lead:
-            keywords = next((entry for entry in own if entry.role is Role.KEYWORDS), None)
-            if keywords is not None:
-                own.remove(keywords)
-                lead = (keywords.value,)
         self.lead = None
-        if lead:
-            self.lead = line_row(lead)
-            self.lead.setFont(units.scaled_font(self.lead.font(), SECTION_SCALE, bold=True))
+        if (lead := lead_of(reading)) is not None:
+            role, entries = lead
+            if role is Role.KEYWORDS:
+                own.remove(entries[0])
+            self.lead = lead_row(entries)
             layout.addWidget(self.lead)
 
         own = [entry for entry in own if entry.role is not Role.EPITHET]

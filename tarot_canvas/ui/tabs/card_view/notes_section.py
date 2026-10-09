@@ -18,8 +18,8 @@ from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.note_row_delegate import NoteRowDelegate
 from tarot_canvas.ui.library.notes_model import NoteRole, NotesListModel
 from tarot_canvas.ui.notes_text import text
-from tarot_canvas.ui.palette import ghost_bar, subtle_fill
-from tarot_canvas.ui.tabs.card_view.headings import SECTION_SCALE, apply_heading
+from tarot_canvas.ui.palette import ghost_bar, muted_text, subtle_fill, with_text_colour
+from tarot_canvas.ui.tabs.card_view.headings import LABEL_SCALE, apply_heading
 from tarot_canvas.ui.tabs.card_view.passage_metrics import CORNER_RADIUS
 
 MAX_ROWS = 3
@@ -145,7 +145,7 @@ class NotesSection(QWidget):
 
         self.heading = QLabel(text("section_heading"))
         self.heading.setObjectName("notes_section_heading")
-        apply_heading(self.heading, SECTION_SCALE)
+        apply_heading(self.heading, LABEL_SCALE)
         self.heading.setVisible(bool(text("section_heading")))
         header.addWidget(self.heading)
         header.addStretch()
@@ -168,6 +168,16 @@ class NotesSection(QWidget):
         layout.addWidget(self.list_view)
 
         self.set_notes([])
+        self._apply_colours()
+
+    def _apply_colours(self):
+        muted = muted_text(self.palette())
+        self.heading.setPalette(with_text_colour(self.heading.palette(), muted))
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.PaletteChange:
+            self._apply_colours()
 
     def set_notes(self, notes):
         """Show this card's notes, newest first or a ghost"""

@@ -1,8 +1,16 @@
 from types import SimpleNamespace
 
+import pytest
 from PyQt6.QtCore import pyqtSignal
-from PyQt6.QtWidgets import QWidget
+from PyQt6.QtGui import QPalette
+from PyQt6.QtWidgets import QFrame, QGridLayout, QLabel, QWidget
 
+from tarot_canvas.models.esoterica import Entry, SourceReading
+from tarot_canvas.models.esoterica_events import esoterica_events
+from tarot_canvas.models.esoterica_registry import PASSAGES, Role
+from tarot_canvas.ui.library import units
+from tarot_canvas.ui.palette import muted_text
+from tarot_canvas.ui.tabs.card_view import overview_tab
 from tarot_canvas.ui.tabs.card_view.overview_tab import OverviewTab
 
 MAJOR = {
@@ -22,8 +30,33 @@ MINOR = {
 }
 
 
-def make_tab(qtbot, card, deck=None):
-    tab = OverviewTab(card, deck)
+MCELROY = SourceReading(
+    "A Guide to Tarot Card Meanings",
+    "Mark McElroy",
+    (Entry(PASSAGES, "keywords", Role.KEYWORDS, ("fortune", "cycles", "fate")),),
+    (),
+)
+
+# A user's source with only an epithet, read ahead of the bundled root
+EPITHET_ONLY = SourceReading(
+    "A user's own deck notes",
+    None,
+    (Entry(PASSAGES, "x_subtitle", Role.EPITHET, "The Turning"),),
+    (),
+)
+
+
+@pytest.fixture(autouse=True)
+def readings(monkeypatch):
+    """What the enabled sources say about every card; nothing reads the user's directory"""
+    current = []
+    manager = SimpleNamespace(read_card=lambda card_id: list(current))
+    monkeypatch.setattr(overview_tab, "get_esoterica_manager", lambda: manager)
+    return current
+
+
+def make_tab(qtbot, card, deck=None, parent=None):
+    tab = OverviewTab(card, deck, parent)
     qtbot.addWidget(tab)
     tab.show()
     qtbot.waitExposed(tab)
@@ -59,37 +92,144 @@ def test_a_broken_link_to_the_reference_deck_survives_a_rescan(qtbot):
     ]
 
 
-def test_info_frame_stays_visible_for_major_arcana(qtbot):
+class FakeDeck:
+    deck_path = "/decks/rider-waite-smith"
+
+    def get_name(self):
+        return "Rider-Waite-Smith"
+
+
+def test_a_major_arcanum_has_its_type_and_number_then_its_deck_under_the_name(qtbot):
+    tab = make_tab(qtbot, MAJOR, FakeDeck())
+
+    assert tab.subtitle.text() == "Major Arcana · 10"
+    assert tab.deck_value.text() == (
+        "<a href='deck:/decks/rider-waite-smith'>Rider-Waite-Smith</a>"
+    )
+    # Its own line, directly under the facts
+    assert tab.deck_value.y() == tab.subtitle.geometry().bottom() + 1
+
+
+def test_a_minor_arcanum_has_its_type_suit_and_rank_under_the_name(qtbot):
+    tab = make_tab(qtbot, {**MINOR, "display_suit": "Chalices"}, FakeDeck())
+
+    assert tab.subtitle.text() == "Minor Arcana · Chalices · Three"
+
+
+def test_without_a_deck_there_is_no_deck_line(qtbot):
     tab = make_tab(qtbot, MAJOR)
 
-    assert tab.info_frame.isVisible()
-    assert tab.number_label.isVisible()
-    assert tab.number_value.isVisible()
-    assert tab.number_value.text() == "10"
-    assert not tab.suit_value.isVisible()
-    assert not tab.rank_value.isVisible()
+    assert not tab.deck_value.isVisible()
 
 
-def test_info_frame_stays_visible_for_minor_arcana(qtbot):
-    tab = make_tab(qtbot, MINOR)
-
-    assert tab.info_frame.isVisible()
-    assert tab.suit_value.text() == "Cups"
-    assert tab.rank_value.text() == "Three"
-    assert tab.suit_label.isVisible()
-    assert tab.rank_label.isVisible()
-    assert not tab.number_value.isVisible()
-
-
-def test_switching_card_type_keeps_the_info_frame(qtbot):
+def test_switching_card_type_redraws_the_subtitle(qtbot):
     tab = make_tab(qtbot, MAJOR)
 
     tab.update_card_info(MINOR, None)
-    assert tab.info_frame.isVisible()
-    assert tab.suit_value.isVisible()
-    assert not tab.number_value.isVisible()
+    assert tab.subtitle.text() == "Minor Arcana · Cups · Three"
 
     tab.update_card_info(MAJOR, None)
-    assert tab.info_frame.isVisible()
-    assert tab.number_value.isVisible()
-    assert not tab.suit_value.isVisible()
+    assert tab.subtitle.text() == "Major Arcana · 10"
+
+
+def test_no_frame_or_grid_is_left(qtbot):
+    tab = make_tab(qtbot, MAJOR)
+
+    assert not [frame for frame in tab.findChildren(QFrame) if type(frame) is QFrame]
+    assert not tab.findChildren(QGridLayout)
+
+
+def test_the_keywords_lead_with_their_source_under_them(qtbot, readings):
+    readings.append(MCELROY)
+    tab = make_tab(qtbot, MAJOR)
+
+    assert tab.headline.isVisible()
+    assert tab.lead.text() == "fortune · cycles · fate"
+    assert tab.lead.font().bold()
+    assert ">Mark McElroy</a>" in tab.headline_source.text()
+    assert tab.headline_source.toolTip() == "A Guide to Tarot Card Meanings"
+    # Muted, as the source line is in a passage's frame
+    assert muted_text(tab.palette()).name() in tab.headline_source.text()
+
+
+def test_keywords_beat_an_epithet_from_an_earlier_source(qtbot, readings):
+    readings += [EPITHET_ONLY, MCELROY]
+    tab = make_tab(qtbot, MAJOR)
+
+    assert tab.lead.text() == "fortune · cycles · fate"
+    assert ">Mark McElroy</a>" in tab.headline_source.text()
+
+
+def test_an_epithet_leads_when_no_source_has_keywords(qtbot, readings):
+    readings.append(EPITHET_ONLY)
+    tab = make_tab(qtbot, MAJOR)
+
+    assert tab.lead.text() == "The Turning"
+    # No author, so the source's name, and no tooltip repeating it
+    assert ">A user's own deck notes</a>" in tab.headline_source.text().replace("&#x27;", "'")
+    assert tab.headline_source.toolTip() == ""
+
+
+def test_the_headline_follows_the_sources_without_reopening_the_tab(qtbot, readings):
+    readings.append(MCELROY)
+    tab = make_tab(qtbot, MAJOR)
+
+    readings.clear()
+    esoterica_events().sources_changed.emit()
+    assert not tab.headline.isVisible()
+    assert tab.lead is None
+
+    readings.append(MCELROY)
+    esoterica_events().sources_changed.emit()
+    assert tab.headline.isVisible()
+    assert tab.lead.text() == "fortune · cycles · fate"
+
+
+class EsotericaCardView(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.raised = 0
+
+    def show_esoterica_tab(self):
+        self.raised += 1
+
+
+def test_the_source_line_raises_the_esoterica_tab(qtbot, readings):
+    readings.append(MCELROY)
+    card_view = EsotericaCardView()
+    qtbot.addWidget(card_view)
+    tab = OverviewTab(MAJOR, None, card_view)
+
+    tab.headline_source.linkActivated.emit("esoterica:")
+
+    assert card_view.raised == 1
+
+
+def test_the_description_has_no_heading_and_the_card_id_is_not_shown(qtbot):
+    tab = make_tab(qtbot, MAJOR)
+
+    assert tab.description_label.text() == MAJOR["alt_text"]
+    texts = [label.text() for label in tab.findChildren(QLabel) if label.isVisible()]
+    assert "Description" not in texts
+    assert not [text for text in texts if MAJOR["id"] in text]
+
+
+def test_without_alt_text_there_is_no_description(qtbot):
+    tab = make_tab(qtbot, MINOR)
+
+    assert not tab.description_label.isVisible()
+
+
+def test_the_notes_heading_is_quiet(qtbot):
+    tab = make_tab(qtbot, MAJOR)
+    heading = tab.notes_section.heading
+
+    assert heading.font().pointSizeF() == tab.description_label.font().pointSizeF()
+    assert heading.palette().color(QPalette.ColorRole.WindowText) == muted_text(tab.palette())
+
+
+def test_the_description_is_set_apart_from_the_keywords(qtbot, readings):
+    readings.append(MCELROY)
+    tab = make_tab(qtbot, MAJOR)
+
+    assert tab.description_label.contentsMargins().top() == units.GRID_UNIT
