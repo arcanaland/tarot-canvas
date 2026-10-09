@@ -1,5 +1,6 @@
 import contextlib
 import os
+import sys
 from importlib.resources import files
 
 from PyQt6.QtCore import QEvent, QObject, Qt, QUrl, pyqtSignal, pyqtSlot
@@ -310,6 +311,8 @@ class MainWindow(QMainWindow):
         self.find_card_action.triggered.connect(self.show_command_palette)
         go_menu.addAction(self.find_card_action)
         self.addAction(self.find_card_action)
+
+        self.add_tab_number_shortcuts()
 
         # Tools menu
         tools_menu = menu_bar.addMenu("&Tools")
@@ -682,6 +685,24 @@ class MainWindow(QMainWindow):
             # If it's the last tab, replace it with welcome
             self.tab_widget.removeTab(index)
             self.add_welcome_tab()
+
+    def add_tab_number_shortcuts(self, platform=sys.platform):
+        """Alt+1 to Alt+8 pick a tab by position and Alt+9 picks the last, as in a browser"""
+        # On macOS Option+digit types a character, so it is Cmd there, as in Safari
+        modifier = "Ctrl" if platform == "darwin" else "Alt"
+        self.tab_number_actions = []
+        for number in range(1, 10):
+            action = QAction(self)
+            action.setShortcut(f"{modifier}+{number}")
+            action.triggered.connect(lambda _checked=False, n=number: self.select_tab_by_number(n))
+            self.addAction(action)
+            self.tab_number_actions.append(action)
+
+    def select_tab_by_number(self, number):
+        count = self.tab_widget.count()
+        index = count - 1 if number == 9 else number - 1
+        if 0 <= index < count:
+            self.tab_widget.setCurrentIndex(index)
 
     def close_current_tab(self):
         current_index = self.tab_widget.currentIndex()
