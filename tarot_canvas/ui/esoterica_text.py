@@ -3,7 +3,7 @@ ESOTERICA_TEXT = {
     "joiner": " · ",
     # Passages
     "theme": "Theme",
-    "light": "Meaning",
+    "light": "Light",
     "shadow": "Shadow",
     "personality": "Personality",
     "approach": "Approach",
