@@ -35,11 +35,7 @@ def _disconnect_on_destroy(signal, connection):
 
 
 def headline_of(readings):
-    """The headline's source and entries, or None.
-
-    By role first, then by source: the first source in root order with keywords, else the
-    first with an epithet, so the headline's voice stays the same from card to card.
-    """
+    """The headline's source and entries, or None."""
     for role in HEADLINE_ROLES:
         for reading in readings:
             if (lead := lead_of(reading, (role,))) is not None:
@@ -163,8 +159,6 @@ class OverviewTab(QWidget):
         self._draw_headline_source()
 
     def _draw_headline_source(self):
-        """The source's name as a link in the muted colour. A QLabel's rich text takes its
-        link colour from the application, not the label's palette, so it goes inline."""
         if self.headline_source_name is None:
             return
         colour = muted_text(self.palette()).name()
