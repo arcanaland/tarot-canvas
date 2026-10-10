@@ -54,6 +54,20 @@
       </description>
     </release>
     -->
+    <release version="1.6.2" date="2026-10-10" type="stable">
+      <description>
+        <p>Features</p>
+        <ul>
+          <li>Add Marseille deck</li>
+          <li>Add keyboard shortcuts to switch tabs (Alt+1, Alt+2, etc)</li>
+        </ul>
+        <p>Minor changes</p>
+        <ul>
+          <li>Improve performance of deck view</li>
+          <li>Bump KDE runtime</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.6.1" date="2026-10-08" type="stable">
       <description>
         <p>Add keywords to card overview tab.</p>
