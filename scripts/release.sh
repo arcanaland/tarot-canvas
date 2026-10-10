@@ -188,15 +188,11 @@ phase_tag() {
     echo -e "${YELLOW}== note: release entry is dated $RELEASE_DATE, today is $(date +%Y-%m-%d)${NC}"
   fi
 
-  # 4. The XML must actually be valid. A stray '&' in the notes produces a file
-  #    that breaks nothing locally and fails on the Flathub buildbot instead.
+  # 4. The XML must actually be valid.
   echo "== validating AppStream metadata..."
-  if command -v appstreamcli >/dev/null 2>&1; then
-    appstreamcli validate --explain "$APPDATA" || die "AppStream validation failed."
-  elif flatpak info org.flatpak.Builder >/dev/null 2>&1; then
+  if flatpak info org.flatpak.Builder >/dev/null 2>&1; then
     flatpak run --command=appstreamcli org.flatpak.Builder validate --explain "$APPDATA" ||
       die "AppStream validation failed."
-  else
     echo -e "${YELLOW}== warning: no appstreamcli available, skipping validation${NC}"
   fi
   echo -e "${GREEN}== AppStream metadata OK${NC}"

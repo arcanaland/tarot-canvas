@@ -259,9 +259,50 @@ def test_an_unnamed_face_is_not_given_a_canonical_name(tmp_path):
     )
     by_id = {c["id"]: c for c in deck.get_all_cards()}
     assert by_id["major_arcana.13"]["name"] != "Death"
-    assert by_id["major_arcana.13"]["name"] == "13"
+    assert by_id["major_arcana.13"]["name"] == "XIII"
     # A declared number is the better label for an untitled face.
     assert by_id["major_arcana.04"]["name"] == "IIII"
+
+
+def test_a_major_shows_the_numeral_its_face_prints(tmp_path):
+    """§4.3.1: declared verbatim, none if unnumbered, else an upper-case Roman numeral"""
+    deck = _write_deck(
+        tmp_path,
+        """
+        [deck]
+        schema_version = "2.0"
+        name = "Numerals"
+        version = "1.0"
+
+        [cards]
+        "major_arcana.00" = { unnumbered = true }
+        "major_arcana.01" = { unnumbered = true, number = "I" }
+        "major_arcana.04" = { number = 4 }
+        "major_arcana.09" = { number = "VIIII" }
+        """,
+    )
+    by_id = {c["id"]: c for c in deck.get_all_cards()}
+    assert by_id["major_arcana.09"]["numeral"] == "VIIII"
+    assert by_id["major_arcana.00"]["numeral"] is None
+    assert by_id["major_arcana.01"]["numeral"] is None
+    assert by_id["major_arcana.14"]["numeral"] == "XIV"
+    assert by_id["major_arcana.04"]["numeral"] == "IV"
+    # The number stays the slot
+    assert by_id["major_arcana.09"]["number"] == 9
+
+
+def test_an_undeclared_zero_is_printed_as_zero(tmp_path):
+    deck = _write_deck(
+        tmp_path,
+        """
+        [deck]
+        schema_version = "2.0"
+        name = "Zero"
+        version = "1.0"
+        """,
+    )
+    by_id = {c["id"]: c for c in deck.get_all_cards()}
+    assert by_id["major_arcana.00"]["numeral"] == "0"
 
 
 def test_a_supplied_name_is_used_where_the_face_prints_none(tmp_path):

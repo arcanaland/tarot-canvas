@@ -3,7 +3,7 @@ import os
 import random
 import tomllib
 
-from tarot_canvas.models.card_ids import COURTS, MAJOR_ARCANA_COUNT, PIPS, SUITS
+from tarot_canvas.models.card_ids import COURTS, MAJOR_ARCANA_COUNT, PIPS, SUITS, roman
 from tarot_canvas.utils.logger import logger
 
 CANONICAL_MAJOR_ARCANA_NAMES = {
@@ -176,6 +176,16 @@ class TarotDeck:
                 name = supplied.get("text")
         return (name or None), bool(entry.get("unnamed"))
 
+    def _numeral(self, card_id, number):
+        """What a major's face prints as its number, or None if it prints none"""
+        entry = self._card_entry(card_id)
+        if entry.get("unnumbered"):
+            return None
+        declared = entry.get("number")
+        if isinstance(declared, str) and declared:
+            return declared
+        return roman(number).upper() or "0"
+
     def _load_all_cards(self):
         """Load all cards from the deck, respecting exclusions."""
         cards = []
@@ -216,6 +226,7 @@ class TarotDeck:
 
             # Try to get name from localized names, fallback to default
             key = f"{i:02d}"
+            numeral = self._numeral(card_id, i)
             name = None
             if names and "major_arcana" in names and key in names["major_arcana"]:
                 name = names["major_arcana"][key]
@@ -225,7 +236,7 @@ class TarotDeck:
                     name = CANONICAL_MAJOR_ARCANA_NAMES.get(key)
 
                 # An untitled face keeps its number rather than gaining a name.
-                name = name or self._card_entry(card_id).get("number") or key
+                name = name or numeral or key
 
             # Find image for the card
             image_path = self._find_card_image_path("major_arcana", f"{i:02d}")
@@ -247,6 +258,7 @@ class TarotDeck:
                     "name": name,
                     "type": "major_arcana",
                     "number": i,
+                    "numeral": numeral,
                     "image": image_path,
                     "images": images,
                     "alt_text": alt_text,
