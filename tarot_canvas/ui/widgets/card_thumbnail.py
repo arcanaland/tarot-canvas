@@ -1,8 +1,9 @@
-import os
-
 from PyQt6.QtCore import QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QIcon, QPixmap
 from PyQt6.QtWidgets import QFrame, QLabel, QMenu, QVBoxLayout
+
+from tarot_canvas.models.deck import pick_raster
+from tarot_canvas.ui.canvas.detail import art_loader, art_size, fit_device_size
 
 
 class CardThumbnail(QFrame):
@@ -52,25 +53,24 @@ class CardThumbnail(QFrame):
         layout.addWidget(self.name_label)
 
     def load_image(self):
-        image_path = self.card.get("image")
-        if image_path:
-            # Image path is already absolute in the TarotDeck class
-            if os.path.exists(image_path):
-                pixmap = QPixmap(image_path)
-                if pixmap.isNull():
-                    self.image_label.setText("Image not found")
-                    return
-                self.image_label.setPixmap(
-                    pixmap.scaled(
-                        self.image_size,
-                        Qt.AspectRatioMode.KeepAspectRatio,
-                        Qt.TransformationMode.SmoothTransformation,
-                    )
-                )
-            else:
-                self.image_label.setText("Image not found")
-        else:
+        self._dpr = self.devicePixelRatioF()
+        target = self.image_size.height() * self._dpr
+        image_path = pick_raster(self.card.get("images", {}), target) or self.card.get("image")
+        if not image_path:
             self.image_label.setText("No image")
+            return
+        source = art_size(image_path)
+        if not source.isValid() or source.isEmpty():
+            self.image_label.setText("Image not found")
+            return
+        size = fit_device_size(source, self.image_size, self._dpr)
+        if not size.isEmpty():
+            art_loader().request(self, image_path, size, 1)
+
+    def receive_detail(self, level, image):
+        pixmap = QPixmap.fromImage(image)
+        pixmap.setDevicePixelRatio(self._dpr)
+        self.image_label.setPixmap(pixmap)
 
     def mousePressEvent(self, event):
         self.clicked.emit()

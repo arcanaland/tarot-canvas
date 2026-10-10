@@ -31,6 +31,16 @@ CANONICAL_MAJOR_ARCANA_NAMES = {
     "21": "The World",
 }
 
+RASTER_EXTENSIONS = (".png", ".webp", ".jpg", ".jpeg")
+
+
+def pick_raster(images, target_height):
+    """The smallest image at or above target_height, else the largest below it."""
+    if not images:
+        return None
+    covering = [height for height in images if height >= target_height]
+    return images[min(covering) if covering else max(images)]
+
 
 class TarotDeck:
     """
@@ -60,6 +70,8 @@ class TarotDeck:
         self._excluded_reason = ""
         self._localized_names_cache = {}
         self._localized_alt_texts_cache = {}
+        self._raster_folders = None
+        self._raster_index = {}
 
         # Load essential data immediately
         self._metadata = self._load_metadata()
@@ -217,6 +229,7 @@ class TarotDeck:
 
             # Find image for the card
             image_path = self._find_card_image_path("major_arcana", f"{i:02d}")
+            images = self._raster_images("major_arcana", f"{i:02d}")
 
             # Get alt text for the card
             alt_text = None
@@ -235,6 +248,7 @@ class TarotDeck:
                     "type": "major_arcana",
                     "number": i,
                     "image": image_path,
+                    "images": images,
                     "alt_text": alt_text,
                 }
             )
@@ -285,6 +299,7 @@ class TarotDeck:
 
         # Find image for the card
         image_path = self._find_card_image_path(f"minor_arcana/{suit}", rank)
+        images = self._raster_images(f"minor_arcana/{suit}", rank)
 
         # Get alt text for the card
         alt_text = None
@@ -305,6 +320,7 @@ class TarotDeck:
             "display_suit": display_suit,  # Store display suit name
             "rank": rank,
             "image": image_path,
+            "images": images,
             "alt_text": alt_text,
         }
 
@@ -332,6 +348,7 @@ class TarotDeck:
 
         # Find image for the card
         image_path = self._find_card_image_path(f"minor_arcana/{suit}", court)
+        images = self._raster_images(f"minor_arcana/{suit}", court)
 
         # Get alt text for the card
         alt_text = None
@@ -353,6 +370,7 @@ class TarotDeck:
             "rank": court,
             "display_rank": display_court,  # Store display rank name
             "image": image_path,
+            "images": images,
             "alt_text": alt_text,
         }
 
@@ -394,6 +412,45 @@ class TarotDeck:
         # Return a placeholder if no image found
         logger.warning(f"No image found for card: {card_type}/{card_id}")
         return None
+
+    def _raster_images(self, card_type, card_id):
+        """A card's raster images as {height: path}."""
+        if self._raster_folders is None:
+            self._raster_folders = {}
+            try:
+                entries = sorted(os.listdir(self.deck_path))
+            except OSError:
+                entries = []
+            for item in entries:
+                if (
+                    item.startswith("h")
+                    and item[1:].isdigit()
+                    and os.path.isdir(os.path.join(self.deck_path, item))
+                ):
+                    self._raster_folders.setdefault(int(item[1:]), item)
+        if card_type not in self._raster_index:
+            self._raster_index[card_type] = self._index_raster_card_type(card_type)
+        return dict(self._raster_index[card_type].get(card_id, {}))
+
+    def _index_raster_card_type(self, card_type):
+        """{card_id: {height: path}} for one card type."""
+        index = {}
+        for height, folder in self._raster_folders.items():
+            directory = os.path.join(self.deck_path, folder, card_type)
+            try:
+                names = os.listdir(directory)
+            except OSError:
+                continue
+            best = {}
+            for name in names:
+                stem, ext = os.path.splitext(name)
+                if ext in RASTER_EXTENSIONS:
+                    rank = RASTER_EXTENSIONS.index(ext)
+                    if stem not in best or rank < best[stem][0]:
+                        best[stem] = (rank, name)
+            for stem, (_, name) in best.items():
+                index.setdefault(stem, {})[height] = os.path.join(directory, name)
+        return index
 
     def _name_files_are_faceted(self):
         """Whether name files nest every table under its facet, as 2.0's do.

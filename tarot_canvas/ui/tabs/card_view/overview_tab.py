@@ -1,4 +1,3 @@
-import contextlib
 import html
 import os
 
@@ -31,14 +30,6 @@ from tarot_canvas.ui.tabs.card_view.passage_metrics import TITLE_TO_AUTHOR
 
 # Whose words head the Overview, in order of preference
 HEADLINE_ROLES = (Role.KEYWORDS, Role.EPITHET)
-
-
-def _disconnect_on_destroy(signal, connection):
-    def disconnect(_object=None):
-        with contextlib.suppress(RuntimeError, TypeError):
-            signal.disconnect(connection)
-
-    return disconnect
 
 
 def headline_of(readings):
@@ -157,12 +148,8 @@ class OverviewTab(QWidget):
         self.notes_section.createRequested.connect(self.on_create_note)
         layout.addWidget(self.notes_section)
 
-        for signal, slot in (
-            (note_events().notes_changed, self.refresh_notes),
-            (esoterica_events().sources_changed, self.refresh_headline),
-        ):
-            connection = signal.connect(slot)
-            self.destroyed.connect(_disconnect_on_destroy(signal, connection))
+        note_events().notes_changed.connect(self.refresh_notes)
+        esoterica_events().sources_changed.connect(self.refresh_headline)
 
         # Add stretch to push everything to the top
         layout.addStretch()
