@@ -2,6 +2,7 @@ from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
+from PyQt6 import sip
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QPalette
 from PyQt6.QtWidgets import QFrame, QGridLayout, QLabel, QWidget
@@ -9,6 +10,7 @@ from PyQt6.QtWidgets import QFrame, QGridLayout, QLabel, QWidget
 from tarot_canvas.models.esoterica import Entry, SourceReading
 from tarot_canvas.models.esoterica_events import esoterica_events
 from tarot_canvas.models.esoterica_registry import PASSAGES, Role
+from tarot_canvas.models.note_events import note_events
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.palette import muted_text
 from tarot_canvas.ui.tabs.card_view import overview_tab
@@ -184,6 +186,14 @@ def test_the_headline_follows_the_sources_without_reopening_the_tab(qtbot, readi
     esoterica_events().sources_changed.emit()
     assert tab.headline.isVisible()
     assert tab.lead.text() == "fortune · cycles · fate"
+
+
+def test_a_destroyed_tab_no_longer_follows_notes_or_sources(qtbot, readings):
+    tab = OverviewTab(MAJOR, None)
+    sip.delete(tab)
+
+    note_events().notes_changed.emit()
+    esoterica_events().sources_changed.emit()
 
 
 class EsotericaCardView(QWidget):
