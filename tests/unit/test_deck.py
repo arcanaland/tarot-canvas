@@ -265,7 +265,6 @@ def test_an_unnamed_face_is_not_given_a_canonical_name(tmp_path):
 
 
 def test_a_major_shows_the_numeral_its_face_prints(tmp_path):
-    """§4.3.1: declared verbatim, none if unnumbered, else an upper-case Roman numeral"""
     deck = _write_deck(
         tmp_path,
         """

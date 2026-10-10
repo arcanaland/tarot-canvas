@@ -198,7 +198,8 @@ class OverviewTab(QWidget):
         elif card.get("numeral") and card["numeral"] != card["name"]:
             facts.append(card["numeral"])
         self.subtitle.setText(label_for("joiner").join(facts))
-        # The canonical ID, which the Arabic number used to stand in for
+
+        # The canonical ID
         self.subtitle.setToolTip(card["id"])
         self.subtitle.setAccessibleDescription(card["id"])
 
