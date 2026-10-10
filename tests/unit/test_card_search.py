@@ -64,6 +64,19 @@ def test_a_rank_can_be_a_digit_a_word_or_a_numeral_in_any_order(text):
     assert tier(THREE_OF_CUPS, text) in (EXACT, PREFIX, WORDS)
 
 
+def test_a_major_is_found_by_the_numeral_its_face_prints():
+    emperor = {
+        "id": "major_arcana.04",
+        "name": "L'Empereur",
+        "type": "major_arcana",
+        "number": 4,
+        "numeral": "IIII",
+    }
+    assert tier(emperor, "iiii") == WORDS
+    assert tier(emperor, "iv") == WORDS
+    assert tier(emperor, "4") == WORDS
+
+
 def test_a_digit_finds_its_own_number_only():
     assert tier(ACE_OF_CUPS, "1") == WORDS
     assert tier(MAGICIAN, "1") == WORDS

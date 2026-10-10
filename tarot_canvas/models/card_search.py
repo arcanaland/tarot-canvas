@@ -12,6 +12,8 @@ otherwise a tier where lower ranks first:
 
 import re
 
+from tarot_canvas.models.card_ids import roman
+
 EXACT, PREFIX, WORDS, SYNONYMS, SUBSTRING = range(5)
 
 STOPWORDS = {"the", "of"}
@@ -64,18 +66,6 @@ def words(text):
     return _WORD.findall((text or "").casefold())
 
 
-def roman(number):
-    if number == 0:
-        return ""
-    numerals = [(10, "x"), (9, "ix"), (5, "v"), (4, "iv"), (1, "i")]
-    out = []
-    for value, letters in numerals:
-        while number >= value:
-            out.append(letters)
-            number -= value
-    return "".join(out)
-
-
 def _significant(tokens):
     """The tokens less stopwords, unless stopwords are all there is"""
     kept = [token for token in tokens if token not in STOPWORDS]
@@ -119,6 +109,7 @@ class CardTerms:
             number = RANK_NUMBERS.get(self.rank)
         if number is not None:
             numbers.update({str(number), roman(number)} - {""})
+        numbers.update(words(card.get("numeral")))
 
         other = set(words(card.get("type", "").replace("_", " ")))
         other.update(words(deck_name))

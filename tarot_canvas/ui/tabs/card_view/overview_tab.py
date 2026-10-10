@@ -195,9 +195,13 @@ class OverviewTab(QWidget):
         if card["type"] == "minor_arcana":
             facts.append(card.get("display_suit", card["suit"].capitalize()))
             facts.append(card.get("display_rank", card["rank"].capitalize()))
-        elif card["type"] == "major_arcana":
-            facts.append(str(card["number"]))
+        elif card.get("numeral") and card["numeral"] != card["name"]:
+            facts.append(card["numeral"])
         self.subtitle.setText(label_for("joiner").join(facts))
+
+        # The canonical ID
+        self.subtitle.setToolTip(card["id"])
+        self.subtitle.setAccessibleDescription(card["id"])
 
     def update_deck_link(self):
         """The deck's name, as a link to it, on the line under the subtitle"""

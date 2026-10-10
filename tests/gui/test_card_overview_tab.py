@@ -21,6 +21,7 @@ MAJOR = {
     "id": "major_arcana.10",
     "type": "major_arcana",
     "number": 10,
+    "numeral": "X",
     "alt_text": "A large, ornate wheel bearing esoteric symbols.",
 }
 
@@ -105,7 +106,7 @@ class FakeDeck:
 def test_a_major_arcanum_has_its_type_and_number_then_its_deck_under_the_name(qtbot):
     tab = make_tab(qtbot, MAJOR, FakeDeck())
 
-    assert tab.subtitle.text() == "Major Arcana · 10"
+    assert tab.subtitle.text() == "Major Arcana · X"
     assert tab.deck_value.text() == (
         "<a href='deck:/decks/rider-waite-smith'>Rider-Waite-Smith</a>"
     )
@@ -125,6 +126,28 @@ def test_without_a_deck_there_is_no_deck_line(qtbot):
     assert not tab.deck_value.isVisible()
 
 
+def test_an_unnumbered_major_has_only_its_type(qtbot):
+    tab = make_tab(qtbot, {**MAJOR, "name": "Le Mat", "numeral": None})
+
+    assert tab.subtitle.text() == "Major Arcana"
+
+
+def test_a_major_titled_by_its_numeral_does_not_repeat_it(qtbot):
+    tab = make_tab(qtbot, {**MAJOR, "name": "XIII", "numeral": "XIII"})
+
+    assert tab.subtitle.text() == "Major Arcana"
+
+
+def test_hovering_the_subtitle_gives_the_canonical_id(qtbot):
+    tab = make_tab(qtbot, MAJOR)
+    assert tab.subtitle.toolTip() == MAJOR["id"]
+    assert tab.subtitle.accessibleDescription() == MAJOR["id"]
+
+    tab.update_card_info(MINOR, None)
+    assert tab.subtitle.toolTip() == MINOR["id"]
+    assert tab.subtitle.accessibleDescription() == MINOR["id"]
+
+
 def test_switching_card_type_redraws_the_subtitle(qtbot):
     tab = make_tab(qtbot, MAJOR)
 
@@ -132,7 +155,7 @@ def test_switching_card_type_redraws_the_subtitle(qtbot):
     assert tab.subtitle.text() == "Minor Arcana · Cups · Three"
 
     tab.update_card_info(MAJOR, None)
-    assert tab.subtitle.text() == "Major Arcana · 10"
+    assert tab.subtitle.text() == "Major Arcana · X"
 
 
 def test_no_frame_or_grid_is_left(qtbot):
