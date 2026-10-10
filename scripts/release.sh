@@ -191,11 +191,12 @@ phase_tag() {
   # 4. The XML must actually be valid.
   echo "== validating AppStream metadata..."
   if flatpak info org.flatpak.Builder >/dev/null 2>&1; then
-    flatpak run --command=appstreamcli org.flatpak.Builder validate --explain "$APPDATA" ||
+    flatpak run --command=appstreamcli org.flatpak.Builder validate --no-net --explain "$APPDATA" ||
       die "AppStream validation failed."
-    echo -e "${YELLOW}== warning: no appstreamcli available, skipping validation${NC}"
+    echo -e "${GREEN}== AppStream metadata OK${NC}"
+  else
+    echo -e "${YELLOW}== warning: org.flatpak.Builder not installed, skipping AppStream validation${NC}"
   fi
-  echo -e "${GREEN}== AppStream metadata OK${NC}"
 
   echo ""
   echo "== release notes for $VERSION:"
