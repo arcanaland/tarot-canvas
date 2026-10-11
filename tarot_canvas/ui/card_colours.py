@@ -1,5 +1,3 @@
-"""One colour for the majors and one for each suit: a card view tab's dot and a source's coverage"""
-
 from tarot_canvas.models.card_ids import SUITS
 
 MAJOR_ARCANA = "major_arcana"
@@ -18,7 +16,7 @@ ARCANA_KEYS = (MAJOR_ARCANA, *SUITS)
 
 
 def card_colour(card):
-    """The colour for a card dict by its type, then its suit"""
+    """The colour for a card dict by its type then its suit"""
     if not card:
         return CARD_COLOURS["default"]
     card_type = card.get("type", "")

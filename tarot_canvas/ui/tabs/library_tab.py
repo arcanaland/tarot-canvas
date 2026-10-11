@@ -97,8 +97,6 @@ class LibraryTab(BaseTab):
     # A saved share outside this is a dragged-shut pane or a bad value, not a choice to keep
     DETAILS_PANE_BELOW_SHARES = (0.1, 0.9)
 
-    # A deck's pane is mostly a portrait cover, so it sits beside the grid. Notes and sources
-    # are wide rows of text, so theirs sits below the list, as a mail client's reading pane does
     PANE_BELOW = (LIBRARY_VIEW_NOTES, LIBRARY_VIEW_ESOTERICA)
 
     def __init__(self, parent=None):
@@ -441,8 +439,6 @@ class LibraryTab(BaseTab):
         if was_open and has_details:
             self._set_details_open(True)
 
-        # Sort, cover size and Open Deck are the deck grid's; the notes list is by date, and
-        # the sources by name
         self.sort_combo.setVisible(decks)
         self.density_combo.setVisible(decks)
         self.open_deck_button.setVisible(decks)
