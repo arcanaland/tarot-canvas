@@ -1,11 +1,3 @@
-"""Every font the app sets, chosen by role from the platform's.
-
-The platform supplies the body font and the app only derives from it, as ui/palette.py does
-for colours. This is the only module that sets a font's size or family. A widget given a
-role with apply() follows the application font when it changes; painted text calls font()
-at paint time and needs no binding.
-"""
-
 import enum
 
 from PyQt6.QtCore import QEvent, QObject
@@ -22,7 +14,6 @@ class Role(enum.Enum):
     HEADING_4 = "heading_4"
 
 
-# Kirigami's Heading levels 1-4, as multiples of the body font
 HEADING_SCALES = {
     Role.HEADING_1: 1.35,
     Role.HEADING_2: 1.20,
@@ -57,7 +48,6 @@ def _sized_like(font, base):
 
 
 def _small(body):
-    # A pixel-sized font has no point size, so compare what each resolves to
     small = QFontDatabase.systemFont(QFontDatabase.SystemFont.SmallestReadableFont)
     if QFontInfo(small).pointSizeF() < QFontInfo(body).pointSizeF():
         return small
@@ -119,8 +109,6 @@ def reapply_all():
 
 class _FontChangeFilter(QObject):
     def eventFilter(self, watched, event):
-        # Qt sends the change to the application first, and on to widgets only when no
-        # style sheet is set. The theme sets one, so re-apply every role from here.
         if event.type() == QEvent.Type.ApplicationFontChange and watched is QApplication.instance():
             reapply_all()
         return False
