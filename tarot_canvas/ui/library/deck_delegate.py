@@ -4,6 +4,7 @@ from PyQt6.QtCore import QRect, QSize, Qt
 from PyQt6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter, QPixmap
 from PyQt6.QtWidgets import QApplication, QStyle, QStyledItemDelegate
 
+from tarot_canvas.ui import typography
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.cover_cache import CoverCache
 from tarot_canvas.ui.library.deck_downloads import DeckState
@@ -12,8 +13,6 @@ from tarot_canvas.ui.library.ghost_paint import paint_ghost_cover, paint_placeho
 
 HOVER_ALPHA = 38  # ~15% Highlight behind a hovered cell
 SELECTED_SUBTITLE_ALPHA = 200
-
-SUBTITLE_SCALE = 0.85
 
 
 @dataclass(frozen=True)
@@ -52,21 +51,15 @@ class DeckDelegate(QStyledItemDelegate):
         font.setBold(selected)
         return font
 
-    def subtitle_font(self, base=None):
-        font = QFont(base or QApplication.font())
-        if font.pointSizeF() > 0:
-            font.setPointSizeF(font.pointSizeF() * SUBTITLE_SCALE)
-        else:
-            font.setPixelSize(max(1, round(font.pixelSize() * SUBTITLE_SCALE)))
-        font.setBold(False)
-        return font
+    def subtitle_font(self):
+        return typography.font(typography.Role.SMALL)
 
     # -- geometry ---------------------------------------------------------
 
     def _layout(self, option):
         cover = self.cover_size()
         title_height = QFontMetrics(self.title_font(option.font)).height()
-        subtitle_height = QFontMetrics(self.subtitle_font(option.font)).height()
+        subtitle_height = QFontMetrics(self.subtitle_font()).height()
 
         content_left = option.rect.left() + units.LARGE_SPACING
         content_width = max(1, option.rect.width() - 2 * units.LARGE_SPACING)
@@ -81,7 +74,7 @@ class DeckDelegate(QStyledItemDelegate):
     def sizeHint(self, option, index):
         cover = self.cover_size()
         title_height = QFontMetrics(self.title_font(option.font)).height()
-        subtitle_height = QFontMetrics(self.subtitle_font(option.font)).height()
+        subtitle_height = QFontMetrics(self.subtitle_font()).height()
         return QSize(
             cover.width() + 2 * units.LARGE_SPACING,
             cover.height()
@@ -124,7 +117,7 @@ class DeckDelegate(QStyledItemDelegate):
             painter,
             layout.subtitle,
             index.data(SubtitleRole) or "",
-            self.subtitle_font(option.font),
+            self.subtitle_font(),
             subtitle_colour,
         )
 

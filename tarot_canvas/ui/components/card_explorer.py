@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
 
 from tarot_canvas.models.deck_events import deck_events
 from tarot_canvas.models.deck_manager import deck_manager
+from tarot_canvas.ui import typography
 from tarot_canvas.ui.card_transfer import CARD_MIME, card_mime_data, copy_card_to_clipboard
 
 
@@ -106,7 +107,8 @@ class CardExplorerPanel(QWidget):
         header_layout.setSpacing(0)
 
         header = QLabel("Card Explorer")
-        header.setStyleSheet("font-weight: bold; padding: 5px;")
+        header.setStyleSheet("padding: 5px;")
+        typography.apply(header, typography.Role.HEADING_4)
         header_layout.addWidget(header, 1)
 
         self.close_button = QToolButton()

@@ -8,6 +8,7 @@ from tarot_canvas.models.esoterica import get_esoterica_manager
 from tarot_canvas.models.esoterica_events import esoterica_events
 from tarot_canvas.models.esoterica_registry import Role
 from tarot_canvas.models.note_events import note_events
+from tarot_canvas.ui import typography
 from tarot_canvas.ui.card_transfer import deck_path_key
 from tarot_canvas.ui.esoterica_text import label_for
 from tarot_canvas.ui.library import units
@@ -19,11 +20,6 @@ from tarot_canvas.ui.tabs.card_view.esoterica_tab import (
     lead_of,
     lead_row,
     reseated_note,
-)
-from tarot_canvas.ui.tabs.card_view.headings import (
-    SUBTITLE_SCALE,
-    TITLE_SCALE,
-    apply_heading,
 )
 from tarot_canvas.ui.tabs.card_view.notes_section import NotesSection
 from tarot_canvas.ui.tabs.card_view.passage_metrics import TITLE_TO_AUTHOR
@@ -89,7 +85,7 @@ class OverviewTab(QWidget):
 
         # Card name at the top
         self.name_label = QLabel(self.card["name"])
-        apply_heading(self.name_label, TITLE_SCALE)
+        typography.apply(self.name_label, typography.Role.HEADING_1, primary=True)
         self.name_label.setObjectName("name_label")
         layout.addWidget(self.name_label)
 
@@ -125,7 +121,7 @@ class OverviewTab(QWidget):
             | Qt.TextInteractionFlag.LinksAccessibleByKeyboard
         )
         self.headline_source.setOpenExternalLinks(False)
-        self.headline_source.setFont(units.scaled_font(self.headline_source.font(), SUBTITLE_SCALE))
+        typography.apply(self.headline_source, typography.Role.SMALL)
         self.headline_source.linkActivated.connect(self.on_headline_source_clicked)
         self.headline_reseated = QLabel()
         self.headline_reseated.setObjectName("headline_reseated")

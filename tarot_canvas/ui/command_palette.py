@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
 
 from tarot_canvas.models.card_search import CardTerms, Query
 from tarot_canvas.models.deck_manager import deck_manager
+from tarot_canvas.ui import typography
 from tarot_canvas.ui.library.cover_cache import CoverCache
 
 THUMBNAIL_SIZE = QSize(25, 40)
@@ -59,7 +60,8 @@ class CommandPaletteItem(QWidget):
             details = f"{card_type} - {deck.get_name()}"
 
         details_label = QLabel(details)
-        details_label.setStyleSheet("color: gray; font-size: 10px;")
+        details_label.setStyleSheet("color: gray;")
+        typography.apply(details_label, typography.Role.SMALL)
         info_layout.addWidget(details_label)
 
         layout.addLayout(info_layout)
@@ -67,7 +69,8 @@ class CommandPaletteItem(QWidget):
 
         # Action hint based on context (will be set later)
         self.action_label = QLabel("Open")
-        self.action_label.setStyleSheet("color: #666; font-size: 10px;")
+        self.action_label.setStyleSheet("color: #666;")
+        typography.apply(self.action_label, typography.Role.SMALL)
         self.action_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         layout.addWidget(self.action_label)
 

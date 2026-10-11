@@ -6,7 +6,6 @@ PASSAGE_SPACING = 20  # between passages
 PADDING = 18  # inside a passage: Kirigami's gridUnit
 CORNER_RADIUS = 4
 
-TITLE_PIXEL_SIZE = 16
 TITLE_TO_AUTHOR = 0  # the HIG's title-to-subtitle spacing
 HEADING_TO_BODY = 8  # largeSpacing; the HIG's row says smallSpacing (4). Tune by eye
 # The source line and lead to the first row: as far as the frame's edge is from them, and

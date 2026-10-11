@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (
 from tarot_canvas.models.card_ids import CANONICAL_CARD_IDS, SUITS
 from tarot_canvas.models.coverage import CellState
 from tarot_canvas.models.esoterica import NotReadReason, group_keys
+from tarot_canvas.ui import typography
 from tarot_canvas.ui.esoterica_text import label_for
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.coverage_strip import (
@@ -148,8 +149,6 @@ def details_for(index, manager):
 class CoverageGridWidget(QWidget):
     card_activated = pyqtSignal(str)  # the canonical card id
 
-    CAPTION_SCALE = 0.85
-
     def __init__(self, parent=None):
         super().__init__(parent)
         self._states = ()
@@ -167,7 +166,7 @@ class CoverageGridWidget(QWidget):
         return (major, *(suit.capitalize() for suit in SUITS))
 
     def _label_font(self):
-        return units.scaled_font(self.font(), self.CAPTION_SCALE)
+        return typography.font(typography.Role.SMALL)
 
     def _label_width(self):
         return grid_label_width(self.labels(), QFontMetrics(self._label_font()))
@@ -258,8 +257,6 @@ class CoverageGridWidget(QWidget):
 class SourceDetailsPane(QWidget):
     open_card_requested = pyqtSignal(str)  # the canonical card id
 
-    HEADING_SCALE = 1.4
-    CAPTION_SCALE = 0.85
     # Below this width the two columns stack, the source above its properties
     TWO_COLUMN_MIN_WIDTH = 36 * units.GRID_UNIT
 
@@ -267,10 +264,7 @@ class SourceDetailsPane(QWidget):
         super().__init__(parent)
         self._details = None
 
-        self.heading_label = pane_text()
-        self.heading_label.setFont(
-            units.scaled_font(self.heading_label.font(), self.HEADING_SCALE, bold=True)
-        )
+        self.heading_label = typography.apply(pane_text(), typography.Role.HEADING_1, primary=True)
         self.author_label = pane_text()
 
         header = QVBoxLayout()
@@ -313,15 +307,12 @@ class SourceDetailsPane(QWidget):
             self.groups_label,
             self.shadows_label,
         ):
-            label.setFont(units.fixed_font(label.font()))
+            typography.apply(label, typography.Role.BODY, fixed=True)
         self.set_source_file_open(False)
 
         # description + the credit line as a caption
         self.description_label = pane_text()
-        self.attribution_label = pane_text()
-        self.attribution_label.setFont(
-            units.scaled_font(self.attribution_label.font(), self.CAPTION_SCALE)
-        )
+        self.attribution_label = typography.apply(pane_text(), typography.Role.SMALL)
         self.attribution_label.setForegroundRole(QPalette.ColorRole.PlaceholderText)
 
         # coverage
@@ -330,8 +321,7 @@ class SourceDetailsPane(QWidget):
 
         # The work
         self.work_group = QWidget()
-        self.work_heading = pane_text()
-        self.work_heading.setFont(units.scaled_font(self.work_heading.font(), bold=True))
+        self.work_heading = typography.apply(pane_text(), typography.Role.HEADING_4)
         self.work_form = pane_form()
         self.work_form.setContentsMargins(0, 0, 0, 0)
         self.work_name_label = self._add_row(self.work_form, label_for("library.form.work_name"))

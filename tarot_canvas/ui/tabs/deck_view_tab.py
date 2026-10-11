@@ -1,7 +1,6 @@
 from PyQt6.QtCore import QSize, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QIcon, QPalette
 from PyQt6.QtWidgets import (
-    QApplication,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -12,14 +11,13 @@ from PyQt6.QtWidgets import (
 )
 
 from tarot_canvas.models.deck import TarotDeck
+from tarot_canvas.ui import typography
 from tarot_canvas.ui.card_transfer import copy_card_to_clipboard
-from tarot_canvas.ui.library import units
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.ui.widgets import deck_header
 from tarot_canvas.ui.widgets.card_thumbnail import CardThumbnail
 from tarot_canvas.ui.widgets.deck_header import DeckHeader
 
-SECTION_TITLE_SCALE = 1.15
 SECTION_MARGIN = deck_header.EDGE_MARGIN
 
 
@@ -120,10 +118,7 @@ class DeckViewTab(BaseTab):
         self.layout.addWidget(scroll)
 
     def section_title(self, text):
-        """A section heading in the system font, scaled rather than hardcoded."""
-        label = QLabel(text)
-        label.setFont(units.scaled_font(QApplication.font(), SECTION_TITLE_SCALE, bold=True))
-        return label
+        return typography.apply(QLabel(text), typography.Role.HEADING_3)
 
     def add_major_arcana_journey(self, layout):
         """Add the Major Arcana journey section"""
@@ -163,7 +158,7 @@ class DeckViewTab(BaseTab):
             if exclusion_reason:
                 note_label = QLabel(f"Note: {exclusion_reason}")
                 note_label.setWordWrap(True)
-                note_font = QApplication.font()
+                note_font = note_label.font()
                 note_font.setItalic(True)
                 note_label.setFont(note_font)
                 note_label.setForegroundRole(QPalette.ColorRole.PlaceholderText)

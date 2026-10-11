@@ -5,6 +5,7 @@ from PyQt6.QtCore import QPoint
 from PyQt6.QtGui import QPalette
 from PyQt6.QtWidgets import QApplication, QDialog, QLabel
 
+from tarot_canvas.ui import typography
 from tarot_canvas.ui.tabs import deck_view_tab as module
 from tarot_canvas.ui.tabs.deck_view_tab import DeckViewTab
 from tarot_canvas.ui.widgets.deck_header import DeckHeader
@@ -56,7 +57,7 @@ def test_the_sections_take_back_the_margin_the_header_gave_up(tab, qtbot):
 def test_section_titles_use_the_system_font(tab):
     title = tab.section_title("Major Arcana")
     assert title.font().family() == QApplication.font().family()
-    assert title.font().bold()
+    assert title.font() == typography.font(typography.Role.HEADING_3)
     assert title.font().pointSizeF() > QApplication.font().pointSizeF()
 
 

@@ -13,13 +13,13 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from tarot_canvas.ui import typography
 from tarot_canvas.ui.activate_on_return import activate_on_return
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.note_row_delegate import NoteRowDelegate
 from tarot_canvas.ui.library.notes_model import NoteRole, NotesListModel
 from tarot_canvas.ui.notes_text import text
 from tarot_canvas.ui.palette import ghost_bar, muted_text, subtle_fill, with_text_colour
-from tarot_canvas.ui.tabs.card_view.headings import LABEL_SCALE, apply_heading
 from tarot_canvas.ui.tabs.card_view.passage_metrics import CORNER_RADIUS
 
 MAX_ROWS = 3
@@ -145,7 +145,7 @@ class NotesSection(QWidget):
 
         self.heading = QLabel(text("section_heading"))
         self.heading.setObjectName("notes_section_heading")
-        apply_heading(self.heading, LABEL_SCALE)
+        typography.apply(self.heading, typography.Role.BODY, primary=True)
         self.heading.setVisible(bool(text("section_heading")))
         header.addWidget(self.heading)
         header.addStretch()

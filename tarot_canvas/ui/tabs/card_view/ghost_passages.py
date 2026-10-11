@@ -1,9 +1,10 @@
 """Silhouettes an esoterica tab would show if it had any data"""
 
 from PyQt6.QtCore import QRectF, Qt
-from PyQt6.QtGui import QFont, QFontMetricsF, QImage, QLinearGradient, QPainter
+from PyQt6.QtGui import QFontMetricsF, QImage, QLinearGradient, QPainter
 from PyQt6.QtWidgets import QSizePolicy, QWidget
 
+from tarot_canvas.ui import typography
 from tarot_canvas.ui.palette import ghost_bar, subtle_fill
 from tarot_canvas.ui.tabs.card_view.passage_metrics import (
     BODY_LINE_HEIGHT,
@@ -12,7 +13,6 @@ from tarot_canvas.ui.tabs.card_view.passage_metrics import (
     PADDING,
     PASSAGE_SPACING,
     SIDE_MARGIN,
-    TITLE_PIXEL_SIZE,
     TITLE_TO_AUTHOR,
     TOP_MARGIN,
     column_width,
@@ -27,10 +27,8 @@ BODY_WIDTHS = (1.0, 1.0, 0.92, 0.60)
 
 
 def ghost_layout(font, width):
-    title_font = QFont(font)
-    title_font.setPixelSize(TITLE_PIXEL_SIZE)
-    title_font.setBold(True)
-    title = QFontMetricsF(title_font).height()
+    # The passage heading each ghost stands in for
+    title = QFontMetricsF(typography.font(typography.Role.HEADING_2)).height()
     body = QFontMetricsF(font).height()
 
     # (width fraction, line height, text height, gap after)

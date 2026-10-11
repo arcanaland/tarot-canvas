@@ -1,12 +1,13 @@
 from dataclasses import dataclass
 
 from PyQt6.QtCore import QEvent, QModelIndex, QPoint, QRect, QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QFontMetrics, QIcon, QPainter
+from PyQt6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter
 from PyQt6.QtWidgets import QLineEdit, QStyle, QStyledItemDelegate, QToolTip
 
+from tarot_canvas.ui import typography
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.cover_cache import CoverCache
-from tarot_canvas.ui.library.deck_delegate import SELECTED_SUBTITLE_ALPHA, SUBTITLE_SCALE
+from tarot_canvas.ui.library.deck_delegate import SELECTED_SUBTITLE_ALPHA
 from tarot_canvas.ui.library.deck_model import CoverPathRole, SubtitleRole
 from tarot_canvas.ui.library.ghost_paint import paint_placeholder_well
 from tarot_canvas.ui.library.notes_model import PreviewRole
@@ -40,10 +41,9 @@ class NoteRowDelegate(QStyledItemDelegate):
         self._menu_tooltip = menu_tooltip
 
     def _fonts(self, option, selected):
-        return (
-            units.scaled_font(option.font, bold=selected),
-            units.scaled_font(option.font, SUBTITLE_SCALE, bold=False),
-        )
+        title = QFont(option.font)
+        title.setBold(selected)
+        return title, typography.font(typography.Role.SMALL)
 
     def _line_heights(self, option):
         title, small = self._fonts(option, False)

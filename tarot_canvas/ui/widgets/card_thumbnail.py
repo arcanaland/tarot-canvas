@@ -1,8 +1,9 @@
 from PyQt6.QtCore import QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QFont, QIcon, QPixmap
+from PyQt6.QtGui import QIcon, QPixmap
 from PyQt6.QtWidgets import QFrame, QLabel, QMenu, QVBoxLayout
 
 from tarot_canvas.models.deck import pick_raster
+from tarot_canvas.ui import typography
 from tarot_canvas.ui.canvas.detail import art_loader, art_size, fit_device_size
 
 
@@ -43,7 +44,7 @@ class CardThumbnail(QFrame):
         self.name_label = QLabel(self.card.get("name", "Unknown"))
         self.name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.name_label.setWordWrap(True)
-        self.name_label.setFont(QFont("Arial", 8))
+        typography.apply(self.name_label, typography.Role.SMALL)
         self.name_label.setMaximumHeight(16)
 
         # Load image

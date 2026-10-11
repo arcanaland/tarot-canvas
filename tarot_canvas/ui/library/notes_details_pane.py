@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from tarot_canvas.ui import typography
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.pane_text import pane_text
 from tarot_canvas.ui.notes_text import text as notes_text
@@ -19,21 +20,12 @@ class NotesDetailsPane(QWidget):
     open_card_requested = pyqtSignal(str)  # the canonical card id
     open_note_requested = pyqtSignal(str, str)  # the canonical card id, the note's path
 
-    HEADING_SCALE = 1.4
-    CAPTION_SCALE = 0.85
-
     def __init__(self, parent=None):
         super().__init__(parent)
         self._details = None
 
-        self.heading_label = pane_text()
-        self.heading_label.setFont(
-            units.scaled_font(self.heading_label.font(), self.HEADING_SCALE, bold=True)
-        )
-        self.card_id_label = pane_text()
-        self.card_id_label.setFont(
-            units.fixed_font(units.scaled_font(self.card_id_label.font(), self.CAPTION_SCALE))
-        )
+        self.heading_label = typography.apply(pane_text(), typography.Role.HEADING_1, primary=True)
+        self.card_id_label = typography.apply(pane_text(), typography.Role.SMALL, fixed=True)
         self.card_id_label.setForegroundRole(QPalette.ColorRole.PlaceholderText)
 
         self.open_button = QPushButton(QIcon.fromTheme("document-open"), notes_text("open_card"))

@@ -11,6 +11,7 @@ from tarot_canvas.models.esoterica import Entry, SourceReading
 from tarot_canvas.models.esoterica_events import esoterica_events
 from tarot_canvas.models.esoterica_registry import PASSAGES, Role
 from tarot_canvas.models.note_events import note_events
+from tarot_canvas.ui import typography
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.palette import muted_text
 from tarot_canvas.ui.tabs.card_view import overview_tab
@@ -171,7 +172,7 @@ def test_the_keywords_lead_with_their_source_under_them(qtbot, readings):
 
     assert tab.headline.isVisible()
     assert tab.lead.text() == "fortune · cycles · fate"
-    assert tab.lead.font().bold()
+    assert tab.lead.font() == typography.font(typography.Role.HEADING_2, primary=True)
     assert ">Mark McElroy</a>" in tab.headline_source.text()
     assert tab.headline_source.toolTip() == "A Guide to Tarot Card Meanings"
     # Muted, as the source line is in a passage's frame
