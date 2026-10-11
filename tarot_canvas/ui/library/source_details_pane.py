@@ -474,15 +474,9 @@ class SourceDetailsPane(QWidget):
         self._set_text(self.description_label, details.description)
         self._set_text(self.attribution_label, details.attribution)
 
-        complete_text = label_for("library.coverage_complete")
-        complete = details.coverage is not None and all(
-            state == CellState.FILLED for state in details.coverage
-        )
-        self._set_text(self.coverage_complete_label, (complete_text or None) if complete else None)
+        self._set_text(self.coverage_complete_label, None)
         self.coverage_grid.set_states(details.coverage)
-        self.coverage_grid.setVisible(
-            details.coverage is not None and not (complete and complete_text)
-        )
+        self.coverage_grid.setVisible(details.coverage is not None)
 
         self.work_group.setVisible(details.has_work)
         if details.relation in RELATIONS:
