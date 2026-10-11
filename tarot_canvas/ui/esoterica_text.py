@@ -97,8 +97,6 @@ ESOTERICA_TEXT = {
     "library.form.groups": "Groups:",
     # [meta.work], the work a source draws on, in a group of its own
     "library.work_heading": "Work of",
-    # The details pane's coverage: a line for a source that covers every card, else a grid
-    "library.coverage_complete": "Covers all 78 cards.",
     # The grid's first row, as the deck view and the card explorer head the majors
     "library.coverage.major": "Major Arcana",
     # The work group's heading when the source names its relation to the work

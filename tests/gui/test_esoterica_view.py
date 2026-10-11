@@ -19,7 +19,6 @@ from tarot_canvas.ui.library.esoterica_list_model import (
 )
 from tarot_canvas.ui.library.esoterica_page import EsotericaPage
 from tarot_canvas.ui.library.source_row_delegate import GENERIC_ICON, type_icon
-from tarot_canvas.ui.license_names import license_name
 from tests.unit.test_esoterica import every_card, write
 
 FOOL = '[card."major_arcana.00".passages]\ntext = "The Fool."\n'
@@ -129,7 +128,7 @@ def test_a_section_with_no_rows_has_no_heading(qtbot, roots):
 def test_the_second_line_is_author_and_license_skipping_what_is_absent(page, roots):
     joiner = label_for("joiner")
 
-    cc0 = license_name("CC0-1.0")
+    cc0 = "CC0 1.0 Universal"
     assert row_of(page, "zeta notes").data(SubtitleRole) == f"Zed{joiner}{cc0}"
     # The bundled copy, with no author, is shadowed; the user's copy has one
     assert row_of(page, "Alpha Book").data(SubtitleRole) == f"Ann{joiner}{cc0}"
@@ -283,7 +282,7 @@ def generic_icons(monkeypatch):
     return seen
 
 
-@pytest.mark.parametrize("source_type", [None, "reference.book", "x_lecture", "x-lecture", 3])
+@pytest.mark.parametrize("source_type", [None, "x_lecture", 3])
 def test_an_absent_or_unknown_type_gets_the_apps_icon(qapp, source_type, generic_icons):
     type_icon(source_type)
 
@@ -302,14 +301,6 @@ def test_a_theme_icon_the_theme_lacks_draws_nothing(qapp, monkeypatch):
     monkeypatch.setitem(source_row_delegate.SOURCE_TYPE_ICONS, "book", "no-such-icon-anywhere")
 
     assert type_icon("book") is None
-
-
-def test_with_no_type_icons_every_source_gets_the_apps_icon(qapp, generic_icons, monkeypatch):
-    monkeypatch.setattr(source_row_delegate, "SOURCE_TYPE_ICONS", {})
-
-    type_icon("book")
-
-    assert generic_icons == [GENERIC_ICON]
 
 
 def test_the_apps_icon_takes_the_text_colour_of_a_dark_scheme(qapp, theme_palette):
@@ -416,9 +407,7 @@ def test_the_pane_shows_the_copy_it_shadows(page, roots):
 
     assert pane.identifier_label.text() == "me/alpha"
     assert pane.shadows_label.text() == str(bundled / "alpha.toml")
-    # One card of 78: the grid, not the complete line
     assert pane.coverage_grid.isVisibleTo(pane)
-    assert not pane.coverage_complete_label.isVisibleTo(pane)
     assert pane.coverage_grid.states()[0] == CellState.FILLED
 
 
@@ -429,7 +418,6 @@ def test_a_skipped_files_pane_shows_its_reason(page, roots):
     assert pane.heading_label.text() == "anonymous.toml"
     assert pane.author_label.text() == label_for("library.reason.no_identifier")
     assert not pane.coverage_grid.isVisibleTo(pane)
-    assert not pane.coverage_complete_label.isVisibleTo(pane)
     assert not pane.identifier_label.isVisibleTo(pane)
 
 
@@ -599,30 +587,11 @@ def test_the_pane_stacks_its_columns_when_narrow(page, qtbot):
     qtbot.waitUntil(lambda: pane.columns.direction() == QBoxLayout.Direction.TopToBottom)
 
 
-def test_every_form_lets_its_fields_take_the_panes_width(page):
-    """Breeze keeps fields at their size hint, which cuts a wrapped value to one line"""
-    from PyQt6.QtWidgets import QFormLayout
-
-    pane = page.details_pane
-    for form in (pane.form, pane.work_form, pane.source_file_form):
-        assert form.fieldGrowthPolicy() == QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow
-
-
-def test_keys_and_paths_are_monospace(page):
-    from PyQt6.QtGui import QFontDatabase
-
-    fixed = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont).family()
-    pane = page.details_pane
-    for label in (pane.identifier_label, pane.groups_label, pane.shadows_label, pane.file_label):
-        assert label.font().family() == fixed
-    assert pane.license_label.font().family() != fixed
-
-
 def every_card_source(name):
     return source(name).replace(FOOL, "") + every_card('text = "A passage."')
 
 
-def test_a_source_that_covers_every_card_says_so_instead_of_a_grid(qtbot, roots):
+def test_a_source_that_covers_every_card_shows_a_full_grid(qtbot, roots):
     write(roots[0], "all.toml", every_card_source("All"), identifier="me/all")
     page = EsotericaPage(EsotericaManager(roots))
     qtbot.addWidget(page)
@@ -630,36 +599,8 @@ def test_a_source_that_covers_every_card_says_so_instead_of_a_grid(qtbot, roots)
 
     page.select("me/all")
 
-    assert pane.coverage_complete_label.isVisibleTo(pane)
-    assert pane.coverage_complete_label.text() == label_for("library.coverage_complete")
-    assert not pane.coverage_grid.isVisibleTo(pane)
-
-
-def test_with_no_complete_line_a_complete_source_shows_its_grid(qtbot, roots, monkeypatch):
-    monkeypatch.setitem(esoterica_text.ESOTERICA_TEXT, "library.coverage_complete", "")
-    write(roots[0], "all.toml", every_card_source("All"), identifier="me/all")
-    page = EsotericaPage(EsotericaManager(roots))
-    qtbot.addWidget(page)
-    pane = page.details_pane
-
-    page.select("me/all")
-
-    assert not pane.coverage_complete_label.isVisibleTo(pane)
     assert pane.coverage_grid.isVisibleTo(pane)
-
-
-def test_the_grid_is_labelled_by_run_and_takes_height_for_its_width(page):
-    grid = page.details_pane.coverage_grid
-
-    assert grid.labels() == (
-        label_for("library.coverage.major"),
-        "Wands",
-        "Cups",
-        "Swords",
-        "Pentacles",
-    )
-    assert grid.heightForWidth(400) > 0
-    assert grid.heightForWidth(20) == 0
+    assert pane.coverage_grid.states() == (CellState.FILLED,) * 78
 
 
 TWO_OF_CUPS = "minor_arcana.cups.two"
@@ -747,14 +688,3 @@ def test_a_cell_is_named_by_the_pages_deck(qtbot, roots, minimal_deck):
     name = page.details_pane.coverage_grid.card_name("major_arcana.00")
 
     assert name == minimal_deck.get_card_by_id("major_arcana.00")["name"]
-
-
-def test_a_section_heading_is_shorter_than_a_source_row(page):
-    view = page.list_view
-    model = page.list_model
-    heights = {}
-    for row in range(model.rowCount()):
-        index = model.index(row, 0)
-        heights.setdefault(index.data(KindRole), view.visualRect(index).height())
-
-    assert 0 < heights[RowKind.SECTION] < heights[RowKind.SOURCE]

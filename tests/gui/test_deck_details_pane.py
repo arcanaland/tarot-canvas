@@ -12,7 +12,6 @@ from tarot_canvas.ui.library.deck_details_pane import DeckDetailsPane
 from tarot_canvas.ui.library.deck_downloads import DeckState
 from tarot_canvas.ui.library.deck_model import deck_cover_path
 from tarot_canvas.ui.library.download_text import failure_text
-from tarot_canvas.ui.license_names import license_name
 from tarot_canvas.ui.widgets.cover_banner import BANNER_TEXT
 from tarot_canvas.utils.package_download import DownloadFailure, FailureKind
 from tests.unit.test_library_model import catalog_entry
@@ -87,7 +86,7 @@ def test_it_shows_each_field(pane):
     assert pane.artist_label.text() == "Andreas"
     assert pane.version_label.text() == "2.0"
     assert pane.size_label.text() == QLocale().formattedDataSize(AVAILABLE.size)
-    assert pane.license_label.text() == license_name("CC-BY-NC-SA-3.0")
+    assert pane.license_label.text() == "CC BY-NC-SA 3.0"
     assert pane.card_count_label.text() == QLocale().toString(78)
     assert pane.description_label.text() == "Cards under the sea"
     assert pane.attribution_label.text() == "A credit line"

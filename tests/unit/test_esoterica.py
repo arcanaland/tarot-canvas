@@ -4,7 +4,7 @@ import pytest
 
 from tarot_canvas.models.card_ids import CANONICAL_CARD_IDS
 from tarot_canvas.models.coverage import CellState
-from tarot_canvas.models.esoterica import EsotericaManager, NotRead, NotReadReason, coverage
+from tarot_canvas.models.esoterica import EsotericaManager, NotRead, NotReadReason
 from tarot_canvas.models.esoterica_events import esoterica_events
 from tarot_canvas.settings import set_esoterica_disabled
 
@@ -421,7 +421,6 @@ def test_a_source_with_text_on_every_card_covers_every_card(root):
     source = EsotericaManager([root]).sources["a"]
 
     assert source["coverage"] == [CellState.FILLED] * 78
-    assert coverage(source) == source["coverage"]
 
 
 def test_content_the_reader_has_no_role_for_is_faint(root):

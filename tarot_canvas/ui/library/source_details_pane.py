@@ -325,7 +325,6 @@ class SourceDetailsPane(QWidget):
         self.attribution_label.setForegroundRole(QPalette.ColorRole.PlaceholderText)
 
         # coverage
-        self.coverage_complete_label = pane_text()
         self.coverage_grid = CoverageGridWidget()
         self.coverage_grid.card_activated.connect(self.open_card_requested)
 
@@ -361,7 +360,6 @@ class SourceDetailsPane(QWidget):
         source_column.addLayout(header)
         source_column.addWidget(self.description_label)
         source_column.addWidget(self.attribution_label)
-        source_column.addWidget(self.coverage_complete_label)
         source_column.addWidget(self.coverage_grid)
         source_column.addStretch(1)
 
@@ -474,7 +472,6 @@ class SourceDetailsPane(QWidget):
         self._set_text(self.description_label, details.description)
         self._set_text(self.attribution_label, details.attribution)
 
-        self._set_text(self.coverage_complete_label, None)
         self.coverage_grid.set_states(details.coverage)
         self.coverage_grid.setVisible(details.coverage is not None)
 

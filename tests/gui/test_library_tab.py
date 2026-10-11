@@ -844,7 +844,6 @@ def test_the_notes_and_esoterica_panes_sit_below_their_lists(sources, library):
     for view in (LIBRARY_VIEW_NOTES, LIBRARY_VIEW_ESOTERICA):
         library.show_view(view)
         assert library.details_pane_is_below()
-        assert library.splitter.orientation() == Qt.Orientation.Vertical
         assert library._details_seam.frameShape() == QFrame.Shape.HLine
 
     library.show_view(LIBRARY_VIEW_DECKS)

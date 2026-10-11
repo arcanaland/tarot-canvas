@@ -92,6 +92,9 @@ class NotesListModel(QAbstractListModel):
     def total_rows(self):
         return sum(len(notes) for notes in self._index.values())
 
+    def has_items(self):
+        return bool(self._rows)
+
     def notes_for(self, card_id):
         """Every note on a card."""
         return self._index.get(card_id, [])

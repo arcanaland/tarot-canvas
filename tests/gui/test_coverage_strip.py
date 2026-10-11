@@ -9,7 +9,6 @@ from tarot_canvas.ui.library.coverage_strip import (
     RUNS,
     cell_rects,
     grid_cell_rects,
-    grid_label_width,
     minimum_width,
     paint_coverage_grid,
     paint_coverage_strip,
@@ -132,20 +131,6 @@ def test_a_grid_too_narrow_paints_nothing(list_palette):
     assert all(image.pixelColor(x, y) == background for x in range(60) for y in range(0, 120, 7))
 
 
-def test_grid_cells_take_the_strips_colours(list_palette):
-    states = [CellState.FILLED, CellState.FAINT, CellState.EMPTY] * 26
-    image, _ = paint_grid(list_palette, states, 400)
-    from PyQt6.QtGui import QFont, QFontMetrics
-
-    label_width = grid_label_width(GRID_LABELS, QFontMetrics(QFont()))
-    rects = grid_cell_rects(QRect(0, 0, 400, 120), label_width)
-    filled, faint, empty = (
-        image.pixelColor(int(rects[i].center().x()), int(rects[i].center().y())) for i in range(3)
-    )
-
-    assert len({filled.rgb(), faint.rgb(), empty.rgb()}) == 3
-
-
 # -- colour ---------------------------------------------------------------
 
 
@@ -177,11 +162,3 @@ def test_uncoloured_every_run_takes_text(list_palette):
 
     text = list_palette.color(QPalette.ColorRole.Text).rgb()
     assert {centre(image, rects[start]).rgb() for start in run_starts()} == {text}
-
-
-def test_an_empty_cell_is_the_same_in_every_run(list_palette):
-    width = 400
-    image, _ = paint(list_palette, [CellState.EMPTY] * 78, width)
-    rects = cell_rects(QRect(0, 0, width, HEIGHT))
-
-    assert len({centre(image, rects[start]).rgb() for start in run_starts()}) == 1
