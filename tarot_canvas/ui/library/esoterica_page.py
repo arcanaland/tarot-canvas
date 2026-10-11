@@ -20,10 +20,10 @@ from tarot_canvas.ui.library.source_row_delegate import SourceRowDelegate
 
 
 class EsotericaPage(QWidget):
-    """Every esoterica source the app found, and every file it skipped"""
+    """Every esoterica source the app found"""
 
     details_changed = pyqtSignal()
-    # A row was activated: the pane is the only thing a source opens into
+    # A row was activated
     details_requested = pyqtSignal()
     # A covered card in the pane's grid was clicked
     card_activated = pyqtSignal(str)  # the canonical card id
@@ -31,7 +31,7 @@ class EsotericaPage(QWidget):
     def __init__(self, manager=None, deck=None, parent=None):
         super().__init__(parent)
         self._manager = manager if manager is not None else get_esoterica_manager()
-        # Only names the grid's cells, as the notes page names its cards
+        # Only names the grid's cells
         self._deck = deck
 
         self.list_model = EsotericaListModel(self._manager, parent=self)
@@ -51,7 +51,7 @@ class EsotericaPage(QWidget):
         self.details_pane.coverage_grid.card_name = lambda card_id: card_name(self._deck, card_id)
         self.details_pane.open_card_requested.connect(self.card_activated)
 
-        # Also how a checkbox's own write comes back, so the rows say what is now on
+        # Also how a checkbox's own write comes back
         esoterica_events().sources_changed.connect(self.refresh)
 
         self._update_empty_state()
@@ -64,7 +64,7 @@ class EsotericaPage(QWidget):
 
         view.setViewMode(QListView.ViewMode.ListMode)
         view.setResizeMode(QListView.ResizeMode.Adjust)
-        # Not uniform: a section heading is one short line, a source two
+
         view.setAlternatingRowColors(True)
         view.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         view.setMouseTracking(True)
@@ -138,7 +138,7 @@ class EsotericaPage(QWidget):
             self.details_changed.emit()
 
     def _refresh_details(self, shown):
-        """Re-read what the pane shows; a source that has gone stays shown as it was"""
+        """Re-read what the pane shows"""
         index = self._index_for(_key_of(shown))
         if index.isValid():
             self._show_details(index)

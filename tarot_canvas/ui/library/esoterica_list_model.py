@@ -176,7 +176,7 @@ class EsotericaListModel(QAbstractListModel):
         return None
 
     def setData(self, index, value, role=Qt.ItemDataRole.EditRole):
-        """Turning a source on or off: the one place that writes which sources are off"""
+        """Turning a source on or off"""
         if role != Qt.ItemDataRole.CheckStateRole or not index.isValid():
             return False
         kind, payload = self._rows[index.row()]

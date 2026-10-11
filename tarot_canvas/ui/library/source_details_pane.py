@@ -1,4 +1,4 @@
-"""The Esoterica view's details pane: one source, or one file that wasn't read"""
+"""The Esoterica view's details pane"""
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -60,11 +60,11 @@ class SourceDetails:
     shadows: tuple[Path, ...] = ()
     coverage: tuple | None = None
     groups: tuple[str, ...] = ()
-    # [meta].related: the pattern's label, and a label for each about entry that has one
+    # [meta].related
     pattern: str | None = None
     about: tuple[str, ...] = ()
     relation: str | None = None
-    # [meta.work]: whether there is one, then its name, author, date, ISBN and URL
+    # [meta.work]
     has_work: bool = False
     work_name: str | None = None
     work_author: str | None = None
@@ -75,7 +75,7 @@ class SourceDetails:
 
 
 def _related(meta):
-    """[meta].related's (rel, target, title) entries, skipping any that aren't well formed"""
+    """[meta].related's (rel, target, title) entries"""
     related = meta.get("related")
     if not isinstance(related, list):
         return
@@ -117,7 +117,6 @@ def source_details(identifier, source, shadows=()):
         pattern=pattern,
         about=tuple(label for label in about if label),
         relation=meta_text(meta.get("relation")),
-        # Never a fallback for [meta]: the work's author is not the source's
         has_work=work is not None,
         work_name=meta_text((work or {}).get("name")),
         work_author=meta_text((work or {}).get("author")),
@@ -134,7 +133,7 @@ def not_read_details(item):
 
 
 def details_for(index, manager):
-    """The details of a list row, or None for a section"""
+    """The details of a list row"""
     kind = index.data(KindRole)
     if kind == RowKind.SOURCE:
         identifier = index.data(IdentifierRole)
@@ -147,9 +146,6 @@ def details_for(index, manager):
 
 
 class CoverageGridWidget(QWidget):
-    """The grid at the pane's width, in the pane's palette as it is when painted. A cell the
-    reader shows text for is a link to its card."""
-
     card_activated = pyqtSignal(str)  # the canonical card id
 
     CAPTION_SCALE = 0.85
@@ -158,7 +154,8 @@ class CoverageGridWidget(QWidget):
         super().__init__(parent)
         self._states = ()
         self._hovered = None
-        # The card's name for a cell's tooltip; the id until the page gives it a deck
+
+        # The card's name for a cell's tooltip
         self.card_name = lambda card_id: card_id
         self.setMouseTracking(True)
         policy = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
@@ -166,7 +163,6 @@ class CoverageGridWidget(QWidget):
         self.setSizePolicy(policy)
 
     def labels(self):
-        # A source has no deck, so its suits have no aliases: the name a deck falls back to
         major = label_for("library.coverage.major")
         return (major, *(suit.capitalize() for suit in SUITS))
 
@@ -192,7 +188,7 @@ class CoverageGridWidget(QWidget):
         self.update()
 
     def cell_at(self, pos):
-        """The index of the cell under `pos`, or None"""
+        """The index of the cell under pos"""
         point = QPointF(pos)
         for index, rect in enumerate(grid_cell_rects(self.rect(), self._label_width())):
             if rect.contains(point):
@@ -200,8 +196,6 @@ class CoverageGridWidget(QWidget):
         return None
 
     def link_at(self, pos):
-        """The index of the linked cell under `pos`, or None. Only FILLED cells link: a FAINT
-        one's card has nothing from this source that the card view shows."""
         index = self.cell_at(pos)
         if index is None or index >= len(self._states):
             return None
@@ -285,7 +279,7 @@ class SourceDetailsPane(QWidget):
         header.addWidget(self.heading_label)
         header.addWidget(self.author_label)
 
-        # What a reader needs; a skipped file shows only where it is
+        # What a reader needs
         self.form = pane_form()
         self.pattern_label = self._add_row(self.form, label_for("library.form.pattern"))
         self.about_label = self._add_row(self.form, label_for("library.form.about"))
@@ -297,7 +291,6 @@ class SourceDetailsPane(QWidget):
         self.source_file_button = QToolButton()
         self.source_file_button.setText(label_for("library.source_file_heading"))
         self.source_file_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        # Not checkable: a checked tool button draws pressed, and this is a disclosure
         self.source_file_button.setAutoRaise(True)
         self.source_file_button.clicked.connect(
             lambda: self.set_source_file_open(not self._source_file_open)
@@ -312,7 +305,8 @@ class SourceDetailsPane(QWidget):
         self.version_label = self._add_row(self.source_file_form, VERSION_LABEL)
         self.groups_label = self._add_row(self.source_file_form, label_for("library.form.groups"))
         self.shadows_label = self._add_row(self.source_file_form, label_for("library.form.shadows"))
-        # Keys and paths as the file and the disk spell them
+
+        # Keys and paths
         for label in (
             self.file_label,
             self.identifier_label,
@@ -322,7 +316,7 @@ class SourceDetailsPane(QWidget):
             label.setFont(units.fixed_font(label.font()))
         self.set_source_file_open(False)
 
-        # As the deck pane sets them: the description, then the credit line as a caption
+        # description + the credit line as a caption
         self.description_label = pane_text()
         self.attribution_label = pane_text()
         self.attribution_label.setFont(
@@ -330,12 +324,12 @@ class SourceDetailsPane(QWidget):
         )
         self.attribution_label.setForegroundRole(QPalette.ColorRole.PlaceholderText)
 
-        # A source that covers every card says so; any other shows which it covers
+        # coverage
         self.coverage_complete_label = pane_text()
         self.coverage_grid = CoverageGridWidget()
         self.coverage_grid.card_activated.connect(self.open_card_requested)
 
-        # The work, kept apart: none of its rows stands in for one of the source's
+        # The work
         self.work_group = QWidget()
         self.work_heading = pane_text()
         self.work_heading.setFont(units.scaled_font(self.work_heading.font(), bold=True))
@@ -367,7 +361,6 @@ class SourceDetailsPane(QWidget):
         source_column.addLayout(header)
         source_column.addWidget(self.description_label)
         source_column.addWidget(self.attribution_label)
-        # Here, not under both columns, where a long form scrolls it out of a short pane
         source_column.addWidget(self.coverage_complete_label)
         source_column.addWidget(self.coverage_grid)
         source_column.addStretch(1)
@@ -403,7 +396,6 @@ class SourceDetailsPane(QWidget):
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.scroll_area.setWidget(content)
 
-        # No actions: nothing here removes or reveals a file
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -418,7 +410,6 @@ class SourceDetailsPane(QWidget):
 
     @staticmethod
     def _add_row(form, label):
-        # Plain, so a placeholder's tag shows as written
         name = QLabel(label)
         name.setTextFormat(Qt.TextFormat.PlainText)
         value = pane_text()
@@ -426,7 +417,7 @@ class SourceDetailsPane(QWidget):
         return value
 
     def set_source_file_open(self, open_):
-        """Open or close the source file group, which stays so across selections"""
+        """Open or close the source file group"""
         self._source_file_open = open_
         self.source_file_button.setArrowType(
             Qt.ArrowType.DownArrow if open_ else Qt.ArrowType.RightArrow
@@ -446,7 +437,6 @@ class SourceDetailsPane(QWidget):
         skipped = details.reason is not None
 
         self._set_text(self.heading_label, details.name)
-        # A skipped file's reason stands where a source's author does
         if skipped:
             reason = label_for(f"library.reason.{details.reason.value}")
             self._set_text(self.author_label, reason or None)
@@ -516,7 +506,7 @@ class SourceDetailsPane(QWidget):
 
     @classmethod
     def _set_link_row(cls, form, label, url):
-        """A URL's row: a link, as the deck header shows one, if it is http or https"""
+        """A URL row"""
         linked = url is not None and is_link(url)
         label.setTextFormat(Qt.TextFormat.RichText if linked else Qt.TextFormat.PlainText)
         label.setOpenExternalLinks(linked)

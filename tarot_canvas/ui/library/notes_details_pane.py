@@ -76,7 +76,6 @@ class NotesDetailsPane(QWidget):
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.scroll_area.setWidget(content)
 
-        # No cover: the row above already shows the card's
         margin = units.GRID_UNIT
         layout = QVBoxLayout(self)
         layout.setContentsMargins(margin, 2 * units.LARGE_SPACING, margin, units.LARGE_SPACING)

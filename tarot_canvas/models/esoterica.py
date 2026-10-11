@@ -407,9 +407,7 @@ def _read_source(path):
 
 
 def coverage(source):
-    """One cell per canonical card: FILLED where the card table has an entry the reader shows,
-    FAINT where it has content the reader has no role for, EMPTY otherwise. Groups are not
-    counted, since what a source says about a group is not said about each card in it."""
+    """One cell per canonical card"""
     states = []
     for card_id in CANONICAL_CARD_IDS:
         target = source["cards"].get(card_id)

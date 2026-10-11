@@ -21,12 +21,12 @@ from tarot_canvas.ui.widgets.placeholder_message import tinted_icon
 
 GENERIC_ICON = files("tarot_canvas.resources.icons").joinpath("esoterica.svg")
 
-# [meta].type -> a Breeze theme icon. A type not here, or none, gets GENERIC_ICON
+# [meta].type -> a Breeze theme icon.
 SOURCE_TYPE_ICONS = {
     "book": "documentation",
     "chapter": "view-readermode",
     "article": "view-pim-news",
-    "webpage": "globe",
+    "webpage": "globe-symbolic",
     "manuscript": "document-edit-sign",
     "document": "view-pages-single",
     "tradition": "group",
@@ -40,7 +40,7 @@ COUNT_TEXT = "88"
 
 
 def type_icon(source_type):
-    """The icon for a source's [meta].type, or None for a theme icon the theme lacks"""
+    """The icon for a source's [meta].type"""
     name = SOURCE_TYPE_ICONS.get(source_type) if isinstance(source_type, str) else None
     if name is None:
         return tinted_icon(GENERIC_ICON)

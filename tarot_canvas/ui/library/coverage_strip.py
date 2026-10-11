@@ -1,5 +1,4 @@
-"""A source's coverage as 78 cells: the majors, then the four suits. The list row draws them as a
-strip, a gap between each run; the details pane as a grid, a labelled row per run"""
+"""A source's coverage as 78 cells"""
 
 from PyQt6.QtCore import QRectF, Qt
 from PyQt6.QtGui import QColor, QFontMetrics, QPalette
@@ -29,7 +28,6 @@ def cell_width(width):
 
 
 def cell_rects(rect):
-    """One QRectF per cell, or none when `rect` is too narrow for MIN_CELL_WIDTH cells"""
     width = cell_width(rect.width())
     if width < MIN_CELL_WIDTH:
         return []
@@ -42,13 +40,11 @@ def cell_rects(rect):
             rects.append(QRectF(left, rect.top(), drawn, rect.height()))
             left += width
         left += RUN_GAP
+
     return rects
 
 
 def cell_colours(palette, coloured=True):
-    """One colour per cell, in canonical order, for each state. Coloured, a run takes its
-    arcana's colour, a card view tab's dot; otherwise every run takes Text. EMPTY is always
-    Text, faint, so a cell with nothing reads as nothing in any run."""
     text = palette.text().color()
     empty = with_alpha(text, EMPTY_ALPHA)
     colours = []
@@ -64,8 +60,6 @@ def cell_colours(palette, coloured=True):
 
 
 def paint_coverage_strip(painter, rect, states, palette, coloured=True):
-    """Rectangles only, each run in its arcana's colour, or with `coloured` false in `palette`'s
-    Text, as on a selected row's Highlight, where a suit's colour may not read"""
     rects = cell_rects(rect)
     if not rects:
         return
@@ -124,16 +118,16 @@ def grid_cell_rects(rect, label_width):
 
 
 def paint_coverage_grid(painter, rect, states, palette, labels, font, hovered=None):
-    """A row per run, `labels[i]` at its left in PlaceholderText, its cells as the strip's, and
-    the `hovered` cell, if any, in Highlight"""
     metrics = QFontMetrics(font)
     label_width = grid_label_width(labels, metrics)
     rects = grid_cell_rects(rect, label_width)
     if not rects:
         return
+
     colours = cell_colours(palette)
     painter.save()
     painter.setPen(Qt.PenStyle.NoPen)
+
     for cell, state, cell_colour in zip(rects, states, colours, strict=False):
         painter.fillRect(cell, cell_colour[state])
     if hovered is not None and 0 <= hovered < len(rects):
@@ -148,4 +142,5 @@ def paint_coverage_grid(painter, rect, states, palette, labels, font, hovered=No
             label_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, label
         )
         first += run
+
     painter.restore()
