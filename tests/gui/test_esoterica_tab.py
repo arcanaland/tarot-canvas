@@ -388,7 +388,7 @@ def test_with_every_label_empty_only_the_keywords_show_and_they_lead(qtbot, stub
     (frame,) = tab.passage_widgets
     assert labels(frame) == ["The Queen's Book · A. Writer", "intuition · care"]
     assert frame.lead.text() == "intuition · care"
-    assert frame.lead.font() == typography.font(typography.Role.HEADING_2)
+    assert frame.lead.font() == typography.font(typography.Role.HEADING_2, primary=True)
     assert frame.headings == []
 
 
@@ -420,7 +420,7 @@ def test_the_epithet_leads_and_the_keywords_follow_as_body_text(qtbot, theme_pal
 
     assert labels(widget)[:3] == ["The Queen's Book · A. Writer", "The Dreamer", "intuition · care"]
     assert widget.lead.text() == "The Dreamer"
-    assert widget.lead.font() == typography.font(typography.Role.HEADING_2)
+    assert widget.lead.font() == typography.font(typography.Role.HEADING_2, primary=True)
     assert text_colour(widget.lead) != muted_text(theme_palette)
     (keywords,) = (
         label for label in widget.findChildren(QLabel) if label.text() == "intuition · care"
@@ -431,7 +431,7 @@ def test_the_epithet_leads_and_the_keywords_follow_as_body_text(qtbot, theme_pal
 def test_the_lead_is_the_frames_only_heading(qtbot):
     reading = many_rows(entries=(entry("x_subtitle", "The Dreamer"),))
     widget = make_widget(qtbot, reading)
-    heading = typography.font(typography.Role.HEADING_2)
+    heading = typography.font(typography.Role.HEADING_2, primary=True)
 
     assert [label.text() for label in widget.findChildren(QLabel) if label.font() == heading] == [
         "The Dreamer"

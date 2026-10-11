@@ -172,7 +172,7 @@ def test_the_keywords_lead_with_their_source_under_them(qtbot, readings):
 
     assert tab.headline.isVisible()
     assert tab.lead.text() == "fortune · cycles · fate"
-    assert tab.lead.font() == typography.font(typography.Role.HEADING_2)
+    assert tab.lead.font() == typography.font(typography.Role.HEADING_2, primary=True)
     assert ">Mark McElroy</a>" in tab.headline_source.text()
     assert tab.headline_source.toolTip() == "A Guide to Tarot Card Meanings"
     # Muted, as the source line is in a passage's frame

@@ -45,15 +45,15 @@
     </screenshot>
   </screenshots>
   <releases>
-    <!--
-    <release version="1.6.x" date="2026-10-xx" type="development">
+    <release version="1.7.0" date="2026-10-12" type="development">
       <description>
         <ul>
+          <li>Add esoterica to Library view.</li>
+          <li>Rework settings window.</li>
           <li>Use hardware acceleration to improve performance of canvas motion.</li>
         </ul>
       </description>
     </release>
-    -->
     <release version="1.6.2" date="2026-10-10" type="stable">
       <description>
         <p>Features</p>
@@ -90,46 +90,6 @@
           <li>Added most recent notes to the card overview.</li>
           <li>Reworked Notes tab to be more intuitive.</li>
           <li>Added a Notes section to the library to show notes for all cards.</li>
-        </ul>
-      </description>
-    </release>
-    <release version="1.5.0" date="2026-09-14" type="stable">
-      <description>
-        <p>Major new features include:</p>
-        <ul>
-          <li>Overhauled card animations and movement in the Canvas View. (juicy!)</li>
-          <li>Add catalog to download all of Arcana Land's tarot decks to your library.</li>
-          <li>Allow copy-paste from a card tab to an open canvas.</li>
-          <li>New full-screen mode for a card tab.</li>
-          <li>Add shortcuts to cycle through cards and decks in the Card View.</li>
-          <li>Added a "What's New" section to the About window.</li>
-        </ul>
-        <p>Quality-of-life features and bug fixes:</p>
-        <ul>
-          <li>Add ability to drag-and-drop cards to a canvas from the Card Explorer.</li>
-          <li>Fixed a bug that broke the command palette shortcut (Ctrl+P).</li>
-          <li>Add icons to all buttons and menu items.</li>
-        </ul>
-      </description>
-    </release>
-    <release version="1.4.1" date="2026-09-09" type="stable">
-      <description>
-        <ul>
-          <li>Add zoom for images in card view.</li>
-          <li>Initial support for custom esoterica with instructions.</li>
-          <li>Experimental partial support for decks packaged in new v2 format.</li>
-        </ul>
-      </description>
-    </release>
-    <release version="1.4.0" date="2026-09-06" type="stable">
-      <description>
-        <p>Redesigned the Library View and Deck View.</p>
-        <ul>
-          <li>Reworked Library View to follow KDE's Human Interface Guidelines.</li>
-          <li>Reworked the deck metadata panel in the Deck View.</li>
-          <li>Added instructions for adding custom decks and esoterica.</li>
-          <li>Added a "New Tab" button to the tab bar.</li>
-          <li>Middle-clicking a tab now closes it.</li>
         </ul>
       </description>
     </release>

@@ -181,9 +181,9 @@ def lead_of(reading, roles=LEAD_ROLES):
 
 
 def lead_row(entries):
-    """A lead's values on one line, as a heading"""
+    """A lead's values on one line, as a bold heading"""
     label = line_row(tuple(entry.value for entry in entries))
-    return typography.apply(label, typography.Role.HEADING_2)
+    return typography.apply(label, typography.Role.HEADING_2, primary=True)
 
 
 def list_row(value):
