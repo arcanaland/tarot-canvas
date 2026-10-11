@@ -22,12 +22,12 @@ from PyQt6.QtWidgets import (
 
 from tarot_canvas.models import notes as notes_model
 from tarot_canvas.models.note_events import note_events
+from tarot_canvas.ui import typography
 from tarot_canvas.ui.activate_on_return import activate_on_return
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.note_row_delegate import NoteRowDelegate
 from tarot_canvas.ui.library.notes_model import NoteRole, NotesListModel
 from tarot_canvas.ui.notes_text import text
-from tarot_canvas.ui.tabs.card_view.headings import SECTION_SCALE, apply_heading
 from tarot_canvas.ui.tabs.card_view.markdown_editor import MarkdownEditor
 from tarot_canvas.ui.tabs.card_view.notes_list import NotesEmptyPage, NotesListPage
 from tarot_canvas.ui.widgets.inline_message import InlineMessage
@@ -188,7 +188,7 @@ class NotesTab(QWidget):
         self.note_title = QLineEdit()
         self.note_title.setFrame(False)
         self.note_title.setPlaceholderText(text("name_placeholder"))
-        apply_heading(self.note_title, SECTION_SCALE)
+        typography.apply(self.note_title, typography.Role.HEADING_2)
         self.note_title.editingFinished.connect(self.apply_title_edit)
         header_layout.addWidget(self.note_title)
 

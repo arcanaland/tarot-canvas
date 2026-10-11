@@ -6,7 +6,7 @@ import html
 from importlib.resources import files
 
 from PyQt6.QtCore import QDate, QEvent, Qt, QUrl
-from PyQt6.QtGui import QDesktopServices, QFont, QIcon, QPalette
+from PyQt6.QtGui import QDesktopServices, QIcon, QPalette
 from PyQt6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -22,6 +22,7 @@ from PyQt6.QtWidgets import (
 )
 
 from tarot_canvas.about import AboutData, Person, Release, load_about_data
+from tarot_canvas.ui import typography
 from tarot_canvas.utils.dates import relative_date_from_iso
 
 ICON_PATH = files("tarot_canvas.resources.icons").joinpath("icon.png")
@@ -108,16 +109,11 @@ class AboutDialog(QDialog):
         text.setSpacing(0)
         text.addStretch()
 
-        name_label = QLabel(self.about.name)
-        name_font = QFont(name_label.font())
-        name_font.setPointSizeF(name_font.pointSizeF() * 1.9)
-        name_label.setFont(name_font)
+        name_label = typography.apply(QLabel(self.about.name), typography.Role.HEADING_1)
         text.addWidget(name_label)
 
         self.version_label = QLabel(f"Version {self.about.version}")
-        version_font = QFont(self.version_label.font())
-        version_font.setPointSizeF(version_font.pointSizeF() * 1.2)
-        self.version_label.setFont(version_font)
+        typography.apply(self.version_label, typography.Role.HEADING_2)
         self.version_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         text.addWidget(self.version_label)
         text.addStretch()
@@ -210,10 +206,7 @@ class AboutDialog(QDialog):
         text = QVBoxLayout()
         text.setSpacing(0)
 
-        title_label = QLabel(title)
-        title_font = QFont(title_label.font())
-        title_font.setBold(True)
-        title_label.setFont(title_font)
+        title_label = typography.apply(QLabel(title), typography.Role.HEADING_4)
         text.addWidget(title_label)
 
         subtitle_label = self._body_label(subtitle)

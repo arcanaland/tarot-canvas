@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
 
 from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.models.reference_deck import ReferenceDeck
+from tarot_canvas.ui import typography
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.utils.bundle_name import set_bundle_name
 from tarot_canvas.utils.logger import logger
@@ -60,7 +61,7 @@ class SetupDialog(QDialog):
 
         # Add welcome message
         welcome_label = QLabel("Welcome to Tarot Canvas!")
-        welcome_label.setStyleSheet("font-size: 16pt; font-weight: bold;")
+        typography.apply(welcome_label, typography.Role.HEADING_1)
         welcome_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(welcome_label)
 
@@ -143,6 +144,7 @@ def main():
     app.setApplicationDisplayName("Tarot Canvas")
     app.setDesktopFileName(os.environ.get("FLATPAK_ID", "land.arcana.TarotCanvas"))
     app.setWindowIcon(QIcon(str(files("tarot_canvas.resources.icons").joinpath("icon.png"))))
+    typography.install(app)
 
     # Initialize and apply theme
     logger.info("Initializing theme manager")

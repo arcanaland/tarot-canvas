@@ -2,6 +2,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import QFrame, QLabel, QVBoxLayout
 
+from tarot_canvas.ui import typography
 from tarot_canvas.utils.logger import logger
 
 
@@ -41,7 +42,7 @@ class CardPreviewWidget(QFrame):
         # Card name
         self.name_label = QLabel()
         self.name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.name_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        typography.apply(self.name_label, typography.Role.HEADING_4, primary=True)
         layout.addWidget(self.name_label)
 
         # Card suit/type

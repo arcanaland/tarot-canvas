@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from tarot_canvas.ui import typography
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.cover_cache import CoverCache
 from tarot_canvas.ui.library.deck_downloads import DeckState
@@ -42,9 +43,6 @@ class DeckDetailsPane(QWidget):
     download_requested = pyqtSignal(object)  # the CatalogEntry
     cancel_requested = pyqtSignal(str)  # the entry's slug
 
-    HEADING_SCALE = 1.4
-    CAPTION_SCALE = 0.85
-
     def __init__(self, parent=None):
         super().__init__(parent)
         self._details = None
@@ -53,10 +51,7 @@ class DeckDetailsPane(QWidget):
         self.progress_bar = None
         self.failure_label = None
 
-        self.heading_label = pane_text()
-        self.heading_label.setFont(
-            units.scaled_font(self.heading_label.font(), self.HEADING_SCALE, bold=True)
-        )
+        self.heading_label = typography.apply(pane_text(), typography.Role.HEADING_1, primary=True)
         self.artist_label = pane_text()
         self.header = _Header(self.heading_label, self.artist_label)
 
@@ -71,10 +66,7 @@ class DeckDetailsPane(QWidget):
         self.form.addRow("Cards:", self.card_count_label)
 
         self.description_label = pane_text()
-        self.attribution_label = pane_text()
-        self.attribution_label.setFont(
-            units.scaled_font(self.attribution_label.font(), self.CAPTION_SCALE)
-        )
+        self.attribution_label = typography.apply(pane_text(), typography.Role.SMALL)
         self.attribution_label.setForegroundRole(QPalette.ColorRole.PlaceholderText)
 
         margin = units.GRID_UNIT

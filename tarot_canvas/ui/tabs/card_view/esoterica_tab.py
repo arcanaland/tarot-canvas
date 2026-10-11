@@ -29,12 +29,12 @@ from tarot_canvas.settings import (
     set_esoterica_expanded,
     set_esoterica_hidden,
 )
+from tarot_canvas.ui import typography
 from tarot_canvas.ui.esoterica_text import label_for
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.palette import muted_text, subtle_fill, with_text_colour
 from tarot_canvas.ui.tabs.card_view.fold import Fold
 from tarot_canvas.ui.tabs.card_view.ghost_passages import GhostPassages
-from tarot_canvas.ui.tabs.card_view.headings import SECTION_SCALE, SUBTITLE_SCALE, apply_heading
 from tarot_canvas.ui.tabs.card_view.passage_metrics import (
     BODY_LINE_HEIGHT,
     FOLD_INDENT,
@@ -181,10 +181,9 @@ def lead_of(reading, roles=LEAD_ROLES):
 
 
 def lead_row(entries):
-    """A lead's values on one line, bold, at SECTION_SCALE"""
+    """A lead's values on one line, as a heading"""
     label = line_row(tuple(entry.value for entry in entries))
-    label.setFont(units.scaled_font(label.font(), SECTION_SCALE, bold=True))
-    return label
+    return typography.apply(label, typography.Role.HEADING_2)
 
 
 def list_row(value):
@@ -345,7 +344,7 @@ class PassageWidget(QFrame):
         self.source = Byline(label_for("joiner").join(credit))
         self.source.setTextFormat(Qt.TextFormat.PlainText)
         self.source.setWordWrap(True)
-        self.source.setFont(units.scaled_font(self.source.font(), SUBTITLE_SCALE))
+        typography.apply(self.source, typography.Role.SMALL)
         # Beside it, an icon when the source wrote this card's text at another ID
         self.reseated = QLabel()
         self.reseated.setObjectName("reseated")
@@ -376,7 +375,8 @@ class PassageWidget(QFrame):
         label = QLabel(text)
         label.setTextFormat(Qt.TextFormat.PlainText)
         label.setWordWrap(True)
-        apply_heading(label, SUBTITLE_SCALE)
+        # Small caption-headings: at Normal weight they would read as body text
+        typography.apply(label, typography.Role.SMALL, primary=True)
         self.headings.append(label)
         return label
 
@@ -418,7 +418,7 @@ class PassageWidget(QFrame):
     def _fold(self, fold_id, text, body, count):
         """A family's or group's rows under a header that opens and closes them"""
         fold = Fold(_counted(text, count), body, fold_id in self.expanded)
-        apply_heading(fold.header, SUBTITLE_SCALE)
+        typography.apply(fold.header, typography.Role.SMALL, primary=True)
         fold.toggled.connect(lambda expanded: self.fold_toggled.emit(fold_id, expanded))
         self.folds.setdefault(fold_id, []).append(fold)
         return fold
@@ -578,7 +578,7 @@ class EsotericaTab(QWidget):
             )
             header_layout.addWidget(self.header_icon)
 
-        self.header_label = apply_heading(QLabel(PLACEHOLDER_HEADING), SECTION_SCALE)
+        self.header_label = typography.apply(QLabel(PLACEHOLDER_HEADING), typography.Role.HEADING_2)
         header_layout.addWidget(self.header_label)
         header_layout.addStretch()
         self.help_button = ContextualHelpButton(

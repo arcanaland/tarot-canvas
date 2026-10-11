@@ -2,13 +2,14 @@ from dataclasses import dataclass
 from importlib.resources import files
 
 from PyQt6.QtCore import QEvent, QPoint, QRect, QSize, Qt
-from PyQt6.QtGui import QColor, QFontMetrics, QIcon, QPalette
+from PyQt6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPalette
 from PyQt6.QtWidgets import QStyle, QStyledItemDelegate, QStyleOptionViewItem, QToolTip
 
+from tarot_canvas.ui import typography
 from tarot_canvas.ui.esoterica_text import label_for
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.coverage_strip import minimum_width, paint_coverage_strip
-from tarot_canvas.ui.library.deck_delegate import SELECTED_SUBTITLE_ALPHA, SUBTITLE_SCALE
+from tarot_canvas.ui.library.deck_delegate import SELECTED_SUBTITLE_ALPHA
 from tarot_canvas.ui.library.deck_model import SubtitleRole
 from tarot_canvas.ui.library.esoterica_list_model import (
     CountRole,
@@ -59,12 +60,17 @@ class SourceRowLayout:
     checkbox: QRect  # null without one
 
 
+def section_font():
+    font = typography.font(typography.Role.SMALL)
+    font.setBold(True)
+    return font
+
+
 class SourceRowDelegate(QStyledItemDelegate):
     def _fonts(self, option, selected):
-        return (
-            units.scaled_font(option.font, bold=selected),
-            units.scaled_font(option.font, SUBTITLE_SCALE, bold=False),
-        )
+        title = QFont(option.font)
+        title.setBold(selected)
+        return title, typography.font(typography.Role.SMALL)
 
     def _line_heights(self, option):
         title, small = self._fonts(option, False)
@@ -73,7 +79,7 @@ class SourceRowDelegate(QStyledItemDelegate):
     def sizeHint(self, option, index):
         if index.data(KindRole) == RowKind.SECTION:
             # One line of the heading, a gap above it to part it from the section before
-            font = units.scaled_font(option.font, SUBTITLE_SCALE, bold=True)
+            font = section_font()
             height = QFontMetrics(font).height() + units.LARGE_SPACING + units.SMALL_SPACING
             return QSize(units.GRID_UNIT, height)
         title_height, small_height = self._line_heights(option)
@@ -187,7 +193,7 @@ class SourceRowDelegate(QStyledItemDelegate):
 
     def _paint_section(self, painter, option, index):
         painter.save()
-        font = units.scaled_font(option.font, SUBTITLE_SCALE, bold=True)
+        font = section_font()
         rect = option.rect.adjusted(units.LARGE_SPACING, 0, -units.LARGE_SPACING, 0)
         _draw(
             painter,

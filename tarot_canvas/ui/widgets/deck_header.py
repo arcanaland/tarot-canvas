@@ -20,6 +20,7 @@ from tarot_canvas.settings import (
     DECK_HEADER_EXPANDED_KEY,
     get_settings,
 )
+from tarot_canvas.ui import typography
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.cover_cache import CoverCache
 from tarot_canvas.ui.library.deck_model import deck_cover_path
@@ -33,9 +34,6 @@ from tarot_canvas.ui.widgets.cover_banner import (
 )
 from tarot_canvas.ui.widgets.tag_chips import TagChips, normalized_tags
 from tarot_canvas.utils.dates import format_date
-
-TITLE_SCALE = 1.3
-SUBTITLE_SCALE = 0.85
 
 MEASURE_CHARACTERS = 85
 
@@ -241,7 +239,6 @@ class DeckHeader(QWidget):
             self.cover_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
     def _build_text_column(self):
-        base = QApplication.font()
         column = QVBoxLayout()
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(0)
@@ -250,7 +247,7 @@ class DeckHeader(QWidget):
         title_row.setSpacing(units.LARGE_SPACING)
 
         self.title_label = QLabel(self.deck.get_name())
-        self.title_label.setFont(units.scaled_font(base, TITLE_SCALE, bold=True))
+        typography.apply(self.title_label, typography.Role.HEADING_1, primary=True)
         self.title_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         title_row.addWidget(self.title_label)
         title_row.addStretch()
@@ -269,7 +266,7 @@ class DeckHeader(QWidget):
         column.addLayout(title_row)
 
         self.subtitle_label = QLabel(self.subtitle_text())
-        self.subtitle_label.setFont(units.scaled_font(base, SUBTITLE_SCALE))
+        typography.apply(self.subtitle_label, typography.Role.SMALL)
         self.subtitle_label.setForegroundRole(QPalette.ColorRole.PlaceholderText)
         self.subtitle_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         column.addWidget(self.subtitle_label)

@@ -37,6 +37,7 @@ from tarot_canvas.settings import (
     get_motion_level,
     get_settings,
 )
+from tarot_canvas.ui import typography
 
 # Import the refactored components
 from tarot_canvas.ui.canvas import (
@@ -566,7 +567,8 @@ class CanvasTab(BaseTab):
         """Create a section label for the toolbar"""
         label = QLabel(text)
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        label.setStyleSheet("color: #888; font-size: 11px; margin-top: 5px; margin-bottom: 2px;")
+        label.setStyleSheet("color: #888; margin-top: 5px; margin-bottom: 2px;")
+        typography.apply(label, typography.Role.SMALL)
         return label
 
     def on_draw_card(self):

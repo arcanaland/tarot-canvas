@@ -1,6 +1,5 @@
 from PyQt6.QtCore import QEvent, QPointF, QRect, Qt
 from PyQt6.QtGui import (
-    QFont,
     QGuiApplication,
     QIcon,
     QIconEngine,
@@ -11,12 +10,11 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtWidgets import QLabel, QPushButton, QSizePolicy, QStyle, QVBoxLayout, QWidget
 
+from tarot_canvas.ui import typography
 from tarot_canvas.ui.palette import muted_text, with_text_colour
 
 # Kirigami's iconSizes.huge * 1.5 (PlaceholderMessage.qml:198)
 ICON_SIZE = 96
-HEADING_SCALE = 1.35
-FOOTNOTE_SCALE = 0.85
 EXPLANATION_WIDTH_EMS = 32
 
 
@@ -82,15 +80,6 @@ def _layout_spacing(style):
             QSizePolicy.ControlType.Label, QSizePolicy.ControlType.Label, Qt.Orientation.Vertical
         )
     return max(spacing, 0)
-
-
-def _scaled(font, scale):
-    font = QFont(font)
-    if font.pointSizeF() > 0:
-        font.setPointSizeF(font.pointSizeF() * scale)
-    else:
-        font.setPixelSize(round(font.pixelSize() * scale))
-    return font
 
 
 class TintedIcon(QWidget):
@@ -186,10 +175,8 @@ class PlaceholderMessage(QWidget):
         return (self.heading, self.explanation, self.footnote)
 
     def _apply_fonts(self):
-        heading = _scaled(self.font(), HEADING_SCALE)
-        heading.setBold(False)
-        self.heading.setFont(heading)
-        self.footnote.setFont(_scaled(self.font(), FOOTNOTE_SCALE))
+        typography.apply(self.heading, typography.Role.HEADING_1)
+        typography.apply(self.footnote, typography.Role.SMALL)
 
         # One column width for every label
         em = self.explanation.fontMetrics().horizontalAdvance("M")

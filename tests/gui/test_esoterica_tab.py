@@ -24,7 +24,7 @@ from tarot_canvas.models.esoterica_registry import (
     role_of,
 )
 from tarot_canvas.settings import set_esoterica_disabled, set_esoterica_expanded
-from tarot_canvas.ui import esoterica_text
+from tarot_canvas.ui import esoterica_text, typography
 from tarot_canvas.ui.palette import muted_text
 from tarot_canvas.ui.tabs.card_view import esoterica_tab
 from tarot_canvas.ui.tabs.card_view.esoterica_tab import (
@@ -388,7 +388,7 @@ def test_with_every_label_empty_only_the_keywords_show_and_they_lead(qtbot, stub
     (frame,) = tab.passage_widgets
     assert labels(frame) == ["The Queen's Book · A. Writer", "intuition · care"]
     assert frame.lead.text() == "intuition · care"
-    assert frame.lead.font().bold()
+    assert frame.lead.font() == typography.font(typography.Role.HEADING_2)
     assert frame.headings == []
 
 
@@ -420,19 +420,20 @@ def test_the_epithet_leads_and_the_keywords_follow_as_body_text(qtbot, theme_pal
 
     assert labels(widget)[:3] == ["The Queen's Book · A. Writer", "The Dreamer", "intuition · care"]
     assert widget.lead.text() == "The Dreamer"
-    assert widget.lead.font().bold()
+    assert widget.lead.font() == typography.font(typography.Role.HEADING_2)
     assert text_colour(widget.lead) != muted_text(theme_palette)
     (keywords,) = (
         label for label in widget.findChildren(QLabel) if label.text() == "intuition · care"
     )
-    assert not keywords.font().bold()
+    assert keywords.font() == widget.font()
 
 
-def test_the_lead_is_the_frames_only_bold_text(qtbot):
+def test_the_lead_is_the_frames_only_heading(qtbot):
     reading = many_rows(entries=(entry("x_subtitle", "The Dreamer"),))
     widget = make_widget(qtbot, reading)
+    heading = typography.font(typography.Role.HEADING_2)
 
-    assert [label.text() for label in widget.findChildren(QLabel) if label.font().bold()] == [
+    assert [label.text() for label in widget.findChildren(QLabel) if label.font() == heading] == [
         "The Dreamer"
     ]
 
@@ -445,7 +446,7 @@ def test_a_label_is_muted_and_follows_the_palette(qtbot, label, theme_palette):
 
     widget.setPalette(theme_palette)
 
-    assert heading.font().bold()
+    assert heading.font() == typography.font(typography.Role.SMALL, primary=True)
     assert heading.font().pointSizeF() < plain_size
     assert text_colour(heading) == muted_text(theme_palette)
 

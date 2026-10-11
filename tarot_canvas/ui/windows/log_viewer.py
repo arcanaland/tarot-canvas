@@ -3,7 +3,7 @@ import logging
 from typing import ClassVar
 
 from PyQt6.QtCore import pyqtSlot
-from PyQt6.QtGui import QColor, QFont, QIcon, QPalette, QTextCursor
+from PyQt6.QtGui import QColor, QIcon, QPalette, QTextCursor
 from PyQt6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
+from tarot_canvas.ui import typography
 from tarot_canvas.utils.logger import TarotLogger
 from tarot_canvas.utils.theme_manager import ThemeManager, ThemeType
 
@@ -156,7 +157,7 @@ class LogViewerDialog(QDialog):
         # Log display
         self.log_display = QTextEdit()
         self.log_display.setReadOnly(True)
-        self.log_display.setFont(QFont("Monospace", 9))
+        typography.apply(self.log_display, typography.Role.BODY, fixed=True)
 
         # Set background color based on theme
         self.apply_textbox_theme()
