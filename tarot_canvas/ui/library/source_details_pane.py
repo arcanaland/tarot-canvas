@@ -38,6 +38,7 @@ from tarot_canvas.ui.library.esoterica_list_model import (
 )
 from tarot_canvas.ui.library.pane_text import pane_form, pane_text
 from tarot_canvas.ui.license_names import license_name
+from tarot_canvas.ui.widgets.deck_header import is_link, link_html
 
 # ESOTERICA §4.1.4's registry; any other relation heads the work group as no relation does
 RELATIONS = frozenset({"transcribes", "abridges", "annotates"})
@@ -503,7 +504,7 @@ class SourceDetailsPane(QWidget):
         self._set_row(self.work_form, self.work_author_label, details.work_author)
         self._set_row(self.work_form, self.work_published_label, details.work_published)
         self._set_row(self.work_form, self.work_isbn_label, details.work_isbn)
-        self._set_row(self.work_form, self.work_url_label, details.work_url)
+        self._set_link_row(self.work_form, self.work_url_label, details.work_url)
 
         if previous is None or previous.key != details.key:
             self.scroll_area.verticalScrollBar().setValue(0)
@@ -512,6 +513,19 @@ class SourceDetailsPane(QWidget):
     def _set_text(label, text):
         label.setText(text or "")
         label.setVisible(text is not None)
+
+    @classmethod
+    def _set_link_row(cls, form, label, url):
+        """A URL's row: a link, as the deck header shows one, if it is http or https"""
+        linked = url is not None and is_link(url)
+        label.setTextFormat(Qt.TextFormat.RichText if linked else Qt.TextFormat.PlainText)
+        label.setOpenExternalLinks(linked)
+        label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextBrowserInteraction
+            if linked
+            else Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        cls._set_row(form, label, link_html(None, [url]) if linked else url)
 
     @staticmethod
     def _set_row(form, label, text):

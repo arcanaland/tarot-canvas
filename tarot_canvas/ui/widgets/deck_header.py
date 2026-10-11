@@ -127,7 +127,7 @@ def wrapped_height(text, font, width):
     return bounds.height()
 
 
-def _is_link(value):
+def is_link(value):
     return value.startswith("http://") or value.startswith("https://")
 
 
@@ -142,7 +142,7 @@ def deck_links(fields):
         if not isinstance(entry, dict):
             continue
         rel, url, title = entry.get("rel"), entry.get("url"), entry.get("title")
-        if not isinstance(rel, str) or not isinstance(url, str) or not _is_link(url.strip()):
+        if not isinstance(rel, str) or not isinstance(url, str) or not is_link(url.strip()):
             continue
         title = title.strip() if isinstance(title, str) else ""
         links.append((rel, url.strip(), title or None))
@@ -318,7 +318,7 @@ class DeckHeader(QWidget):
                 field.setText(link_html(format_value(fields.get(key)), urls))
                 field.setOpenExternalLinks(True)
                 field.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
-            elif key == "website" and _is_link(value):
+            elif key == "website" and is_link(value):
                 field.setText(f'<a href="{value}">{value}</a>')
                 field.setOpenExternalLinks(True)
                 field.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)

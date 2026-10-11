@@ -348,6 +348,7 @@ name = "A Book"
 author = "The Book's Author"
 published_date = "1980"
 isbn = "0-00-000000-0"
+url = "https://example.com/a-book?x=1&y=2"
 """
 
 
@@ -372,6 +373,34 @@ def test_the_works_author_appears_only_in_the_work_group(qtbot, roots):
     assert pane.work_author_label.text() == "The Book's Author"
     assert pane.work_name_label.text() == "A Book"
     assert "The Book's Author" not in pane_texts(pane, exclude=pane.work_group)
+
+
+def test_the_works_url_is_a_link(qtbot, roots):
+    write(roots[0], "notes.toml", ANNOTATES + FOOL, identifier="me/notes")
+    page = EsotericaPage(EsotericaManager(roots))
+    qtbot.addWidget(page)
+    label = page.details_pane.work_url_label
+
+    page.select("me/notes")
+
+    assert label.openExternalLinks()
+    assert label.text() == (
+        '<a href="https://example.com/a-book?x=1&amp;y=2">example.com/a-book?x=1&amp;y=2</a>'
+    )
+
+
+def test_a_works_url_that_is_not_http_stays_plain_text(qtbot, roots):
+    source = ANNOTATES.replace("https://example.com/a-book?x=1&y=2", "<b>ftp://a.book</b>")
+    write(roots[0], "notes.toml", source + FOOL, identifier="me/notes")
+    page = EsotericaPage(EsotericaManager(roots))
+    qtbot.addWidget(page)
+    label = page.details_pane.work_url_label
+
+    page.select("me/notes")
+
+    assert label.textFormat() == Qt.TextFormat.PlainText
+    assert not label.openExternalLinks()
+    assert label.text() == "<b>ftp://a.book</b>"
 
 
 def test_a_source_with_no_work_has_no_work_group(page):

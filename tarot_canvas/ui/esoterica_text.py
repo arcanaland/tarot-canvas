@@ -102,7 +102,7 @@ ESOTERICA_TEXT = {
     # The grid's first row, as the deck view and the card explorer head the majors
     "library.coverage.major": "Major Arcana",
     # The work group's heading when the source names its relation to the work
-    "library.relation.transcribes": "Transcribe",
+    "library.relation.transcribes": "Transcription of",
     "library.relation.abridges": "Abridges",
     "library.relation.annotates": "Annotates",
     "library.form.work_name": "Title:",

@@ -9,15 +9,21 @@ author = "Mark McElroy"
 relation = "transcribes"
 related = [{ rel = "pattern", target = "land.arcana/pattern/rider-waite-smith" }]
 license = "LicenseRef-McElroy-Uncopyright"
-version = "1.1"
-citation = "McElroy, Mark. 2014. A Guide to Tarot Card Meanings. Version 1.0. http://www.TarotTools.com."
+version = "1.2"
+citation = """
+McElroy, Mark. 2014. A Guide to Tarot Card Meanings. Based on material previously published as The Absolute Beginner’s Guide to Tarot (Que Books). http://www.TarotTools.com."""
 default_language = "en"
 attribution = "Divinatory Meanings by Mark McElroy (http://www.TarotTools.com)"
 redistribution = "full"
 derivation = "full"
 
 [meta.work]
-published_date = "2014-08"
+name = "Absolute Beginner’s Guide to Tarot"
+type = "book"
+publisher = "Que"
+published_date = "2006"
+isbn = "978-0-7897-3515-7"
+url = "https://www.informit.com/store/absolute-beginners-guide-to-tarot-9780789735157"
 
 [card."major_arcana.00".passages]
 keywords = ["freedom", "faith", "inexperience", "innocence"]
