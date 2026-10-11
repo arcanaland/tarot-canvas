@@ -5,7 +5,6 @@ from dataclasses import replace
 from PyQt6.QtCore import QLocale, QPoint, QRect, QRectF, QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPalette
 from PyQt6.QtWidgets import (
-    QFormLayout,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -22,6 +21,8 @@ from tarot_canvas.ui.library.cover_cache import CoverCache
 from tarot_canvas.ui.library.deck_downloads import DeckState
 from tarot_canvas.ui.library.download_text import failure_text
 from tarot_canvas.ui.library.ghost_paint import paint_placeholder_well
+from tarot_canvas.ui.library.pane_text import pane_form, pane_text
+from tarot_canvas.ui.license_names import license_name
 from tarot_canvas.ui.widgets.cover_banner import (
     BANNER_PADDING,
     BANNER_SUBTEXT,
@@ -30,6 +31,10 @@ from tarot_canvas.ui.widgets.cover_banner import (
     is_readable_cover,
     set_banner_text,
 )
+
+# Form labels the esoterica view's pane shares
+VERSION_LABEL = "Version:"
+LICENSE_LABEL = "License:"
 
 
 class DeckDetailsPane(QWidget):
@@ -48,25 +53,25 @@ class DeckDetailsPane(QWidget):
         self.progress_bar = None
         self.failure_label = None
 
-        self.heading_label = _index_text()
+        self.heading_label = pane_text()
         self.heading_label.setFont(
             units.scaled_font(self.heading_label.font(), self.HEADING_SCALE, bold=True)
         )
-        self.artist_label = _index_text()
+        self.artist_label = pane_text()
         self.header = _Header(self.heading_label, self.artist_label)
 
-        self.version_label = _index_text()
-        self.size_label = _index_text()
-        self.license_label = _index_text()
-        self.card_count_label = _index_text()
-        self.form = QFormLayout()
-        self.form.addRow("Version:", self.version_label)
+        self.version_label = pane_text()
+        self.size_label = pane_text()
+        self.license_label = pane_text()
+        self.card_count_label = pane_text()
+        self.form = pane_form()
+        self.form.addRow(VERSION_LABEL, self.version_label)
         self.form.addRow("Size:", self.size_label)
-        self.form.addRow("License:", self.license_label)
+        self.form.addRow(LICENSE_LABEL, self.license_label)
         self.form.addRow("Cards:", self.card_count_label)
 
-        self.description_label = _index_text()
-        self.attribution_label = _index_text()
+        self.description_label = pane_text()
+        self.attribution_label = pane_text()
         self.attribution_label.setFont(
             units.scaled_font(self.attribution_label.font(), self.CAPTION_SCALE)
         )
@@ -123,7 +128,7 @@ class DeckDetailsPane(QWidget):
         self._set_row(self.version_label, details.version)
         size = None if details.size is None else QLocale().formattedDataSize(details.size)
         self._set_row(self.size_label, size)
-        self._set_row(self.license_label, details.license)
+        self._set_row(self.license_label, license_name(details.license))
         count = None if details.card_count is None else QLocale().toString(details.card_count)
         self._set_row(self.card_count_label, count)
         self._set_text(self.description_label, details.description)
@@ -205,7 +210,7 @@ class DeckDetailsPane(QWidget):
         extent = self.style().pixelMetric(QStyle.PixelMetric.PM_ToolBarIconSize)
         icon_label.setPixmap(QIcon.fromTheme("dialog-error").pixmap(QSize(extent, extent)))
         icon_label.setAlignment(Qt.AlignmentFlag.AlignTop)
-        self.failure_label = _index_text(failure_text(details.failure))
+        self.failure_label = pane_text(failure_text(details.failure))
         inner = QHBoxLayout(message)
         inner.setSpacing(units.LARGE_SPACING)
         inner.addWidget(icon_label)
@@ -244,15 +249,6 @@ def _action_key(details):
 
 def _percent(progress):
     return round((progress or 0.0) * 100)
-
-
-def _index_text(text=""):
-    label = QLabel(text)
-    # deck.toml and the index are someone else's text
-    label.setTextFormat(Qt.TextFormat.PlainText)
-    label.setWordWrap(True)
-    label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-    return label
 
 
 def _button(text, icon_name, slot):

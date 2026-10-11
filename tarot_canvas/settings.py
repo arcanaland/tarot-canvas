@@ -63,10 +63,15 @@ SHOW_AVAILABLE_DECKS_DEFAULT = True
 LIBRARY_DETAILS_PANE_KEY = "library/details_pane"
 LIBRARY_DETAILS_PANE_DEFAULT = True
 
+# The share of the Library's height a details pane below its list takes, as the user left it
+LIBRARY_DETAILS_BELOW_SHARE_KEY = "library/details_below_share"
+LIBRARY_DETAILS_BELOW_SHARE_DEFAULT = 0.6
+
 LIBRARY_VIEW_KEY = "library/view"
 LIBRARY_VIEW_DECKS = "decks"
 LIBRARY_VIEW_NOTES = "notes"
-LIBRARY_VIEWS = (LIBRARY_VIEW_DECKS, LIBRARY_VIEW_NOTES)
+LIBRARY_VIEW_ESOTERICA = "esoterica"
+LIBRARY_VIEWS = (LIBRARY_VIEW_DECKS, LIBRARY_VIEW_NOTES, LIBRARY_VIEW_ESOTERICA)
 LIBRARY_VIEW_DEFAULT = LIBRARY_VIEW_DECKS
 
 # Lists of family ids; an id this version doesn't know matches nothing and is kept

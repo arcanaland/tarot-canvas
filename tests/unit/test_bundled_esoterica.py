@@ -13,8 +13,8 @@ IDENTIFIER = "land.arcana/esoterica/mcelroy-a-guide-to-tarot-card-meanings-2014"
 
 # From the release's SHA256SUMS. A new release means updating these by hand.
 PINNED_SHA256 = {
-    SOURCE_FILE: "82c6bb8f5ce5ebdbcbb13719863f326b3081bd8c8e867d5e58b81c33f874ccaa",
-    "PROVENANCE.toml": "4c921dddc596ef0349de2fc9c8dbd8282ebb413094cb2602794a19814b446e03",
+    SOURCE_FILE: "5db0519a3d737a97ea4f1ce17e50ab082d340b94d1062d11c29aa1b5fbe5d60c",
+    "PROVENANCE.toml": "c1ee15d778ec33b53645367dff0aa0a69450f16842b18bc9a9b8aea0e6ad8195",
     "LicenseRef-McElroy-Uncopyright.txt": (
         "f7f06e183c2ca43fdf4b6ad0036ed37f14cc77410a5f514e4238797cb342279e"
     ),

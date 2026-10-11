@@ -86,7 +86,7 @@ def test_it_shows_each_field(pane):
     assert pane.artist_label.text() == "Andreas"
     assert pane.version_label.text() == "2.0"
     assert pane.size_label.text() == QLocale().formattedDataSize(AVAILABLE.size)
-    assert pane.license_label.text() == "CC-BY-NC-SA-3.0"
+    assert pane.license_label.text() == "CC BY-NC-SA 3.0"
     assert pane.card_count_label.text() == QLocale().toString(78)
     assert pane.description_label.text() == "Cards under the sea"
     assert pane.attribution_label.text() == "A credit line"

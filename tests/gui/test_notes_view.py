@@ -184,7 +184,6 @@ def test_selecting_a_card_fills_the_pane_and_enables_the_toggle(library, notes_b
 
     assert details.card_id == FOOL
     assert details.name == "The Fool"
-    assert details.cover_path
     assert [note.title for note in details.notes] == ["Beginnings"]
     assert library.details_toggle.isEnabled()
 

@@ -2,7 +2,6 @@ import os
 import platform
 import random
 from functools import partial
-from typing import ClassVar
 
 from PyQt6.QtCore import QEvent, Qt, QTimer, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QKeySequence, QPixmap, QShortcut
@@ -19,6 +18,7 @@ from PyQt6.QtWidgets import (
 
 from tarot_canvas.models.deck_events import deck_events
 from tarot_canvas.models.deck_manager import deck_manager
+from tarot_canvas.ui.card_colours import card_colour
 from tarot_canvas.ui.card_transfer import copy_card_to_clipboard
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.ui.tabs.card_view.card_bar import CardBar, DeckBar
@@ -36,15 +36,6 @@ class CardViewTab(BaseTab):
     navigation_requested = pyqtSignal(str, object)
 
     # Define color mapping for card types and suits
-    COLOR_MAP: ClassVar[dict] = {
-        "major_arcana": "#916de4",  # Purple for Major Arcana
-        "wands": "#ff9800",  # Orange for Wands
-        "cups": "#2196f3",  # Blue for Cups
-        "swords": "#ffeb3b",  # Yellow for Swords
-        "pentacles": "#4caf50",  # Green for Pentacles
-        "default": "#9e9e9e",  # Gray for unknown
-    }
-
     # Smallest the image pane may become.
     MIN_IMAGE_PANE_WIDTH = 120
 
@@ -423,18 +414,7 @@ class CardViewTab(BaseTab):
 
     def get_card_color(self):
         """Get the appropriate color for this card based on its type/suit"""
-        if not self.card:
-            return self.COLOR_MAP["default"]
-
-        card_type = self.card.get("type", "")
-
-        if card_type == "major_arcana":
-            return self.COLOR_MAP["major_arcana"]
-        elif card_type == "minor_arcana":
-            suit = self.card.get("suit", "")
-            return self.COLOR_MAP.get(suit, self.COLOR_MAP["default"])
-        else:
-            return self.COLOR_MAP["default"]
+        return card_colour(self.card)
 
     def navigate_back(self):
         """Navigate back to the source tab"""

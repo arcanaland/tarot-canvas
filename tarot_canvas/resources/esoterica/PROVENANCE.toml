@@ -12,7 +12,7 @@ lines = 2658
 
 [output]
 path = "dist/mcelroy-a-guide-to-tarot-card-meanings-2014.toml"
-sha256 = "82c6bb8f5ce5ebdbcbb13719863f326b3081bd8c8e867d5e58b81c33f874ccaa"
+sha256 = "5db0519a3d737a97ea4f1ce17e50ab082d340b94d1062d11c29aa1b5fbe5d60c"
 
 [counts]
 lines = 2658

@@ -1,9 +1,11 @@
 from contextlib import contextmanager
+from importlib.resources import files
 
 from PyQt6.QtCore import QItemSelectionModel, QSize, Qt, QTimer, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QIcon, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (
     QAbstractItemView,
+    QBoxLayout,
     QComboBox,
     QFrame,
     QHBoxLayout,
@@ -25,12 +27,15 @@ from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.settings import (
     LIBRARY_DENSITY_DEFAULT,
     LIBRARY_DENSITY_KEY,
+    LIBRARY_DETAILS_BELOW_SHARE_DEFAULT,
+    LIBRARY_DETAILS_BELOW_SHARE_KEY,
     LIBRARY_DETAILS_PANE_DEFAULT,
     LIBRARY_DETAILS_PANE_KEY,
     LIBRARY_SORT_DEFAULT,
     LIBRARY_SORT_KEY,
     LIBRARY_VIEW_DECKS,
     LIBRARY_VIEW_DEFAULT,
+    LIBRARY_VIEW_ESOTERICA,
     LIBRARY_VIEW_KEY,
     LIBRARY_VIEW_NOTES,
     LIBRARY_VIEWS,
@@ -38,6 +43,7 @@ from tarot_canvas.settings import (
     record_deck_opened,
 )
 from tarot_canvas.ui.activate_on_return import activate_on_return
+from tarot_canvas.ui.esoterica_text import label_for as esoterica_text
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.catalog_client import deck_catalog
 from tarot_canvas.ui.library.deck_delegate import DeckDelegate
@@ -55,14 +61,18 @@ from tarot_canvas.ui.library.deck_model import (
     EntryRole,
 )
 from tarot_canvas.ui.library.deselect import deselect_on_empty_click_or_escape
+from tarot_canvas.ui.library.esoterica_page import EsotericaPage
 from tarot_canvas.ui.library.notes_page import NotesPage
 from tarot_canvas.ui.notes_text import text as notes_text
 from tarot_canvas.ui.tabs.base_tab import BaseTab
+from tarot_canvas.ui.widgets.placeholder_message import tinted_icon
 
-# The deck view's name. The notes view takes its own from notes_text, which is where
-# every string this view adds belongs.
+# The deck view's name. The notes and esoterica views take theirs from notes_text and
+# esoterica_text, which is where every string those views add belongs.
 DECKS_VIEW_NAME = "Decks"
 SEARCH_DECKS_PLACEHOLDER = "Search decks…"
+
+ESOTERICA_VIEW_ICON = files("tarot_canvas.resources.icons").joinpath("esoterica.svg")
 
 SORT_CHOICES = [
     ("Name", SORT_NAME),
@@ -82,7 +92,10 @@ class LibraryTab(BaseTab):
     deck_selected = pyqtSignal(object)  # Signal when a deck is selected
 
     DETAILS_PANE_MIN_WIDTH = 16 * units.GRID_UNIT
-    DETAILS_PANE_SHARE = 0.3  # of the tab's width, the first time it opens
+    DETAILS_PANE_SHARE = 0.3  # of the tab's width, the first time it opens beside
+    DETAILS_PANE_MIN_HEIGHT = 8 * units.GRID_UNIT
+    # A saved share outside this is a dragged-shut pane or a bad value, not a choice to keep
+    DETAILS_PANE_BELOW_SHARES = (0.1, 0.9)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -91,7 +104,13 @@ class LibraryTab(BaseTab):
         self._details_wanted = self.settings.value(
             LIBRARY_DETAILS_PANE_KEY, LIBRARY_DETAILS_PANE_DEFAULT, type=bool
         )
-        self._details_width = 0  # for the session, as the card view keeps its own
+        # Beside, a width for the session, as the card view keeps its own. Below, a share of
+        # the height, saved, so the reading pane is the size it was left at a window ago
+        self._details_width = 0
+        # Open when a switch landed on a view with nothing to show, so the pane closed for that
+        # alone: the next view with something reopens it
+        self._details_held = False
+        self._below_share = self._saved_below_share()
         self._programmatic = 0  # nesting depth of selection the user didn't make
         self.setup_ui()
 
@@ -131,10 +150,21 @@ class LibraryTab(BaseTab):
         self.notes_page.note_activated.connect(self.on_note_activated)
         self.notes_page.details_changed.connect(self._sync_details_toggle)
 
+        self.esoterica_page = EsotericaPage(deck=deck_manager.get_reference_deck())
+        self.esoterica_page.card_activated.connect(self.on_esoterica_card_activated)
+        self.esoterica_page.details_changed.connect(self._sync_details_toggle)
+        self.esoterica_page.details_requested.connect(self._open_esoterica_details)
+
+        # Every view but the deck grid is a list, with its pane below it
+        self.list_pages = {
+            LIBRARY_VIEW_NOTES: self.notes_page,
+            LIBRARY_VIEW_ESOTERICA: self.esoterica_page,
+        }
+
         # One page per sidebar row, in LIBRARY_VIEWS order
         self.pages = QStackedWidget()
-        self.pages.addWidget(grid)
-        self.pages.addWidget(self.notes_page)
+        for view in LIBRARY_VIEWS:
+            self.pages.addWidget(self.list_pages.get(view, grid))
 
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.splitter.addWidget(self.pages)
@@ -144,6 +174,7 @@ class LibraryTab(BaseTab):
         # The grid takes a window's growth; the pane keeps the width it was given
         self.splitter.setStretchFactor(0, 1)
         self.splitter.setStretchFactor(1, 0)
+        self.splitter.splitterMoved.connect(self._keep_details_extent)
         self.details_container.hide()
 
         # [sidebar | header over (seam | splitter)]. The sidebar and header share the window
@@ -233,10 +264,16 @@ class LibraryTab(BaseTab):
         return header
 
     def _view_rows(self):
-        """(view, name, theme icon) per sidebar row, in LIBRARY_VIEWS order"""
+        """(view, name, icon) per sidebar row, in LIBRARY_VIEWS order"""
         return [
-            (LIBRARY_VIEW_DECKS, DECKS_VIEW_NAME, "view-list-icons"),
-            (LIBRARY_VIEW_NOTES, notes_text("view_name"), "story-editor"),
+            (LIBRARY_VIEW_DECKS, DECKS_VIEW_NAME, QIcon.fromTheme("view-list-icons")),
+            (LIBRARY_VIEW_NOTES, notes_text("view_name"), QIcon.fromTheme("story-editor")),
+            # The app's own file, not a theme name
+            (
+                LIBRARY_VIEW_ESOTERICA,
+                esoterica_text("library.view_name"),
+                tinted_icon(ESOTERICA_VIEW_ICON),
+            ),
         ]
 
     def _build_sidebar(self):
@@ -250,7 +287,7 @@ class LibraryTab(BaseTab):
         self.sidebar.setSpacing(units.SMALL_SPACING // 2)
 
         for view, name, icon in self._view_rows():
-            item = QListWidgetItem(QIcon.fromTheme(icon), name)
+            item = QListWidgetItem(icon, name)
             item.setData(Qt.ItemDataRole.UserRole, view)
             self.sidebar.addItem(item)
 
@@ -312,12 +349,15 @@ class LibraryTab(BaseTab):
 
     def _build_details(self):
         self.details_container = QWidget()
-        row = QHBoxLayout(self.details_container)
+        # Left to right beside the page, top to bottom below it
+        self._details_row = row = QBoxLayout(
+            QBoxLayout.Direction.LeftToRight, self.details_container
+        )
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(0)
 
         # A line for the splitter handle to sit on, as the card view draws it
-        seam = QFrame()
+        self._details_seam = seam = QFrame()
         seam.setFrameShape(QFrame.Shape.VLine)
         seam.setFrameShadow(QFrame.Shadow.Sunken)
         row.addWidget(seam)
@@ -329,8 +369,9 @@ class LibraryTab(BaseTab):
 
         # One splitter slot, one pane per view, swapped by the switcher
         self.detail_panes = QStackedWidget()
-        self.detail_panes.addWidget(self.details_pane)
-        self.detail_panes.addWidget(self.notes_page.details_pane)
+        for view in LIBRARY_VIEWS:
+            page = self.list_pages.get(view)
+            self.detail_panes.addWidget(self.details_pane if page is None else page.details_pane)
         row.addWidget(self.detail_panes, 1)
 
         self.details_container.setMinimumWidth(self.DETAILS_PANE_MIN_WIDTH)
@@ -338,6 +379,10 @@ class LibraryTab(BaseTab):
 
     def current_details_pane(self):
         return self.detail_panes.currentWidget()
+
+    def current_list_page(self):
+        """The current view's page, or None for the deck grid"""
+        return self.list_pages.get(self.current_view())
 
     # -- settings ---------------------------------------------------------
 
@@ -384,16 +429,27 @@ class LibraryTab(BaseTab):
         self.settings.setValue(LIBRARY_VIEW_KEY, view)
 
     def _apply_view(self, view):
-        notes = view == LIBRARY_VIEW_NOTES
+        page = self.list_pages.get(view)
+        decks = page is None
+        was_open = self.details_pane_is_open() or self._details_held
         self.pages.setCurrentIndex(LIBRARY_VIEWS.index(view))
         self.detail_panes.setCurrentIndex(LIBRARY_VIEWS.index(view))
+        # One pane slot serves every view, so an open pane must not carry over to a view with
+        # nothing selected, where it would open empty
+        has_details = self.current_details_pane().details() is not None
+        self._details_held = was_open and not has_details
+        if not has_details:
+            # Before the turn, so the extent kept is the one this pane had in its own view
+            self._set_details_open(False)
+        self._orient_details(Qt.Orientation.Horizontal if decks else Qt.Orientation.Vertical)
+        if was_open and has_details:
+            self._set_details_open(True)
 
-        # Sort, cover size and Open Deck are the deck grid's; the notes list is by date
-        self.sort_combo.setVisible(not notes)
-        self.density_combo.setVisible(not notes)
-        self.open_deck_button.setVisible(not notes)
+        self.sort_combo.setVisible(decks)
+        self.density_combo.setVisible(decks)
+        self.open_deck_button.setVisible(decks)
         self.search_field.setPlaceholderText(
-            notes_text("search_placeholder") if notes else SEARCH_DECKS_PLACEHOLDER
+            SEARCH_DECKS_PLACEHOLDER if decks else page.search_placeholder()
         )
 
         # Each view searches its own content, so the field starts clean on a switch
@@ -403,22 +459,32 @@ class LibraryTab(BaseTab):
     # -- slots ------------------------------------------------------------
 
     def on_search_changed(self, text):
-        if self.current_view() == LIBRARY_VIEW_NOTES:
-            self.notes_page.set_search(text)
+        page = self.current_list_page()
+        if page is not None:
+            page.set_search(text)
             return
         self.proxy_model.setFilterFixedString(text)
         self._update_empty_state()
 
     def on_card_activated(self, card_id):
         """Open the card view for a note's card, on its Notes tab."""
+        return self._open_card_view(card_id, show_notes=True)
+
+    def on_esoterica_card_activated(self, card_id):
+        """Open the card view for a source's covered card, on its Esoterica tab."""
+        card_tab = self._open_card_view(card_id)
+        if card_tab is not None:
+            card_tab.show_esoterica_tab()
+
+    def _open_card_view(self, card_id, show_notes=False):
         deck = deck_manager.get_reference_deck()
         card = deck.get_card_by_id(card_id) if deck else None
         if card is None:
-            return
+            return None
 
         main_window = self.window()
         if hasattr(main_window, "open_card_view_tab"):
-            return main_window.open_card_view_tab(card, deck, show_notes=True)
+            return main_window.open_card_view_tab(card, deck, show_notes=show_notes)
         return None
 
     def on_note_activated(self, card_id, path):
@@ -463,6 +529,9 @@ class LibraryTab(BaseTab):
         if index.data(EntryRole) is not None:
             self._reveal_ghost(index)
 
+    def _open_esoterica_details(self):
+        self._set_details_open(True)
+
     def _reveal_ghost(self, index):
         self._show_details(index)
         self._set_details_open(True)
@@ -485,6 +554,7 @@ class LibraryTab(BaseTab):
         if want and self.current_details_pane().details() is None:
             return
         self._details_wanted = want
+        self._details_held = False
         self.settings.setValue(LIBRARY_DETAILS_PANE_KEY, want)
         self._set_details_open(want)
 
@@ -494,30 +564,96 @@ class LibraryTab(BaseTab):
 
     def _set_details_open(self, want):
         if want != self.details_pane_is_open():
-            sizes = self.splitter.sizes()
-            total = sum(sizes) or self.width()
             if want:
-                width = self._details_width or round(total * self.DETAILS_PANE_SHARE)
                 self.details_container.show()
-                self.splitter.setSizes([max(0, total - width), width])
+                self._size_details()
             else:
-                self._details_width = sizes[1] or self._details_width
+                self._keep_details_extent()
                 self.details_container.hide()
         self._sync_details_toggle()
+
+    def details_pane_is_below(self):
+        return self.splitter.orientation() == Qt.Orientation.Vertical
+
+    def _orient_details(self, orientation):
+        """Put the pane beside the page or below it, each at the size it last had"""
+        if orientation == self.splitter.orientation():
+            return
+        is_open = self.details_pane_is_open()
+        if is_open:
+            self._keep_details_extent()
+        self.splitter.setOrientation(orientation)
+        below = self.details_pane_is_below()
+        self._details_row.setDirection(
+            QBoxLayout.Direction.TopToBottom if below else QBoxLayout.Direction.LeftToRight
+        )
+        self._details_seam.setFrameShape(QFrame.Shape.HLine if below else QFrame.Shape.VLine)
+        # Below, the list and the pane share a window's growth; beside, the grid takes it all
+        self.splitter.setStretchFactor(1, 1 if below else 0)
+        if below:
+            self.details_container.setMinimumSize(0, self.DETAILS_PANE_MIN_HEIGHT)
+        else:
+            self.details_container.setMinimumSize(self.DETAILS_PANE_MIN_WIDTH, 0)
+        if is_open:
+            self._size_details()
+
+    def _keep_details_extent(self, *_moved):
+        """Remember the open pane's size: its width beside, its share of the height below"""
+        if not self.details_pane_is_open():
+            return
+        page, pane = self.splitter.sizes()
+        if not pane:
+            return
+        if not self.details_pane_is_below():
+            self._details_width = pane
+            return
+        share = pane / (page + pane)
+        low, high = self.DETAILS_PANE_BELOW_SHARES
+        if low <= share <= high and share != self._below_share:
+            self._below_share = share
+            self.settings.setValue(LIBRARY_DETAILS_BELOW_SHARE_KEY, share)
+
+    def _saved_below_share(self):
+        try:
+            share = self.settings.value(
+                LIBRARY_DETAILS_BELOW_SHARE_KEY, LIBRARY_DETAILS_BELOW_SHARE_DEFAULT, type=float
+            )
+        except TypeError:  # a value that isn't a number at all
+            return LIBRARY_DETAILS_BELOW_SHARE_DEFAULT
+        low, high = self.DETAILS_PANE_BELOW_SHARES
+        return share if low <= share <= high else LIBRARY_DETAILS_BELOW_SHARE_DEFAULT
+
+    def _size_details(self):
+        """Give the open pane its remembered size, or its share of the tab the first time"""
+        below = self.details_pane_is_below()
+        total = (self.splitter.height() if below else self.splitter.width()) - (
+            self.splitter.handleWidth()
+        )
+        if below:
+            extent = round(total * self._below_share)
+        else:
+            extent = self._details_width or round(total * self.DETAILS_PANE_SHARE)
+        self.splitter.setSizes([max(0, total - extent), extent])
 
     def _sync_details_toggle(self):
         """Keep the toggle saying what the next press will do"""
         is_open = self.details_pane_is_open()
-        notes = self.current_view() == LIBRARY_VIEW_NOTES
         # Disabled until there's something to show, so the pane never opens empty
         self.details_toggle.setEnabled(self.current_details_pane().details() is not None)
         self.details_toggle.setChecked(is_open)
-        if is_open:
-            self.details_toggle.setIcon(QIcon.fromTheme("sidebar-collapse-right"))
-            tooltip = notes_text("details_toggle_hide") if notes else "Hide deck details (Ctrl+I)"
+        if self.details_pane_is_below():
+            # Breeze has no bottom-panel pair, so the checked state says whether it's open
+            icon = "view-split-top-bottom"
         else:
-            self.details_toggle.setIcon(QIcon.fromTheme("sidebar-expand-right"))
-            tooltip = notes_text("details_toggle_show") if notes else "Show deck details (Ctrl+I)"
+            icon = "sidebar-collapse-right" if is_open else "sidebar-expand-right"
+        self.details_toggle.setIcon(QIcon.fromTheme(icon))
+        page = self.current_list_page()
+        if page is not None:
+            tooltip = page.details_toggle_tooltip(is_open)
+        elif is_open:
+            tooltip = "Hide deck details (Ctrl+I)"
+        else:
+            tooltip = "Show deck details (Ctrl+I)"
         self.details_toggle.setToolTip(tooltip)
 
     def _show_details(self, index):
