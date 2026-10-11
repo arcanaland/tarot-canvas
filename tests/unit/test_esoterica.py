@@ -2,7 +2,9 @@ import logging
 
 import pytest
 
-from tarot_canvas.models.esoterica import EsotericaManager
+from tarot_canvas.models.card_ids import CANONICAL_CARD_IDS
+from tarot_canvas.models.coverage import CellState
+from tarot_canvas.models.esoterica import EsotericaManager, NotRead, NotReadReason, coverage
 from tarot_canvas.models.esoterica_events import esoterica_events
 from tarot_canvas.settings import set_esoterica_disabled
 
@@ -335,3 +337,112 @@ def test_an_overlay_ignores_related(root, caplog):
 
     assert found == (None, frozenset())
     assert related_warnings(caplog) == []
+
+
+# What the library shows: files that weren't read, shadowed copies and coverage
+
+
+def reasons(manager):
+    return [(item.path.name, item.reason) for item in manager.not_read]
+
+
+def test_a_source_with_no_identifier_is_recorded_as_not_read(root):
+    path = write(root, "anonymous.toml", THREE_LINES, identifier=None)
+
+    (item,) = EsotericaManager([root]).not_read
+
+    assert item == NotRead(path, root, NotReadReason.NO_IDENTIFIER)
+
+
+def test_a_file_in_the_older_format_is_recorded_as_not_read(root):
+    write(root, "old.toml", '[meta]\nid = "old-notes"\n\n[passages]\ntext = "Old."\n')
+
+    assert reasons(EsotericaManager([root])) == [("old.toml", NotReadReason.OLDER_FORMAT)]
+
+
+def test_an_unsupported_schema_major_is_recorded_as_not_read(root):
+    write(root, "future.toml", '[meta]\nschema_version = "2.0"\n' + THREE_LINES)
+
+    manager = EsotericaManager([root])
+
+    assert manager.sources == {}
+    assert reasons(manager) == [("future.toml", NotReadReason.UNSUPPORTED_SCHEMA)]
+
+
+def test_a_second_file_with_an_identifier_in_the_same_root_is_recorded_as_not_read(root):
+    write(root, "a.toml", fool("First."), identifier="me/notes")
+    second = write(root, "b/notes.toml", fool("Second."), identifier="me/notes")
+
+    (item,) = EsotericaManager([root]).not_read
+
+    assert item == NotRead(second, root, NotReadReason.DUPLICATE_IN_ROOT)
+
+
+def test_a_file_that_does_not_parse_is_not_a_source_and_appears_nowhere(root):
+    (root / "broken.toml").parent.mkdir(parents=True, exist_ok=True)
+    (root / "broken.toml").write_text("this is [not toml", encoding="utf-8")
+    write(root, "unrelated.toml", '[tool]\nname = "not esoterica"\n', identifier=None)
+
+    manager = EsotericaManager([root])
+
+    assert manager.sources == {}
+    assert manager.not_read == []
+    assert manager.shadowed == {}
+
+
+def test_a_shadowed_copy_is_recorded_for_its_source_and_is_not_a_skip(roots):
+    user, _, bundled = roots
+    write(user, "mine.toml", fool("Mine."), identifier="land.arcana/book")
+    later = write(bundled, "book.toml", fool("Bundled."), identifier="land.arcana/book")
+
+    manager = EsotericaManager(roots)
+
+    assert manager.shadowed == {"land.arcana/book": [later]}
+    assert manager.not_read == []
+
+
+def test_a_reload_forgets_what_was_not_read(root):
+    path = write(root, "anonymous.toml", THREE_LINES, identifier=None)
+    manager = EsotericaManager([root])
+    path.unlink()
+
+    manager.reload()
+
+    assert manager.not_read == []
+
+
+def every_card(table):
+    return "".join(f'[card."{card_id}".passages]\n{table}\n' for card_id in CANONICAL_CARD_IDS)
+
+
+def test_a_source_with_text_on_every_card_covers_every_card(root):
+    write(root, "book.toml", every_card('text = "A passage."'), identifier="a")
+
+    source = EsotericaManager([root]).sources["a"]
+
+    assert source["coverage"] == [CellState.FILLED] * 78
+    assert coverage(source) == source["coverage"]
+
+
+def test_content_the_reader_has_no_role_for_is_faint(root):
+    write(root, "book.toml", fool("x").replace("text", "x_unregistered"), identifier="a")
+
+    states = EsotericaManager([root]).sources["a"]["coverage"]
+
+    assert states[0] == CellState.FAINT
+    assert states[1:] == [CellState.EMPTY] * 77
+
+
+def test_text_on_groups_alone_covers_no_card(root):
+    groups = '[group.suits.wands.passages]\ntext = "Fire."\n[group.all.passages]\ntext = "All."\n'
+    write(root, "book.toml", '[card."major_arcana.00"]\n' + groups, identifier="a")
+
+    assert EsotericaManager([root]).sources["a"]["coverage"] == [CellState.EMPTY] * 78
+
+
+def test_coverage_is_in_canonical_order(root):
+    write(root, "book.toml", '[card."minor_arcana.pentacles.king".passages]\ntext = "K."\n')
+
+    states = EsotericaManager([root]).sources["test/book.toml"]["coverage"]
+
+    assert states.index(CellState.FILLED) == CANONICAL_CARD_IDS.index("minor_arcana.pentacles.king")

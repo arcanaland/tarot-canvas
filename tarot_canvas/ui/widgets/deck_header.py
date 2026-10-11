@@ -23,6 +23,7 @@ from tarot_canvas.settings import (
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.cover_cache import CoverCache
 from tarot_canvas.ui.library.deck_model import deck_cover_path
+from tarot_canvas.ui.license_names import license_name
 from tarot_canvas.ui.widgets.cover_banner import (
     BANNER_PADDING,
     BANNER_SUBTEXT,
@@ -112,6 +113,8 @@ def detail_rows(fields):
             continue
         if key in DATE_KEYS:
             text = format_date(text)
+        elif key == "license":
+            text = license_name(text)
         rows.append((label, text, key))
     return rows
 

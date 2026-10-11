@@ -68,6 +68,48 @@ ESOTERICA_TEXT = {
     "pattern.land.arcana/pattern/rider-waite-smith": "Rider-Waite-Smith",
     "pattern.land.arcana/pattern/tarot-de-marseille": "Marseille",
     "pattern.land.arcana/pattern/thoth": "Thoth",
+    # The Library's view of every source. An empty string hides what it labels
+    "library.view_name": "Esoterica",
+    "library.search_placeholder": "",
+    "library.empty": "",
+    "library.empty_no_match": "",
+    "library.details_toggle_show": "",
+    "library.details_toggle_hide": "",
+    "library.checkbox_tooltip": "",
+    # The list's sections
+    "library.section.installed": "Installed",
+    "library.section.not_read": "Unreadable",
+    # Why a file is under not read
+    "library.reason.no_identifier": "No identifier",
+    "library.reason.older_format": "Unsupported format",
+    "library.reason.unsupported_schema": "Unsupported schema version",
+    "library.reason.duplicate_in_root": "Duplicate identifier",
+    # The details pane's form, beside the deck pane's own Version: and License:
+    "library.form.pattern": "Tarot Pattern:",
+    "library.form.about": "About:",
+    "library.form.copyright": "Copyright",
+    "library.form.identifier": "Identifier",
+    # A skipped file's path; no read source shows one
+    "library.form.file": "File:",
+    # The closed group of what a source's author needs
+    "library.source_file_heading": "File Details",
+    "library.form.shadows": "Shadows:",
+    "library.form.groups": "Groups:",
+    # [meta.work], the work a source draws on, in a group of its own
+    "library.work_heading": "Work of",
+    # The details pane's coverage: a line for a source that covers every card, else a grid
+    "library.coverage_complete": "Covers all 78 cards.",
+    # The grid's first row, as the deck view and the card explorer head the majors
+    "library.coverage.major": "Major Arcana",
+    # The work group's heading when the source names its relation to the work
+    "library.relation.transcribes": "Transcribe",
+    "library.relation.abridges": "Abridges",
+    "library.relation.annotates": "Annotates",
+    "library.form.work_name": "Title:",
+    "library.form.work_author": "Author:",
+    "library.form.work_published": "Published:",
+    "library.form.work_isbn": "ISBN:",
+    "library.form.work_url": "URL:",
 }
 
 # A registered key and its x_ spelling share one label

@@ -716,3 +716,281 @@ def test_a_finished_download_raises_the_main_window_toast(qtbot, fake_downloads)
 
     assert window.toast.text() == DOWNLOAD_TEXT["installed_toast"].format(name=AQUATIC.name)
     assert window.toast.isVisibleTo(window)
+
+
+# -- the esoterica view ---------------------------------------------------
+
+
+@pytest.fixture
+def sources(monkeypatch, tmp_path):
+    """The esoterica view reads a manager over a fixture root"""
+    from tarot_canvas.models.esoterica import EsotericaManager
+    from tarot_canvas.ui.library import esoterica_page
+    from tests.unit.test_esoterica import THREE_LINES, write
+
+    root = tmp_path / "esoterica"
+    write(root, "book.toml", '[meta]\nname = "A Book"\nauthor = "Ann"\n' + THREE_LINES, "me/book")
+    write(root, "notes.toml", '[meta]\nname = "Notes"\n' + THREE_LINES, "me/notes")
+    manager = EsotericaManager([root])
+    monkeypatch.setattr(esoterica_page, "get_esoterica_manager", lambda: manager)
+    return manager
+
+
+def esoterica_names(tab):
+    from tarot_canvas.ui.library.esoterica_list_model import KindRole, RowKind
+
+    model = tab.esoterica_page.list_model
+    indexes = [model.index(row, 0) for row in range(model.rowCount())]
+    return [index.data() for index in indexes if index.data(KindRole) == RowKind.SOURCE]
+
+
+def test_the_third_row_shows_the_esoterica_page_and_its_pane(sources, library):
+    from tarot_canvas.settings import LIBRARY_VIEW_ESOTERICA, LIBRARY_VIEWS
+    from tarot_canvas.ui.esoterica_text import label_for
+
+    row = LIBRARY_VIEWS.index(LIBRARY_VIEW_ESOTERICA)
+    assert row == 2
+    assert library.sidebar.item(row).text() == label_for("library.view_name")
+
+    library.sidebar.setCurrentRow(row)
+
+    assert library.pages.currentWidget() is library.esoterica_page
+    assert library.current_details_pane() is library.esoterica_page.details_pane
+
+
+def test_the_esoterica_view_hides_sort_size_and_open_deck(sources, library, qtbot):
+    from tarot_canvas.settings import LIBRARY_VIEW_ESOTERICA
+
+    library.show()
+    qtbot.waitExposed(library)
+
+    library.show_view(LIBRARY_VIEW_ESOTERICA)
+
+    assert not library.sort_combo.isVisible()
+    assert not library.density_combo.isVisible()
+    assert not library.open_deck_button.isVisible()
+    assert library.search_field.isVisible()
+    assert library.details_toggle.isVisible()
+
+
+def test_the_esoterica_view_is_restored(qtbot, monkeypatch, sources):
+    from tarot_canvas.settings import LIBRARY_VIEW_ESOTERICA, LIBRARY_VIEW_KEY
+
+    monkeypatch.setattr("tarot_canvas.ui.tabs.library_tab.deck_manager", deck_manager_stub(DECKS))
+    get_settings().setValue(LIBRARY_VIEW_KEY, LIBRARY_VIEW_ESOTERICA)
+
+    tab = LibraryTab()
+    qtbot.addWidget(tab)
+
+    assert tab.current_view() == LIBRARY_VIEW_ESOTERICA
+    assert tab.pages.currentWidget() is tab.esoterica_page
+
+
+def test_search_filters_sources_and_leaves_the_decks_alone(sources, library):
+    from tarot_canvas.settings import LIBRARY_VIEW_ESOTERICA
+
+    library.show_view(LIBRARY_VIEW_ESOTERICA)
+    library.search_field.setText("ann")
+
+    assert esoterica_names(library) == ["A Book"]
+    assert sorted(names(library)) == ["Aurora", "Zodiac"]
+
+
+def test_selecting_a_source_enables_the_details_toggle(sources, library):
+    from tarot_canvas.settings import LIBRARY_VIEW_ESOTERICA
+
+    library.show_view(LIBRARY_VIEW_ESOTERICA)
+    assert not library.details_toggle.isEnabled()
+
+    library.esoterica_page.select("me/notes")
+
+    assert library.details_toggle.isEnabled()
+
+
+def test_an_empty_esoterica_key_hides_its_element(sources, library, monkeypatch):
+    from tarot_canvas.settings import LIBRARY_VIEW_ESOTERICA
+    from tarot_canvas.ui import esoterica_text
+
+    monkeypatch.setitem(esoterica_text.ESOTERICA_TEXT, "library.empty_no_match", "")
+    monkeypatch.setitem(esoterica_text.ESOTERICA_TEXT, "library.search_placeholder", "")
+    monkeypatch.setitem(esoterica_text.ESOTERICA_TEXT, "library.details_toggle_show", "")
+    library.show_view(LIBRARY_VIEW_ESOTERICA)
+    page = library.esoterica_page
+
+    library.search_field.setText("nothing matches this")
+
+    assert library.search_field.placeholderText() == ""
+    assert library.details_toggle.toolTip() == ""
+    assert not page.empty_label.isVisibleTo(library)
+    assert not page.list_view.isVisibleTo(library)
+
+
+def test_a_filled_empty_key_shows_its_element(sources, library, monkeypatch):
+    from tarot_canvas.settings import LIBRARY_VIEW_ESOTERICA
+    from tarot_canvas.ui import esoterica_text
+
+    monkeypatch.setitem(esoterica_text.ESOTERICA_TEXT, "library.empty_no_match", "None")
+    library.show_view(LIBRARY_VIEW_ESOTERICA)
+
+    library.search_field.setText("nothing matches this")
+
+    assert library.esoterica_page.empty_label.isVisibleTo(library)
+    assert library.esoterica_page.empty_label.text() == "None"
+
+
+def test_the_notes_and_esoterica_panes_sit_below_their_lists(sources, library):
+    from tarot_canvas.settings import LIBRARY_VIEW_DECKS, LIBRARY_VIEW_ESOTERICA, LIBRARY_VIEW_NOTES
+
+    for view in (LIBRARY_VIEW_NOTES, LIBRARY_VIEW_ESOTERICA):
+        library.show_view(view)
+        assert library.details_pane_is_below()
+        assert library.splitter.orientation() == Qt.Orientation.Vertical
+        assert library._details_seam.frameShape() == QFrame.Shape.HLine
+
+    library.show_view(LIBRARY_VIEW_DECKS)
+    assert not library.details_pane_is_below()
+    assert library._details_seam.frameShape() == QFrame.Shape.VLine
+
+
+def open_source_pane(library):
+    from tarot_canvas.settings import LIBRARY_VIEW_ESOTERICA
+
+    library.show_view(LIBRARY_VIEW_ESOTERICA)
+    library.esoterica_page.select("me/notes")
+    if not library.details_pane_is_open():
+        library.details_toggle.click()
+
+
+def test_a_view_with_nothing_selected_does_not_inherit_an_open_pane(sources, library):
+    """Esoterica's pane open on a source, then Notes with no card: no empty pane there"""
+    from tarot_canvas.settings import LIBRARY_VIEW_ESOTERICA, LIBRARY_VIEW_NOTES
+
+    open_source_pane(library)
+    assert library.details_pane_is_open()
+
+    library.show_view(LIBRARY_VIEW_NOTES)
+    assert library.notes_page.details_pane.details() is None
+    assert not library.details_pane_is_open()
+    assert not library.details_toggle.isEnabled()
+
+    # Back to the source it was open on: open again, as it was left
+    library.show_view(LIBRARY_VIEW_ESOTERICA)
+    assert library.details_pane_is_open()
+
+
+def test_a_pane_the_user_closed_stays_closed_across_views(sources, library):
+    from tarot_canvas.settings import LIBRARY_VIEW_ESOTERICA, LIBRARY_VIEW_NOTES
+
+    open_source_pane(library)
+    library.details_toggle.click()
+    assert not library.details_pane_is_open()
+
+    library.show_view(LIBRARY_VIEW_NOTES)
+    library.show_view(LIBRARY_VIEW_ESOTERICA)
+
+    assert not library.details_pane_is_open()
+
+
+def drag_pane_to(library, extent):
+    total = sum(library.splitter.sizes())
+    library.splitter.setSizes([total - extent, extent])
+    library.splitter.splitterMoved.emit(total - extent, 1)
+
+
+def below_share(library):
+    page, pane = library.splitter.sizes()
+    return pane / (page + pane)
+
+
+def test_the_pane_below_opens_at_three_fifths_of_the_height(sources, shown_library):
+    from tarot_canvas.settings import LIBRARY_DETAILS_BELOW_SHARE_DEFAULT
+
+    open_source_pane(shown_library)
+
+    assert LIBRARY_DETAILS_BELOW_SHARE_DEFAULT == 0.6
+    assert below_share(shown_library) == pytest.approx(0.6, abs=0.01)
+
+
+def test_the_pane_below_grows_with_the_window_and_the_pane_beside_does_not(
+    sources, shown_library, qtbot
+):
+    from tarot_canvas.settings import LIBRARY_VIEW_DECKS
+
+    open_source_pane(shown_library)
+    shown_library.resize(1200, 1000)
+    qtbot.waitUntil(lambda: sum(shown_library.splitter.sizes()) > 900)
+    assert below_share(shown_library) == pytest.approx(0.6, abs=0.01)
+
+    shown_library.show_view(LIBRARY_VIEW_DECKS)
+    select(shown_library, 0)
+    width = shown_library.splitter.sizes()[1]
+    shown_library.resize(1400, 1000)
+    qtbot.waitUntil(lambda: sum(shown_library.splitter.sizes()) > 1250)
+    assert shown_library.splitter.sizes()[1] == width
+
+
+def test_the_pane_keeps_a_width_beside_and_a_share_below(sources, shown_library):
+    from tarot_canvas.settings import LIBRARY_VIEW_DECKS, LIBRARY_VIEW_ESOTERICA
+
+    select(shown_library, 0)
+    if not shown_library.details_pane_is_open():
+        shown_library.details_toggle.click()
+    drag_pane_to(shown_library, 400)
+
+    open_source_pane(shown_library)
+    total = sum(shown_library.splitter.sizes())
+    drag_pane_to(shown_library, round(total * 0.3))
+
+    shown_library.show_view(LIBRARY_VIEW_DECKS)
+    assert shown_library.splitter.sizes()[1] == 400
+    shown_library.show_view(LIBRARY_VIEW_ESOTERICA)
+    assert below_share(shown_library) == pytest.approx(0.3, abs=0.01)
+
+
+def test_the_share_below_is_saved_for_the_next_library(sources, shown_library, qtbot, monkeypatch):
+    from tarot_canvas.settings import LIBRARY_DETAILS_BELOW_SHARE_KEY
+
+    open_source_pane(shown_library)
+    total = sum(shown_library.splitter.sizes())
+    drag_pane_to(shown_library, round(total * 0.75))
+    assert get_settings().value(LIBRARY_DETAILS_BELOW_SHARE_KEY, type=float) == pytest.approx(
+        0.75, abs=0.01
+    )
+
+    tab = LibraryTab()
+    qtbot.addWidget(tab)
+    tab.resize(1200, 800)
+    tab.show()
+    qtbot.waitExposed(tab)
+    open_source_pane(tab)
+    assert below_share(tab) == pytest.approx(0.75, abs=0.01)
+
+
+@pytest.mark.parametrize("saved", [0.0, 0.97, "not a number"])
+def test_a_share_below_out_of_range_opens_at_the_default(sources, qtbot, monkeypatch, saved):
+    from tarot_canvas.settings import LIBRARY_DETAILS_BELOW_SHARE_KEY
+
+    monkeypatch.setattr("tarot_canvas.ui.tabs.library_tab.deck_manager", deck_manager_stub(DECKS))
+    get_settings().setValue(LIBRARY_DETAILS_BELOW_SHARE_KEY, saved)
+
+    tab = LibraryTab()
+    qtbot.addWidget(tab)
+    tab.resize(1200, 800)
+    tab.show()
+    qtbot.waitExposed(tab)
+    open_source_pane(tab)
+
+    assert below_share(tab) == pytest.approx(0.6, abs=0.01)
+
+
+def test_the_pane_below_keeps_its_minimum_height(sources, shown_library):
+    from tarot_canvas.settings import LIBRARY_VIEW_ESOTERICA
+
+    shown_library.show_view(LIBRARY_VIEW_ESOTERICA)
+    shown_library.esoterica_page.select("me/notes")
+    if not shown_library.details_pane_is_open():
+        shown_library.details_toggle.click()
+    total = sum(shown_library.splitter.sizes())
+    shown_library.splitter.setSizes([total, 0])
+
+    assert shown_library.splitter.sizes()[1] >= LibraryTab.DETAILS_PANE_MIN_HEIGHT

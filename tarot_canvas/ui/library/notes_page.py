@@ -18,7 +18,6 @@ from tarot_canvas.ui.library.notes_details_pane import NotesDetailsPane
 from tarot_canvas.ui.library.notes_model import (
     CardIdRole,
     NotesListModel,
-    card_cover_path,
     card_name,
 )
 from tarot_canvas.ui.notes_text import text as notes_text
@@ -138,7 +137,6 @@ class NotesPage(QWidget):
         return CardNotesDetails(
             card_id=card_id,
             name=card_name(self._deck, card_id) or None,
-            cover_path=card_cover_path(self._deck, card_id),
             notes=tuple(self.list_model.notes_for(card_id)),
         )
 

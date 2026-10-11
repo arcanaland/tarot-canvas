@@ -1,5 +1,14 @@
 from PyQt6.QtCore import QEvent, QPointF, QRect, Qt
-from PyQt6.QtGui import QFont, QIcon, QImage, QPainter
+from PyQt6.QtGui import (
+    QFont,
+    QGuiApplication,
+    QIcon,
+    QIconEngine,
+    QImage,
+    QPainter,
+    QPalette,
+    QPixmap,
+)
 from PyQt6.QtWidgets import QLabel, QPushButton, QSizePolicy, QStyle, QVBoxLayout, QWidget
 
 from tarot_canvas.ui.palette import muted_text, with_text_colour
@@ -22,6 +31,48 @@ def tint_icon(icon, logical_size, dpr, colour):
     painter.end()
     image.setDevicePixelRatio(dpr)
     return image
+
+
+class _TintedEngine(QIconEngine):
+    """An icon file drawn in the application palette's text colour, as a monochrome theme
+    icon is, so it follows a light or dark colour scheme"""
+
+    def __init__(self, path):
+        super().__init__()
+        self._path = str(path)
+        self._icon = QIcon(self._path)
+
+    def _colour(self, mode):
+        palette = QGuiApplication.palette()
+        if mode == QIcon.Mode.Selected:
+            return palette.color(QPalette.ColorRole.HighlightedText)
+        if mode == QIcon.Mode.Disabled:
+            return palette.color(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text)
+        return palette.color(QPalette.ColorRole.Text)
+
+    def paint(self, painter, rect, mode, state):
+        device = painter.device()
+        dpr = device.devicePixelRatioF() if device is not None else 1.0
+        side = min(rect.width(), rect.height())
+        target = QRect(0, 0, side, side)
+        target.moveCenter(rect.center())
+        painter.drawImage(target, tint_icon(self._icon, side, dpr, self._colour(mode)))
+
+    def pixmap(self, size, mode, state):
+        return self.scaledPixmap(size, mode, state, 1.0)
+
+    def scaledPixmap(self, size, mode, state, scale):
+        side = min(size.width(), size.height())
+        image = tint_icon(self._icon, side, scale, self._colour(mode))
+        return QPixmap.fromImage(image)
+
+    def clone(self):
+        return _TintedEngine(self._path)
+
+
+def tinted_icon(path):
+    """A QIcon of an app's own monochrome file that takes the text colour"""
+    return QIcon(_TintedEngine(path))
 
 
 def _layout_spacing(style):

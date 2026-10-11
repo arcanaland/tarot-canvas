@@ -5,9 +5,11 @@ This module is expected to become a thin call into arcana-tarot once that is don
 import os
 import tomllib
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 
-from tarot_canvas.models.card_ids import COURTS, PIPS
+from tarot_canvas.models.card_ids import CANONICAL_CARD_IDS, COURTS, PIPS
+from tarot_canvas.models.coverage import CellState
 from tarot_canvas.models.esoterica_events import esoterica_events
 from tarot_canvas.models.esoterica_registry import (
     CORRESPONDENCES,
@@ -36,6 +38,31 @@ RESEATS = {
         "major_arcana.11": "major_arcana.08",
     },
 }
+
+
+class NotReadReason(Enum):
+    """Why a file that is a source was skipped"""
+
+    NO_IDENTIFIER = "no_identifier"
+    OLDER_FORMAT = "older_format"
+    UNSUPPORTED_SCHEMA = "unsupported_schema"
+    # A second file in one root declaring an identifier an earlier one there declared
+    DUPLICATE_IN_ROOT = "duplicate_in_root"
+
+
+@dataclass(frozen=True)
+class NotRead:
+    """A source the manager skipped. A file that doesn't parse is not a source, and isn't one."""
+
+    path: Path
+    root: Path
+    reason: NotReadReason
+
+
+class _Skipped(Exception):
+    def __init__(self, reason):
+        super().__init__(reason)
+        self.reason = reason
 
 
 @dataclass(frozen=True)
@@ -236,6 +263,21 @@ def _group_targets(groups):
         yield from (target for target in node.values() if isinstance(target, dict))
 
 
+def group_keys(source):
+    """The keys of the groups a source writes something under, such as suits.cups or all, in
+    file order"""
+    for family, node in source["groups"].items():
+        if not isinstance(node, dict):
+            continue
+        if family == "all":
+            if node:
+                yield family
+            continue
+        for name, target in node.items():
+            if isinstance(target, dict) and target:
+                yield f"{family}.{name}"
+
+
 def _families_in(source):
     """The families a source has on some card or group"""
     found = set()
@@ -308,7 +350,8 @@ def _seat(canonical, deck_pattern, source_pattern):
 
 
 def _read_source(path):
-    """Parse one file, or return None if can't be parsed."""
+    """Parse one file, or return None if it isn't a source. Raises _Skipped for a source that
+    is not read."""
     try:
         with open(path, "rb") as f:
             content = tomllib.load(f)
@@ -328,6 +371,7 @@ def _read_source(path):
                 f"{path}: this is the older esoterica format, which is no longer read. "
                 f'Passages now live under [card."<canonical id>".passages].'
             )
+            raise _Skipped(NotReadReason.OLDER_FORMAT)
         return None
 
     schema_version = meta.get("schema_version")
@@ -335,7 +379,7 @@ def _read_source(path):
         major = schema_version.split(".")[0]
         if major not in SUPPORTED_SCHEMA_MAJORS:
             logger.warning(f"{path}: schema_version {schema_version!r} is not supported; skipping")
-            return None
+            raise _Skipped(NotReadReason.UNSUPPORTED_SCHEMA)
 
     groups = content.get("group")
     if not isinstance(groups, dict):
@@ -362,6 +406,22 @@ def _read_source(path):
     }
 
 
+def coverage(source):
+    """One cell per canonical card: FILLED where the card table has an entry the reader shows,
+    FAINT where it has content the reader has no role for, EMPTY otherwise. Groups are not
+    counted, since what a source says about a group is not said about each card in it."""
+    states = []
+    for card_id in CANONICAL_CARD_IDS:
+        target = source["cards"].get(card_id)
+        if not isinstance(target, dict) or not target:
+            states.append(CellState.EMPTY)
+        elif _is_renderable(_flatten(target)):
+            states.append(CellState.FILLED)
+        else:
+            states.append(CellState.FAINT)
+    return states
+
+
 def _identifier(meta):
     identifier = meta.get("identifier")
     if isinstance(identifier, str) and identifier.strip():
@@ -376,10 +436,16 @@ class EsotericaManager:
         # Keyed by [meta].identifier: in root order, then by path within a root.
         # Disabled sources are kept; they are filtered out on each read.
         self.sources = {}
+        # Sources skipped for a reason worth showing, in root order, then by path
+        self.not_read = []
+        # Identifier -> the paths of copies in later roots that its source shadows
+        self.shadowed = {}
         self.load_sources(roots)
 
     def load_sources(self, roots=None):
         self.sources = {}
+        self.not_read = []
+        self.shadowed = {}
 
         if roots is None:
             roots = get_esoterica_directories()
@@ -395,26 +461,34 @@ class EsotericaManager:
             # Identifier -> the path that claimed it in this root
             claimed = {}
             for path in sorted(root.glob("**/*.toml")):
-                source = _read_source(path)
+                try:
+                    source = _read_source(path)
+                except _Skipped as skipped:
+                    self.not_read.append(NotRead(path, root, skipped.reason))
+                    continue
                 if source is None:
                     continue
                 identifier = _identifier(source["meta"])
                 if identifier is None:
                     logger.warning(f"{path}: [meta].identifier is missing, so it is not read")
+                    self.not_read.append(NotRead(path, root, NotReadReason.NO_IDENTIFIER))
                     continue
                 if identifier in claimed:
                     logger.warning(
                         f"{path} and {claimed[identifier]} have the same identifier "
                         f"{identifier!r}; only {claimed[identifier]} is read"
                     )
+                    self.not_read.append(NotRead(path, root, NotReadReason.DUPLICATE_IN_ROOT))
                     continue
                 if identifier in self.sources:
-                    # An earlier root wins, and that is not reported
+                    # An earlier root wins, and that is not a skip: the source is read
                     logger.debug(f"{path}: {identifier!r} is shadowed by an earlier root")
+                    self.shadowed.setdefault(identifier, []).append(path)
                     continue
                 claimed[identifier] = path
                 source["root"] = root
                 source["families"] = frozenset(_families_in(source))
+                source["coverage"] = coverage(source)
                 self.sources[identifier] = source
 
         logger.info(f"Loaded {len(self.sources)} esoterica sources")

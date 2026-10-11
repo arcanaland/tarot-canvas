@@ -3,7 +3,7 @@ import os
 import pytest
 
 from tarot_canvas.models.note_events import note_events
-from tarot_canvas.settings import LIBRARY_VIEW_NOTES
+from tarot_canvas.settings import LIBRARY_VIEW_ESOTERICA, LIBRARY_VIEW_NOTES
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tarot_canvas.ui.tabs.library_tab import LibraryTab
@@ -71,6 +71,28 @@ def test_a_second_activation_raises_the_same_card_tab(window):
     assert len(card_tabs(window)) == 1
     assert window.tab_widget.currentWidget() is card_tabs(window)[0]
     assert card_tabs(window)[0].info_tabs.currentWidget() is card_tabs(window)[0].notes_tab
+
+
+def test_a_covered_card_in_the_esoterica_grid_opens_its_esoterica_tab(window):
+    library = window.new_library_tab(view=LIBRARY_VIEW_ESOTERICA)
+
+    library.esoterica_page.card_activated.emit(FOOL)
+
+    opened = card_tabs(window)
+    assert len(opened) == 1
+    assert opened[0].card["id"] == FOOL
+    assert opened[0].info_tabs.currentWidget() is opened[0].esoterica_tab
+
+
+def test_the_esoterica_grid_raises_an_open_card_on_its_esoterica_tab(window):
+    library = window.new_library_tab(view=LIBRARY_VIEW_NOTES)
+    library.on_card_activated(FOOL)
+    window.tab_widget.setCurrentWidget(library)
+
+    library.esoterica_page.card_activated.emit(FOOL)
+
+    assert len(card_tabs(window)) == 1
+    assert card_tabs(window)[0].info_tabs.currentWidget() is card_tabs(window)[0].esoterica_tab
 
 
 def test_a_card_the_reference_deck_lacks_opens_nothing(window):

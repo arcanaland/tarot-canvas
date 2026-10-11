@@ -1,9 +1,8 @@
-from PyQt6.QtCore import QSize, Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QIcon, QPalette
 from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
-    QLabel,
     QPushButton,
     QScrollArea,
     QVBoxLayout,
@@ -11,7 +10,7 @@ from PyQt6.QtWidgets import (
 )
 
 from tarot_canvas.ui.library import units
-from tarot_canvas.ui.library.deck_details_pane import CoverWidget
+from tarot_canvas.ui.library.pane_text import pane_text
 from tarot_canvas.ui.notes_text import text as notes_text
 from tarot_canvas.ui.tabs.card_view.notes_section import NoteRowsView
 
@@ -27,69 +26,63 @@ class NotesDetailsPane(QWidget):
         super().__init__(parent)
         self._details = None
 
-        self.cover = CoverWidget(QSize(*units.cover_size(units.DENSITY_SMALL)))
-        self.heading_label = _pane_text()
+        self.heading_label = pane_text()
         self.heading_label.setFont(
             units.scaled_font(self.heading_label.font(), self.HEADING_SCALE, bold=True)
         )
-        self.card_id_label = _pane_text()
+        self.card_id_label = pane_text()
         self.card_id_label.setFont(
             units.fixed_font(units.scaled_font(self.card_id_label.font(), self.CAPTION_SCALE))
         )
         self.card_id_label.setForegroundRole(QPalette.ColorRole.PlaceholderText)
+
+        self.open_button = QPushButton(QIcon.fromTheme("document-open"), notes_text("open_card"))
+        self.open_button.clicked.connect(self._on_open)
+        self.open_button.setVisible(bool(notes_text("open_card")))
 
         heading_column = QVBoxLayout()
         heading_column.setContentsMargins(0, 0, 0, 0)
         heading_column.setSpacing(units.SMALL_SPACING)
         heading_column.addWidget(self.heading_label)
         heading_column.addWidget(self.card_id_label)
-        heading_column.addStretch(1)
 
-        header = QHBoxLayout()
-        header.setContentsMargins(0, 0, 0, 0)
-        header.setSpacing(units.LARGE_SPACING)
-        header.addWidget(self.cover, 0, Qt.AlignmentFlag.AlignTop)
-        header.addLayout(heading_column, 1)
+        # The name and id, with the card's one action at the far end, as a mail's subject line
+        heading_row = QHBoxLayout()
+        heading_row.setContentsMargins(0, 0, 0, 0)
+        heading_row.setSpacing(units.LARGE_SPACING)
+        heading_row.addLayout(heading_column, 1)
+        heading_row.addWidget(self.open_button, 0, Qt.AlignmentFlag.AlignTop)
 
-        self.empty_label = _pane_text()
+        self.empty_label = pane_text()
         self.empty_label.setEnabled(False)
 
         self.note_rows = NoteRowsView()
         self.note_rows.noteActivated.connect(self._on_note_activated)
 
-        margin = units.GRID_UNIT
-        body = QVBoxLayout()
-        body.setContentsMargins(margin, 2 * units.LARGE_SPACING, margin, 0)
-        body.setSpacing(units.LARGE_SPACING)
-        body.addLayout(header)
-        body.addSpacing(units.LARGE_SPACING)
-        body.addWidget(self.note_rows)
-        body.addWidget(self.empty_label)
-        body.addStretch(1)
+        thread = QVBoxLayout()
+        thread.setContentsMargins(0, 0, 0, 0)
+        thread.setSpacing(units.LARGE_SPACING)
+        thread.addWidget(self.note_rows)
+        thread.addWidget(self.empty_label)
+        thread.addStretch(1)
 
         content = QWidget()
-        content.setLayout(body)
+        content.setLayout(thread)
 
+        # Only the thread scrolls; the heading stays put
         self.scroll_area = QScrollArea()
         self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.scroll_area.setWidget(content)
 
-        self.open_button = QPushButton(QIcon.fromTheme("document-open"), notes_text("open_card"))
-        self.open_button.clicked.connect(self._on_open)
-        self.open_button.setVisible(bool(notes_text("open_card")))
-
-        actions = QHBoxLayout()
-        actions.setContentsMargins(margin, margin, margin, margin)
-        actions.addWidget(self.open_button)
-        actions.addStretch(1)
-
+        # No cover: the row above already shows the card's
+        margin = units.GRID_UNIT
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        layout.setContentsMargins(margin, 2 * units.LARGE_SPACING, margin, units.LARGE_SPACING)
+        layout.setSpacing(units.LARGE_SPACING)
+        layout.addLayout(heading_row)
         layout.addWidget(self.scroll_area, 1)
-        layout.addLayout(actions)
 
     def details(self):
         return self._details
@@ -103,8 +96,6 @@ class NotesDetailsPane(QWidget):
         self.heading_label.setVisible(bool(details.name))
 
         self.card_id_label.setText(details.card_id)
-
-        self.cover.set_path(details.cover_path)
 
         self.note_rows.set_notes(details.notes)
         self.note_rows.setVisible(bool(details.notes))
@@ -126,11 +117,3 @@ class NotesDetailsPane(QWidget):
     def _on_open(self):
         if self._details is not None:
             self.open_card_requested.emit(self._details.card_id)
-
-
-def _pane_text(text=""):
-    label = QLabel(text)
-    label.setTextFormat(Qt.TextFormat.PlainText)
-    label.setWordWrap(True)
-    label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-    return label
