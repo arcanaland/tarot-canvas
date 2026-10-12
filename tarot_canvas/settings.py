@@ -102,7 +102,7 @@ DECK_HEADER_EXPANDED_DEFAULT = True
 EXPLORER_VISIBLE_KEY = "main_window/explorer_visible"
 EXPLORER_VISIBLE_DEFAULT = True
 
-# QWidget.saveGeometry() of the Preferences dialog as the user left it
+# for the Preferences window size
 PREFERENCES_GEOMETRY_KEY = "preferences/geometry"
 
 

@@ -6,10 +6,7 @@ from tarot_canvas.ui.library import units
 
 
 class PlacesSidebar(QListWidget):
-    """A frameless column of places down a window's edge (inspired by Dolphin's Places panel)
-
-    Each row is (icon, name, data), with `data` under UserRole. One row is always selected.
-    """
+    """A frameless column of places down a window's edge (inspired by Dolphin's Places panel)"""
 
     def __init__(self, rows, parent=None, *, filled=False):
         super().__init__(parent)
@@ -17,9 +14,6 @@ class PlacesSidebar(QListWidget):
         self.setFrameShape(QFrame.Shape.NoFrame)
         self.viewport().setAutoFillBackground(False)
         if filled:
-            # Beside a view (the Library's grid) the window colour sets it apart; beside a form
-            # (a settings dialog) it takes the view colour, as Dolphin's and System Settings' do.
-            # The whole widget fills, so the margin above the first row is covered too
             self.setBackgroundRole(QPalette.ColorRole.Base)
             self.setAutoFillBackground(True)
         self.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)

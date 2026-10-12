@@ -73,14 +73,12 @@ def select_data(combo, key):
 class PreferencesDialog(QDialog):
     settings_changed = pyqtSignal()
 
-    # Before the user has sized it; the layout's own hint is a postage stamp
     DEFAULT_SIZE = QSize(40 * units.GRID_UNIT, 26 * units.GRID_UNIT)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Preferences")
         self.bg_color = QColor(BACKGROUND_COLOR_DEFAULT)
-        # What is stored, as form_state() puts it; None until the form is loaded
         self.stored_state = None
 
         self.page_list = PlacesSidebar(
@@ -94,7 +92,7 @@ class PreferencesDialog(QDialog):
         for _key, _icon_name, build in self.pages():
             self.page_stack.addWidget(build())
 
-        # The selected page's name heads it, as in a KDE settings dialog
+        # The selected page's name header
         self.page_title = typography.apply(QLabel(), typography.Role.HEADING_1)
         self.page_title.setTextFormat(Qt.TextFormat.PlainText)
         header = QWidget()
@@ -132,7 +130,7 @@ class PreferencesDialog(QDialog):
         content_column.addWidget(header)
         content_column.addLayout(body, 1)
 
-        # [sidebar | seam | title over (page, buttons)], edge to edge, as the Library lays out
+        # [sidebar | seam | title over (page, buttons)]
         seam = QFrame()
         seam.setFrameShape(QFrame.Shape.VLine)
         seam.setFrameShadow(QFrame.Shadow.Sunken)
@@ -158,7 +156,7 @@ class PreferencesDialog(QDialog):
         self.show_available_decks_check.toggled.connect(self.update_apply_button)
 
     def pages(self):
-        """The sidebar's pages, in order, as (text key, icon name, builder)"""
+        """The sidebar's pages in order"""
         return [
             ("appearance", "games-config-theme", self.build_appearance_page),
             ("canvas", "draw-rectangle", self.build_canvas_page),
@@ -286,7 +284,6 @@ class PreferencesDialog(QDialog):
         self.update_apply_button()
 
     def restore_defaults(self):
-        """The defaults go into the form only; Apply or OK stores them"""
         self.show_state(
             ThemeType.SYSTEM.value,
             BACKGROUND_STYLE_DEFAULT,
@@ -313,6 +310,5 @@ class PreferencesDialog(QDialog):
         super().accept()
 
     def done(self, result):
-        """Every way out (OK, Cancel, Escape, the close button) keeps the size"""
         get_settings().setValue(PREFERENCES_GEOMETRY_KEY, self.saveGeometry())
         super().done(result)
