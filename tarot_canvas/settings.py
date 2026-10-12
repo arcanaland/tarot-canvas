@@ -8,11 +8,15 @@ from tarot_canvas.models.esoterica_events import esoterica_events
 SETTINGS_ORGANIZATION = "ArcanaLand"
 SETTINGS_APPLICATION = "TarotCanvas"
 
-THEME_KEY = "appearance/theme"
-THEME_DEFAULT = "System"
-
 BACKGROUND_STYLE_KEY = "appearance/background_style"
-BACKGROUND_STYLE_DEFAULT = "Gradient"
+BACKGROUND_STYLE_DEFAULT = "gradient"
+BACKGROUND_STYLES = ("checkerboard", "gradient", "solid")
+# Before the key was stored, the combo's label was
+LEGACY_BACKGROUND_STYLES = {
+    "Checkerboard": "checkerboard",
+    "Gradient": "gradient",
+    "Solid Color": "solid",
+}
 
 BACKGROUND_COLOR_KEY = "appearance/background_color"
 BACKGROUND_COLOR_DEFAULT = "#1e1432"
@@ -42,6 +46,19 @@ def get_motion_level(settings=None):
         level = MOTION_LEVEL_DEFAULT if enabled and intensity > 0 else "Off"
     settings.setValue(MOTION_LEVEL_KEY, level)
     return level
+
+
+def get_background_style(settings=None):
+    """How the canvas ground is drawn"""
+    settings = settings or get_settings()
+    stored = settings.value(BACKGROUND_STYLE_KEY)
+    if stored in BACKGROUND_STYLES:
+        return stored
+    if stored in LEGACY_BACKGROUND_STYLES:
+        style = LEGACY_BACKGROUND_STYLES[stored]
+        settings.setValue(BACKGROUND_STYLE_KEY, style)
+        return style
+    return BACKGROUND_STYLE_DEFAULT
 
 
 def get_settings():
@@ -84,6 +101,9 @@ DECK_HEADER_EXPANDED_DEFAULT = True
 
 EXPLORER_VISIBLE_KEY = "main_window/explorer_visible"
 EXPLORER_VISIBLE_DEFAULT = True
+
+# QWidget.saveGeometry() of the Preferences dialog as the user left it
+PREFERENCES_GEOMETRY_KEY = "preferences/geometry"
 
 
 def get_recent_decks():

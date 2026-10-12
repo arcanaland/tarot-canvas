@@ -51,6 +51,7 @@ from tarot_canvas.ui.tabs.library_tab import LibraryTab
 from tarot_canvas.ui.widgets.toast import Toast
 from tarot_canvas.ui.windows.about import AboutDialog, app_icon
 from tarot_canvas.ui.windows.log_viewer import LogViewerDialog
+from tarot_canvas.ui.windows.preferences_text import PREFERENCES_TEXT
 from tarot_canvas.utils.logger import logger
 from tarot_canvas.utils.theme_manager import ThemeManager, ThemeType
 
@@ -203,13 +204,6 @@ class MainWindow(QMainWindow):
         edit_menu.addAction(self.paste_card_action)
         self.addAction(self.paste_card_action)
 
-        edit_menu.addSeparator()
-
-        preferences_action = QAction("&Preferences", self)
-        preferences_action.setIcon(QIcon.fromTheme("configure"))
-        preferences_action.triggered.connect(self.show_preferences)
-        edit_menu.addAction(preferences_action)
-
         # View menu
         view_menu = menu_bar.addMenu("&View")
 
@@ -231,52 +225,6 @@ class MainWindow(QMainWindow):
         self.fullscreen_tab_action.triggered.connect(self.toggle_tab_fullscreen)
         view_menu.addAction(self.fullscreen_tab_action)
         self.addAction(self.fullscreen_tab_action)
-
-        # Add Theme submenu
-        theme_menu = QMenu("&Theme", self)
-        theme_menu.setIcon(QIcon.fromTheme("games-config-theme"))
-        view_menu.addMenu(theme_menu)
-
-        # Create a theme action group for radio behavior; the radio mark is the icon
-        theme_group = QActionGroup(self)
-        theme_group.setExclusive(True)
-
-        # System theme action
-        system_theme_action = QAction("&System Default", self)
-        system_theme_action.setCheckable(True)
-        system_theme_action.triggered.connect(lambda: self.change_theme(ThemeType.SYSTEM))
-        theme_group.addAction(system_theme_action)
-        theme_menu.addAction(system_theme_action)
-
-        # Light theme action
-        light_theme_action = QAction("&Light", self)
-        light_theme_action.setCheckable(True)
-        light_theme_action.triggered.connect(lambda: self.change_theme(ThemeType.LIGHT))
-        theme_group.addAction(light_theme_action)
-        theme_menu.addAction(light_theme_action)
-
-        # Dark theme action
-        dark_theme_action = QAction("&Dark", self)
-        dark_theme_action.setCheckable(True)
-        dark_theme_action.triggered.connect(lambda: self.change_theme(ThemeType.DARK))
-        theme_group.addAction(dark_theme_action)
-        theme_menu.addAction(dark_theme_action)
-
-        # Set the checked state based on current theme
-        current_theme = ThemeManager.get_instance().get_current_theme()
-        if current_theme == ThemeType.SYSTEM:
-            system_theme_action.setChecked(True)
-        elif current_theme == ThemeType.LIGHT:
-            light_theme_action.setChecked(True)
-        elif current_theme == ThemeType.DARK:
-            dark_theme_action.setChecked(True)
-
-        # Store theme actions for later reference
-        self.theme_actions = {
-            ThemeType.SYSTEM: system_theme_action,
-            ThemeType.LIGHT: light_theme_action,
-            ThemeType.DARK: dark_theme_action,
-        }
 
         # ------------- Go menu -----------
 
@@ -322,6 +270,63 @@ class MainWindow(QMainWindow):
         log_viewer_action.setIcon(QIcon.fromTheme("view-list-text"))
         log_viewer_action.triggered.connect(self.show_log_viewer)
         tools_menu.addAction(log_viewer_action)
+
+        settings_menu = menu_bar.addMenu("&Settings")
+
+        theme_menu = QMenu("&Theme", self)
+        theme_menu.setIcon(QIcon.fromTheme("games-config-theme"))
+        settings_menu.addMenu(theme_menu)
+
+        # Create a theme action group for radio behavior; the radio mark is the icon
+        theme_group = QActionGroup(self)
+        theme_group.setExclusive(True)
+
+        # System theme action
+        system_theme_action = QAction("&System Default", self)
+        system_theme_action.setCheckable(True)
+        system_theme_action.triggered.connect(lambda: self.change_theme(ThemeType.SYSTEM))
+        theme_group.addAction(system_theme_action)
+        theme_menu.addAction(system_theme_action)
+
+        # Light theme action
+        light_theme_action = QAction("&Light", self)
+        light_theme_action.setCheckable(True)
+        light_theme_action.triggered.connect(lambda: self.change_theme(ThemeType.LIGHT))
+        theme_group.addAction(light_theme_action)
+        theme_menu.addAction(light_theme_action)
+
+        # Dark theme action
+        dark_theme_action = QAction("&Dark", self)
+        dark_theme_action.setCheckable(True)
+        dark_theme_action.triggered.connect(lambda: self.change_theme(ThemeType.DARK))
+        theme_group.addAction(dark_theme_action)
+        theme_menu.addAction(dark_theme_action)
+
+        # Set the checked state based on current theme
+        current_theme = ThemeManager.get_instance().get_current_theme()
+        if current_theme == ThemeType.SYSTEM:
+            system_theme_action.setChecked(True)
+        elif current_theme == ThemeType.LIGHT:
+            light_theme_action.setChecked(True)
+        elif current_theme == ThemeType.DARK:
+            dark_theme_action.setChecked(True)
+
+        # Store theme actions for later reference
+        self.theme_actions = {
+            ThemeType.SYSTEM: system_theme_action,
+            ThemeType.LIGHT: light_theme_action,
+            ThemeType.DARK: dark_theme_action,
+        }
+
+        settings_menu.addSeparator()
+
+        # On macOS Qt moves this to the application menu
+        self.preferences_action = QAction(PREFERENCES_TEXT["configure"], self)
+        self.preferences_action.setIcon(QIcon.fromTheme("configure"))
+        self.preferences_action.setShortcuts(QKeySequence.StandardKey.Preferences)
+        self.preferences_action.setMenuRole(QAction.MenuRole.PreferencesRole)
+        self.preferences_action.triggered.connect(self.show_preferences)
+        settings_menu.addAction(self.preferences_action)
 
         # Help menu
         help_menu = menu_bar.addMenu("&Help")

@@ -10,6 +10,7 @@ from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.deck_view_tab import DeckViewTab
 from tarot_canvas.ui.tabs.library_tab import LibraryTab
+from tarot_canvas.utils.theme_manager import ThemeType
 from tests.conftest import MINIMAL_DECK_PATH
 
 
@@ -720,9 +721,42 @@ def test_the_edit_menu_lists_copy_and_paste(qtbot):
     qtbot.addWidget(window)
     labels = [action.text().replace("&", "") for action in edit_menu(window).actions()]
 
-    assert labels == ["Copy Card", "Paste Card", "", "Preferences"]
+    assert labels == ["Copy Card", "Paste Card"]
     assert window.copy_card_action.shortcut().toString() == "Ctrl+C"
     assert window.paste_card_action.shortcut().toString() == "Ctrl+V"
+
+
+def top_menus(window):
+    return {action.text().replace("&", ""): action.menu() for action in window.menuBar().actions()}
+
+
+def test_the_settings_menu_holds_the_theme_and_the_configure_action(qtbot):
+    window = MainWindow()
+    qtbot.addWidget(window)
+    menus = top_menus(window)
+    titles = list(menus)
+    settings_title = next(
+        title for title, menu in menus.items() if window.preferences_action in menu.actions()
+    )
+    settings_menu = menus[settings_title]
+
+    # Between Tools and Help, as KDE apps place it
+    position = titles.index(settings_title)
+    assert titles[position - 1 : position + 2] == ["Tools", settings_title, "Help"]
+
+    theme_entry, separator, configure = settings_menu.actions()
+    assert window.theme_actions[ThemeType.DARK] in theme_entry.menu().actions()
+    assert separator.isSeparator()
+    assert configure is window.preferences_action
+    assert configure.menuRole() == QAction.MenuRole.PreferencesRole
+
+
+def test_the_view_menu_no_longer_holds_the_theme(qtbot):
+    window = MainWindow()
+    qtbot.addWidget(window)
+    view_menu = top_menus(window)["View"]
+
+    assert all(action.menu() is None for action in view_menu.actions())
 
 
 def test_ctrl_c_and_ctrl_v_are_bound_exactly_once(qtbot):

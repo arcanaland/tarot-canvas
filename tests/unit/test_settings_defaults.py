@@ -5,16 +5,18 @@ from tarot_canvas.settings import (
     ANIMATIONS_ENABLED_KEY,
     BACKGROUND_COLOR_DEFAULT,
     BACKGROUND_STYLE_DEFAULT,
+    BACKGROUND_STYLE_KEY,
     DECK_HEADER_EXPANDED_DEFAULT,
     MOTION_LEVEL_DEFAULT,
     MOTION_LEVEL_KEY,
+    get_background_style,
     get_motion_level,
     get_settings,
 )
 
 
 def test_shared_settings_defaults():
-    assert BACKGROUND_STYLE_DEFAULT == "Gradient"
+    assert BACKGROUND_STYLE_DEFAULT == "gradient"
     assert BACKGROUND_COLOR_DEFAULT == "#1e1432"
     assert ANIMATIONS_ENABLED_DEFAULT is True
     assert ANIMATION_INTENSITY_DEFAULT == 50
@@ -51,3 +53,37 @@ def test_motion_level_migration_does_not_override_an_explicit_choice():
     settings.setValue(MOTION_LEVEL_KEY, "Reactive")
 
     assert get_motion_level(settings) == "Reactive"
+
+
+def test_background_style_defaults_to_gradient_on_clean_settings():
+    settings = get_settings()
+    settings.clear()
+    assert get_background_style(settings) == "gradient"
+
+
+def test_background_style_passes_a_stored_key_through():
+    settings = get_settings()
+    for key in ("checkerboard", "gradient", "solid"):
+        settings.setValue(BACKGROUND_STYLE_KEY, key)
+        assert get_background_style(settings) == key
+
+
+def test_background_style_migrates_the_labels_it_used_to_store():
+    """Labels were stored as values, so relabelling the combo would have reset them"""
+    for label, key in (
+        ("Checkerboard", "checkerboard"),
+        ("Gradient", "gradient"),
+        ("Solid Color", "solid"),
+    ):
+        settings = get_settings()
+        settings.clear()
+        settings.setValue(BACKGROUND_STYLE_KEY, label)
+
+        assert get_background_style(settings) == key
+        assert settings.value(BACKGROUND_STYLE_KEY) == key
+
+
+def test_an_unknown_background_style_reads_as_the_default():
+    settings = get_settings()
+    settings.setValue(BACKGROUND_STYLE_KEY, "Plaid")
+    assert get_background_style(settings) == BACKGROUND_STYLE_DEFAULT
