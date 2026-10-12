@@ -31,9 +31,8 @@ from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.settings import (
     BACKGROUND_COLOR_DEFAULT,
     BACKGROUND_COLOR_KEY,
-    BACKGROUND_STYLE_DEFAULT,
-    BACKGROUND_STYLE_KEY,
     MOTION_LEVEL_DEFAULT,
+    get_background_style,
     get_motion_level,
     get_settings,
 )
@@ -170,19 +169,16 @@ class CanvasTab(BaseTab):
         """Apply background settings from preferences"""
         settings = get_settings()
 
-        bg_style = settings.value(BACKGROUND_STYLE_KEY, BACKGROUND_STYLE_DEFAULT)
+        bg_style = get_background_style(settings)
 
-        if bg_style == "Checkerboard":
+        if bg_style == "checkerboard":
             ground = self.create_purple_checkerboard_background()
-        elif bg_style == "Gradient":
+        elif bg_style == "gradient":
             ground = self.create_gradient_background()
-        elif bg_style == "Solid Color":
+        else:
             bg_color = settings.value(BACKGROUND_COLOR_KEY, BACKGROUND_COLOR_DEFAULT)
             ground = self.create_solid_color_background(bg_color)
-        else:
-            ground = None
-        if ground is not None:
-            self.set_ground(ground)
+        self.set_ground(ground)
 
         self.refresh_motion_settings()
         if self.motion_is_enabled() and self.isVisible():

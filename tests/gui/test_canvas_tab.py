@@ -597,7 +597,13 @@ def test_zooming_tells_the_selected_cards_so_their_corners_hold_their_size(qtbot
 
 @pytest.mark.parametrize(
     ("style", "tone"),
-    [("Gradient", GILT_ON_DARK), ("Checkerboard", GILT_ON_LIGHT)],
+    [
+        ("gradient", GILT_ON_DARK),
+        ("checkerboard", GILT_ON_LIGHT),
+        # A label stored before the combo stored keys
+        ("Gradient", GILT_ON_DARK),
+        ("Checkerboard", GILT_ON_LIGHT),
+    ],
 )
 def test_the_selection_tone_follows_the_background(qtbot, style, tone):
     tab = make_tab(qtbot)
@@ -616,7 +622,7 @@ def test_the_selection_tone_follows_the_background(qtbot, style, tone):
 def test_a_light_solid_background_takes_the_dark_gilt(qtbot):
     tab = make_tab(qtbot)
     settings = get_settings()
-    settings.setValue(BACKGROUND_STYLE_KEY, "Solid Color")
+    settings.setValue(BACKGROUND_STYLE_KEY, "solid")
     settings.setValue(BACKGROUND_COLOR_KEY, "#ffffff")
     settings.sync()
 

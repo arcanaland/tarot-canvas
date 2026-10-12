@@ -12,8 +12,6 @@ from PyQt6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListView,
-    QListWidget,
-    QListWidgetItem,
     QSplitter,
     QStackedWidget,
     QToolButton,
@@ -66,6 +64,7 @@ from tarot_canvas.ui.library.notes_page import NotesPage
 from tarot_canvas.ui.notes_text import text as notes_text
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.ui.widgets.placeholder_message import tinted_icon
+from tarot_canvas.ui.widgets.places_sidebar import PlacesSidebar
 
 # The deck view's name. The notes and esoterica views take theirs from notes_text and
 # esoterica_text, which is where every string those views add belongs.
@@ -264,50 +263,23 @@ class LibraryTab(BaseTab):
         return header
 
     def _view_rows(self):
-        """(view, name, icon) per sidebar row, in LIBRARY_VIEWS order"""
+        """(icon, name, view) per sidebar row, in LIBRARY_VIEWS order"""
         return [
-            (LIBRARY_VIEW_DECKS, DECKS_VIEW_NAME, QIcon.fromTheme("view-list-icons")),
-            (LIBRARY_VIEW_NOTES, notes_text("view_name"), QIcon.fromTheme("story-editor")),
+            (QIcon.fromTheme("view-list-icons"), DECKS_VIEW_NAME, LIBRARY_VIEW_DECKS),
+            (QIcon.fromTheme("story-editor"), notes_text("view_name"), LIBRARY_VIEW_NOTES),
             # The app's own file, not a theme name
             (
-                LIBRARY_VIEW_ESOTERICA,
-                esoterica_text("library.view_name"),
                 tinted_icon(ESOTERICA_VIEW_ICON),
+                esoterica_text("library.view_name"),
+                LIBRARY_VIEW_ESOTERICA,
             ),
         ]
 
     def _build_sidebar(self):
-        """One row per view (inspired by Dolphin's Places panel)"""
-        self.sidebar = QListWidget()
-        self.sidebar.setViewMode(QListView.ViewMode.ListMode)
-        self.sidebar.setFrameShape(QFrame.Shape.NoFrame)
-        self.sidebar.viewport().setAutoFillBackground(False)
-        self.sidebar.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self.sidebar.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.sidebar.setSpacing(units.SMALL_SPACING // 2)
-
-        for view, name, icon in self._view_rows():
-            item = QListWidgetItem(icon, name)
-            item.setData(Qt.ItemDataRole.UserRole, view)
-            self.sidebar.addItem(item)
-
-        # A click on no row, or a Ctrl+click on the current one, must not leave no view chosen
-        self.sidebar.itemSelectionChanged.connect(self._keep_a_view_selected)
-
-        self.sidebar.setFixedWidth(
-            self.sidebar.sizeHintForColumn(0) + 2 * units.LARGE_SPACING + units.GRID_UNIT
-        )
-
-        # Center the first row on the header row
-        spacing = self.sidebar.spacing()
-        row_height = self.sidebar.sizeHintForRow(0)
-        top = self.header.sizeHint().height() // 2 - row_height // 2 - spacing
-        self.sidebar.setViewportMargins(0, max(0, top), 0, 0)
+        """One row per view"""
+        self.sidebar = PlacesSidebar(self._view_rows())
+        self.sidebar.center_first_row_on(self.header.sizeHint().height())
         return self.sidebar
-
-    def _keep_a_view_selected(self):
-        if not self.sidebar.selectedItems() and self.sidebar.currentItem() is not None:
-            self.sidebar.currentItem().setSelected(True)
 
     def _build_view(self):
         self.view = QListView()
