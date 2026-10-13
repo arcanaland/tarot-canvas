@@ -34,10 +34,13 @@ from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.settings import (
     EXPLORER_VISIBLE_DEFAULT,
     EXPLORER_VISIBLE_KEY,
+    READING_TEXT_SCALE_DEFAULT,
+    READING_TEXT_SCALE_STEPS,
     SHOW_AVAILABLE_DECKS_DEFAULT,
     SHOW_AVAILABLE_DECKS_KEY,
     get_settings,
 )
+from tarot_canvas.ui import typography, zoom_keys
 from tarot_canvas.ui.command_palette import CommandPalette
 from tarot_canvas.ui.components.card_explorer import CardExplorerPanel
 from tarot_canvas.ui.library.catalog_client import deck_catalog
@@ -135,6 +138,7 @@ class MainWindow(QMainWindow):
 
         QGuiApplication.clipboard().dataChanged.connect(self.update_card_clipboard_actions)
         self.update_card_clipboard_actions()
+        self.update_zoom_actions()
 
     def create_menus(self):
         # Create menu bar
@@ -225,6 +229,30 @@ class MainWindow(QMainWindow):
         self.fullscreen_tab_action.triggered.connect(self.toggle_tab_fullscreen)
         view_menu.addAction(self.fullscreen_tab_action)
         self.addAction(self.fullscreen_tab_action)
+
+        # Zoom stuff
+        view_menu.addSeparator()
+        self.zoom_in_action = QAction(QIcon.fromTheme("zoom-in"), PREFERENCES_TEXT["zoom_in"], self)
+        self.zoom_in_action.setShortcuts(zoom_keys.zoom_in_keys())
+        self.zoom_in_action.triggered.connect(lambda: self.zoom("in"))
+        self.zoom_out_action = QAction(
+            QIcon.fromTheme("zoom-out"), PREFERENCES_TEXT["zoom_out"], self
+        )
+        self.zoom_out_action.setShortcuts(zoom_keys.zoom_out_keys())
+        self.zoom_out_action.triggered.connect(lambda: self.zoom("out"))
+        self.reset_zoom_action = QAction(
+            QIcon.fromTheme("zoom-original"), PREFERENCES_TEXT["reset_zoom"], self
+        )
+        self.reset_zoom_action.setShortcuts(zoom_keys.reset_zoom_keys())
+        self.reset_zoom_action.triggered.connect(lambda: self.zoom("reset"))
+        for action in (self.zoom_in_action, self.zoom_out_action, self.reset_zoom_action):
+            view_menu.addAction(action)
+            # On the window as well, so they work with the menu bar hidden in fullscreen
+            self.addAction(action)
+        typography.events().reading_scale_changed.connect(self.update_zoom_actions)
+        # Which of the two they act on moves with the focus, and the art's zoom with the wheel
+        QApplication.instance().focusChanged.connect(self.on_focus_changed)
+        view_menu.aboutToShow.connect(self.update_zoom_actions)
 
         # ------------- Go menu -----------
 
@@ -791,6 +819,52 @@ class MainWindow(QMainWindow):
             self.exit_tab_fullscreen()
         self.update_card_clipboard_actions()
         self.update_fullscreen_action()
+        self.update_zoom_actions()
+
+    # A real slot, so Qt drops the app-wide connection when the window is deleted
+    @pyqtSlot()
+    @pyqtSlot(int)
+    def update_zoom_actions(self, _percent=None):
+        """Each action only while it would change what it acts on"""
+        target = self.zoom_target()
+        if target is None:
+            enabled = (False, False, False)
+        elif target is typography:
+            scale = typography.reading_scale()
+            steps = READING_TEXT_SCALE_STEPS
+            enabled = (scale < steps[-1], scale > steps[0], scale != READING_TEXT_SCALE_DEFAULT)
+        else:
+            enabled = (target.can_zoom_in(), not target.is_at_fit(), not target.is_at_fit())
+        for action, on in zip(
+            (self.zoom_in_action, self.zoom_out_action, self.reset_zoom_action),
+            enabled,
+            strict=True,
+        ):
+            action.setEnabled(on)
+
+    @pyqtSlot(QWidget, QWidget)
+    def on_focus_changed(self, _old, _new):
+        self.update_zoom_actions()
+
+    def zoom_target(self):
+        """art or text on a card tab"""
+        tab = self.tab_widget.currentWidget()
+        if not isinstance(tab, CardViewTab):
+            return None
+        art = getattr(tab, "image_view", None)
+        if art is not None and self.focusWidget() is art:
+            return art
+        return typography
+
+    def zoom(self, how):
+        target = self.zoom_target()
+        if target is typography:
+            {"in": typography.zoom_in, "out": typography.zoom_out, "reset": typography.reset_zoom}[
+                how
+            ]()
+        elif target is not None:
+            {"in": target.zoom_in, "out": target.zoom_out, "reset": target.reset_to_fit}[how]()
+        self.update_zoom_actions()
 
     def current_base_tab(self):
         tab = self.tab_widget.currentWidget()

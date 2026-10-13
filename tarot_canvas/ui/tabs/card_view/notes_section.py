@@ -65,7 +65,8 @@ class NoteRowsView(QListView):
         self.list_model = NotesListModel(
             parent=self, card_in_subtitle=False, stub_preview=text("stub_note")
         )
-        self.row_delegate = NoteRowDelegate(self, thumbnail=False)
+        self.row_delegate = NoteRowDelegate(self, thumbnail=False, reading=True)
+        typography.apply(self, typography.Role.BODY, reading=True)
         self.setModel(self.list_model)
         self.setItemDelegate(self.row_delegate)
         self.setUniformItemSizes(True)

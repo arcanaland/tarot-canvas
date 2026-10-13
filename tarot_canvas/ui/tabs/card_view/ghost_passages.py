@@ -28,7 +28,7 @@ BODY_WIDTHS = (1.0, 1.0, 0.92, 0.60)
 
 def ghost_layout(font, width):
     # The passage heading each ghost stands in for
-    title = QFontMetricsF(typography.font(typography.Role.HEADING_2)).height()
+    title = QFontMetricsF(typography.font(typography.Role.HEADING_2, reading=True)).height()
     body = QFontMetricsF(font).height()
 
     # (width fraction, line height, text height, gap after)

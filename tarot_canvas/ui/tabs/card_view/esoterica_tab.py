@@ -183,7 +183,7 @@ def lead_of(reading, roles=LEAD_ROLES):
 def lead_row(entries):
     """A lead's values on one line, as a bold heading"""
     label = line_row(tuple(entry.value for entry in entries))
-    return typography.apply(label, typography.Role.HEADING_2, primary=True)
+    return typography.apply(label, typography.Role.HEADING_2, primary=True, reading=True)
 
 
 def list_row(value):
@@ -344,7 +344,7 @@ class PassageWidget(QFrame):
         self.source = Byline(label_for("joiner").join(credit))
         self.source.setTextFormat(Qt.TextFormat.PlainText)
         self.source.setWordWrap(True)
-        typography.apply(self.source, typography.Role.SMALL)
+        typography.apply(self.source, typography.Role.SMALL, reading=True)
         # Beside it, an icon when the source wrote this card's text at another ID
         self.reseated = QLabel()
         self.reseated.setObjectName("reseated")
@@ -376,7 +376,7 @@ class PassageWidget(QFrame):
         label.setTextFormat(Qt.TextFormat.PlainText)
         label.setWordWrap(True)
         # Small caption-headings: at Normal weight they would read as body text
-        typography.apply(label, typography.Role.SMALL, primary=True)
+        typography.apply(label, typography.Role.SMALL, primary=True, reading=True)
         self.headings.append(label)
         return label
 
@@ -418,7 +418,7 @@ class PassageWidget(QFrame):
     def _fold(self, fold_id, text, body, count):
         """A family's or group's rows under a header that opens and closes them"""
         fold = Fold(_counted(text, count), body, fold_id in self.expanded)
-        typography.apply(fold.header, typography.Role.SMALL, primary=True)
+        typography.apply(fold.header, typography.Role.SMALL, primary=True, reading=True)
         fold.toggled.connect(lambda expanded: self.fold_toggled.emit(fold_id, expanded))
         self.folds.setdefault(fold_id, []).append(fold)
         return fold
@@ -537,6 +537,7 @@ class EsotericaTab(QWidget):
         # Slots of this tab's, so Qt drops the connections when the tab is deleted
         esoterica_events().display_changed.connect(self._on_display_changed)
         esoterica_events().sources_changed.connect(self._on_sources_changed)
+        typography.events().reading_scale_changed.connect(self._on_reading_scale_changed)
 
     def setup_ui(self):
         """Set up the esoterica tab UI"""
@@ -556,14 +557,14 @@ class EsotericaTab(QWidget):
         page_layout = QVBoxLayout(page)
         page_layout.setContentsMargins(0, 0, 0, 0)
 
-        # One reading column, about 85 characters wide and centred when the view is wider
-        # (passage_metrics). The header is inside it, so it lines up with the passages.
+        # One reading column
         self.scroll_area = scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_area.setFrameShape(QFrame.Shape.NoFrame)
         scroll_area.setAlignment(Qt.AlignmentFlag.AlignHCenter)
 
-        self.content_widget = QWidget()
+        self.content_widget = typography.apply(QWidget(), typography.Role.BODY, reading=True)
+        self.content_widget.installEventFilter(self)
         self.content_layout = QVBoxLayout(self.content_widget)
         self.content_layout.setContentsMargins(SIDE_MARGIN, TOP_MARGIN, SIDE_MARGIN, 10)
         self.content_layout.setSpacing(PASSAGE_SPACING)
@@ -670,6 +671,11 @@ class EsotericaTab(QWidget):
         self._fill_show_menu()
         self._redraw()
 
+    @pyqtSlot(int)
+    def _on_reading_scale_changed(self, _percent):
+        """The bylines' icons are sized to their text, so the passages are drawn again"""
+        self._redraw()
+
     def _redraw(self):
         """This card again, where the reader left it"""
         bar = self.scroll_area.verticalScrollBar()
@@ -692,13 +698,15 @@ class EsotericaTab(QWidget):
             _with_faq_link(PLACEHOLDER_EXPLANATION),
         )
         page_layout.addWidget(self.placeholder)
-        page_layout.addWidget(GhostPassages(), 1)
+        self.ghost_passages = typography.apply(GhostPassages(), typography.Role.BODY, reading=True)
+        page_layout.addWidget(self.ghost_passages, 1)
         return page
 
-    def changeEvent(self, event):
-        super().changeEvent(event)
-        if event.type() == QEvent.Type.FontChange:
+    def eventFilter(self, watched, event):
+        # The column is measured in the passages' font, which is not the tab's
+        if watched is self.content_widget and event.type() == QEvent.Type.FontChange:
             self._apply_column_width()
+        return super().eventFilter(watched, event)
 
     def update_card_info(self, card, deck=None):
         """Update displayed content based on the card, and the deck it is shown on if given"""

@@ -1,6 +1,6 @@
 from contextlib import contextmanager
 
-from PyQt6.QtCore import QPoint, QRect, QRectF, Qt, pyqtSignal
+from PyQt6.QtCore import QEvent, QPoint, QRect, QRectF, Qt, pyqtSignal
 from PyQt6.QtGui import QPainter, QPixmap, QTransform
 from PyQt6.QtWidgets import (
     QFrame,
@@ -10,6 +10,8 @@ from PyQt6.QtWidgets import (
     QGraphicsView,
     QSizePolicy,
 )
+
+from tarot_canvas.ui import zoom_keys
 
 # Zoom is expressed in multiples of native scale
 MAX_NATIVE_ZOOM = 4.0
@@ -198,6 +200,9 @@ class ZoomableImageView(QGraphicsView):
         else:
             self.reset_to_fit()
 
+    def can_zoom_in(self):
+        return self.has_image() and self.current_scale() < self.max_scale() * (1 - _SCALE_EPSILON)
+
     def can_pan(self):
         return self.has_image() and not self.is_at_fit()
 
@@ -228,8 +233,30 @@ class ZoomableImageView(QGraphicsView):
         self._update_cursor()
         event.accept()
 
+    def _zoom_for_key(self, event):
+        """What a zoom key does to the image, or None for any other key"""
+        for keys, zoom in (
+            (zoom_keys.zoom_in_keys(), self.zoom_in),
+            (zoom_keys.zoom_out_keys(), self.zoom_out),
+            (zoom_keys.reset_zoom_keys(), self.reset_to_fit),
+        ):
+            if zoom_keys.matches(event, keys):
+                return zoom
+        return None
+
+    def event(self, event):
+        if event.type() == QEvent.Type.ShortcutOverride and self._zoom_for_key(event):
+            event.accept()
+            return True
+        return super().event(event)
+
     def keyPressEvent(self, event):
-        """Left and Right pan a zoomed image, and otherwise ask for its neighbour"""
+        """The zoom keys zoom. Left and Right pan a zoomed image, and otherwise ask for its
+        neighbour"""
+        if zoom := self._zoom_for_key(event):
+            zoom()
+            event.accept()
+            return
         step = {Qt.Key.Key_Left: -1, Qt.Key.Key_Right: 1}.get(event.key())
         if step and not self.can_pan():
             self.step_requested.emit(step)

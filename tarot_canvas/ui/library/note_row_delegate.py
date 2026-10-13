@@ -32,9 +32,17 @@ class NoteRowDelegate(QStyledItemDelegate):
     menuRequested = pyqtSignal(QModelIndex, QPoint)
 
     def __init__(
-        self, parent=None, cover_cache=None, *, thumbnail=True, menu_button=False, menu_tooltip=""
+        self,
+        parent=None,
+        cover_cache=None,
+        *,
+        thumbnail=True,
+        menu_button=False,
+        menu_tooltip="",
+        reading=False,
     ):
         super().__init__(parent)
+        self._reading = reading
         self._cover_cache = cover_cache or CoverCache()
         self._thumbnail = thumbnail
         self._menu_button = menu_button
@@ -43,7 +51,7 @@ class NoteRowDelegate(QStyledItemDelegate):
     def _fonts(self, option, selected):
         title = QFont(option.font)
         title.setBold(selected)
-        return title, typography.font(typography.Role.SMALL)
+        return title, typography.font(typography.Role.SMALL, reading=self._reading)
 
     def _line_heights(self, option):
         title, small = self._fonts(option, False)

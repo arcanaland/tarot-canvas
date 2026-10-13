@@ -1,8 +1,17 @@
 import enum
 
-from PyQt6.QtCore import QEvent, QObject
+from PyQt6.QtCore import QEvent, QObject, pyqtSignal
 from PyQt6.QtGui import QFont, QFontDatabase, QFontInfo
 from PyQt6.QtWidgets import QApplication
+
+from tarot_canvas.settings import (
+    READING_TEXT_SCALE_DEFAULT,
+    READING_TEXT_SCALE_KEY,
+    READING_TEXT_SCALE_STEPS,
+    get_reading_text_scale,
+    get_settings,
+    snap_reading_text_scale,
+)
 
 
 class Role(enum.Enum):
@@ -54,8 +63,11 @@ def _small(body):
     return _scaled(body, SMALL_FALLBACK_SCALE)
 
 
-def font(role, *, primary=False, fixed=False):
-    """A fresh font for `role`, derived from the application font as it is now"""
+def font(role, *, primary=False, fixed=False, reading=False):
+    """A fresh font for `role`, derived from the application font as it is now.
+
+    Reading text is further scaled by the reading size the user chose.
+    """
     body = QApplication.font()
     if role is Role.BODY:
         result = QFont(body)
@@ -72,22 +84,28 @@ def font(role, *, primary=False, fixed=False):
         )
         monospace.setWeight(result.weight())
         result = monospace
+    if reading:
+        scale = get_reading_text_scale()
+        if scale != READING_TEXT_SCALE_DEFAULT:
+            result = _scaled(result, scale / 100)
     return result
 
 
-def _encode(role, primary, fixed):
-    return ",".join([role.value] + ["primary"] * primary + ["fixed"] * fixed)
+def _encode(role, primary, fixed, reading):
+    options = ["primary"] * primary + ["fixed"] * fixed + ["reading"] * reading
+    return ",".join([role.value, *options])
 
 
 def _decode(value):
     role, *options = value.split(",")
-    return Role(role), "primary" in options, "fixed" in options
+    return Role(role), {option: True for option in options}
 
 
-def apply(widget, role, *, primary=False, fixed=False):
-    """Set `widget` in `role`'s font, and keep it there when the application font changes"""
-    widget.setProperty(PROPERTY, _encode(role, primary, fixed))
-    widget.setFont(font(role, primary=primary, fixed=fixed))
+def apply(widget, role, *, primary=False, fixed=False, reading=False):
+    """Set `widget` in `role`'s font, and keep it there when the application font or the
+    reading size changes"""
+    widget.setProperty(PROPERTY, _encode(role, primary, fixed, reading))
+    widget.setFont(font(role, primary=primary, fixed=fixed, reading=reading))
     return widget
 
 
@@ -95,8 +113,8 @@ def _reapply(widget):
     value = widget.property(PROPERTY)
     if not value:
         return False
-    role, primary, fixed = _decode(value)
-    widget.setFont(font(role, primary=primary, fixed=fixed))
+    role, options = _decode(value)
+    widget.setFont(font(role, **options))
     widget.updateGeometry()
     return True
 
@@ -105,6 +123,52 @@ def reapply_all():
     """Re-derive every widget given a role, such as after a size the app scales by changes"""
     for widget in QApplication.allWidgets():
         _reapply(widget)
+
+
+class TypographyEvents(QObject):
+    # reading size changed (in percentage)
+    reading_scale_changed = pyqtSignal(int)
+
+
+_events = None
+
+
+def events():
+    global _events
+    if _events is None:
+        _events = TypographyEvents()
+    return _events
+
+
+def reading_scale():
+    """The reading size, as a percentage of the system's"""
+    return get_reading_text_scale()
+
+
+def set_reading_scale(percent):
+    """Store the reading size and resize every reading surface to it. The only way it changes."""
+    percent = snap_reading_text_scale(percent)
+    if percent == reading_scale():
+        return
+    get_settings().setValue(READING_TEXT_SCALE_KEY, percent)
+    reapply_all()
+    events().reading_scale_changed.emit(percent)
+
+
+def zoom_in():
+    larger = [step for step in READING_TEXT_SCALE_STEPS if step > reading_scale()]
+    if larger:
+        set_reading_scale(larger[0])
+
+
+def zoom_out():
+    smaller = [step for step in READING_TEXT_SCALE_STEPS if step < reading_scale()]
+    if smaller:
+        set_reading_scale(smaller[-1])
+
+
+def reset_zoom():
+    set_reading_scale(READING_TEXT_SCALE_DEFAULT)
 
 
 class _FontChangeFilter(QObject):

@@ -65,6 +65,30 @@ def get_settings():
     return QSettings(SETTINGS_ORGANIZATION, SETTINGS_APPLICATION)
 
 
+# The size of the text read in a card view, as a percentage of the system's
+READING_TEXT_SCALE_KEY = "reading/text_scale"
+READING_TEXT_SCALE_DEFAULT = 100
+READING_TEXT_SCALE_STEPS = (80, 90, 100, 110, 125, 150, 175, 200)
+
+
+def snap_reading_text_scale(value):
+    """Find step nearest to value"""
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return READING_TEXT_SCALE_DEFAULT
+    if value != value:  # NaN
+        return READING_TEXT_SCALE_DEFAULT
+    return min(READING_TEXT_SCALE_STEPS, key=lambda step: (abs(step - value), -step))
+
+
+def get_reading_text_scale(settings=None):
+    settings = settings or get_settings()
+    return snap_reading_text_scale(
+        settings.value(READING_TEXT_SCALE_KEY, READING_TEXT_SCALE_DEFAULT)
+    )
+
+
 LIBRARY_DENSITY_KEY = "library/density"
 LIBRARY_DENSITY_DEFAULT = "large"
 
