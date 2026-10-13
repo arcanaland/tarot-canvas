@@ -1,4 +1,4 @@
-from PyQt6.QtCore import QRectF, QSize, Qt, pyqtSignal
+from PyQt6.QtCore import QLocale, QRectF, QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PyQt6.QtWidgets import (
     QCheckBox,
@@ -24,6 +24,8 @@ from tarot_canvas.settings import (
     MOTION_LEVEL_DEFAULT,
     MOTION_LEVEL_KEY,
     PREFERENCES_GEOMETRY_KEY,
+    READING_TEXT_SCALE_DEFAULT,
+    READING_TEXT_SCALE_STEPS,
     SHOW_AVAILABLE_DECKS_DEFAULT,
     SHOW_AVAILABLE_DECKS_KEY,
     get_background_style,
@@ -54,6 +56,12 @@ MOTION_LEVEL_LABELS = (
     ("Reactive", "Response only"),
     ("Full", "Full"),
 )
+
+
+def percent_labels(steps):
+    """Each step as a percentage, written the locale's way"""
+    locale = QLocale()
+    return tuple((step, locale.toString(step) + locale.percent()) for step in steps)
 
 
 def keyed_combo(labels):
@@ -151,7 +159,7 @@ class PreferencesDialog(QDialog):
 
         self.load_settings()
 
-        for combo in (self.theme_combo, self.bg_combo, self.motion_combo):
+        for combo in (self.theme_combo, self.text_size_combo, self.bg_combo, self.motion_combo):
             combo.currentIndexChanged.connect(self.update_apply_button)
         self.show_available_decks_check.toggled.connect(self.update_apply_button)
 
@@ -172,6 +180,8 @@ class PreferencesDialog(QDialog):
         form = pane_form()
         self.theme_combo = keyed_combo(THEME_LABELS)
         form.addRow("Theme:", self.theme_combo)
+        self.text_size_combo = keyed_combo(percent_labels(READING_TEXT_SCALE_STEPS))
+        form.addRow(PREFERENCES_TEXT["text_size"], self.text_size_combo)
         page.setLayout(form)
         return page
 
@@ -250,6 +260,7 @@ class PreferencesDialog(QDialog):
         """What the form says, in the terms it is stored in"""
         return (
             self.theme_combo.currentData(),
+            self.text_size_combo.currentData(),
             self.bg_combo.currentData(),
             self.bg_color.name(),
             self.motion_combo.currentData(),
@@ -262,8 +273,9 @@ class PreferencesDialog(QDialog):
             self.stored_state is not None and self.form_state() != self.stored_state
         )
 
-    def show_state(self, theme, background, colour, motion, show_available):
+    def show_state(self, theme, text_size, background, colour, motion, show_available):
         select_data(self.theme_combo, theme)
+        select_data(self.text_size_combo, text_size)
         select_data(self.bg_combo, background)
         select_data(self.motion_combo, motion)
         self.set_bg_color(colour)
@@ -275,6 +287,7 @@ class PreferencesDialog(QDialog):
         settings = get_settings()
         self.show_state(
             ThemeManager.get_instance().get_current_theme().value,
+            typography.reading_scale(),
             get_background_style(settings),
             settings.value(BACKGROUND_COLOR_KEY, BACKGROUND_COLOR_DEFAULT),
             get_motion_level(settings),
@@ -286,6 +299,7 @@ class PreferencesDialog(QDialog):
     def restore_defaults(self):
         self.show_state(
             ThemeType.SYSTEM.value,
+            READING_TEXT_SCALE_DEFAULT,
             BACKGROUND_STYLE_DEFAULT,
             BACKGROUND_COLOR_DEFAULT,
             MOTION_LEVEL_DEFAULT,
@@ -300,6 +314,7 @@ class PreferencesDialog(QDialog):
         settings.setValue(SHOW_AVAILABLE_DECKS_KEY, self.show_available_decks_check.isChecked())
 
         ThemeManager.get_instance().set_theme(ThemeType(self.theme_combo.currentData()))
+        typography.set_reading_scale(self.text_size_combo.currentData())
 
         self.stored_state = self.form_state()
         self.update_apply_button()

@@ -127,6 +127,9 @@ class CardViewTab(BaseTab):
 
         # Right side - tabbed card information
         info_widget = QWidget()
+        # A click anywhere in the details takes the keyboard off the art, so the zoom keys
+        # zoom the text there and not the image
+        info_widget.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         info_layout = QHBoxLayout(info_widget)
         info_layout.setContentsMargins(0, 0, 0, 0)
 
@@ -226,12 +229,9 @@ class CardViewTab(BaseTab):
             self.image_view.set_message("No image available")
 
     def setup_key_bindings(self):
-        """Zoom on the whole tab, matching the canvas's vocabulary; the rest on the art"""
+        """Keys on the whole tab, then the ones only the art takes. The zoom keys are the
+        image view's own while it has focus, and zoom reading text elsewhere"""
         bindings = [
-            ("Ctrl++", self.image_view.zoom_in),
-            ("Ctrl+=", self.image_view.zoom_in),
-            ("Ctrl+-", self.image_view.zoom_out),
-            ("Ctrl+0", self.image_view.reset_to_fit),
             ("Ctrl+I", self.toggle_info_pane),
             ("Escape", self.on_escape_pressed),
         ]

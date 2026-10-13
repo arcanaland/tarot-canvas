@@ -11,7 +11,11 @@ from tarot_canvas.settings import (
     MOTION_LEVEL_DEFAULT,
     MOTION_LEVEL_KEY,
     MOTION_LEVELS,
+    READING_TEXT_SCALE_DEFAULT,
+    READING_TEXT_SCALE_KEY,
+    READING_TEXT_SCALE_STEPS,
     SHOW_AVAILABLE_DECKS_KEY,
+    get_reading_text_scale,
     get_settings,
 )
 from tarot_canvas.ui.library.catalog_client import deck_catalog
@@ -125,6 +129,7 @@ def test_restore_defaults_resets_the_form_and_stores_nothing(qtbot, theme_kept):
     settings.setValue(BACKGROUND_COLOR_KEY, "#ffffff")
     settings.setValue(MOTION_LEVEL_KEY, "Off")
     settings.setValue(SHOW_AVAILABLE_DECKS_KEY, False)
+    settings.setValue(READING_TEXT_SCALE_KEY, 150)
     dialog = PreferencesDialog()
     qtbot.addWidget(dialog)
     stored = {key: settings.value(key) for key in settings.allKeys()}
@@ -133,6 +138,7 @@ def test_restore_defaults_resets_the_form_and_stores_nothing(qtbot, theme_kept):
 
     assert dialog.form_state() == (
         "system",
+        READING_TEXT_SCALE_DEFAULT,
         BACKGROUND_STYLE_DEFAULT,
         BACKGROUND_COLOR_DEFAULT,
         MOTION_LEVEL_DEFAULT,
@@ -286,3 +292,38 @@ def test_applying_the_switch_reaches_the_catalog(qtbot, monkeypatch, switch_unse
     window.show_preferences()
 
     assert told == [False]
+
+
+def test_the_text_size_sits_with_the_theme_and_offers_every_step_as_a_percentage(qtbot):
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+    combo = dialog.text_size_combo
+    dialog.page_list.setCurrentRow(0)
+    assert dialog.page_stack.currentWidget().isAncestorOf(combo)
+
+    assert [combo.itemData(i) for i in range(combo.count())] == list(READING_TEXT_SCALE_STEPS)
+    assert all(combo.itemText(i).startswith(str(combo.itemData(i))) for i in range(combo.count()))
+    assert combo.currentData() == READING_TEXT_SCALE_DEFAULT
+
+
+def test_the_text_size_shows_the_stored_size(qtbot):
+    get_settings().setValue(READING_TEXT_SCALE_KEY, 175)
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+
+    assert dialog.text_size_combo.currentData() == 175
+
+
+def test_a_new_text_size_offers_apply_and_applying_stores_it(qtbot):
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+    combo = dialog.text_size_combo
+    assert not dialog.apply_button.isEnabled()
+
+    combo.setCurrentIndex(combo.findData(150))
+    assert dialog.apply_button.isEnabled()
+
+    dialog.apply_settings()
+
+    assert get_reading_text_scale() == 150
+    assert not dialog.apply_button.isEnabled()

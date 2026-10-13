@@ -152,14 +152,18 @@ class NotesTab(QWidget):
             self.rename_note_to, Qt.ConnectionType.QueuedConnection
         )
         self.row_delegate = NoteRowDelegate(
-            self, thumbnail=False, menu_button=True, menu_tooltip=text("note_menu_tooltip")
+            self,
+            thumbnail=False,
+            menu_button=True,
+            menu_tooltip=text("note_menu_tooltip"),
+            reading=True,
         )
         self.row_delegate.menuRequested.connect(
             lambda index, pos: self.show_note_menu(self.path_at(index), pos)
         )
 
         self.list_page = NotesListPage(self.list_model, self.row_delegate, self.new_note_action)
-        self.list_view = self.list_page.view
+        self.list_view = typography.apply(self.list_page.view, typography.Role.BODY, reading=True)
         self.list_view.activated.connect(lambda index: self.open_note_editor(self.path_at(index)))
         activate_on_return(self.list_view)
         self.list_view.customContextMenuRequested.connect(self.on_list_context_menu)

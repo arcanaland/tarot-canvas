@@ -1,7 +1,7 @@
 import html
 import os
 
-from PyQt6.QtCore import QEvent, Qt
+from PyQt6.QtCore import QEvent, Qt, pyqtSlot
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 from tarot_canvas.models.esoterica import get_esoterica_manager
@@ -107,7 +107,8 @@ class OverviewTab(QWidget):
         layout.addWidget(self.deck_value)
 
         # Its top margin goes with it when there is no headline
-        self.headline = QWidget()
+        # The keywords and their byline are reading text
+        self.headline = typography.apply(QWidget(), typography.Role.BODY, reading=True)
         self.headline.setObjectName("headline")
         headline_layout = QVBoxLayout(self.headline)
         headline_layout.setContentsMargins(0, units.LARGE_SPACING, 0, 0)
@@ -121,7 +122,7 @@ class OverviewTab(QWidget):
             | Qt.TextInteractionFlag.LinksAccessibleByKeyboard
         )
         self.headline_source.setOpenExternalLinks(False)
-        typography.apply(self.headline_source, typography.Role.SMALL)
+        typography.apply(self.headline_source, typography.Role.SMALL, reading=True)
         self.headline_source.linkActivated.connect(self.on_headline_source_clicked)
         self.headline_reseated = QLabel()
         self.headline_reseated.setObjectName("headline_reseated")
@@ -131,7 +132,7 @@ class OverviewTab(QWidget):
 
         # Set well apart from the keywords, which are the source's words and not the deck's.
         # Its top margin goes with it when the deck has no description.
-        self.description_label = QLabel()
+        self.description_label = typography.apply(QLabel(), typography.Role.BODY, reading=True)
         self.description_label.setContentsMargins(0, units.GRID_UNIT, 0, 0)
         self.description_label.setWordWrap(True)
         self.description_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
@@ -146,6 +147,7 @@ class OverviewTab(QWidget):
 
         note_events().notes_changed.connect(self.refresh_notes)
         esoterica_events().sources_changed.connect(self.refresh_headline)
+        typography.events().reading_scale_changed.connect(self._on_reading_scale_changed)
 
         # Add stretch to push everything to the top
         layout.addStretch()
@@ -291,6 +293,11 @@ class OverviewTab(QWidget):
             self.headline_reseated, reseated_note(reading, self.deck), self.headline_source
         )
         self.headline.setVisible(True)
+
+    @pyqtSlot(int)
+    def _on_reading_scale_changed(self, _percent):
+        """The byline's icon is sized to its text"""
+        self.refresh_headline()
 
     def on_headline_source_clicked(self, _link):
         if hasattr(self.parent_tab, "show_esoterica_tab"):

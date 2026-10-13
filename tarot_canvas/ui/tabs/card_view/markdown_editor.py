@@ -74,8 +74,8 @@ class MarkdownEditor(QPlainTextEdit):
         self.hover_timer.timeout.connect(self.check_hover_position)
         self.hover_position = None
 
-        # Set up font and line wrapping
-        typography.apply(self, typography.Role.BODY, fixed=True)
+        # Monospace, at the reading size
+        typography.apply(self, typography.Role.BODY, fixed=True, reading=True)
         # self.setWordWrapMode(QPlainTextEdit.rdWrapMode.WidgetWidth)
         self.setPlaceholderText(
             "Write your notes here using Markdown...\n\n# Heading\n\n**Bold text**\n\n- List item\n\n[[Link to card or note]]"
