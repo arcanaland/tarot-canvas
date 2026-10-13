@@ -230,8 +230,7 @@ class MainWindow(QMainWindow):
         view_menu.addAction(self.fullscreen_tab_action)
         self.addAction(self.fullscreen_tab_action)
 
-        # In a card view these zoom the art while it has focus and the reading text elsewhere,
-        # as the keys do. A canvas has its own keys, which work because these are disabled.
+        # Zoom stuff
         view_menu.addSeparator()
         self.zoom_in_action = QAction(QIcon.fromTheme("zoom-in"), PREFERENCES_TEXT["zoom_in"], self)
         self.zoom_in_action.setShortcuts(zoom_keys.zoom_in_keys())
@@ -848,10 +847,7 @@ class MainWindow(QMainWindow):
         self.update_zoom_actions()
 
     def zoom_target(self):
-        """A card view's art while it has focus, else its reading text; None off a card view.
-
-        The window's focus widget, not the application's, so a menu open over it changes nothing.
-        """
+        """art or text on a card tab"""
         tab = self.tab_widget.currentWidget()
         if not isinstance(tab, CardViewTab):
             return None

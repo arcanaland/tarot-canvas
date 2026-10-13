@@ -42,8 +42,6 @@ class NoteRowDelegate(QStyledItemDelegate):
         reading=False,
     ):
         super().__init__(parent)
-        # Rows in a card view are reading text, at the reading size; the view's font carries
-        # the title, and this the smaller lines
         self._reading = reading
         self._cover_cache = cover_cache or CoverCache()
         self._thumbnail = thumbnail

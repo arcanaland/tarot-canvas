@@ -1,10 +1,7 @@
-"""The zoom keys, shared by focus: the card image takes them while it has focus, and the
-View menu's reading zoom has them everywhere else"""
-
 from PyQt6.QtCore import QKeyCombination, Qt
 from PyQt6.QtGui import QKeySequence
 
-# Keys that a keypad or a layout switch adds to an event, and no binding names
+# Keys that a keypad or a layout switch adds to an event
 _IGNORED_MODIFIERS = Qt.KeyboardModifier.KeypadModifier | Qt.KeyboardModifier.GroupSwitchModifier
 
 

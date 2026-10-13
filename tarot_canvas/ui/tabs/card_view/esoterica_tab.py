@@ -557,14 +557,12 @@ class EsotericaTab(QWidget):
         page_layout = QVBoxLayout(page)
         page_layout.setContentsMargins(0, 0, 0, 0)
 
-        # One reading column, about 85 characters wide and centred when the view is wider
-        # (passage_metrics). The header is inside it, so it lines up with the passages.
+        # One reading column
         self.scroll_area = scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_area.setFrameShape(QFrame.Shape.NoFrame)
         scroll_area.setAlignment(Qt.AlignmentFlag.AlignHCenter)
 
-        # The passages' own text is reading text, and so is anything in them without a role
         self.content_widget = typography.apply(QWidget(), typography.Role.BODY, reading=True)
         self.content_widget.installEventFilter(self)
         self.content_layout = QVBoxLayout(self.content_widget)

@@ -245,8 +245,6 @@ class ZoomableImageView(QGraphicsView):
         return None
 
     def event(self, event):
-        # Claimed before any shortcut sees them, so the zoom keys zoom the image while it
-        # has focus and are the window's everywhere else
         if event.type() == QEvent.Type.ShortcutOverride and self._zoom_for_key(event):
             event.accept()
             return True

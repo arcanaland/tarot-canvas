@@ -126,7 +126,7 @@ def reapply_all():
 
 
 class TypographyEvents(QObject):
-    # The reading size changed, to this percentage
+    # reading size changed (in percentage)
     reading_scale_changed = pyqtSignal(int)
 
 
@@ -156,14 +156,12 @@ def set_reading_scale(percent):
 
 
 def zoom_in():
-    """One step larger, up to the largest"""
     larger = [step for step in READING_TEXT_SCALE_STEPS if step > reading_scale()]
     if larger:
         set_reading_scale(larger[0])
 
 
 def zoom_out():
-    """One step smaller, down to the smallest"""
     smaller = [step for step in READING_TEXT_SCALE_STEPS if step < reading_scale()]
     if smaller:
         set_reading_scale(smaller[-1])

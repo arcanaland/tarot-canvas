@@ -59,7 +59,7 @@ MOTION_LEVEL_LABELS = (
 
 
 def percent_labels(steps):
-    """Each step as a percentage, written the locale's way"""
+    """using locale"""
     locale = QLocale()
     return tuple((step, locale.toString(step) + locale.percent()) for step in steps)
 

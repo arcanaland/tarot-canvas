@@ -72,7 +72,7 @@ READING_TEXT_SCALE_STEPS = (80, 90, 100, 110, 125, 150, 175, 200)
 
 
 def snap_reading_text_scale(value):
-    """The step nearest `value`, the larger one on a tie; 100 for anything not a number"""
+    """Find step nearest to value"""
     try:
         value = float(value)
     except (TypeError, ValueError):
