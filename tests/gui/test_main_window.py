@@ -691,19 +691,6 @@ def edit_menu(window):
     )
 
 
-@pytest.fixture
-def other_deck(tmp_path, stub_deck_manager, minimal_deck):
-    """A second installed deck with the same cards, to tell the copied deck apart."""
-    import shutil
-
-    from tarot_canvas.models.deck import TarotDeck
-
-    shutil.copytree(MINIMAL_DECK_PATH, tmp_path / "other")
-    deck = TarotDeck(str(tmp_path / "other"))
-    stub_deck_manager.get_all_decks = lambda: [minimal_deck, deck]
-    return deck
-
-
 def activate(qtbot, window, widget):
     """Shortcuts only fire in the active window, at whatever has focus."""
     window.activateWindow()
@@ -716,12 +703,22 @@ def ctrl(qtbot, widget, key):
     qtbot.keyClick(widget, key, Qt.KeyboardModifier.ControlModifier)
 
 
-def test_the_edit_menu_lists_copy_and_paste(qtbot):
+def test_the_edit_menu_lists_its_commands(qtbot):
     window = MainWindow()
     qtbot.addWidget(window)
-    labels = [action.text().replace("&", "") for action in edit_menu(window).actions()]
+    entries = [action.objectName() for action in edit_menu(window).actions()]
 
-    assert labels == ["Copy Card", "Paste Card"]
+    assert entries == [
+        "window.cut",
+        "window.copy_card",
+        "window.paste_card",
+        "window.delete",
+        "",
+        "window.select_all",
+        "window.deselect",
+        "",
+        "window.find",
+    ]
     assert window.copy_card_action.shortcut().toString() == "Ctrl+C"
     assert window.paste_card_action.shortcut().toString() == "Ctrl+V"
 
@@ -774,7 +771,7 @@ def test_ctrl_c_and_ctrl_v_are_bound_exactly_once(qtbot):
     qtbot.wait(1100)
 
 
-def test_copy_card_is_offered_by_a_card_view_and_not_a_canvas(qtbot):
+def test_copy_card_is_offered_by_a_card_view_and_not_an_empty_canvas(qtbot):
     window, card_view = make_window_with_card_view(qtbot)
     assert window.copy_card_action.isEnabled()
 

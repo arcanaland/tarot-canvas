@@ -38,7 +38,7 @@ from tarot_canvas.settings import (
     SHOW_AVAILABLE_DECKS_KEY,
     get_settings,
 )
-from tarot_canvas.ui import commands, typography
+from tarot_canvas.ui import commands, focused_text, typography
 from tarot_canvas.ui.command_palette import CommandPalette
 from tarot_canvas.ui.commands import Scope, tooltip_with_keys
 from tarot_canvas.ui.components.card_explorer import CardExplorerPanel
@@ -65,6 +65,16 @@ GO_GROUPS = (
     ("previous_deck", "next_deck"),
 )
 GO_PLACES = tuple(where for group in GO_GROUPS for where in group)
+
+# Each Edit entry and the BaseTab method it asks, with can_ before it
+TAB_EDITS = {
+    "cut": "cut_card",
+    "copy": "copy_card",
+    "paste": "paste_card",
+    "delete": "delete",
+    "select_all": "select_all",
+    "deselect": "deselect",
+}
 
 
 class TabBarEventFilter(QObject):
@@ -142,8 +152,8 @@ class MainWindow(QMainWindow):
         self.toast = Toast(self.tab_widget)
         deck_downloads().installed.connect(self.on_deck_installed)
 
-        QGuiApplication.clipboard().dataChanged.connect(self.update_card_clipboard_actions)
-        self.update_card_clipboard_actions()
+        QGuiApplication.clipboard().dataChanged.connect(self.update_edit_actions)
+        self.update_edit_actions()
         self.update_zoom_actions()
 
     def create_menus(self):
@@ -171,8 +181,13 @@ class MainWindow(QMainWindow):
                 "window.open_deck": self.open_deck,
                 "window.close_tab": self.close_current_tab,
                 "window.quit": self.close,
-                "window.copy_card": self.copy_card,
-                "window.paste_card": self.paste_card,
+                "window.cut": partial(self.edit, "cut"),
+                "window.copy_card": partial(self.edit, "copy"),
+                "window.paste_card": partial(self.edit, "paste"),
+                "window.delete": partial(self.edit, "delete"),
+                "window.select_all": partial(self.edit, "select_all"),
+                "window.deselect": partial(self.edit, "deselect"),
+                "window.find": self.find,
                 "window.card_explorer": lambda: self.toggle_card_explorer(
                     self.explorer_action.isChecked()
                 ),
@@ -205,12 +220,24 @@ class MainWindow(QMainWindow):
 
         # Edit menu
         edit_menu = menu_bar.addMenu("&Edit")
-        edit_menu.aboutToShow.connect(self.update_card_clipboard_actions)
+        edit_menu.aboutToShow.connect(self.update_edit_actions)
 
         # On the window as well, so they work with the menu bar hidden in fullscreen
         self.copy_card_action = actions["window.copy_card"]
         self.paste_card_action = actions["window.paste_card"]
-        edit_menu.addActions([self.copy_card_action, self.paste_card_action])
+        self.edit_actions = {
+            "cut": actions["window.cut"],
+            "copy": self.copy_card_action,
+            "paste": self.paste_card_action,
+            "delete": actions["window.delete"],
+            "select_all": actions["window.select_all"],
+            "deselect": actions["window.deselect"],
+        }
+        edit_menu.addActions([self.edit_actions[how] for how in ("cut", "copy", "paste", "delete")])
+        edit_menu.addSeparator()
+        edit_menu.addActions([self.edit_actions["select_all"], self.edit_actions["deselect"]])
+        edit_menu.addSeparator()
+        edit_menu.addAction(actions["window.find"])
 
         # View menu
         view_menu = menu_bar.addMenu("&View")
@@ -774,7 +801,7 @@ class MainWindow(QMainWindow):
 
         if self.fullscreen_tab is not None:
             self.exit_tab_fullscreen()
-        self.update_card_clipboard_actions()
+        self.update_edit_actions()
         self.update_fullscreen_action()
         self.update_zoom_actions()
 
@@ -794,6 +821,7 @@ class MainWindow(QMainWindow):
     @pyqtSlot(QWidget, QWidget)
     def on_focus_changed(self, _old, _new):
         self.update_zoom_actions()
+        self.update_edit_actions()
 
     def zoom(self, how):
         tab = self.current_base_tab()
@@ -805,26 +833,37 @@ class MainWindow(QMainWindow):
         tab = self.tab_widget.currentWidget()
         return tab if isinstance(tab, BaseTab) else None
 
+    @staticmethod
+    def edit_args(how):
+        return (QGuiApplication.clipboard().mimeData(),) if how == "paste" else ()
+
+    def tab_can_edit(self, how):
+        tab = self.current_base_tab()
+        return tab is not None and getattr(tab, f"can_{TAB_EDITS[how]}")(*self.edit_args(how))
+
     # A real slot, so Qt itself drops the clipboard connection when the window is deleted
     @pyqtSlot()
-    def update_card_clipboard_actions(self):
-        """Copy/Paste Card enable as the current tab says, for what is on the clipboard"""
-        tab = self.current_base_tab()
-        mime = QGuiApplication.clipboard().mimeData()
-        self.copy_card_action.setEnabled(tab is not None and tab.can_copy_card())
-        self.paste_card_action.setEnabled(tab is not None and tab.can_paste_card(mime))
+    def update_edit_actions(self):
+        """Each Edit entry while the focused text or the current tab would take it"""
+        text = focused_text.field()
+        for how, action in self.edit_actions.items():
+            action.setEnabled(focused_text.can(how, text) or self.tab_can_edit(how))
 
-    def copy_card(self):
-        tab = self.current_base_tab()
-        if tab is not None and tab.can_copy_card():
-            tab.copy_card()
+    def edit(self, how):
+        """A focused text field first, then the current tab"""
+        text = focused_text.field()
+        if focused_text.can(how, text):
+            focused_text.run(how, text)
+        elif self.tab_can_edit(how):
+            getattr(self.current_base_tab(), TAB_EDITS[how])(*self.edit_args(how))
+        self.update_edit_actions()
 
-    def paste_card(self):
+    def find(self):
         tab = self.current_base_tab()
-        mime = QGuiApplication.clipboard().mimeData()
-        if tab is not None and tab.can_paste_card(mime):
-            tab.paste_card(mime)
-        self.update_card_clipboard_actions()
+        if tab is not None and tab.can_find():
+            tab.find()
+        else:
+            self.show_command_palette()
 
     def update_go_actions(self):
         """Go entries enable as the current tab says"""

@@ -429,6 +429,13 @@ class LibraryTab(BaseTab):
 
     # -- slots ------------------------------------------------------------
 
+    def can_find(self):
+        return True
+
+    def find(self):
+        self.search_field.setFocus(Qt.FocusReason.ShortcutFocusReason)
+        self.search_field.selectAll()
+
     def on_search_changed(self, text):
         page = self.current_list_page()
         if page is not None:

@@ -163,6 +163,7 @@ class CardViewTab(BaseTab):
         # Tab 3: Notes
         self.notes_tab = NotesTab(self)
         self.info_tabs.addTab(self.notes_tab, "Notes")
+        self.notes_tab.list_view.selectionModel().currentChanged.connect(self.edit_state_changed)
 
         # Raising another tab of this card is leaving the editor, and leaving the
         # editor saves
@@ -295,6 +296,16 @@ class CardViewTab(BaseTab):
             return
         copy_card_to_clipboard(self.card, self.deck)
         self.toast.show_message(f"Copied {self.card['name']}")
+
+    def can_delete(self):
+        """Only while the Notes list has focus, as its own Delete did"""
+        view = self.notes_tab.list_view
+        focus = QApplication.focusWidget()
+        in_list = focus is not None and (focus is view or view.isAncestorOf(focus))
+        return in_list and self.notes_tab.path_at(view.currentIndex()) is not None
+
+    def delete(self):
+        self.notes_tab.delete_target()
 
     def enter_fullscreen(self):
         state = (

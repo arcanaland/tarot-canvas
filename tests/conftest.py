@@ -224,3 +224,16 @@ def stub_deck_manager(monkeypatch, minimal_deck):
     for module_path in DECK_MANAGER_CONSUMERS:
         monkeypatch.setattr(f"{module_path}.deck_manager", stub, raising=False)
     return stub
+
+
+@pytest.fixture
+def other_deck(tmp_path, stub_deck_manager, minimal_deck):
+    """A second installed deck with the same cards, to tell the copied deck apart."""
+    import shutil
+
+    from tarot_canvas.models.deck import TarotDeck
+
+    shutil.copytree(MINIMAL_DECK_PATH, tmp_path / "other")
+    deck = TarotDeck(str(tmp_path / "other"))
+    stub_deck_manager.get_all_decks = lambda: [minimal_deck, deck]
+    return deck
