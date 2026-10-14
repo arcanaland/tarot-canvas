@@ -1,25 +1,23 @@
 from PyQt6.QtCore import QKeyCombination, Qt
 from PyQt6.QtGui import QKeySequence
 
+from tarot_canvas.ui.commands import keys_for
+
 # Keys that a keypad or a layout switch adds to an event
 _IGNORED_MODIFIERS = Qt.KeyboardModifier.KeypadModifier | Qt.KeyboardModifier.GroupSwitchModifier
 
 
+# The registry's, so that the art, which takes these keys itself, follows View > Zoom
 def zoom_in_keys():
-    keys = list(QKeySequence.keyBindings(QKeySequence.StandardKey.ZoomIn))
-    # + shares a key with = on many layouts, so the unshifted press zooms too
-    equals = QKeySequence("Ctrl+=")
-    if equals not in keys:
-        keys.append(equals)
-    return keys
+    return keys_for("window.zoom_in")
 
 
 def zoom_out_keys():
-    return list(QKeySequence.keyBindings(QKeySequence.StandardKey.ZoomOut))
+    return keys_for("window.zoom_out")
 
 
 def reset_zoom_keys():
-    return [QKeySequence("Ctrl+0")]
+    return keys_for("window.reset_zoom")
 
 
 def matches(event, keys):

@@ -113,7 +113,7 @@ class CommandPalette(QDialog):
         # Load all cards
         self.load_cards()
 
-        # Connect escape key to close dialog
+        # Escape closes the dialog
         self.escape_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Escape), self)
         self.escape_shortcut.activated.connect(self.close)
 

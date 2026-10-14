@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSlot
-from PyQt6.QtGui import QAction, QIcon, QKeySequence
+from PyQt6.QtGui import QAction, QIcon
 from PyQt6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -22,8 +22,9 @@ from PyQt6.QtWidgets import (
 
 from tarot_canvas.models import notes as notes_model
 from tarot_canvas.models.note_events import note_events
-from tarot_canvas.ui import typography
+from tarot_canvas.ui import commands, typography
 from tarot_canvas.ui.activate_on_return import activate_on_return
+from tarot_canvas.ui.commands import Scope
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.note_row_delegate import NoteRowDelegate
 from tarot_canvas.ui.library.notes_model import NoteRole, NotesListModel
@@ -88,19 +89,19 @@ class NotesTab(QWidget):
         self.open_action = QAction(QIcon.fromTheme("document-open"), text("open"), self)
         self.open_action.triggered.connect(self.open_target)
 
-        self.rename_action = QAction(QIcon.fromTheme("edit-rename"), text("rename"), self)
-        self.rename_action.triggered.connect(self.rename_target)
+        actions = commands.bind(
+            self,
+            Scope.NOTES,
+            {"notes.rename": self.rename_target, "notes.delete": self.delete_target},
+            # On the list and in the menus only, so the editor keeps F2 and Delete
+            detached={"notes.rename", "notes.delete"},
+        )
+        self.rename_action = actions["notes.rename"]
 
         self.export_action = QAction(QIcon.fromTheme("document-export"), text("export"), self)
         self.export_action.triggered.connect(self.export_target)
 
-        self.delete_action = QAction(QIcon.fromTheme("edit-delete"), text("delete"), self)
-        self.delete_action.triggered.connect(self.delete_target)
-
-        self.rename_action.setShortcut(QKeySequence(Qt.Key.Key_F2))
-        self.delete_action.setShortcut(QKeySequence(QKeySequence.StandardKey.Delete))
-        for action in (self.rename_action, self.delete_action):
-            action.setShortcutContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        self.delete_action = actions["notes.delete"]
 
         self.note_menu = QMenu(self)
         self.note_menu.addActions(

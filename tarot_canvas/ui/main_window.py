@@ -1,6 +1,7 @@
 import contextlib
 import os
 import sys
+from functools import partial
 from importlib.resources import files
 
 from PyQt6.QtCore import QEvent, QObject, Qt, QUrl, pyqtSignal, pyqtSlot
@@ -10,7 +11,6 @@ from PyQt6.QtGui import (
     QDesktopServices,
     QGuiApplication,
     QIcon,
-    QKeySequence,
 )
 from PyQt6.QtWidgets import (
     QApplication,
@@ -34,14 +34,13 @@ from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.settings import (
     EXPLORER_VISIBLE_DEFAULT,
     EXPLORER_VISIBLE_KEY,
-    READING_TEXT_SCALE_DEFAULT,
-    READING_TEXT_SCALE_STEPS,
     SHOW_AVAILABLE_DECKS_DEFAULT,
     SHOW_AVAILABLE_DECKS_KEY,
     get_settings,
 )
-from tarot_canvas.ui import typography, zoom_keys
+from tarot_canvas.ui import commands, typography
 from tarot_canvas.ui.command_palette import CommandPalette
+from tarot_canvas.ui.commands import Scope, tooltip_with_keys
 from tarot_canvas.ui.components.card_explorer import CardExplorerPanel
 from tarot_canvas.ui.library.catalog_client import deck_catalog
 from tarot_canvas.ui.library.deck_downloads import deck_downloads
@@ -54,11 +53,18 @@ from tarot_canvas.ui.tabs.library_tab import LibraryTab
 from tarot_canvas.ui.widgets.toast import Toast
 from tarot_canvas.ui.windows.about import AboutDialog, app_icon
 from tarot_canvas.ui.windows.log_viewer import LogViewerDialog
-from tarot_canvas.ui.windows.preferences_text import PREFERENCES_TEXT
 from tarot_canvas.utils.logger import logger
 from tarot_canvas.utils.theme_manager import ThemeManager, ThemeType
 
 ICON_PATH = files("tarot_canvas.resources.icons").joinpath("icon.png")
+
+# The Go menu's entries, in its groups
+GO_GROUPS = (
+    ("previous", "next"),
+    ("first", "last", "random"),
+    ("previous_deck", "next_deck"),
+)
+GO_PLACES = tuple(where for group in GO_GROUPS for where in group)
 
 
 class TabBarEventFilter(QObject):
@@ -144,111 +150,88 @@ class MainWindow(QMainWindow):
         # Create menu bar
         menu_bar = self.menuBar()
 
+        detached = {
+            "window.new_canvas",
+            "window.new_library",
+            "window.new_card_view",
+            "window.open_deck",
+            "window.close_tab",
+            "window.quit",
+            "window.card_explorer",
+            "window.preferences",
+            *(f"window.go_{where}" for where in GO_PLACES),
+        }
+        self.window_actions = actions = commands.bind(
+            self,
+            Scope.WINDOW,
+            {
+                "window.new_canvas": self.new_canvas_tab,
+                "window.new_library": self.new_library_tab,
+                "window.new_card_view": self.new_card_view_tab,
+                "window.open_deck": self.open_deck,
+                "window.close_tab": self.close_current_tab,
+                "window.quit": self.close,
+                "window.copy_card": self.copy_card,
+                "window.paste_card": self.paste_card,
+                "window.card_explorer": lambda: self.toggle_card_explorer(
+                    self.explorer_action.isChecked()
+                ),
+                "window.fullscreen": self.toggle_tab_fullscreen,
+                "window.zoom_in": partial(self.zoom, "in"),
+                "window.zoom_out": partial(self.zoom, "out"),
+                "window.reset_zoom": partial(self.zoom, "reset"),
+                **{f"window.go_{where}": partial(self.go, where) for where in GO_PLACES},
+                "window.find_card": self.show_command_palette,
+                "window.preferences": self.show_preferences,
+            },
+            detached=detached,
+        )
+
         # File menu
         file_menu = menu_bar.addMenu("&File")
 
-        # New Buttons
-        self.new_canvas_action = QAction("New &Canvas", self)
-        self.new_canvas_action.setShortcut("Ctrl+N")
-        self.new_canvas_action.setIcon(QIcon.fromTheme("draw-rectangle"))
-        self.new_canvas_action.triggered.connect(self.new_canvas_tab)
-        file_menu.addAction(self.new_canvas_action)
-
-        self.new_library_action = QAction("New &Library View", self)
-        self.new_library_action.setShortcut("Ctrl+L")
-        self.new_library_action.setIcon(QIcon.fromTheme("view-list-icons"))
-        self.new_library_action.triggered.connect(self.new_library_tab)
-        file_menu.addAction(self.new_library_action)
-
-        self.new_card_view_action = QAction("New C&ard View", self)
-        self.new_card_view_action.setShortcut("Ctrl+T")
-        self.new_card_view_action.setIcon(QIcon.fromTheme("view-pages-single"))
-        self.new_card_view_action.triggered.connect(self.new_card_view_tab)
-        file_menu.addAction(self.new_card_view_action)
-
+        self.new_canvas_action = actions["window.new_canvas"]
+        self.new_library_action = actions["window.new_library"]
+        self.new_card_view_action = actions["window.new_card_view"]
+        file_menu.addActions(
+            [self.new_canvas_action, self.new_library_action, self.new_card_view_action]
+        )
         file_menu.addSeparator()
-
-        open_action = QAction("&Open Deck…", self)
-        open_action.setShortcut("Ctrl+O")
-        open_action.setIcon(QIcon.fromTheme("document-open-folder"))
-        open_action.triggered.connect(self.open_deck)
-        file_menu.addAction(open_action)
-
+        file_menu.addAction(actions["window.open_deck"])
         file_menu.addSeparator()
-
-        close_tab_action = QAction("Close &Tab", self)
-        close_tab_action.setShortcut("Ctrl+W")
-        close_tab_action.setIcon(QIcon.fromTheme("tab-close"))
-        close_tab_action.triggered.connect(self.close_current_tab)
-        file_menu.addAction(close_tab_action)
-
+        file_menu.addAction(actions["window.close_tab"])
         file_menu.addSeparator()
-
-        exit_action = QAction("&Exit", self)
-        exit_action.setShortcut("Ctrl+Q")
-        exit_action.setIcon(QIcon.fromTheme("application-exit"))
-        exit_action.triggered.connect(self.close)
-        file_menu.addAction(exit_action)
+        file_menu.addAction(actions["window.quit"])
 
         # Edit menu
         edit_menu = menu_bar.addMenu("&Edit")
         edit_menu.aboutToShow.connect(self.update_card_clipboard_actions)
 
-        self.copy_card_action = QAction("&Copy Card", self)
-        self.copy_card_action.setShortcuts(QKeySequence.StandardKey.Copy)
-        self.copy_card_action.setIcon(QIcon.fromTheme("edit-copy"))
-        self.copy_card_action.triggered.connect(self.copy_card)
-        edit_menu.addAction(self.copy_card_action)
-        self.addAction(self.copy_card_action)
-
-        self.paste_card_action = QAction("&Paste Card", self)
-        self.paste_card_action.setShortcuts(QKeySequence.StandardKey.Paste)
-        self.paste_card_action.setIcon(QIcon.fromTheme("edit-paste"))
-        self.paste_card_action.triggered.connect(self.paste_card)
-        edit_menu.addAction(self.paste_card_action)
-        self.addAction(self.paste_card_action)
+        # On the window as well, so they work with the menu bar hidden in fullscreen
+        self.copy_card_action = actions["window.copy_card"]
+        self.paste_card_action = actions["window.paste_card"]
+        edit_menu.addActions([self.copy_card_action, self.paste_card_action])
 
         # View menu
         view_menu = menu_bar.addMenu("&View")
 
-        # Add explorer toggle to View menu
-        self.explorer_action = QAction("&Card Explorer", self)
-        self.explorer_action.setShortcut("Ctrl+E")
-        self.explorer_action.setIcon(QIcon.fromTheme("view-sidetree"))
+        self.explorer_action = actions["window.card_explorer"]
         self.explorer_action.setCheckable(True)
         self.explorer_action.setChecked(True)  # Set checked by default
-        self.explorer_action.triggered.connect(self.toggle_card_explorer)
         view_menu.addAction(self.explorer_action)
 
         view_menu.addSeparator()
 
-        self.fullscreen_tab_action = QAction("&Fullscreen", self)
-        self.fullscreen_tab_action.setShortcuts([QKeySequence("Ctrl+Shift+F"), QKeySequence("F11")])
-        self.fullscreen_tab_action.setIcon(QIcon.fromTheme("view-fullscreen"))
+        self.fullscreen_tab_action = actions["window.fullscreen"]
         self.fullscreen_tab_action.setCheckable(True)
-        self.fullscreen_tab_action.triggered.connect(self.toggle_tab_fullscreen)
         view_menu.addAction(self.fullscreen_tab_action)
-        self.addAction(self.fullscreen_tab_action)
 
         # Zoom stuff
         view_menu.addSeparator()
-        self.zoom_in_action = QAction(QIcon.fromTheme("zoom-in"), PREFERENCES_TEXT["zoom_in"], self)
-        self.zoom_in_action.setShortcuts(zoom_keys.zoom_in_keys())
-        self.zoom_in_action.triggered.connect(lambda: self.zoom("in"))
-        self.zoom_out_action = QAction(
-            QIcon.fromTheme("zoom-out"), PREFERENCES_TEXT["zoom_out"], self
-        )
-        self.zoom_out_action.setShortcuts(zoom_keys.zoom_out_keys())
-        self.zoom_out_action.triggered.connect(lambda: self.zoom("out"))
-        self.reset_zoom_action = QAction(
-            QIcon.fromTheme("zoom-original"), PREFERENCES_TEXT["reset_zoom"], self
-        )
-        self.reset_zoom_action.setShortcuts(zoom_keys.reset_zoom_keys())
-        self.reset_zoom_action.triggered.connect(lambda: self.zoom("reset"))
-        for action in (self.zoom_in_action, self.zoom_out_action, self.reset_zoom_action):
-            view_menu.addAction(action)
-            # On the window as well, so they work with the menu bar hidden in fullscreen
-            self.addAction(action)
+        self.zoom_in_action = actions["window.zoom_in"]
+        self.zoom_out_action = actions["window.zoom_out"]
+        self.reset_zoom_action = actions["window.reset_zoom"]
+        view_menu.addActions([self.zoom_in_action, self.zoom_out_action, self.reset_zoom_action])
         typography.events().reading_scale_changed.connect(self.update_zoom_actions)
         # Which of the two they act on moves with the focus, and the art's zoom with the wheel
         QApplication.instance().focusChanged.connect(self.on_focus_changed)
@@ -258,35 +241,14 @@ class MainWindow(QMainWindow):
 
         go_menu = menu_bar.addMenu("&Go")
         go_menu.aboutToShow.connect(self.update_go_actions)
-        self.go_actions = {}
-        for group in (
-            (
-                ("previous", "&Previous Card\tLeft", "go-previous"),
-                ("next", "&Next Card\tRight", "go-next"),
-            ),
-            (
-                ("first", "&First Card\tHome", "go-first"),
-                ("last", "&Last Card\tEnd", "go-last"),
-                ("random", "&Random Card\tD", "roll"),
-            ),
-            (
-                ("previous_deck", "Previous &Deck\t[", "go-previous-skip"),
-                ("next_deck", "Ne&xt Deck\t]", "go-next-skip"),
-            ),
-        ):
-            for where, text, icon_name in group:
-                action = go_menu.addAction(QIcon.fromTheme(icon_name), text)
-                action.triggered.connect(lambda _checked=False, w=where: self.go(w))
-                self.go_actions[where] = action
+        self.go_actions = {where: actions[f"window.go_{where}"] for where in GO_PLACES}
+        for group in GO_GROUPS:
+            go_menu.addActions([self.go_actions[where] for where in group])
             go_menu.addSeparator()
 
         # On the window as well, so Ctrl+P works with the menu bar hidden in fullscreen
-        self.find_card_action = QAction("Find &Card…", self)
-        self.find_card_action.setShortcut("Ctrl+P")
-        self.find_card_action.setIcon(QIcon.fromTheme("edit-find"))
-        self.find_card_action.triggered.connect(self.show_command_palette)
+        self.find_card_action = actions["window.find_card"]
         go_menu.addAction(self.find_card_action)
-        self.addAction(self.find_card_action)
 
         self.add_tab_number_shortcuts()
 
@@ -349,11 +311,8 @@ class MainWindow(QMainWindow):
         settings_menu.addSeparator()
 
         # On macOS Qt moves this to the application menu
-        self.preferences_action = QAction(PREFERENCES_TEXT["configure"], self)
-        self.preferences_action.setIcon(QIcon.fromTheme("configure"))
-        self.preferences_action.setShortcuts(QKeySequence.StandardKey.Preferences)
+        self.preferences_action = actions["window.preferences"]
         self.preferences_action.setMenuRole(QAction.MenuRole.PreferencesRole)
-        self.preferences_action.triggered.connect(self.show_preferences)
         settings_menu.addAction(self.preferences_action)
 
         # Help menu
@@ -426,7 +385,7 @@ class MainWindow(QMainWindow):
             new_tab_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
         else:
             new_tab_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
-        new_tab_button.setToolTip("New tab (Ctrl+N)")
+        new_tab_button.setToolTip(tooltip_with_keys("New tab", self.new_canvas_action))
 
         new_tab_menu = QMenu(new_tab_button)
         new_tab_menu.addAction(self.new_canvas_action)
@@ -437,7 +396,7 @@ class MainWindow(QMainWindow):
         # Create search button and put it in the tab corner
         search_button = QToolButton()
         search_button.setIcon(QIcon.fromTheme("search", QIcon.fromTheme("edit-find")))
-        search_button.setToolTip("Search Cards (Ctrl+P)")
+        search_button.setToolTip(tooltip_with_keys("Search Cards", self.find_card_action))
         search_button.clicked.connect(self.show_command_palette)
 
         # Style the button to show only the icon without borders or background
@@ -720,16 +679,14 @@ class MainWindow(QMainWindow):
             self.add_welcome_tab()
 
     def add_tab_number_shortcuts(self, platform=sys.platform):
-        """Alt+1 to Alt+8 pick a tab by position and Alt+9 picks the last, as in a browser"""
-        # On macOS Option+digit types a character, so it is Cmd there, as in Safari
-        modifier = "Ctrl" if platform == "darwin" else "Alt"
-        self.tab_number_actions = []
-        for number in range(1, 10):
-            action = QAction(self)
-            action.setShortcut(f"{modifier}+{number}")
-            action.triggered.connect(lambda _checked=False, n=number: self.select_tab_by_number(n))
-            self.addAction(action)
-            self.tab_number_actions.append(action)
+        """Alt and a digit picks a tab, or Cmd on macOS"""
+        actions = commands.bind(
+            self,
+            Scope.WINDOW,
+            {f"window.tab_{n}": partial(self.select_tab_by_number, n) for n in range(1, 10)},
+            platform=platform,
+        )
+        self.tab_number_actions = list(actions.values())
 
     def select_tab_by_number(self, number):
         count = self.tab_widget.count()
@@ -825,45 +782,23 @@ class MainWindow(QMainWindow):
     @pyqtSlot()
     @pyqtSlot(int)
     def update_zoom_actions(self, _percent=None):
-        """Each action only while it would change what it acts on"""
-        target = self.zoom_target()
-        if target is None:
-            enabled = (False, False, False)
-        elif target is typography:
-            scale = typography.reading_scale()
-            steps = READING_TEXT_SCALE_STEPS
-            enabled = (scale < steps[-1], scale > steps[0], scale != READING_TEXT_SCALE_DEFAULT)
-        else:
-            enabled = (target.can_zoom_in(), not target.is_at_fit(), not target.is_at_fit())
-        for action, on in zip(
-            (self.zoom_in_action, self.zoom_out_action, self.reset_zoom_action),
-            enabled,
-            strict=True,
+        """Each action only while the current tab says it would change something"""
+        tab = self.current_base_tab()
+        for how, action in (
+            ("in", self.zoom_in_action),
+            ("out", self.zoom_out_action),
+            ("reset", self.reset_zoom_action),
         ):
-            action.setEnabled(on)
+            action.setEnabled(tab is not None and tab.can_zoom(how))
 
     @pyqtSlot(QWidget, QWidget)
     def on_focus_changed(self, _old, _new):
         self.update_zoom_actions()
 
-    def zoom_target(self):
-        """art or text on a card tab"""
-        tab = self.tab_widget.currentWidget()
-        if not isinstance(tab, CardViewTab):
-            return None
-        art = getattr(tab, "image_view", None)
-        if art is not None and self.focusWidget() is art:
-            return art
-        return typography
-
     def zoom(self, how):
-        target = self.zoom_target()
-        if target is typography:
-            {"in": typography.zoom_in, "out": typography.zoom_out, "reset": typography.reset_zoom}[
-                how
-            ]()
-        elif target is not None:
-            {"in": target.zoom_in, "out": target.zoom_out, "reset": target.reset_to_fit}[how]()
+        tab = self.current_base_tab()
+        if tab is not None and tab.can_zoom(how):
+            tab.zoom(how)
         self.update_zoom_actions()
 
     def current_base_tab(self):

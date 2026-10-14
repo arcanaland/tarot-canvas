@@ -9,7 +9,6 @@ from PyQt6.QtGui import (
     QCursor,
     QGuiApplication,
     QIcon,
-    QKeySequence,
     QPainter,
     QPixmap,
     QRadialGradient,
@@ -36,7 +35,7 @@ from tarot_canvas.settings import (
     get_motion_level,
     get_settings,
 )
-from tarot_canvas.ui import typography
+from tarot_canvas.ui import commands, typography
 
 # Import the refactored components
 from tarot_canvas.ui.canvas import (
@@ -61,7 +60,9 @@ from tarot_canvas.ui.canvas.motion import (
     system_animations_enabled,
 )
 from tarot_canvas.ui.canvas.selection import GILT_ON_DARK, gilt_for_ground
+from tarot_canvas.ui.canvas.view import MAX_ZOOM, MIN_ZOOM
 from tarot_canvas.ui.card_transfer import card_from_mime, has_card
+from tarot_canvas.ui.commands import Scope, tooltip_with_keys
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.utils.logger import logger
 
@@ -140,7 +141,8 @@ class CanvasTab(BaseTab):
         # Add canvas to layout (will take most of the space)
         main_layout.addWidget(self.view, 1)
 
-        # Create toolbar on the right
+        # Create toolbar on the right, showing the commands
+        self.bind_commands()
         self.create_toolbar(main_layout)
 
         # Set up the base layout
@@ -161,9 +163,6 @@ class CanvasTab(BaseTab):
             layout.setContentsMargins(0, 0, 0, 0)
             layout.setSpacing(0)
             layout.addWidget(container)
-
-        # Set up keyboard shortcuts
-        self.setup_shortcuts()
 
     def apply_background_settings(self):
         """Apply background settings from preferences"""
@@ -216,6 +215,7 @@ class CanvasTab(BaseTab):
         for card in self._cards:
             if card.isSelected():
                 card.set_view_scale(view_scale)
+        self.zoom_state_changed()
 
     def schedule_detail(self, *_):
         self._detail_timer.start()
@@ -371,60 +371,22 @@ class CanvasTab(BaseTab):
                 # As a last resort, modify maximum size of main window
                 window.setMaximumHeight(screen.height() - 100)
 
-    def setup_shortcuts(self):
-        """Set up keyboard shortcuts for all toolbar actions"""
-        # Card Actions
-        self.create_shortcut("D", self.on_draw_card, "Summon Card")
-        self.create_shortcut("R", self.on_flip_card, "Flip Card (Reversed)")
-        self.create_shortcut(Qt.Key.Key_Delete, self.on_delete_card, "Delete Card")
-        self.create_shortcut(Qt.Key.Key_Backspace, self.on_delete_card, "Delete Card (Alt)")
-
-        # Arrangement Actions
-        self.create_shortcut("Ctrl+]", self.on_bring_to_front, "Bring to Front")
-        self.create_shortcut("Ctrl+[", self.on_send_to_back, "Send to Back")
-        self.create_shortcut("Ctrl+A", self.on_align_cards, "Align Cards")
-
-        # View Actions
-        self.create_shortcut("Ctrl++", self.on_zoom_in, "Zoom In")
-        self.create_shortcut("Ctrl+=", self.on_zoom_in, "Zoom In (Alt)")
-        self.create_shortcut("Ctrl+-", self.on_zoom_out, "Zoom Out")
-        self.create_shortcut("Ctrl+0", self.on_reset_view, "Reset View")
-        self.create_shortcut("Ctrl+F", self.on_fit_view, "Fit All in View")
-
-        fullscreen = self.create_shortcut("F", self.on_toggle_fullscreen, "Fullscreen Canvas")
-        fullscreen.setShortcutContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
-
-        # Navigation
-        self.create_shortcut("Escape", self.on_escape_pressed, "Cancel Selection")
-
-    def create_shortcut(self, key_sequence, slot, description=""):
-        """Create and register a keyboard shortcut"""
-        # Convert string to QKeySequence if needed
-        if isinstance(key_sequence, str):
-            shortcut = QKeySequence(key_sequence)
-        else:
-            shortcut = QKeySequence(key_sequence)
-
-        # Create the action
-        action = QAction(description, self)
-        action.setShortcut(shortcut)
-        action.triggered.connect(slot)
-        self.addAction(action)
-
-        # Update tooltip for corresponding toolbar button if it exists
-        for toolbar_action in self.toolbar.actions():
-            if toolbar_action.text() or toolbar_action.toolTip():
-                # Check if this action is connected to the same slot
-                # This is a bit of a hack but should work for simple cases
-                connections = toolbar_action.receivers(toolbar_action.triggered)
-                if connections > 0 and slot.__name__ in toolbar_action.toolTip():
-                    # Update tooltip to include shortcut
-                    current_tooltip = toolbar_action.toolTip().split(" (")[
-                        0
-                    ]  # Remove any existing shortcut info
-                    toolbar_action.setToolTip(f"{current_tooltip} ({shortcut.toString()})")
-
-        return action
+    def bind_commands(self):
+        self.commands = commands.bind(
+            self,
+            Scope.CANVAS,
+            {
+                "canvas.summon": self.on_draw_card,
+                "canvas.flip": self.on_flip_card,
+                "canvas.delete": self.on_delete_card,
+                "canvas.bring_to_front": self.on_bring_to_front,
+                "canvas.send_to_back": self.on_send_to_back,
+                "canvas.align": self.on_align_cards,
+                "canvas.fit": self.on_fit_view,
+                "canvas.fullscreen": self.on_toggle_fullscreen,
+                "canvas.cancel": self.on_escape_pressed,
+            },
+        )
 
     def on_escape_pressed(self):
         """Handle Escape key - leave fullscreen if in it, otherwise cancel selection"""
@@ -449,7 +411,9 @@ class CanvasTab(BaseTab):
         full = self.is_fullscreen()
         self.fullscreen_action.setChecked(full)
         self.fullscreen_action.setToolTip(
-            "Leave fullscreen (Esc)" if full else "Fullscreen canvas (F)"
+            "Leave fullscreen (Esc)"
+            if full
+            else tooltip_with_keys("Fullscreen canvas", self.fullscreen_action)
         )
 
     def create_toolbar(self, parent_layout):
@@ -465,34 +429,19 @@ class CanvasTab(BaseTab):
         # Primary actions group
         self.toolbar.addWidget(self.create_section_label("Cards"))
 
-        # Primary actions with Breeze icons
-        primary_actions = [
-            ("document-new", self.on_draw_card, "Summon a random card (D)"),
-            (
-                "object-flip-vertical",
-                self.on_flip_card,
-                "Flip card (R)",
-            ),
-            ("edit-delete", self.on_delete_card, "Remove selected card (Delete)"),
-        ]
-
-        # Add primary actions to toolbar
-        for icon_name, slot, tooltip in primary_actions:
-            action = QAction(
-                QIcon.fromTheme(icon_name),
-                "",
-                self,
-            )
-            action.setToolTip(tooltip)
-            action.triggered.connect(slot)
+        # The toolbar's buttons are the commands', so each shows the key it has
+        for command_id, tooltip in (
+            ("canvas.summon", "Summon a random card"),
+            ("canvas.flip", "Flip card"),
+            ("canvas.delete", "Remove selected card"),
+        ):
+            action = self.commands[command_id]
+            action.setToolTip(tooltip_with_keys(tooltip, action))
             self.toolbar.addAction(action)
-            if slot == self.on_toggle_fullscreen:
-                action.setCheckable(True)
-                self.fullscreen_action = action
 
         # Paste
         self.paste_action = QAction(QIcon.fromTheme("edit-paste"), "Paste", self)
-        self.paste_action.setToolTip("Paste card (Ctrl+V)")
+        self.paste_action.setToolTip(tooltip_with_keys("Paste card", "window.paste_card"))
         self.paste_action.triggered.connect(self.on_paste_card)
         self.toolbar.addAction(self.paste_action)
         QGuiApplication.clipboard().dataChanged.connect(self.on_clipboard_changed)
@@ -502,27 +451,15 @@ class CanvasTab(BaseTab):
         self.toolbar.addSeparator()
         self.toolbar.addWidget(self.create_section_label("Arrange"))
 
-        # Arrangement actions with Breeze icons
         self.arrange_actions = {}
-        arrangement_actions = [
-            ("go-top", self.on_bring_to_front, "Bring card to front"),
-            ("go-bottom", self.on_send_to_back, "Send card to back"),
-            ("align-horizontal-center", self.on_align_cards, "Align selected cards"),
-        ]
-
-        # Add arrangement actions to toolbar
-        for icon_name, slot, tooltip in arrangement_actions:
-            action = QAction(
-                QIcon.fromTheme(icon_name),
-                "",
-                self,
-            )
-            action.setToolTip(tooltip)
-            action.triggered.connect(slot)
+        for command_id, slot, tooltip in (
+            ("canvas.bring_to_front", self.on_bring_to_front, "Bring card to front"),
+            ("canvas.send_to_back", self.on_send_to_back, "Send card to back"),
+            ("canvas.align", self.on_align_cards, "Align selected cards"),
+        ):
+            action = self.commands[command_id]
+            action.setToolTip(tooltip_with_keys(tooltip, action))
             self.toolbar.addAction(action)
-            if slot == self.on_toggle_fullscreen:
-                action.setCheckable(True)
-                self.fullscreen_action = action
             self.arrange_actions[slot] = action
 
         # Grey out the arrangement buttons unless you select multiple cards
@@ -533,28 +470,31 @@ class CanvasTab(BaseTab):
         self.toolbar.addSeparator()
         self.toolbar.addWidget(self.create_section_label("View"))
 
-        # View control actions with Breeze icons
-        view_actions = [
+        # Zooming is View > Zoom's, whose keys are the window's
+        for icon_name, slot, tooltip in (
             ("zoom-in", self.on_zoom_in, "Zoom in"),
             ("zoom-out", self.on_zoom_out, "Zoom out"),
-            ("zoom-fit-best", self.on_fit_view, "Fit all cards in view"),
-            ("zoom-original", self.on_reset_view, "Reset to default view"),
-            ("view-fullscreen", self.on_toggle_fullscreen, "Fullscreen canvas (F)"),
-        ]
-
-        # Add view control actions to toolbar
-        for icon_name, slot, tooltip in view_actions:
-            action = QAction(
-                QIcon.fromTheme(icon_name),
-                "",
-                self,
-            )
+        ):
+            action = QAction(QIcon.fromTheme(icon_name), "", self)
             action.setToolTip(tooltip)
             action.triggered.connect(slot)
             self.toolbar.addAction(action)
-            if slot == self.on_toggle_fullscreen:
-                action.setCheckable(True)
-                self.fullscreen_action = action
+
+        fit_action = self.commands["canvas.fit"]
+        fit_action.setToolTip("Fit all cards in view")
+        self.toolbar.addAction(fit_action)
+
+        reset_action = QAction(QIcon.fromTheme("zoom-original"), "", self)
+        reset_action.setToolTip("Reset to default view")
+        reset_action.triggered.connect(self.on_reset_view)
+        self.toolbar.addAction(reset_action)
+
+        self.fullscreen_action = self.commands["canvas.fullscreen"]
+        self.fullscreen_action.setCheckable(True)
+        self.fullscreen_action.setToolTip(
+            tooltip_with_keys("Fullscreen canvas", self.fullscreen_action)
+        )
+        self.toolbar.addAction(self.fullscreen_action)
 
         # Add the toolbar to the main layout
         parent_layout.addWidget(self.toolbar, 0)  # 0 means no stretch
@@ -736,6 +676,20 @@ class CanvasTab(BaseTab):
         self.navigation_requested.emit(
             "open_card_view", {"card": card_data, "deck": self.deck, "source_tab_id": self.id}
         )
+
+    # -- zoom --------------------------------------------------------------
+
+    def can_zoom(self, how):
+        scale = abs(self.view.transform().m11())
+        if how == "in":
+            return scale < MAX_ZOOM
+        if how == "out":
+            return scale > MIN_ZOOM
+        # It also recentres on the cards, so there is always something to do
+        return how == "reset"
+
+    def zoom(self, how):
+        {"in": self.on_zoom_in, "out": self.on_zoom_out, "reset": self.on_reset_view}[how]()
 
     # Canvas Control Methods
     def on_zoom_in(self):

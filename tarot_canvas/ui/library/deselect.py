@@ -22,6 +22,7 @@ def clear_selection(view):
 
 def deselect_on_empty_click_or_escape(view):
     view.viewport().installEventFilter(_EmptyClickFilter(view))
+    # A dismiss key inside the view, not a command, so it is not in the registry
     escape = QShortcut(QKeySequence(Qt.Key.Key_Escape), view)
     escape.setContext(Qt.ShortcutContext.WidgetShortcut)
     escape.activated.connect(lambda: clear_selection(view))

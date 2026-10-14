@@ -4,7 +4,7 @@ import random
 from functools import partial
 
 from PyQt6.QtCore import QEvent, Qt, QTimer, pyqtSignal, pyqtSlot
-from PyQt6.QtGui import QKeySequence, QPixmap, QShortcut
+from PyQt6.QtGui import QKeySequence, QPixmap
 from PyQt6.QtWidgets import (
     QApplication,
     QFrame,
@@ -18,8 +18,11 @@ from PyQt6.QtWidgets import (
 
 from tarot_canvas.models.deck_events import deck_events
 from tarot_canvas.models.deck_manager import deck_manager
+from tarot_canvas.settings import READING_TEXT_SCALE_DEFAULT, READING_TEXT_SCALE_STEPS
+from tarot_canvas.ui import commands, typography
 from tarot_canvas.ui.card_colours import card_colour
 from tarot_canvas.ui.card_transfer import copy_card_to_clipboard
+from tarot_canvas.ui.commands import Scope, tooltip_with_keys
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.ui.tabs.card_view.card_bar import CardBar, DeckBar
 from tarot_canvas.ui.tabs.card_view.color_dot import ColorDot
@@ -95,7 +98,7 @@ class CardViewTab(BaseTab):
             self.image_view,
             "sidebar-expand-right",
             "<",
-            "Show card details (I)",
+            tooltip_with_keys("Show card details", "card_image.toggle_details"),
             self.toggle_info_pane,
             row=1,
         )
@@ -231,33 +234,31 @@ class CardViewTab(BaseTab):
     def setup_key_bindings(self):
         """Keys on the whole tab, then the ones only the art takes. The zoom keys are the
         image view's own while it has focus, and zoom reading text elsewhere"""
-        bindings = [
-            ("Ctrl+I", self.toggle_info_pane),
-            ("Escape", self.on_escape_pressed),
-        ]
-        for key, slot in bindings:
-            shortcut = QShortcut(QKeySequence(key), self)
-            shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
-            shortcut.activated.connect(slot)
+        commands.bind(
+            self,
+            Scope.CARD,
+            {
+                "card.toggle_details": self.toggle_info_pane,
+                "card.cancel": self.on_escape_pressed,
+            },
+        )
 
         # Only while the art has focus, so typing in the details pane is left alone
-        art_bindings = [
-            ("F", self.request_fullscreen_toggle),
-            ("I", self.toggle_info_pane),
-            ("PgUp", partial(self.go, "previous")),
-            ("Backspace", partial(self.go, "previous")),
-            ("PgDown", partial(self.go, "next")),
-            ("Space", partial(self.go, "next")),
-            ("Home", partial(self.go, "first")),
-            ("End", partial(self.go, "last")),
-            ("[", partial(self.go, "previous_deck")),
-            ("]", partial(self.go, "next_deck")),
-            ("D", partial(self.go, "random")),
-        ]
-        for key, slot in art_bindings:
-            shortcut = QShortcut(QKeySequence(key), self.image_view)
-            shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
-            shortcut.activated.connect(slot)
+        commands.bind(
+            self.image_view,
+            Scope.CARD_IMAGE,
+            {
+                "card_image.fullscreen": self.request_fullscreen_toggle,
+                "card_image.toggle_details": self.toggle_info_pane,
+                "card_image.previous": partial(self.go, "previous"),
+                "card_image.next": partial(self.go, "next"),
+                "card_image.first": partial(self.go, "first"),
+                "card_image.last": partial(self.go, "last"),
+                "card_image.previous_deck": partial(self.go, "previous_deck"),
+                "card_image.next_deck": partial(self.go, "next_deck"),
+                "card_image.random": partial(self.go, "random"),
+            },
+        )
 
         # Left and Right pan a zoomed card, so the view decides
         self.image_view.step_requested.connect(self.step_card)
@@ -356,10 +357,14 @@ class CardViewTab(BaseTab):
         self.card_bar.sync_info_pane(self.info_pane_is_open())
         if self.info_pane_is_open():
             self.info_pane_button.set_icon("sidebar-collapse-right", ">")
-            self.info_pane_button.setToolTip("Hide card details (I)")
+            self.info_pane_button.setToolTip(
+                tooltip_with_keys("Hide card details", "card_image.toggle_details")
+            )
         else:
             self.info_pane_button.set_icon("sidebar-expand-right", "<")
-            self.info_pane_button.setToolTip("Show card details (I)")
+            self.info_pane_button.setToolTip(
+                tooltip_with_keys("Show card details", "card_image.toggle_details")
+            )
 
     def on_fullscreen_changed(self):
         full = self.is_fullscreen()
@@ -455,6 +460,35 @@ class CardViewTab(BaseTab):
             return
         self.deck_bar.update_decks(self.card, self.deck, self.deck_manager)
         self.sync_deck_bar()
+
+    # -- zoom --------------------------------------------------------------
+
+    def zoom_art(self):
+        """The art while it has the keyboard; otherwise the zoom is the reading text's"""
+        if self.window().focusWidget() is self.image_view:
+            return self.image_view
+        return None
+
+    def can_zoom(self, how):
+        art = self.zoom_art()
+        if art is not None:
+            return art.can_zoom_in() if how == "in" else not art.is_at_fit()
+        scale = typography.reading_scale()
+        steps = READING_TEXT_SCALE_STEPS
+        return {
+            "in": scale < steps[-1],
+            "out": scale > steps[0],
+            "reset": scale != READING_TEXT_SCALE_DEFAULT,
+        }[how]
+
+    def zoom(self, how):
+        art = self.zoom_art()
+        if art is not None:
+            {"in": art.zoom_in, "out": art.zoom_out, "reset": art.reset_to_fit}[how]()
+        else:
+            {"in": typography.zoom_in, "out": typography.zoom_out, "reset": typography.reset_zoom}[
+                how
+            ]()
 
     # -- moving through the deck -------------------------------------------
 

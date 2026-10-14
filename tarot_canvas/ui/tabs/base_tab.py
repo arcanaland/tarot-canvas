@@ -72,3 +72,19 @@ class BaseTab(QWidget):
 
     def go(self, where):
         """Show another card in this tab."""
+
+    # -- zoom --------------------------------------------------------------
+    # View > Zoom In / Zoom Out / Reset Zoom ask the current tab. how is one of
+    # in, out, reset.
+
+    def can_zoom(self, how):
+        return False
+
+    def zoom(self, how):
+        """Zoom what this tab shows."""
+
+    def zoom_state_changed(self):
+        """When focus moves"""
+        window = self.window()
+        if hasattr(window, "update_zoom_actions"):
+            window.update_zoom_actions()

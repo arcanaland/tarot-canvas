@@ -183,12 +183,9 @@ def test_the_zoom_actions_are_in_the_view_menu(qtbot):
         assert action in view_menu.actions()
 
 
-def test_the_zoom_actions_are_off_away_from_a_card_view(qtbot):
+def test_the_zoom_actions_are_off_in_the_library(qtbot):
     window = make_window(qtbot)
     window.new_library_tab()
-    assert not any(action.isEnabled() for action in zoom_actions(window))
-
-    window.new_canvas_tab()
     assert not any(action.isEnabled() for action in zoom_actions(window))
 
 
@@ -297,12 +294,13 @@ def test_a_click_in_the_details_takes_the_keys_off_the_art(qtbot):
     assert get_reading_text_scale() == 110
 
 
-def test_the_canvas_keeps_its_own_zoom_keys(qtbot):
+def test_the_zoom_keys_zoom_the_canvas_and_not_the_reading_text(qtbot):
     window = make_window(qtbot)
     open_card_view(window)
     window.new_canvas_tab()
     canvas = window.tab_widget.currentWidget()
     assert isinstance(canvas, CanvasTab)
+    assert all(action.isEnabled() for action in zoom_actions(window))
     focus(qtbot, canvas.view)
     scale = canvas.view.transform().m11()
 
@@ -310,6 +308,8 @@ def test_the_canvas_keeps_its_own_zoom_keys(qtbot):
 
     assert canvas.view.transform().m11() > scale
     assert get_reading_text_scale() == 100
+    # The canvas's timers must not outlive it
+    qtbot.wait(1100)
 
 
 def big_art(view):

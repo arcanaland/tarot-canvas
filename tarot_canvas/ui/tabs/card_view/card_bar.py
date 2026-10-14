@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
 )
 
 from tarot_canvas.ui.card_transfer import deck_path_key
+from tarot_canvas.ui.commands import menu_text, tooltip_with_keys
 
 
 class TitleButton(QToolButton):
@@ -206,20 +207,25 @@ class CardBar(QToolBar):
         self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
 
         image_view = tab.image_view
-        self.copy_action = self._add("edit-copy", "Copy", "Copy card (Ctrl+C)", tab.copy_card)
+        self.copy_action = self._add(
+            "edit-copy",
+            "Copy",
+            tooltip_with_keys("Copy card", "window.copy_card"),
+            tab.copy_card,
+        )
 
         # One button for the zoom state; the menu is the discoverable half of the
         # wheel, Ctrl+± and double-click. Text after a tab is only displayed.
         menu = QMenu(self)
         self.zoom_in_action = self._menu_item(
-            menu, "zoom-in", "Zoom In\tCtrl++", image_view.zoom_in
+            menu, "zoom-in", menu_text("Zoom In", "window.zoom_in"), image_view.zoom_in
         )
         self.zoom_out_action = self._menu_item(
-            menu, "zoom-out", "Zoom Out\tCtrl+-", image_view.zoom_out
+            menu, "zoom-out", menu_text("Zoom Out", "window.zoom_out"), image_view.zoom_out
         )
         menu.addSeparator()
         self.fit_action = self._menu_item(
-            menu, "zoom-fit-best", "Fit\tCtrl+0", image_view.reset_to_fit
+            menu, "zoom-fit-best", menu_text("Fit", "window.reset_zoom"), image_view.reset_to_fit
         )
         self.native_action = self._menu_item(
             menu, "zoom-original", "Actual Size\tDouble-click", image_view.zoom_to_native
@@ -239,11 +245,17 @@ class CardBar(QToolBar):
         self.addWidget(spacer)
 
         self.fullscreen_action = self._add(
-            "view-fullscreen", "Fullscreen", "Fullscreen (F)", tab.request_fullscreen_toggle
+            "view-fullscreen",
+            "Fullscreen",
+            tooltip_with_keys("Fullscreen", "card_image.fullscreen"),
+            tab.request_fullscreen_toggle,
         )
         self.fullscreen_action.setCheckable(True)
         self.info_pane_action = self._add(
-            "sidebar-collapse-right", "Details", "Hide card details (I)", tab.toggle_info_pane
+            "sidebar-collapse-right",
+            "Details",
+            tooltip_with_keys("Hide card details", "card_image.toggle_details"),
+            tab.toggle_info_pane,
         )
 
         image_view.zoom_changed.connect(self.sync_zoom)
@@ -285,7 +297,11 @@ class CardBar(QToolBar):
         """Say what the next press will do"""
         if is_open:
             self.info_pane_action.setIcon(QIcon.fromTheme("sidebar-collapse-right"))
-            self.info_pane_action.setToolTip("Hide card details (I)")
+            self.info_pane_action.setToolTip(
+                tooltip_with_keys("Hide card details", "card_image.toggle_details")
+            )
         else:
             self.info_pane_action.setIcon(QIcon.fromTheme("sidebar-expand-right"))
-            self.info_pane_action.setToolTip("Show card details (I)")
+            self.info_pane_action.setToolTip(
+                tooltip_with_keys("Show card details", "card_image.toggle_details")
+            )
