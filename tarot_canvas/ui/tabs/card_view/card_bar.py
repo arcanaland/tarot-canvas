@@ -18,7 +18,7 @@ from PyQt6.QtWidgets import (
 )
 
 from tarot_canvas.ui.card_transfer import deck_path_key
-from tarot_canvas.ui.commands import menu_text, tooltip_with_keys
+from tarot_canvas.ui.commands import set_menu_text, set_tooltip_with_keys
 
 
 class TitleButton(QToolButton):
@@ -207,29 +207,21 @@ class CardBar(QToolBar):
         self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
 
         image_view = tab.image_view
-        self.copy_action = self._add(
-            "edit-copy",
-            "Copy",
-            tooltip_with_keys("Copy card", "window.copy_card"),
-            tab.copy_card,
-        )
+        self.copy_action = self._add("edit-copy", "Copy", tab.copy_card)
+        set_tooltip_with_keys(self.copy_action, "Copy card", "window.copy_card")
 
         # One button for the zoom state; the menu is the discoverable half of the
         # wheel, Ctrl+± and double-click. Text after a tab is only displayed.
         menu = QMenu(self)
-        self.zoom_in_action = self._menu_item(
-            menu, "zoom-in", menu_text("Zoom In", "window.zoom_in"), image_view.zoom_in
-        )
-        self.zoom_out_action = self._menu_item(
-            menu, "zoom-out", menu_text("Zoom Out", "window.zoom_out"), image_view.zoom_out
-        )
+        self.zoom_in_action = self._menu_item(menu, "zoom-in", image_view.zoom_in)
+        set_menu_text(self.zoom_in_action, "Zoom In", "window.zoom_in")
+        self.zoom_out_action = self._menu_item(menu, "zoom-out", image_view.zoom_out)
+        set_menu_text(self.zoom_out_action, "Zoom Out", "window.zoom_out")
         menu.addSeparator()
-        self.fit_action = self._menu_item(
-            menu, "zoom-fit-best", menu_text("Fit", "window.reset_zoom"), image_view.reset_to_fit
-        )
-        self.native_action = self._menu_item(
-            menu, "zoom-original", "Actual Size\tDouble-click", image_view.zoom_to_native
-        )
+        self.fit_action = self._menu_item(menu, "zoom-fit-best", image_view.reset_to_fit)
+        set_menu_text(self.fit_action, "Fit", "window.reset_zoom")
+        self.native_action = self._menu_item(menu, "zoom-original", image_view.zoom_to_native)
+        self.native_action.setText("Actual Size\tDouble-click")
         self.zoom_button = QToolButton()
         self.zoom_button.setMenu(menu)
         self.zoom_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
@@ -245,32 +237,27 @@ class CardBar(QToolBar):
         self.addWidget(spacer)
 
         self.fullscreen_action = self._add(
-            "view-fullscreen",
-            "Fullscreen",
-            tooltip_with_keys("Fullscreen", "card_image.fullscreen"),
-            tab.request_fullscreen_toggle,
+            "view-fullscreen", "Fullscreen", tab.request_fullscreen_toggle
         )
+        set_tooltip_with_keys(self.fullscreen_action, "Fullscreen", "card_image.fullscreen")
         self.fullscreen_action.setCheckable(True)
-        self.info_pane_action = self._add(
-            "sidebar-collapse-right",
-            "Details",
-            tooltip_with_keys("Hide card details", "card_image.toggle_details"),
-            tab.toggle_info_pane,
+        self.info_pane_action = self._add("sidebar-collapse-right", "Details", tab.toggle_info_pane)
+        set_tooltip_with_keys(
+            self.info_pane_action, "Hide card details", "card_image.toggle_details"
         )
 
         image_view.zoom_changed.connect(self.sync_zoom)
         self.sync_zoom()
 
-    def _add(self, icon_name, text, tooltip, slot):
+    def _add(self, icon_name, text, slot):
         """An icon-only action; text is what shows when the theme has no such icon."""
         action = QAction(QIcon.fromTheme(icon_name), text, self)
-        action.setToolTip(tooltip)
         action.triggered.connect(slot)
         self.addAction(action)
         return action
 
-    def _menu_item(self, menu, icon_name, text, slot):
-        action = menu.addAction(QIcon.fromTheme(icon_name), text)
+    def _menu_item(self, menu, icon_name, slot):
+        action = menu.addAction(QIcon.fromTheme(icon_name), "")
         action.triggered.connect(slot)
         return action
 
@@ -297,11 +284,11 @@ class CardBar(QToolBar):
         """Say what the next press will do"""
         if is_open:
             self.info_pane_action.setIcon(QIcon.fromTheme("sidebar-collapse-right"))
-            self.info_pane_action.setToolTip(
-                tooltip_with_keys("Hide card details", "card_image.toggle_details")
+            set_tooltip_with_keys(
+                self.info_pane_action, "Hide card details", "card_image.toggle_details"
             )
         else:
             self.info_pane_action.setIcon(QIcon.fromTheme("sidebar-expand-right"))
-            self.info_pane_action.setToolTip(
-                tooltip_with_keys("Show card details", "card_image.toggle_details")
+            set_tooltip_with_keys(
+                self.info_pane_action, "Show card details", "card_image.toggle_details"
             )

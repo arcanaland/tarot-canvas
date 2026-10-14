@@ -129,6 +129,9 @@ EXPLORER_VISIBLE_DEFAULT = True
 # for the Preferences window size
 PREFERENCES_GEOMETRY_KEY = "preferences/geometry"
 
+# Followed by a command id; a list of keys in portable text, present only when not the defaults
+SHORTCUTS_PREFIX = "shortcuts/"
+
 
 def get_recent_decks():
     """Mapping of deck path -> last-opened epoch seconds."""
@@ -197,6 +200,23 @@ def get_esoterica_disabled():
 def set_esoterica_disabled(ids):
     get_settings().setValue(ESOTERICA_DISABLED_KEY, list(ids))
     esoterica_events().sources_changed.emit()
+
+
+def get_shortcut_keys(command_id):
+    """The keys stored for a command, or None when it has its defaults"""
+    key = SHORTCUTS_PREFIX + command_id
+    if not get_settings().contains(key):
+        return None
+    return _string_list(key)
+
+
+def set_shortcut_keys(command_id, keys):
+    """Store keys for a command, or None to return it to its defaults"""
+    key = SHORTCUTS_PREFIX + command_id
+    if keys is None:
+        get_settings().remove(key)
+    else:
+        get_settings().setValue(key, list(keys))
 
 
 def _is_number(value):

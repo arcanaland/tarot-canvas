@@ -59,7 +59,12 @@ def test_applying_a_theme_reaches_the_theme_manager(qtbot, theme_kept):
 def test_each_sidebar_row_shows_its_page(qtbot):
     dialog = PreferencesDialog()
     qtbot.addWidget(dialog)
-    controls = [dialog.theme_combo, dialog.bg_combo, dialog.show_available_decks_check]
+    controls = [
+        dialog.theme_combo,
+        dialog.bg_combo,
+        dialog.show_available_decks_check,
+        dialog.shortcuts_page.tree,
+    ]
     assert dialog.page_list.count() == len(controls)
 
     for row, control in enumerate(controls):
@@ -136,7 +141,7 @@ def test_restore_defaults_resets_the_form_and_stores_nothing(qtbot, theme_kept):
 
     dialog.restore_defaults()
 
-    assert dialog.form_state() == (
+    assert dialog.form_state()[:-1] == (
         "system",
         READING_TEXT_SCALE_DEFAULT,
         BACKGROUND_STYLE_DEFAULT,

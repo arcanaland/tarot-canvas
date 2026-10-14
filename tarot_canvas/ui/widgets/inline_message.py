@@ -13,8 +13,9 @@ class InlineMessage(QFrame):
 
     dismissed = pyqtSignal()
 
-    def __init__(self, close_text="", parent=None):
+    def __init__(self, close_text="", parent=None, warning=False):
         super().__init__(parent)
+        self.warning = warning
         # Appearing must not pull focus from whatever the person was doing
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
@@ -70,8 +71,8 @@ class InlineMessage(QFrame):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setPen(message_border(self.palette()))
-        painter.setBrush(message_fill(self.palette()))
+        painter.setPen(message_border(self.palette(), self.warning))
+        painter.setBrush(message_fill(self.palette(), self.warning))
         # Half a pixel in, so the one-pixel border lands on whole pixels
         rect = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
         painter.drawRoundedRect(rect, units.CORNER_RADIUS, units.CORNER_RADIUS)
