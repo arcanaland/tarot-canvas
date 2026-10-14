@@ -9,6 +9,9 @@ GHOST_BAR_ALPHA = 0.10
 # Highlight alpha behind an inline message
 MESSAGE_FILL_ALPHA = 0.20
 
+# Breeze's warning yellow, in place of Highlight for a warning
+WARNING_COLOUR = QColor("#fdbc4b")
+
 
 def _text(palette):
     return palette.color(QPalette.ColorRole.WindowText)
@@ -51,14 +54,18 @@ def with_text_colour(palette, colour):
     return palette
 
 
-def message_fill(palette):
-    """The background of an inline message: Highlight, faint over Window."""
+def _message_accent(palette, warning):
+    return WARNING_COLOUR if warning else palette.color(QPalette.ColorRole.Highlight)
+
+
+def message_fill(palette, warning=False):
+    """The background of an inline message: its accent, faint over Window."""
     return blend(
-        palette.color(QPalette.ColorRole.Highlight),
+        _message_accent(palette, warning),
         palette.color(QPalette.ColorRole.Window),
         MESSAGE_FILL_ALPHA,
     )
 
 
-def message_border(palette):
-    return palette.color(QPalette.ColorRole.Highlight)
+def message_border(palette, warning=False):
+    return _message_accent(palette, warning)

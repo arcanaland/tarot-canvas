@@ -130,6 +130,8 @@ class PreferencesDialog(QDialog):
 
         body = QVBoxLayout()
         body.setContentsMargins(units.LARGE_SPACING, 0, units.LARGE_SPACING, units.LARGE_SPACING)
+        # Its own, or it takes content_column's none
+        body.setSpacing(units.LARGE_SPACING)
         body.addWidget(self.page_stack, 1)
         body.addWidget(self.button_box)
 

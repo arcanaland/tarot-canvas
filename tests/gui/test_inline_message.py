@@ -82,3 +82,17 @@ def test_its_fill_follows_the_palette(qtbot, theme_palette):
 
     # Compared as 8-bit RGB: the palette keeps QColor's 16-bit channels, the image doesn't
     assert image.pixelColor(QPoint(3, 20)).rgb() == message_fill(theme_palette).rgb()
+
+
+def test_a_warning_is_filled_with_its_own_colour(qtbot, theme_palette):
+    message = InlineMessage(warning=True)
+    qtbot.addWidget(message)
+    message.show_message("text")
+    message.resize(300, 40)
+
+    message.setPalette(theme_palette)
+    image = message.grab().toImage()
+
+    fill = image.pixelColor(QPoint(3, 20)).rgb()
+    assert fill == message_fill(theme_palette, warning=True).rgb()
+    assert fill != message_fill(theme_palette).rgb()

@@ -1,4 +1,4 @@
-"""The Preferences page that lists every command's keys and edits them"""
+"""The Preferences page that lists keyboard shortcuts"""
 
 from PyQt6.QtCore import QEvent, QSortFilterProxyModel, Qt, pyqtSignal
 from PyQt6.QtGui import QIcon, QKeySequence, QStandardItem, QStandardItemModel
@@ -51,8 +51,6 @@ def key_cells(keys):
 
 
 class _GroupsShownByChildren(QSortFilterProxyModel):
-    """Filters commands; a group is shown while any of its commands is"""
-
     def filterAcceptsRow(self, row, parent):
         if not parent.isValid():
             return False
@@ -60,7 +58,7 @@ class _GroupsShownByChildren(QSortFilterProxyModel):
 
 
 class _KeyDelegate(QStyledItemDelegate):
-    """Edits a key cell with a one-key QKeySequenceEdit, handing the result to propose"""
+    """Edits a key cell with a one-key QKeySequenceEdit"""
 
     def __init__(self, propose, parent=None):
         super().__init__(parent)
@@ -108,7 +106,7 @@ class ShortcutsPage(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        # Command id to its keys as the page has them, in portable text
+        # Command id to its keys
         self.keys = {}
         self.cells = {}
 
@@ -158,7 +156,7 @@ class ShortcutsPage(QWidget):
             header.resizeSection(column, 7 * units.GRID_UNIT)
         self.tree.expandAll()
 
-        self.message = InlineMessage(close_text=NOTES_TEXT["dismiss"])
+        self.message = InlineMessage(close_text=NOTES_TEXT["dismiss"], warning=True)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -219,7 +217,7 @@ class ShortcutsPage(QWidget):
         return tuple(self.keys.items())
 
     def propose(self, index, sequence):
-        """Take a key for a cell, unless a command that could fire with it holds it"""
+        """Take a key for a cell"""
         command_id = self.model.itemFromIndex(index.siblingAtColumn(0)).data(COMMAND_ROLE)
         if command_id is None:
             return
