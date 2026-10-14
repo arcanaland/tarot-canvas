@@ -45,12 +45,12 @@
     </screenshot>
   </screenshots>
   <releases>
-    <release version="1.7.0" date="2026-10-12" type="development">
+    <release version="1.6.3" date="2026-10-14" type="stable">
       <description>
         <ul>
           <li>Add esoterica to Library view.</li>
-          <li>Rework settings window.</li>
-          <li>Use hardware acceleration to improve performance of canvas motion.</li>
+          <li>Add keyboard shortcuts to settings.</li>
+          <li>Add settings for font size.</li>
         </ul>
       </description>
     </release>
