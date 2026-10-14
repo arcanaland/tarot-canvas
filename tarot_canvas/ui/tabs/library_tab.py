@@ -2,7 +2,7 @@ from contextlib import contextmanager
 from importlib.resources import files
 
 from PyQt6.QtCore import QItemSelectionModel, QSize, Qt, QTimer, pyqtSignal, pyqtSlot
-from PyQt6.QtGui import QIcon, QKeySequence, QShortcut
+from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QBoxLayout,
@@ -40,7 +40,9 @@ from tarot_canvas.settings import (
     get_settings,
     record_deck_opened,
 )
+from tarot_canvas.ui import commands
 from tarot_canvas.ui.activate_on_return import activate_on_return
+from tarot_canvas.ui.commands import Scope, tooltip_with_keys
 from tarot_canvas.ui.esoterica_text import label_for as esoterica_text
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.catalog_client import deck_catalog
@@ -206,9 +208,7 @@ class LibraryTab(BaseTab):
         QWidget.setTabOrder(self.sidebar, self.search_field)
 
         # Not a bare I: the grid's type-ahead search takes letters
-        shortcut = QShortcut(QKeySequence("Ctrl+I"), self)
-        shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
-        shortcut.activated.connect(self.details_toggle.click)
+        commands.bind(self, Scope.LIBRARY, {"library.toggle_details": self.details_toggle.click})
 
         self._restore_settings()
         self.sidebar.currentRowChanged.connect(self.on_view_changed)
@@ -623,10 +623,10 @@ class LibraryTab(BaseTab):
         if page is not None:
             tooltip = page.details_toggle_tooltip(is_open)
         elif is_open:
-            tooltip = "Hide deck details (Ctrl+I)"
+            tooltip = "Hide deck details"
         else:
-            tooltip = "Show deck details (Ctrl+I)"
-        self.details_toggle.setToolTip(tooltip)
+            tooltip = "Show deck details"
+        self.details_toggle.setToolTip(tooltip_with_keys(tooltip, "library.toggle_details"))
 
     def _show_details(self, index):
         self.details_pane.show_details(details_for(index))

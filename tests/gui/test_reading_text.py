@@ -183,13 +183,23 @@ def test_the_zoom_actions_are_in_the_view_menu(qtbot):
         assert action in view_menu.actions()
 
 
-def test_the_zoom_actions_are_off_away_from_a_card_view(qtbot):
+def test_the_zoom_actions_are_off_in_the_library(qtbot):
     window = make_window(qtbot)
     window.new_library_tab()
     assert not any(action.isEnabled() for action in zoom_actions(window))
 
-    window.new_canvas_tab()
-    assert not any(action.isEnabled() for action in zoom_actions(window))
+
+def test_the_view_menu_zooms_a_canvas(qtbot):
+    window = make_window(qtbot)
+    canvas = window.new_canvas_tab()
+    assert all(action.isEnabled() for action in zoom_actions(window))
+    scale = canvas.view.transform().m11()
+
+    window.zoom_in_action.trigger()
+
+    assert canvas.view.transform().m11() > scale
+    assert get_reading_text_scale() == 100
+    qtbot.wait(1100)
 
 
 @pytest.mark.parametrize(
@@ -297,7 +307,7 @@ def test_a_click_in_the_details_takes_the_keys_off_the_art(qtbot):
     assert get_reading_text_scale() == 110
 
 
-def test_the_canvas_keeps_its_own_zoom_keys(qtbot):
+def test_the_zoom_keys_zoom_the_canvas_and_not_the_reading_text(qtbot):
     window = make_window(qtbot)
     open_card_view(window)
     window.new_canvas_tab()
