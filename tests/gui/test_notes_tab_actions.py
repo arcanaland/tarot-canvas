@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
 )
 
 from tarot_canvas.models.deck import TarotDeck
+from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tests.conftest import MINIMAL_DECK_PATH
 
@@ -216,10 +217,20 @@ def test_rename_from_the_editor_menu_selects_the_name_field(qtbot, notes_base, n
 # -- the keys belong to the list ----------------------------------------
 
 
+def in_a_window(qtbot, tab):
+    """Del is Edit > Delete's, so it needs the window"""
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.add_card_tab(tab, "card")
+    with qtbot.waitActive(window):
+        window.show()
+        window.activateWindow()
+    return window
+
+
 def test_del_in_the_list_deletes_the_highlighted_row(qtbot, notes_base, no_dialogs):
-    tab, _, (older, newer) = open_card_view(
-        qtbot, "1700000000_Older.md", "1700000001_Newer.md", show=True
-    )
+    tab, _, (older, newer) = open_card_view(qtbot, "1700000000_Older.md", "1700000001_Newer.md")
+    in_a_window(qtbot, tab)
     notes = tab.notes_tab
     notes.list_view.setCurrentIndex(row_of(notes, older))
     focus(qtbot, notes.list_view)
@@ -228,6 +239,18 @@ def test_del_in_the_list_deletes_the_highlighted_row(qtbot, notes_base, no_dialo
 
     assert not older.exists()
     assert newer.exists()
+
+
+def test_del_away_from_the_list_deletes_no_note(qtbot, notes_base, no_dialogs):
+    tab, _, (path,) = open_card_view(qtbot, "1700000000_Lyrics.md")
+    in_a_window(qtbot, tab)
+    notes = tab.notes_tab
+    notes.list_view.setCurrentIndex(row_of(notes, path))
+    focus(qtbot, tab.image_view)
+
+    qtbot.keyClick(tab.image_view, Qt.Key.Key_Delete)
+
+    assert path.exists()
 
 
 def test_del_in_the_editor_deletes_a_character_not_the_note(qtbot, notes_base, no_dialogs):

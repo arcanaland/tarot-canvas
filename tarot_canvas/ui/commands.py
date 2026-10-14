@@ -80,8 +80,13 @@ COMMANDS = (
     _command("window.close_tab", T["close_tab"], "tab-close", ["Ctrl+W"], W),
     _command("window.quit", T["quit"], "application-exit", ["Ctrl+Q"], W),
     # Edit
+    _command("window.cut", T["cut"], "edit-cut", [StandardKey.Cut], W),
     _command("window.copy_card", T["copy_card"], "edit-copy", [StandardKey.Copy], W),
     _command("window.paste_card", T["paste_card"], "edit-paste", [StandardKey.Paste], W),
+    _command("window.delete", T["delete"], "edit-delete", [StandardKey.Delete], W),
+    _command("window.select_all", T["select_all"], "edit-select-all", [StandardKey.SelectAll], W),
+    _command("window.deselect", T["deselect"], "edit-select-none", ["Ctrl+Shift+A"], W),
+    _command("window.find", T["find"], "edit-find", [StandardKey.Find], W),
     # View
     _command("window.card_explorer", T["card_explorer"], "view-sidetree", ["Ctrl+E"], W),
     _command("window.fullscreen", T["fullscreen"], "view-fullscreen", ["Ctrl+Shift+F", "F11"], W),
@@ -134,11 +139,11 @@ COMMANDS = (
     # Canvas
     _command("canvas.summon", T["summon_card"], "document-new", ["D"], CV),
     _command("canvas.flip", T["flip_card"], "object-flip-vertical", ["R"], CV),
-    _command("canvas.delete", T["delete_card"], "edit-delete", ["Del", "Backspace"], CV),
+    _command("canvas.delete", T["delete_card"], "edit-delete", ["Backspace"], CV),
     _command("canvas.bring_to_front", T["bring_to_front"], "go-top", ["Ctrl+]"], CV),
     _command("canvas.send_to_back", T["send_to_back"], "go-bottom", ["Ctrl+["], CV),
-    _command("canvas.align", T["align_cards"], "align-horizontal-center", ["Ctrl+A"], CV),
-    _command("canvas.fit", T["fit_all"], "zoom-fit-best", ["Ctrl+F"], CV),
+    _command("canvas.align", T["align_cards"], "align-horizontal-center", ["Ctrl+Alt+A"], CV),
+    _command("canvas.fit", T["fit_all"], "zoom-fit-best", ["Shift+F"], CV),
     # A bare F
     _command(
         "canvas.fullscreen",
@@ -167,7 +172,7 @@ COMMANDS = (
     _command("card_image.next_or_pan", None, None, ["Right"], CI, fixed=True),
     # Notes
     _command("notes.rename", NOTES_TEXT["rename"], "edit-rename", ["F2"], N),
-    _command("notes.delete", NOTES_TEXT["delete"], "edit-delete", [StandardKey.Delete], N),
+    _command("notes.delete", NOTES_TEXT["delete"], "edit-delete", [], N, shows="window.delete"),
     # Library
     _command("library.toggle_details", None, None, ["Ctrl+I"], L),
 )

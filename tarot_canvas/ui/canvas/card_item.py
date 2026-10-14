@@ -64,10 +64,11 @@ class ContactShadowItem(QGraphicsPixmapItem):
 class DraggableCardItem(QGraphicsPixmapItem):
     """A card on the playground canvas"""
 
-    def __init__(self, pixmap, card_data, parent_tab=None):
+    def __init__(self, pixmap, card_data, parent_tab=None, deck=None):
         super().__init__(pixmap)
         self.card_data = card_data
         self.parent_tab = parent_tab
+        self.deck = deck
         self.setFlag(QGraphicsPixmapItem.GraphicsItemFlag.ItemIsMovable)
         self.setFlag(QGraphicsPixmapItem.GraphicsItemFlag.ItemIsSelectable)
         self.setFlag(QGraphicsPixmapItem.GraphicsItemFlag.ItemSendsGeometryChanges)
@@ -115,6 +116,10 @@ class DraggableCardItem(QGraphicsPixmapItem):
     def orient(self):
         """The card's logical rotation in degrees."""
         return self.motion.orient
+
+    def is_reversed(self):
+        """Nearer upside down than upright"""
+        return 90 <= self.orient <= 270
 
     def set_orient(self, degrees):
         """Turn the card."""

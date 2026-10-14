@@ -61,7 +61,7 @@ from tarot_canvas.ui.canvas.motion import (
 )
 from tarot_canvas.ui.canvas.selection import GILT_ON_DARK, gilt_for_ground
 from tarot_canvas.ui.canvas.view import MAX_ZOOM, MIN_ZOOM
-from tarot_canvas.ui.card_transfer import card_from_mime, has_card
+from tarot_canvas.ui.card_transfer import card_from_mime, copy_card_to_clipboard, has_card
 from tarot_canvas.ui.commands import Scope, tooltip_with_keys
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.utils.logger import logger
@@ -430,13 +430,14 @@ class CanvasTab(BaseTab):
         self.toolbar.addWidget(self.create_section_label("Cards"))
 
         # The toolbar's buttons are the commands', so each shows the key it has
-        for command_id, tooltip in (
-            ("canvas.summon", "Summon a random card"),
-            ("canvas.flip", "Flip card"),
-            ("canvas.delete", "Remove selected card"),
+        # Del is Edit > Delete's, which reaches the same handler
+        for command_id, tooltip, keys in (
+            ("canvas.summon", "Summon a random card", "canvas.summon"),
+            ("canvas.flip", "Flip card", "canvas.flip"),
+            ("canvas.delete", "Remove selected card", "window.delete"),
         ):
             action = self.commands[command_id]
-            action.setToolTip(tooltip_with_keys(tooltip, action))
+            action.setToolTip(tooltip_with_keys(tooltip, keys))
             self.toolbar.addAction(action)
 
         # Paste
@@ -464,6 +465,7 @@ class CanvasTab(BaseTab):
 
         # Grey out the arrangement buttons unless you select multiple cards
         self.scene.selectionChanged.connect(self.update_arrange_actions)
+        self.scene.selectionChanged.connect(self.edit_state_changed)
         self.update_arrange_actions()
 
         # View control actions group
@@ -593,6 +595,45 @@ class CanvasTab(BaseTab):
         card, deck, is_reversed = resolved
         return self.add_specific_card(card, card_deck=deck, is_reversed=is_reversed, at=at)
 
+    def selected_cards(self):
+        return [item for item in self.scene.selectedItems() if isinstance(item, DraggableCardItem)]
+
+    def can_copy_card(self):
+        # The clipboard holds one card
+        cards = self.selected_cards()
+        return len(cards) == 1 and cards[0].deck is not None
+
+    def copy_card(self):
+        (item,) = self.selected_cards()
+        copy_card_to_clipboard(item.card_data, item.deck, item.is_reversed())
+
+    def can_cut_card(self):
+        return self.can_copy_card()
+
+    def cut_card(self):
+        self.copy_card()
+        self.on_delete_card()
+
+    def can_delete(self):
+        return bool(self.scene.selectedItems())
+
+    def delete(self):
+        self.on_delete_card()
+
+    def can_select_all(self):
+        return any(isinstance(item, DraggableCardItem) for item in self.scene.items())
+
+    def select_all(self):
+        for item in self.scene.items():
+            if isinstance(item, DraggableCardItem):
+                item.setSelected(True)
+
+    def can_deselect(self):
+        return bool(self.scene.selectedItems())
+
+    def deselect(self):
+        self.scene.clearSelection()
+
     def on_paste_card(self):
         mime = QGuiApplication.clipboard().mimeData()
         if self.can_paste_card(mime):
@@ -627,7 +668,7 @@ class CanvasTab(BaseTab):
             pixmap, source_size = art
 
             # Create a draggable card item
-            card_item = DraggableCardItem(pixmap, card, self)
+            card_item = DraggableCardItem(pixmap, card, self, deck=card_deck or self.deck)
             card_item.set_art_source(image_path, source_size)
 
             card_item.setZValue(self.take_top_z())
@@ -736,14 +777,7 @@ class CanvasTab(BaseTab):
         items = self.scene.selectedItems()
         for item in items:
             if isinstance(item, DraggableCardItem):
-                # Toggle between normal and reversed position (180° rotation)
-                current_rotation = item.orient
-
-                # If close to upright (0°), flip to reversed (180°)
-                # If close to reversed (180°), flip to upright (0°)
-                new_rotation = 0
-                if abs(current_rotation % 360) < 90 or abs(current_rotation % 360) > 270:
-                    new_rotation = 180
+                new_rotation = 0 if item.is_reversed() else 180
 
                 # Set the new rotation directly
                 item.set_orient(new_rotation)

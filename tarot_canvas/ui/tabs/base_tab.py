@@ -63,6 +63,45 @@ class BaseTab(QWidget):
     def paste_card(self, mime):
         """Place the card mime carries."""
 
+    def can_cut_card(self):
+        return False
+
+    def cut_card(self):
+        """Copy this tab's card, then remove it."""
+
+    # -- edit --------------------------------------------------------------
+    # The rest of the Edit menu, asked the same way
+
+    def can_delete(self):
+        return False
+
+    def delete(self):
+        """Remove what is selected."""
+
+    def can_select_all(self):
+        return False
+
+    def select_all(self):
+        """Select everything."""
+
+    def can_deselect(self):
+        return False
+
+    def deselect(self):
+        """Clear the selection."""
+
+    def can_find(self):
+        return False
+
+    def find(self):
+        """Go to this tab's own search."""
+
+    def edit_state_changed(self):
+        """When the answers above change"""
+        window = self.window()
+        if hasattr(window, "update_edit_actions"):
+            window.update_edit_actions()
+
     # -- go ----------------------------------------------------------------
     # The Go menu asks the current tab. where is one of previous, next, first,
     # last, random, previous_deck, next_deck; the keys are the tab's own.

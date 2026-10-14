@@ -7,8 +7,13 @@ COMMANDS_TEXT = {
     "close_tab": "Close &Tab",
     "quit": "&Exit",
     # Edit
+    "cut": "Cut",
     "copy_card": "&Copy Card",
     "paste_card": "&Paste Card",
+    "delete": "Delete",
+    "select_all": "Select All",
+    "deselect": "Deselect",
+    "find": "Find…",
     # View
     "card_explorer": "&Card Explorer",
     "fullscreen": "&Fullscreen",
