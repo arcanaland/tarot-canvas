@@ -26,6 +26,8 @@ COMMANDS_TEXT = {
     "go_previous_deck": "Previous &Deck",
     "go_next_deck": "Ne&xt Deck",
     "find_card": "Find &Card…",
+    # Tabs by position
+    "tab_n": "Switch to Tab {n}",
     # Canvas
     "summon_card": "Summon Card",
     "flip_card": "Flip Card (Reversed)",
@@ -36,4 +38,10 @@ COMMANDS_TEXT = {
     "fit_all": "Fit All in View",
     "fullscreen_canvas": "Fullscreen Canvas",
     "cancel_selection": "Cancel Selection",
+    # Card view
+    "card_toggle_details": "Toggle Card Details",
+    "card_cancel": "Leave Fullscreen",
+    "card_image_toggle_details": "Toggle Card Details (Art)",
+    # Library
+    "library_toggle_details": "Toggle Deck Details",
 }

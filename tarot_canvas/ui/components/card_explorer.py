@@ -20,7 +20,7 @@ from tarot_canvas.models.deck_events import deck_events
 from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.card_transfer import CARD_MIME, card_mime_data, copy_card_to_clipboard
-from tarot_canvas.ui.commands import tooltip_with_keys
+from tarot_canvas.ui.commands import set_tooltip_with_keys
 
 
 def card_row(index):
@@ -119,9 +119,7 @@ class CardExplorerPanel(QWidget):
             self.close_button.setText("\N{MULTIPLICATION SIGN}")
         else:
             self.close_button.setIcon(close_icon)
-        self.close_button.setToolTip(
-            tooltip_with_keys("Hide Card Explorer", "window.card_explorer")
-        )
+        set_tooltip_with_keys(self.close_button, "Hide Card Explorer", "window.card_explorer")
         self.close_button.setAccessibleName("Hide Card Explorer")
         self.close_button.clicked.connect(self.close_requested)
         header_layout.addWidget(self.close_button)

@@ -42,7 +42,7 @@ from tarot_canvas.settings import (
 )
 from tarot_canvas.ui import commands
 from tarot_canvas.ui.activate_on_return import activate_on_return
-from tarot_canvas.ui.commands import Scope, tooltip_with_keys
+from tarot_canvas.ui.commands import Scope, set_tooltip_with_keys
 from tarot_canvas.ui.esoterica_text import label_for as esoterica_text
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.catalog_client import deck_catalog
@@ -632,7 +632,7 @@ class LibraryTab(BaseTab):
             tooltip = "Hide deck details"
         else:
             tooltip = "Show deck details"
-        self.details_toggle.setToolTip(tooltip_with_keys(tooltip, "library.toggle_details"))
+        set_tooltip_with_keys(self.details_toggle, tooltip, "library.toggle_details")
 
     def _show_details(self, index):
         self.details_pane.show_details(details_for(index))

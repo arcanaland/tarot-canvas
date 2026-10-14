@@ -62,7 +62,7 @@ from tarot_canvas.ui.canvas.motion import (
 from tarot_canvas.ui.canvas.selection import GILT_ON_DARK, gilt_for_ground
 from tarot_canvas.ui.canvas.view import MAX_ZOOM, MIN_ZOOM
 from tarot_canvas.ui.card_transfer import card_from_mime, copy_card_to_clipboard, has_card
-from tarot_canvas.ui.commands import Scope, tooltip_with_keys
+from tarot_canvas.ui.commands import Scope, set_tooltip_with_keys
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.utils.logger import logger
 
@@ -410,11 +410,12 @@ class CanvasTab(BaseTab):
         """Keep the toolbar button in step with the actual fullscreen state"""
         full = self.is_fullscreen()
         self.fullscreen_action.setChecked(full)
-        self.fullscreen_action.setToolTip(
-            "Leave fullscreen (Esc)"
-            if full
-            else tooltip_with_keys("Fullscreen canvas", self.fullscreen_action)
-        )
+        if full:
+            set_tooltip_with_keys(self.fullscreen_action, "Leave fullscreen (Esc)", None)
+        else:
+            set_tooltip_with_keys(
+                self.fullscreen_action, "Fullscreen canvas", self.fullscreen_action
+            )
 
     def create_toolbar(self, parent_layout):
         """Create a vertical toolbar using QToolBar"""
@@ -437,12 +438,12 @@ class CanvasTab(BaseTab):
             ("canvas.delete", "Remove selected card", "window.delete"),
         ):
             action = self.commands[command_id]
-            action.setToolTip(tooltip_with_keys(tooltip, keys))
+            set_tooltip_with_keys(action, tooltip, keys)
             self.toolbar.addAction(action)
 
         # Paste
         self.paste_action = QAction(QIcon.fromTheme("edit-paste"), "Paste", self)
-        self.paste_action.setToolTip(tooltip_with_keys("Paste card", "window.paste_card"))
+        set_tooltip_with_keys(self.paste_action, "Paste card", "window.paste_card")
         self.paste_action.triggered.connect(self.on_paste_card)
         self.toolbar.addAction(self.paste_action)
         QGuiApplication.clipboard().dataChanged.connect(self.on_clipboard_changed)
@@ -459,7 +460,7 @@ class CanvasTab(BaseTab):
             ("canvas.align", self.on_align_cards, "Align selected cards"),
         ):
             action = self.commands[command_id]
-            action.setToolTip(tooltip_with_keys(tooltip, action))
+            set_tooltip_with_keys(action, tooltip, action)
             self.toolbar.addAction(action)
             self.arrange_actions[slot] = action
 
@@ -493,9 +494,7 @@ class CanvasTab(BaseTab):
 
         self.fullscreen_action = self.commands["canvas.fullscreen"]
         self.fullscreen_action.setCheckable(True)
-        self.fullscreen_action.setToolTip(
-            tooltip_with_keys("Fullscreen canvas", self.fullscreen_action)
-        )
+        set_tooltip_with_keys(self.fullscreen_action, "Fullscreen canvas", self.fullscreen_action)
         self.toolbar.addAction(self.fullscreen_action)
 
         # Add the toolbar to the main layout

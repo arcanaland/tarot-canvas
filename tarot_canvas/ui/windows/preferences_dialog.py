@@ -37,6 +37,7 @@ from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.pane_text import pane_form
 from tarot_canvas.ui.widgets.places_sidebar import PlacesSidebar
 from tarot_canvas.ui.windows.preferences_text import PREFERENCES_TEXT
+from tarot_canvas.ui.windows.shortcuts_page import ShortcutsPage
 from tarot_canvas.utils.theme_manager import ThemeManager, ThemeType
 
 THEME_LABELS = (
@@ -162,6 +163,7 @@ class PreferencesDialog(QDialog):
         for combo in (self.theme_combo, self.text_size_combo, self.bg_combo, self.motion_combo):
             combo.currentIndexChanged.connect(self.update_apply_button)
         self.show_available_decks_check.toggled.connect(self.update_apply_button)
+        self.shortcuts_page.changed.connect(self.update_apply_button)
 
     def pages(self):
         """The sidebar's pages in order"""
@@ -169,6 +171,7 @@ class PreferencesDialog(QDialog):
             ("appearance", "games-config-theme", self.build_appearance_page),
             ("canvas", "draw-rectangle", self.build_canvas_page),
             ("library", "view-list-icons", self.build_library_page),
+            ("shortcuts", "configure-shortcuts", self.build_shortcuts_page),
         ]
 
     def show_page(self, row):
@@ -224,6 +227,10 @@ class PreferencesDialog(QDialog):
         page.setLayout(form)
         return page
 
+    def build_shortcuts_page(self):
+        self.shortcuts_page = ShortcutsPage()
+        return self.shortcuts_page
+
     def update_swatch_visibility(self):
         self.bg_color_btn.setVisible(self.bg_combo.currentData() == "solid")
 
@@ -265,6 +272,7 @@ class PreferencesDialog(QDialog):
             self.bg_color.name(),
             self.motion_combo.currentData(),
             self.show_available_decks_check.isChecked(),
+            self.shortcuts_page.state(),
         )
 
     def update_apply_button(self):
@@ -293,6 +301,7 @@ class PreferencesDialog(QDialog):
             get_motion_level(settings),
             bool(settings.value(SHOW_AVAILABLE_DECKS_KEY, SHOW_AVAILABLE_DECKS_DEFAULT, type=bool)),
         )
+        self.shortcuts_page.load()
         self.stored_state = self.form_state()
         self.update_apply_button()
 
@@ -305,6 +314,7 @@ class PreferencesDialog(QDialog):
             MOTION_LEVEL_DEFAULT,
             SHOW_AVAILABLE_DECKS_DEFAULT,
         )
+        self.shortcuts_page.reset()
 
     def apply_settings(self):
         settings = get_settings()
@@ -315,6 +325,7 @@ class PreferencesDialog(QDialog):
 
         ThemeManager.get_instance().set_theme(ThemeType(self.theme_combo.currentData()))
         typography.set_reading_scale(self.text_size_combo.currentData())
+        self.shortcuts_page.apply()
 
         self.stored_state = self.form_state()
         self.update_apply_button()

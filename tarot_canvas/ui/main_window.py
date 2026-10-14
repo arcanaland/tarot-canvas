@@ -40,7 +40,7 @@ from tarot_canvas.settings import (
 )
 from tarot_canvas.ui import commands, focused_text, typography
 from tarot_canvas.ui.command_palette import CommandPalette
-from tarot_canvas.ui.commands import Scope, tooltip_with_keys
+from tarot_canvas.ui.commands import Scope, set_tooltip_with_keys
 from tarot_canvas.ui.components.card_explorer import CardExplorerPanel
 from tarot_canvas.ui.library.catalog_client import deck_catalog
 from tarot_canvas.ui.library.deck_downloads import deck_downloads
@@ -412,7 +412,7 @@ class MainWindow(QMainWindow):
             new_tab_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
         else:
             new_tab_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
-        new_tab_button.setToolTip(tooltip_with_keys("New tab", self.new_canvas_action))
+        set_tooltip_with_keys(new_tab_button, "New tab", self.new_canvas_action)
 
         new_tab_menu = QMenu(new_tab_button)
         new_tab_menu.addAction(self.new_canvas_action)
@@ -423,7 +423,7 @@ class MainWindow(QMainWindow):
         # Create search button and put it in the tab corner
         search_button = QToolButton()
         search_button.setIcon(QIcon.fromTheme("search", QIcon.fromTheme("edit-find")))
-        search_button.setToolTip(tooltip_with_keys("Search Cards", self.find_card_action))
+        set_tooltip_with_keys(search_button, "Search Cards", self.find_card_action)
         search_button.clicked.connect(self.show_command_palette)
 
         # Style the button to show only the icon without borders or background

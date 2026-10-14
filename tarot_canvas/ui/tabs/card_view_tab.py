@@ -22,7 +22,7 @@ from tarot_canvas.settings import READING_TEXT_SCALE_DEFAULT, READING_TEXT_SCALE
 from tarot_canvas.ui import commands, typography
 from tarot_canvas.ui.card_colours import card_colour
 from tarot_canvas.ui.card_transfer import copy_card_to_clipboard
-from tarot_canvas.ui.commands import Scope, tooltip_with_keys
+from tarot_canvas.ui.commands import Scope, set_tooltip_with_keys
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.ui.tabs.card_view.card_bar import CardBar, DeckBar
 from tarot_canvas.ui.tabs.card_view.color_dot import ColorDot
@@ -98,9 +98,12 @@ class CardViewTab(BaseTab):
             self.image_view,
             "sidebar-expand-right",
             "<",
-            tooltip_with_keys("Show card details", "card_image.toggle_details"),
+            "",
             self.toggle_info_pane,
             row=1,
+        )
+        set_tooltip_with_keys(
+            self.info_pane_button, "Show card details", "card_image.toggle_details"
         )
         self.toast = Toast(self.image_view)
 
@@ -368,13 +371,13 @@ class CardViewTab(BaseTab):
         self.card_bar.sync_info_pane(self.info_pane_is_open())
         if self.info_pane_is_open():
             self.info_pane_button.set_icon("sidebar-collapse-right", ">")
-            self.info_pane_button.setToolTip(
-                tooltip_with_keys("Hide card details", "card_image.toggle_details")
+            set_tooltip_with_keys(
+                self.info_pane_button, "Hide card details", "card_image.toggle_details"
             )
         else:
             self.info_pane_button.set_icon("sidebar-expand-right", "<")
-            self.info_pane_button.setToolTip(
-                tooltip_with_keys("Show card details", "card_image.toggle_details")
+            set_tooltip_with_keys(
+                self.info_pane_button, "Show card details", "card_image.toggle_details"
             )
 
     def on_fullscreen_changed(self):

@@ -5,9 +5,11 @@ import sys
 from dataclasses import dataclass
 from enum import Enum
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QObject, Qt
 from PyQt6.QtGui import QAction, QIcon, QKeySequence
+from PyQt6.QtWidgets import QApplication
 
+from tarot_canvas.settings import get_shortcut_keys, set_shortcut_keys
 from tarot_canvas.ui.commands_text import COMMANDS_TEXT
 from tarot_canvas.ui.notes_text import NOTES_TEXT
 from tarot_canvas.ui.windows.preferences_text import PREFERENCES_TEXT
@@ -135,7 +137,10 @@ COMMANDS = (
         W,
     ),
     # Alt+1 to Alt+9 pick a tab by position
-    *(_command(f"window.tab_{n}", None, None, [f"Alt+{n}"], W) for n in range(1, 10)),
+    *(
+        _command(f"window.tab_{n}", T["tab_n"].format(n=n), None, [f"Alt+{n}"], W)
+        for n in range(1, 10)
+    ),
     # Canvas
     _command("canvas.summon", T["summon_card"], "document-new", ["D"], CV),
     _command("canvas.flip", T["flip_card"], "object-flip-vertical", ["R"], CV),
@@ -155,26 +160,26 @@ COMMANDS = (
     ),
     _command("canvas.cancel", T["cancel_selection"], None, ["Esc"], CV),
     # Card view
-    _command("card.toggle_details", None, None, ["Ctrl+I"], C),
-    _command("card.cancel", None, None, ["Esc"], C),
+    _command("card.toggle_details", T["card_toggle_details"], None, ["Ctrl+I"], C),
+    _command("card.cancel", T["card_cancel"], None, ["Esc"], C),
     # Card art: bare keys, so typing in the details pane is left alone
-    _command("card_image.fullscreen", None, None, ["F"], CI),
-    _command("card_image.toggle_details", None, None, ["I"], CI),
-    _command("card_image.previous", None, None, ["PgUp", "Backspace"], CI),
-    _command("card_image.next", None, None, ["PgDown", "Space"], CI),
-    _command("card_image.first", None, None, ["Home"], CI),
-    _command("card_image.last", None, None, ["End"], CI),
-    _command("card_image.previous_deck", None, None, ["["], CI),
-    _command("card_image.next_deck", None, None, ["]"], CI),
-    _command("card_image.random", None, None, ["D"], CI),
+    _command("card_image.fullscreen", T["fullscreen"], None, ["F"], CI),
+    _command("card_image.toggle_details", T["card_image_toggle_details"], None, ["I"], CI),
+    _command("card_image.previous", T["go_previous"], None, ["PgUp", "Backspace"], CI),
+    _command("card_image.next", T["go_next"], None, ["PgDown", "Space"], CI),
+    _command("card_image.first", T["go_first"], None, ["Home"], CI),
+    _command("card_image.last", T["go_last"], None, ["End"], CI),
+    _command("card_image.previous_deck", T["go_previous_deck"], None, ["["], CI),
+    _command("card_image.next_deck", T["go_next_deck"], None, ["]"], CI),
+    _command("card_image.random", T["go_random"], None, ["D"], CI),
     # Left and Right pan a zoomed card, so the view decides
-    _command("card_image.previous_or_pan", None, None, ["Left"], CI, fixed=True),
-    _command("card_image.next_or_pan", None, None, ["Right"], CI, fixed=True),
+    _command("card_image.previous_or_pan", T["go_previous"], None, ["Left"], CI, fixed=True),
+    _command("card_image.next_or_pan", T["go_next"], None, ["Right"], CI, fixed=True),
     # Notes
     _command("notes.rename", NOTES_TEXT["rename"], "edit-rename", ["F2"], N),
     _command("notes.delete", NOTES_TEXT["delete"], "edit-delete", [], N, shows="window.delete"),
     # Library
-    _command("library.toggle_details", None, None, ["Ctrl+I"], L),
+    _command("library.toggle_details", T["library_toggle_details"], None, ["Ctrl+I"], L),
 )
 
 _BY_ID = {command.id: command for command in COMMANDS}
@@ -196,12 +201,73 @@ def _expand(default, platform):
     return [QKeySequence(default)]
 
 
-def keys_for(command_id, platform=sys.platform):
-    """The keys in force for a command, first the one to show"""
+def default_keys(command_id, platform=sys.platform):
     keys = []
     for default in by_id(command_id).defaults:
         keys += [key for key in _expand(default, platform) if key not in keys]
     return keys
+
+
+def keys_for(command_id, platform=sys.platform):
+    """The keys in force for a command, first the one to show"""
+    stored = get_shortcut_keys(command_id)
+    if stored is None:
+        return default_keys(command_id, platform)
+    keys = []
+    for text in stored:
+        key = QKeySequence.fromString(text, QKeySequence.SequenceFormat.PortableText)
+        if not key.isEmpty() and key not in keys:
+            keys.append(key)
+    return keys
+
+
+def portable(keys):
+    """Keys as the text they are stored and compared in"""
+    return tuple(
+        key if isinstance(key, str) else key.toString(QKeySequence.SequenceFormat.PortableText)
+        for key in keys
+    )
+
+
+def store_keys(command_id, keys):
+    """Store a command's keys, forgetting them when they are its defaults"""
+    keys = portable(keys)
+    set_shortcut_keys(command_id, None if keys == portable(default_keys(command_id)) else keys)
+
+
+def conflicts(keys_by_id):
+    """(key, holder, other) for each key two commands hold where both could fire"""
+    found = {}
+    for scopes in ACTIVE_TOGETHER:
+        holders = {}
+        for command_id, keys in keys_by_id.items():
+            if by_id(command_id).scope not in scopes:
+                continue
+            for key in portable(keys):
+                holder = holders.setdefault(key, command_id)
+                if holder != command_id:
+                    found[(key, holder, command_id)] = None
+    return list(found)
+
+
+_MODIFIERS = (
+    Qt.KeyboardModifier.ControlModifier
+    | Qt.KeyboardModifier.AltModifier
+    | Qt.KeyboardModifier.MetaModifier
+)
+
+
+def is_bare_letter_or_digit(key):
+    """A key that types a character, so no window command may take it"""
+    if key.isEmpty():
+        return False
+    combination = key[0]
+    code = combination.key().value
+    bare = not combination.keyboardModifiers() & _MODIFIERS
+    alnum = Qt.Key.Key_A.value <= code <= Qt.Key.Key_Z.value or (
+        Qt.Key.Key_0.value <= code <= Qt.Key.Key_9.value
+    )
+    return bool(bare and alnum)
 
 
 def key_text(command):
@@ -221,6 +287,43 @@ def menu_text(words, command):
     return f"{words}\t{key}" if key else words
 
 
+# Dynamic properties holding (words, command id), so apply_shortcuts can re-render the text
+_TOOLTIP_KEYS = "tooltip_with_keys"
+_MENU_KEYS = "menu_text"
+
+
+def _id_of(command):
+    return command.objectName() if isinstance(command, QAction) else command
+
+
+def set_tooltip_with_keys(target, words, command):
+    """A tooltip naming command's key, kept current by apply_shortcuts; None names none"""
+    if command is None:
+        target.setProperty(_TOOLTIP_KEYS, None)
+        target.setToolTip(words)
+        return
+    target.setProperty(_TOOLTIP_KEYS, (words, _id_of(command)))
+    target.setToolTip(tooltip_with_keys(words, _id_of(command)))
+
+
+def set_menu_text(action, words, command):
+    """An action's text showing command's key, kept current by apply_shortcuts"""
+    action.setProperty(_MENU_KEYS, (words, _id_of(command)))
+    action.setText(menu_text(words, _id_of(command)))
+
+
+def apply_shortcuts():
+    """Re-key every bound action and re-render every text that shows a key"""
+    for window in QApplication.topLevelWidgets():
+        for obj in [window, *window.findChildren(QObject)]:
+            if isinstance(obj, QAction) and obj.objectName() in _BY_ID:
+                obj.setShortcuts(keys_for(obj.objectName()))
+            if (shown := obj.property(_TOOLTIP_KEYS)) is not None:
+                obj.setToolTip(tooltip_with_keys(*shown))
+            if (shown := obj.property(_MENU_KEYS)) is not None:
+                obj.setText(menu_text(*shown))
+
+
 def bind(owner, scope, handlers, *, detached=(), platform=sys.platform):
     """An action on owner for each command in handlers, keyed and connected to it"""
     actions = {}
@@ -231,11 +334,10 @@ def bind(owner, scope, handlers, *, detached=(), platform=sys.platform):
         if command.fixed:
             raise ValueError(f"{command_id} is fixed: a view handles its key")
 
-        text = command.text or ""
-        if command.shows:
-            text = menu_text(text, command.shows)
-        action = QAction(text, owner)
+        action = QAction(command.text or "", owner)
         action.setObjectName(command.id)
+        if command.shows:
+            set_menu_text(action, command.text or "", command.shows)
         if command.icon:
             action.setIcon(QIcon.fromTheme(command.icon))
         action.setShortcuts(keys_for(command_id, platform))
