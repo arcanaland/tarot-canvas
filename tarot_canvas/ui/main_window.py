@@ -150,7 +150,6 @@ class MainWindow(QMainWindow):
         # Create menu bar
         menu_bar = self.menuBar()
 
-        # Menu entries alone: their keys are off while fullscreen hides the menu bar
         detached = {
             "window.new_canvas",
             "window.new_library",

@@ -1,7 +1,4 @@
-"""Every command the app binds a key to, and the one way their actions are built
-
-An id is also where a user's own keys for the command will be stored, so ids never change.
-"""
+"""Every command the app binds a key to"""
 
 import re
 import sys
@@ -22,13 +19,11 @@ class Scope(Enum):
     WINDOW = "window"
     CANVAS = "canvas"
     CARD = "card"  # the card view tab
-    CARD_IMAGE = "card_image"  # its art, while that has focus
+    CARD_IMAGE = "card_image"
     NOTES = "notes"
     LIBRARY = "library"
 
 
-# The canvas's keys reach it from anywhere in the window, the Card Explorer included; a
-# hidden tab gets no shortcuts, so they stay out of the other tabs
 CONTEXTS = {
     Scope.WINDOW: Qt.ShortcutContext.WindowShortcut,
     Scope.CANVAS: Qt.ShortcutContext.WindowShortcut,
@@ -54,7 +49,7 @@ class Command:
     icon: str | None
     defaults: tuple[str | StandardKey, ...]
     scope: Scope
-    # Handled in a keyPressEvent, not by an action: listed, never bound
+    # Handled in a keyPressEvent not by an action
     fixed: bool = False
     # Only where it differs from the scope's
     context: Qt.ShortcutContext | None = None
@@ -134,7 +129,7 @@ COMMANDS = (
         [StandardKey.Preferences],
         W,
     ),
-    # Alt+1 to Alt+8 pick a tab by position and Alt+9 picks the last, as in a browser
+    # Alt+1 to Alt+9 pick a tab by position
     *(_command(f"window.tab_{n}", None, None, [f"Alt+{n}"], W) for n in range(1, 10)),
     # Canvas
     _command("canvas.summon", T["summon_card"], "document-new", ["D"], CV),
@@ -144,7 +139,7 @@ COMMANDS = (
     _command("canvas.send_to_back", T["send_to_back"], "go-bottom", ["Ctrl+["], CV),
     _command("canvas.align", T["align_cards"], "align-horizontal-center", ["Ctrl+A"], CV),
     _command("canvas.fit", T["fit_all"], "zoom-fit-best", ["Ctrl+F"], CV),
-    # A bare F, so only while the canvas has the keyboard
+    # A bare F
     _command(
         "canvas.fullscreen",
         T["fullscreen_canvas"],
@@ -173,7 +168,7 @@ COMMANDS = (
     # Notes
     _command("notes.rename", NOTES_TEXT["rename"], "edit-rename", ["F2"], N),
     _command("notes.delete", NOTES_TEXT["delete"], "edit-delete", [StandardKey.Delete], N),
-    # Library; not a bare I: the grid's type-ahead search takes letters
+    # Library
     _command("library.toggle_details", None, None, ["Ctrl+I"], L),
 )
 
@@ -184,7 +179,7 @@ def by_id(command_id):
     return _BY_ID[command_id]
 
 
-# On macOS Option+digit types a character, so it is Cmd there, as in Safari
+# On macOS Option+digit types a character, so it is Cmd there
 _OPTION_DIGIT = re.compile(r"^Alt\+(\d)$")
 
 
@@ -205,30 +200,24 @@ def keys_for(command_id, platform=sys.platform):
 
 
 def key_text(command):
-    """The first key of an action or a command id, as the platform writes it; "" for none"""
+    """The first key of an action or a command id"""
     keys = command.shortcuts() if isinstance(command, QAction) else keys_for(command)
     return keys[0].toString(QKeySequence.SequenceFormat.NativeText) if keys else ""
 
 
 def tooltip_with_keys(words, command):
-    """words, then the key that does the same in brackets"""
     key = key_text(command)
     return f"{words} ({key})" if words and key else words
 
 
 def menu_text(words, command):
-    """A menu label showing a key it does not bind; Qt displays the text after a tab"""
+    """A menu label showing a key it does not bind"""
     key = key_text(command)
     return f"{words}\t{key}" if key else words
 
 
 def bind(owner, scope, handlers, *, detached=(), platform=sys.platform):
-    """An action on owner for each command in handlers, keyed and connected to it
-
-    Commands in detached are owned by owner but not added to it, so their keys reach only
-    the widgets the caller adds them to: a menu, whose keys work only while the menu bar
-    shows, or a list.
-    """
+    """An action on owner for each command in handlers, keyed and connected to it"""
     actions = {}
     for command_id, handler in handlers.items():
         command = by_id(command_id)
@@ -246,7 +235,7 @@ def bind(owner, scope, handlers, *, detached=(), platform=sys.platform):
             action.setIcon(QIcon.fromTheme(command.icon))
         action.setShortcuts(keys_for(command_id, platform))
         action.setShortcutContext(command.context or CONTEXTS[scope])
-        # Handlers take nothing; a checkable action is read for its state
+        # Handlers take nothing
         action.triggered.connect(lambda _checked=False, handler=handler: handler())
         if command_id not in detached:
             owner.addAction(action)

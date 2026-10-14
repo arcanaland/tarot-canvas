@@ -189,19 +189,6 @@ def test_the_zoom_actions_are_off_in_the_library(qtbot):
     assert not any(action.isEnabled() for action in zoom_actions(window))
 
 
-def test_the_view_menu_zooms_a_canvas(qtbot):
-    window = make_window(qtbot)
-    canvas = window.new_canvas_tab()
-    assert all(action.isEnabled() for action in zoom_actions(window))
-    scale = canvas.view.transform().m11()
-
-    window.zoom_in_action.trigger()
-
-    assert canvas.view.transform().m11() > scale
-    assert get_reading_text_scale() == 100
-    qtbot.wait(1100)
-
-
 @pytest.mark.parametrize(
     ("scale", "enabled"),
     [
@@ -313,6 +300,7 @@ def test_the_zoom_keys_zoom_the_canvas_and_not_the_reading_text(qtbot):
     window.new_canvas_tab()
     canvas = window.tab_widget.currentWidget()
     assert isinstance(canvas, CanvasTab)
+    assert all(action.isEnabled() for action in zoom_actions(window))
     focus(qtbot, canvas.view)
     scale = canvas.view.transform().m11()
 
@@ -320,6 +308,8 @@ def test_the_zoom_keys_zoom_the_canvas_and_not_the_reading_text(qtbot):
 
     assert canvas.view.transform().m11() > scale
     assert get_reading_text_scale() == 100
+    # The canvas's timers must not outlive it
+    qtbot.wait(1100)
 
 
 def big_art(view):

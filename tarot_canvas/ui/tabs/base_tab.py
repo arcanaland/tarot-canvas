@@ -84,7 +84,7 @@ class BaseTab(QWidget):
         """Zoom what this tab shows."""
 
     def zoom_state_changed(self):
-        """What can_zoom answers may have changed, so the window asks again"""
+        """When focus moves"""
         window = self.window()
         if hasattr(window, "update_zoom_actions"):
             window.update_zoom_actions()

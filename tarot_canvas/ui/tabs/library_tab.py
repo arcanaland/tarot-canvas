@@ -207,7 +207,6 @@ class LibraryTab(BaseTab):
         # The sidebar first, so Tab goes from choosing a view to searching it
         QWidget.setTabOrder(self.sidebar, self.search_field)
 
-        # Not a bare I: the grid's type-ahead search takes letters
         commands.bind(self, Scope.LIBRARY, {"library.toggle_details": self.details_toggle.click})
 
         self._restore_settings()
