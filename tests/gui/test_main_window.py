@@ -32,6 +32,31 @@ def test_main_window_opens_with_welcome_tab(qtbot):
     assert tab_widget is not None
     assert tab_widget.count() >= 1
     assert tab_widget.tabText(0) == "Welcome"
+    assert not tab_widget.tabIcon(0).isNull()
+
+
+def test_canvases_are_numbered_from_the_second(qtbot):
+    window = MainWindow()
+    qtbot.addWidget(window)
+
+    tabs = [window.new_canvas_tab() for _ in range(3)]
+
+    names = [window.tab_widget.tabText(window.tab_widget.indexOf(tab)) for tab in tabs]
+    assert names == ["Canvas", "Canvas (2)", "Canvas (3)"]
+    assert [tab.tab_name for tab in tabs] == names
+
+
+def test_a_new_canvas_takes_the_lowest_free_name(qtbot):
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.new_canvas_tab()
+    second = window.new_canvas_tab()
+    window.new_canvas_tab()
+
+    window.close_tab(window.tab_widget.indexOf(second))
+    fourth = window.new_canvas_tab()
+
+    assert window.tab_widget.tabText(window.tab_widget.indexOf(fourth)) == "Canvas (2)"
 
 
 def make_window_with_canvas(qtbot):

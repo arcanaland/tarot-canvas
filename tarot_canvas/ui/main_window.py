@@ -50,6 +50,7 @@ from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tarot_canvas.ui.tabs.deck_view_tab import DeckViewTab
 from tarot_canvas.ui.tabs.library_tab import LibraryTab
+from tarot_canvas.ui.widgets.placeholder_message import tinted_icon
 from tarot_canvas.ui.widgets.toast import Toast
 from tarot_canvas.ui.windows.about import AboutDialog, app_icon
 from tarot_canvas.ui.windows.log_viewer import LogViewerDialog
@@ -57,6 +58,7 @@ from tarot_canvas.utils.logger import logger
 from tarot_canvas.utils.theme_manager import ThemeManager, ThemeType
 
 ICON_PATH = files("tarot_canvas.resources.icons").joinpath("icon.png")
+WELCOME_TAB_ICON = files("tarot_canvas.resources.icons").joinpath("esoterica.svg")
 
 # The Go menu's entries, in its groups
 GO_GROUPS = (
@@ -511,7 +513,7 @@ class MainWindow(QMainWindow):
         layout.addLayout(button_layout)
         welcome_tab.setLayout(layout)
 
-        self.tab_widget.addTab(welcome_tab, "Welcome")
+        self.tab_widget.addTab(welcome_tab, tinted_icon(WELCOME_TAB_ICON), "Welcome")
 
     def close_welcome_tab(self):
         """Close the welcome tab if it exists"""
@@ -524,13 +526,23 @@ class MainWindow(QMainWindow):
         canvas_tab = CanvasTab()
         canvas_tab.navigation_requested.connect(self.handle_tab_navigation)
         self.close_welcome_tab()
-        tab_index = self.tab_widget.addTab(canvas_tab, "Canvas")
+        canvas_tab.tab_name = self.next_canvas_name()
+        tab_index = self.tab_widget.addTab(canvas_tab, canvas_tab.tab_name)
         self.tab_widget.setCurrentWidget(canvas_tab)
 
         # Set up double-click event filter for tab renaming
         self.setup_tab_renaming(tab_index, canvas_tab)
 
         return canvas_tab
+
+    def next_canvas_name(self):
+        """Canvas, then Canvas (2), Canvas (3)..., reusing the lowest name no tab holds"""
+        taken = {self.tab_widget.tabText(i) for i in range(self.tab_widget.count())}
+        name, n = "Canvas", 1
+        while name in taken:
+            n += 1
+            name = f"Canvas ({n})"
+        return name
 
     def setup_tab_renaming(self, tab_index, tab):
         """Set up double-click renaming for a tab (currently only for Canvas tabs)"""
