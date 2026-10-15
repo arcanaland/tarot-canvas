@@ -16,6 +16,7 @@ gen-modules:
   #!/bin/bash
   set -euo pipefail
 
+  RUNTIME_VERSION=$(grep "runtime-version:" land.arcana.TarotCanvas.yml | cut -d "'" -f 2)
   TEMP_DIR=$(mktemp -d)
 
   FLATPAK_PIP_GENERATOR_SHA=737c0085912f9f7dabf9341d4608e2a77a51a73a
@@ -24,9 +25,20 @@ gen-modules:
 
   # PyYAML isn't in this script's PEP 723 metadata for some reason
   uv run --with PyYAML "${TEMP_DIR}/flatpak-pip-generator.py" \
-    --yaml --checker-data --cleanup scripts requests xdg-base-dirs poetry-core
+    --yaml --checker-data --runtime=org.kde.Sdk//${RUNTIME_VERSION} \
+    requests xdg-base-dirs poetry-core
 
   rm -rf "${TEMP_DIR}"
+
+  # remove poetry-core
+  awk '
+    /^  - name: / { in_poetry = ($3 == "python3-poetry-core") }
+    in_poetry && /^    sources:$/ { print "    cleanup:"; print "      - \"*\""; in_poetry = 0; added = 1 }
+    { print }
+    END { exit !added }
+  ' python3-modules.yaml >python3-modules.yaml.tmp \
+    || { echo "gen-modules: poetry-core cleanup not added" >&2; exit 1; }
+  mv python3-modules.yaml.tmp python3-modules.yaml
 
 [private]
 deps:
