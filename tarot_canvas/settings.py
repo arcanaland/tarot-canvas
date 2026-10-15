@@ -65,6 +65,24 @@ def get_settings():
     return QSettings(SETTINGS_ORGANIZATION, SETTINGS_APPLICATION)
 
 
+THEME_KEY = "appearance/theme"
+THEME_DEFAULT = "system"
+# Where the theme was kept, apart from every other setting, before it moved to THEME_KEY
+LEGACY_THEME_STORE = ("Arcana Land", "Tarot Canvas")
+LEGACY_THEME_KEY = "theme"
+
+
+def get_theme(settings=None):
+    """The stored theme's value, moved once from the store it used to have"""
+    settings = settings or get_settings()
+    if not settings.contains(THEME_KEY):
+        legacy = QSettings(*LEGACY_THEME_STORE)
+        if legacy.contains(LEGACY_THEME_KEY):
+            settings.setValue(THEME_KEY, legacy.value(LEGACY_THEME_KEY))
+            legacy.remove(LEGACY_THEME_KEY)
+    return settings.value(THEME_KEY, THEME_DEFAULT)
+
+
 # The size of the text read in a card view, as a percentage of the system's
 READING_TEXT_SCALE_KEY = "reading/text_scale"
 READING_TEXT_SCALE_DEFAULT = 100

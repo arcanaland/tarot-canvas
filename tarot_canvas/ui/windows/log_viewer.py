@@ -1,11 +1,9 @@
-import contextlib
 import logging
 from typing import ClassVar
 
-from PyQt6.QtCore import pyqtSlot
+from PyQt6.QtCore import QEvent, pyqtSlot
 from PyQt6.QtGui import QColor, QIcon, QPalette, QTextCursor
 from PyQt6.QtWidgets import (
-    QApplication,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -18,7 +16,6 @@ from PyQt6.QtWidgets import (
 
 from tarot_canvas.ui import typography
 from tarot_canvas.utils.logger import TarotLogger
-from tarot_canvas.utils.theme_manager import ThemeManager, ThemeType
 
 
 class LogViewerDialog(QDialog):
@@ -55,11 +52,6 @@ class LogViewerDialog(QDialog):
         self.setWindowTitle("Log Viewer")
         self.resize(800, 600)
 
-        # Get the theme manager and connect to theme changes
-        self.theme_manager = ThemeManager.get_instance()
-        self.theme_manager.theme_changed.connect(self.on_theme_changed)
-
-        # Set colors based on current theme
         self.update_colors_for_theme()
 
         self.setup_ui()
@@ -71,34 +63,17 @@ class LogViewerDialog(QDialog):
         self.load_log_file()
 
     def update_colors_for_theme(self):
-        """Update colors based on the current theme"""
-        current_theme = self.theme_manager.get_current_theme()
-
-        # For System theme, detect if it's a dark theme by checking background color
-        if current_theme == ThemeType.SYSTEM:
-            app = QApplication.instance()
-            bg_color = app.palette().color(QPalette.ColorRole.Base)
-            # If background is dark (brightness < 128), use dark colors
-            brightness = (
-                bg_color.red() * 299 + bg_color.green() * 587 + bg_color.blue() * 114
-            ) / 1000
-            if brightness < 128:
-                self.LOG_COLORS = self.DARK_THEME_COLORS
-                return
-
-        # Explicit theme selection
-        if current_theme == ThemeType.DARK:
+        """Pick the colour set by the palette's lightness, whichever theme put it there"""
+        if self.palette().color(QPalette.ColorRole.Base).lightness() < 128:
             self.LOG_COLORS = self.DARK_THEME_COLORS
         else:
-            # For light theme or system theme that's light
             self.LOG_COLORS = self.LIGHT_THEME_COLORS
 
-    def on_theme_changed(self, theme_name):
-        """Handle theme changes"""
-        self.update_colors_for_theme()
-
-        # Refresh the display to apply new colors
-        self.reload_with_new_colors()
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.PaletteChange and hasattr(self, "log_display"):
+            self.update_colors_for_theme()
+            self.reload_with_new_colors()
 
     def reload_with_new_colors(self):
         """Reload the log content with the new color scheme"""
@@ -158,35 +133,7 @@ class LogViewerDialog(QDialog):
         self.log_display = QTextEdit()
         self.log_display.setReadOnly(True)
         typography.apply(self.log_display, typography.Role.BODY, fixed=True)
-
-        # Set background color based on theme
-        self.apply_textbox_theme()
-
         layout.addWidget(self.log_display)
-
-    def apply_textbox_theme(self):
-        """Apply theme-specific styling to the text box using the application palette"""
-        # Clear any previously set stylesheet
-        self.log_display.setStyleSheet("")
-
-        # Get the application palette
-        app = QApplication.instance()
-        palette = app.palette()
-
-        # Detect if the palette is for a dark theme
-        bg_color = palette.color(QPalette.ColorRole.Base)
-        brightness = (bg_color.red() * 299 + bg_color.green() * 587 + bg_color.blue() * 114) / 1000
-
-        # Create a new palette for the text edit based on the application palette
-        text_edit_palette = QPalette(palette)
-
-        # If we're in a dark theme using system themes, ensure the text is light colored
-        if brightness < 128 and self.theme_manager.get_current_theme() == ThemeType.SYSTEM:
-            # Make sure the text is visible on dark background by modifying the text color
-            text_edit_palette.setColor(QPalette.ColorRole.Text, QColor(220, 220, 220))
-
-        # Set text edit's palette
-        self.log_display.setPalette(text_edit_palette)
 
     def load_log_file(self):
         """Load the current log file content"""
@@ -275,9 +222,4 @@ class LogViewerDialog(QDialog):
         """Handle window close event"""
         # Unsubscribe from logger
         TarotLogger.unsubscribe(self.on_log_message)
-
-        # Disconnect from theme manager
-        with contextlib.suppress(Exception):
-            self.theme_manager.theme_changed.disconnect(self.on_theme_changed)
-
         super().closeEvent(event)
