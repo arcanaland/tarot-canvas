@@ -497,6 +497,24 @@ def test_a_closed_explorer_stays_closed_next_session(qtbot):
     assert third.explorer_action.isChecked()
 
 
+def test_the_explorer_opens_at_its_content_width(qtbot):
+    """The window grows when shown, and that space goes to the tabs."""
+    window = make_shown_window(qtbot)
+    assert window.main_splitter.sizes()[0] == window.card_explorer.preferred_width()
+
+    window.resize(window.width() + 200, window.height())
+    assert window.main_splitter.sizes()[0] == window.card_explorer.preferred_width()
+
+
+def test_the_window_reopens_at_the_size_it_was_closed(qtbot):
+    first = make_shown_window(qtbot)
+    first.resize(720, 480)
+    first.close()
+
+    second = make_shown_window(qtbot)
+    assert (second.width(), second.height()) == (720, 480)
+
+
 def test_opening_the_same_deck_twice_reuses_its_tab(qtbot):
     window = MainWindow()
     qtbot.addWidget(window)

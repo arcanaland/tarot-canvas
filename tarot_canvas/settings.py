@@ -126,6 +126,9 @@ DECK_HEADER_EXPANDED_DEFAULT = True
 EXPLORER_VISIBLE_KEY = "main_window/explorer_visible"
 EXPLORER_VISIBLE_DEFAULT = True
 
+# for the main window's size, and whether it was maximized
+MAIN_WINDOW_GEOMETRY_KEY = "main_window/geometry"
+
 # for the Preferences window size
 PREFERENCES_GEOMETRY_KEY = "preferences/geometry"
 

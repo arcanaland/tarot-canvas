@@ -34,6 +34,7 @@ from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.settings import (
     EXPLORER_VISIBLE_DEFAULT,
     EXPLORER_VISIBLE_KEY,
+    MAIN_WINDOW_GEOMETRY_KEY,
     SHOW_AVAILABLE_DECKS_DEFAULT,
     SHOW_AVAILABLE_DECKS_KEY,
     get_settings,
@@ -132,6 +133,9 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Tarot Canvas")
         self.setWindowIcon(QIcon(str(ICON_PATH)))
         self.setGeometry(100, 100, 950, 600)
+        geometry = get_settings().value(MAIN_WINDOW_GEOMETRY_KEY)
+        if geometry is not None:
+            self.restoreGeometry(geometry)
 
         # The tab currently fullscreened, and the chrome state to put back
         self.fullscreen_tab = None
@@ -454,6 +458,9 @@ class MainWindow(QMainWindow):
 
         # Add the right container to the splitter
         self.main_splitter.addWidget(right_container)
+        # A growing window widens the tabs, never the explorer
+        self.main_splitter.setStretchFactor(0, 0)
+        self.main_splitter.setStretchFactor(1, 1)
 
         self.size_splitter_to_explorer()
 
@@ -951,6 +958,13 @@ class MainWindow(QMainWindow):
 
         self.fullscreen_tab_action.setChecked(False)
         tab.on_fullscreen_changed()
+
+    def closeEvent(self, event):
+        # Remember the window as it was before any tab took it over
+        if self.fullscreen_tab is not None:
+            self.exit_tab_fullscreen()
+        get_settings().setValue(MAIN_WINDOW_GEOMETRY_KEY, self.saveGeometry())
+        super().closeEvent(event)
 
     def size_splitter_to_explorer(self):
         """Give the explorer its content width only"""
