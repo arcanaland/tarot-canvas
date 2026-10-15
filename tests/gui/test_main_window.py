@@ -8,6 +8,7 @@ from tarot_canvas.ui.canvas.card_item import DraggableCardItem
 from tarot_canvas.ui.card_transfer import CARD_MIME
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
+from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tarot_canvas.ui.tabs.deck_view_tab import DeckViewTab
 from tarot_canvas.ui.tabs.library_tab import LibraryTab
 from tarot_canvas.utils.theme_manager import ThemeType
@@ -32,6 +33,31 @@ def test_main_window_opens_with_welcome_tab(qtbot):
     assert tab_widget is not None
     assert tab_widget.count() >= 1
     assert tab_widget.tabText(0) == "Welcome"
+    assert not tab_widget.tabIcon(0).isNull()
+
+
+def test_canvases_are_numbered_from_the_second(qtbot):
+    window = MainWindow()
+    qtbot.addWidget(window)
+
+    tabs = [window.new_canvas_tab() for _ in range(3)]
+
+    names = [window.tab_widget.tabText(window.tab_widget.indexOf(tab)) for tab in tabs]
+    assert names == ["Canvas", "Canvas (2)", "Canvas (3)"]
+    assert [tab.tab_name for tab in tabs] == names
+
+
+def test_a_new_canvas_takes_the_lowest_free_name(qtbot):
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.new_canvas_tab()
+    second = window.new_canvas_tab()
+    window.new_canvas_tab()
+
+    window.close_tab(window.tab_widget.indexOf(second))
+    fourth = window.new_canvas_tab()
+
+    assert window.tab_widget.tabText(window.tab_widget.indexOf(fourth)) == "Canvas (2)"
 
 
 def make_window_with_canvas(qtbot):
@@ -472,6 +498,24 @@ def test_a_closed_explorer_stays_closed_next_session(qtbot):
     assert third.explorer_action.isChecked()
 
 
+def test_the_explorer_opens_at_its_content_width(qtbot):
+    """The window grows when shown, and that space goes to the tabs."""
+    window = make_shown_window(qtbot)
+    assert window.main_splitter.sizes()[0] == window.card_explorer.preferred_width()
+
+    window.resize(window.width() + 200, window.height())
+    assert window.main_splitter.sizes()[0] == window.card_explorer.preferred_width()
+
+
+def test_the_window_reopens_at_the_size_it_was_closed(qtbot):
+    first = make_shown_window(qtbot)
+    first.resize(720, 480)
+    first.close()
+
+    second = make_shown_window(qtbot)
+    assert (second.width(), second.height()) == (720, 480)
+
+
 def test_opening_the_same_deck_twice_reuses_its_tab(qtbot):
     window = MainWindow()
     qtbot.addWidget(window)
@@ -599,6 +643,16 @@ def test_the_new_tab_button_actually_opens_a_tab(qtbot):
 
     window.new_library_action.trigger()
     assert isinstance(window.tab_widget.currentWidget(), LibraryTab)
+
+
+def test_opening_a_card_closes_the_welcome_tab(qtbot):
+    window = MainWindow()
+    qtbot.addWidget(window)
+
+    window.add_card_tab(CardViewTab(), "card")
+
+    titles = [window.tab_widget.tabText(i) for i in range(window.tab_widget.count())]
+    assert titles == ["card"]
 
 
 def test_the_search_button_is_still_reachable(qtbot):

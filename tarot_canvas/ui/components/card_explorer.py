@@ -109,7 +109,7 @@ class CardExplorerPanel(QWidget):
 
         header = QLabel("Card Explorer")
         header.setStyleSheet("padding: 5px;")
-        typography.apply(header, typography.Role.HEADING_4)
+        typography.apply(header, typography.Role.BODY, primary=True)
         header_layout.addWidget(header, 1)
 
         self.close_button = QToolButton()
