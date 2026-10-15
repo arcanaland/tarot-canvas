@@ -146,9 +146,9 @@ def main():
     app.setWindowIcon(QIcon(str(files("tarot_canvas.resources.icons").joinpath("icon.png"))))
     typography.install(app)
 
-    # Initialize and apply theme
+    # Before any window exists, so none is built in the wrong colours
     logger.info("Initializing theme manager")
-    ThemeManager.get_instance()
+    ThemeManager.get_instance().apply_at_startup()
 
     # Check if reference deck is already present
     needs_download = not ReferenceDeck.is_reference_deck_present()

@@ -49,6 +49,15 @@ def isolated_settings():
     yield
 
 
+@pytest.fixture(autouse=True)
+def colour_schemes(monkeypatch):
+    """Light and Dark read the fixture schemes, not the host's /usr/share."""
+    from tarot_canvas.ui import colour_scheme
+
+    monkeypatch.setattr(colour_scheme, "SCHEME_DIR", FIXTURES_DIR / "color-schemes")
+    return FIXTURES_DIR / "color-schemes"
+
+
 @pytest.fixture
 def notes_base(tmp_path, monkeypatch):
     """Notes are read from and written under a fresh directory."""

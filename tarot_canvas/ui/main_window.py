@@ -148,9 +148,6 @@ class MainWindow(QMainWindow):
         self.theme_manager = ThemeManager.get_instance()
         self.theme_manager.theme_changed.connect(self.on_theme_changed)
 
-        # Apply current theme
-        self.theme_manager._apply_theme()
-
         self.create_menus()
         self.init_ui()
 
