@@ -8,6 +8,7 @@ from tarot_canvas.ui.canvas.card_item import DraggableCardItem
 from tarot_canvas.ui.card_transfer import CARD_MIME
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
+from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tarot_canvas.ui.tabs.deck_view_tab import DeckViewTab
 from tarot_canvas.ui.tabs.library_tab import LibraryTab
 from tarot_canvas.utils.theme_manager import ThemeType
@@ -642,6 +643,16 @@ def test_the_new_tab_button_actually_opens_a_tab(qtbot):
 
     window.new_library_action.trigger()
     assert isinstance(window.tab_widget.currentWidget(), LibraryTab)
+
+
+def test_opening_a_card_closes_the_welcome_tab(qtbot):
+    window = MainWindow()
+    qtbot.addWidget(window)
+
+    window.add_card_tab(CardViewTab(), "card")
+
+    titles = [window.tab_widget.tabText(i) for i in range(window.tab_widget.count())]
+    assert titles == ["card"]
 
 
 def test_the_search_button_is_still_reachable(qtbot):

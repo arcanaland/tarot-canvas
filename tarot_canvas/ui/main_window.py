@@ -577,11 +577,10 @@ class MainWindow(QMainWindow):
             # Also store the name in the tab object
             tab.tab_name = new_name
 
-    def add_card_tab(self, card_tab, title, close_welcome=False):
+    def add_card_tab(self, card_tab, title):
         """Adopt a card view tab. Every construction site must come through here."""
         card_tab.navigation_requested.connect(self.handle_tab_navigation)
-        if close_welcome:
-            self.close_welcome_tab()
+        self.close_welcome_tab()
         self.tab_widget.addTab(card_tab, title)
         self.tab_widget.setCurrentWidget(card_tab)
         return card_tab
@@ -709,7 +708,7 @@ class MainWindow(QMainWindow):
         return None
 
     def new_card_view_tab(self):
-        self.add_card_tab(CardViewTab(), "Card View", close_welcome=True)
+        self.add_card_tab(CardViewTab(), "Card View")
 
     def close_tab(self, index):
         # removeTab neither deletes the page nor tells it it has gone
