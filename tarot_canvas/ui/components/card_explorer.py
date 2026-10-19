@@ -108,7 +108,7 @@ class CardExplorerPanel(QWidget):
         header_layout.setSpacing(0)
 
         header = QLabel("Card Explorer")
-        header.setStyleSheet("padding: 5px;")
+        header.setMargin(5)
         typography.apply(header, typography.Role.BODY, primary=True)
         header_layout.addWidget(header, 1)
 

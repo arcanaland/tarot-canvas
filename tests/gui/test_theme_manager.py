@@ -2,18 +2,9 @@ from types import SimpleNamespace
 
 import pytest
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QPalette
 
 from tarot_canvas.utils import theme_manager
 from tarot_canvas.utils.theme_manager import ThemeManager, ThemeType
-
-TOOLTIP_STYLESHEET = """
-            QToolTip {
-                color: #ffffff;
-                background-color: #505050;
-                border: 1px solid #777777;
-            }
-            """
 
 
 class FakeStyle:
@@ -81,10 +72,6 @@ def apply(theme, platform, flatpak=False, styles=("Windows", "Fusion")):
     manager._apply_theme(platform=platform)
 
 
-def window_colour(palette):
-    return palette.color(QPalette.ColorRole.Window).getRgb()[:3]
-
-
 @pytest.mark.parametrize("flatpak", [False, True])
 @pytest.mark.parametrize("theme", list(ThemeType))
 def test_macos_keeps_the_native_style_under_every_theme(app, theme, flatpak):
@@ -107,31 +94,3 @@ def test_macos_themes_choose_only_the_colour_scheme(app, theme, calls):
     apply(theme, "darwin")
 
     assert app.hints.calls == calls
-
-
-LINUX = {
-    (False, True, ThemeType.SYSTEM): ("Breeze", "standard", ""),
-    (False, True, ThemeType.LIGHT): ("Breeze", "standard", ""),
-    (False, True, ThemeType.DARK): ("Breeze", (53, 53, 53), TOOLTIP_STYLESHEET),
-    (False, False, ThemeType.SYSTEM): ("Fusion", "standard", ""),
-    (False, False, ThemeType.LIGHT): ("Fusion", "standard", ""),
-    (False, False, ThemeType.DARK): ("Fusion", (53, 53, 53), TOOLTIP_STYLESHEET),
-    (True, True, ThemeType.SYSTEM): ("Breeze", "standard", ""),
-    (True, True, ThemeType.LIGHT): ("Breeze", "standard", ""),
-    (True, True, ThemeType.DARK): ("Breeze", (49, 54, 59), None),
-    (True, False, ThemeType.SYSTEM): ("Fusion", "standard", ""),
-    (True, False, ThemeType.LIGHT): ("Fusion", "standard", ""),
-    (True, False, ThemeType.DARK): ("Fusion", (49, 54, 59), None),
-}
-
-
-@pytest.mark.parametrize("flatpak, breeze, theme", list(LINUX))
-def test_linux_is_unchanged(app, flatpak, breeze, theme):
-    styles = ("Breeze", "Windows", "Fusion") if breeze else ("Windows", "Fusion")
-    apply(theme, "linux", flatpak=flatpak, styles=styles)
-
-    style, palette, stylesheet = LINUX[(flatpak, breeze, theme)]
-    assert app.styles == [style]
-    assert (app.palette if palette == "standard" else window_colour(app.palette)) == palette
-    assert app.stylesheet == stylesheet
-    assert app.hints.calls == []

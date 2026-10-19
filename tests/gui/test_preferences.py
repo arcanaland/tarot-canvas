@@ -15,6 +15,7 @@ from tarot_canvas.settings import (
     READING_TEXT_SCALE_KEY,
     READING_TEXT_SCALE_STEPS,
     SHOW_AVAILABLE_DECKS_KEY,
+    THEME_KEY,
     get_reading_text_scale,
     get_settings,
 )
@@ -28,7 +29,7 @@ from tarot_canvas.utils.theme_manager import ThemeManager, ThemeType
 
 @pytest.fixture
 def theme_kept():
-    """The theme lives in ThemeManager's own store, which isolated_settings doesn't clear"""
+    """ThemeManager is a singleton, and remembers the theme across isolated_settings"""
     manager = ThemeManager.get_instance()
     before = manager.get_current_theme()
     yield manager
@@ -53,7 +54,7 @@ def test_applying_a_theme_reaches_the_theme_manager(qtbot, theme_kept):
     dialog.apply_settings()
 
     assert theme_kept.get_current_theme() is ThemeType.LIGHT
-    assert not get_settings().contains("appearance/theme")
+    assert get_settings().value(THEME_KEY) == "light"
 
 
 def test_each_sidebar_row_shows_its_page(qtbot):
