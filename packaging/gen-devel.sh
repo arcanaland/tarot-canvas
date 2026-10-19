@@ -13,12 +13,9 @@ mkdir -p "${OUT}"
 
 sed \
   -e "s|^app-id: ${PROD_ID}\$|app-id: ${DEVEL_ID}|" \
-  -e "s|packaging/${PROD_ID}\.desktop|packaging/${OUT}/${PROD_ID}.desktop|" \
-  -e "s|tarot_canvas/resources/${PROD_ID}\.appdata\.xml|packaging/${OUT}/${PROD_ID}.appdata.xml|" \
-  -e "s|packaging/icon\.svg|packaging/${OUT}/icon.svg|" \
-  -e "s|share/applications/${PROD_ID}\.desktop|share/applications/${DEVEL_ID}.desktop|" \
-  -e "s|apps/${PROD_ID}\.svg|apps/${DEVEL_ID}.svg|" \
-  -e "s|share/metainfo/${PROD_ID}\.metainfo\.xml|share/metainfo/${DEVEL_ID}.metainfo.xml|" \
+  -e "s|packaging/\${FLATPAK_ID}\.desktop |packaging/${OUT}/\${FLATPAK_ID}.desktop |" \
+  -e "s|tarot_canvas/resources/\${FLATPAK_ID}\.appdata\.xml |packaging/${OUT}/\${FLATPAK_ID}.appdata.xml |" \
+  -e "s|packaging/icon\.svg |packaging/${OUT}/icon.svg |" \
   -e "s|^  - python3-modules\.yaml\$|  - ../python3-modules.yaml|" \
   -e "s|^        path: \.\.\$|        path: ../..|" \
   "${PROD_ID}.yml" >"${OUT}/${PROD_ID}.yml"
@@ -26,12 +23,12 @@ sed \
 sed -e "s|^Icon=${PROD_ID}\$|Icon=${DEVEL_ID}|" \
   -e "s|^Name=Tarot Canvas\$|Name=Tarot Canvas (Devel)|" \
   -e "/^X-Flatpak-RenamedFrom=/d" \
-  "${PROD_ID}.desktop" >"${OUT}/${PROD_ID}.desktop"
+  "${PROD_ID}.desktop" >"${OUT}/${DEVEL_ID}.desktop"
 
 sed -e "s|<id>${PROD_ID}</id>|<id>${DEVEL_ID}</id>|" \
   -e "s|>${PROD_ID}\.desktop<|>${DEVEL_ID}.desktop<|" \
   -e "0,/<name>Tarot Canvas<\/name>/s||<name>Tarot Canvas (Devel)</name>|" \
-  "../tarot_canvas/resources/${PROD_ID}.appdata.xml" >"${OUT}/${PROD_ID}.appdata.xml"
+  "../tarot_canvas/resources/${PROD_ID}.appdata.xml" >"${OUT}/${DEVEL_ID}.appdata.xml"
 
 ./gen-devel-icon.py icon.svg "${OUT}/icon.svg"
 
@@ -41,26 +38,21 @@ fail() {
 }
 
 grep -q "^app-id: ${DEVEL_ID}\$" "${OUT}/${PROD_ID}.yml" || fail "app-id not rewritten"
-grep -q "^Icon=${DEVEL_ID}\$" "${OUT}/${PROD_ID}.desktop" || fail "desktop Icon= not rewritten"
-grep -q "<id>${DEVEL_ID}</id>" "${OUT}/${PROD_ID}.appdata.xml" || fail "appdata <id> not rewritten"
-grep -q "desktop-id\">${DEVEL_ID}\.desktop<" "${OUT}/${PROD_ID}.appdata.xml" || fail "appdata launchable not rewritten"
-grep -q "<name>Tarot Canvas (Devel)</name>" "${OUT}/${PROD_ID}.appdata.xml" || fail "appdata <name> not rewritten"
+grep -q "^Icon=${DEVEL_ID}\$" "${OUT}/${DEVEL_ID}.desktop" || fail "desktop Icon= not rewritten"
+grep -q "<id>${DEVEL_ID}</id>" "${OUT}/${DEVEL_ID}.appdata.xml" || fail "appdata <id> not rewritten"
+grep -q "desktop-id\">${DEVEL_ID}\.desktop<" "${OUT}/${DEVEL_ID}.appdata.xml" || fail "appdata launchable not rewritten"
+grep -q "<name>Tarot Canvas (Devel)</name>" "${OUT}/${DEVEL_ID}.appdata.xml" || fail "appdata <name> not rewritten"
 grep -q "^  - \.\./python3-modules\.yaml\$" "${OUT}/${PROD_ID}.yml" || fail "module path not rewritten"
 grep -q "^        path: \.\./\.\.\$" "${OUT}/${PROD_ID}.yml" || fail "source path not rewritten"
-for d in "share/applications/${DEVEL_ID}.desktop" \
-  "apps/${DEVEL_ID}.svg" \
-  "share/metainfo/${DEVEL_ID}.metainfo.xml"; do
-  grep -q "${d}\$" "${OUT}/${PROD_ID}.yml" || fail "install destination ${d} not rewritten"
-done
-for s in "packaging/${OUT}/${PROD_ID}.desktop" \
-  "packaging/${OUT}/${PROD_ID}.appdata.xml" \
+for s in "packaging/${OUT}/\${FLATPAK_ID}.desktop" \
+  "packaging/${OUT}/\${FLATPAK_ID}.appdata.xml" \
   "packaging/${OUT}/icon.svg"; do
-  grep -q "install -Dm644 ${s} " "${OUT}/${PROD_ID}.yml" || fail "install source ${s} is wrong"
+  grep -qF "install -Dm644 ${s} -t " "${OUT}/${PROD_ID}.yml" || fail "install source ${s} is wrong"
 done
-#
-# No install destination should have the prod name
-if grep -E "FLATPAK_DEST.*/${PROD_ID}\.(desktop|svg|metainfo\.xml)\$" "${OUT}/${PROD_ID}.yml"; then
-  fail "a production ID survived in an install destination"
+
+# No install line should read a production source
+if grep "install " "${OUT}/${PROD_ID}.yml" | grep -v "install -Dm644 packaging/${OUT}/" | grep -v "pip3 install"; then
+  fail "an install line still names a production source"
 fi
 
 echo "generated packaging/${OUT}/ for ${DEVEL_ID}"

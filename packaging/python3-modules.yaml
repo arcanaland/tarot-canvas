@@ -1,4 +1,4 @@
-# Generated with flatpak-pip-generator --yaml --checker-data --cleanup scripts requests xdg-base-dirs poetry-core
+# Generated with flatpak-pip-generator -r requirements.txt -o python3-modules --yaml --checker-data --runtime=org.kde.Sdk//6.11
 name: python3-modules
 buildsystem: simple
 build-commands: []
@@ -17,15 +17,15 @@ modules:
           name: certifi
           packagetype: bdist_wheel
       - type: file
-        url: https://files.pythonhosted.org/packages/98/2b/f97f1c193fb855c345d678f5077d6926034db0722df74c8f057020e05a25/charset_normalizer-3.4.9-py3-none-any.whl
-        sha256: 68e5f26a1ad57ded6d1cfb85331d1c1a195314756471d97758c48498bb4dcdf5
+        url: https://files.pythonhosted.org/packages/fc/ad/d07d7862a62ffa6d79d68074d14823243dd235a77c45262acbf6adeb28bf/charset_normalizer-3.5.2-py3-none-any.whl
+        sha256: b6b751274acb69d77b3323d6b7dbaa3c7fdfc1eb829b7eb61d262f32e1af9685
         x-checker-data:
           type: pypi
           name: charset-normalizer
           packagetype: bdist_wheel
       - type: file
-        url: https://files.pythonhosted.org/packages/1e/5e/d4e9f1a599fb8e573b7b87160658329fbf28d19eac2718f51fc3def3aa5a/idna-3.18-py3-none-any.whl
-        sha256: 7f952cbe720b688055e3f87de14f5c3e5fdaa8bc3928985c4077ca689de849a2
+        url: https://files.pythonhosted.org/packages/58/a2/bb081bab032533a855d44de1d56f8e8426114ff1ba5d1f07a438a0a654f8/idna-3.20-py3-none-any.whl
+        sha256: ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c
         x-checker-data:
           type: pypi
           name: idna
@@ -38,15 +38,12 @@ modules:
           name: requests
           packagetype: bdist_wheel
       - type: file
-        url: https://files.pythonhosted.org/packages/7f/3e/5db95bcf282c52709639744ca2a8b149baccf648e39c8cc87553df9eae0c/urllib3-2.7.0-py3-none-any.whl
-        sha256: 9fb4c81ebbb1ce9531cce37674bbc6f1360472bc18ca9a553ede278ef7276897
+        url: https://files.pythonhosted.org/packages/92/9d/c4e665119135114480843e7ab388fa94d8480650450e6f8e26b70d323a4c/urllib3-2.8.0-py3-none-any.whl
+        sha256: 0cf3cae568d36aa9576b28dfb35f11328f1cb974ca7647d9475ebb86c75ac6e3
         x-checker-data:
           type: pypi
           name: urllib3
           packagetype: bdist_wheel
-    cleanup:
-      - /bin
-      - /share/man/man1
   - name: python3-xdg-base-dirs
     buildsystem: simple
     build-commands:
@@ -54,28 +51,24 @@ modules:
         --prefix=${FLATPAK_DEST} "xdg-base-dirs" --no-build-isolation
     sources:
       - type: file
-        url: https://files.pythonhosted.org/packages/fc/03/030b47fd46b60fc87af548e57ff59c2ca84b2a1dadbe721bb0ce33896b2e/xdg_base_dirs-6.0.2-py3-none-any.whl
-        sha256: 3c01d1b758ed4ace150ac960ac0bd13ce4542b9e2cdf01312dcda5012cfebabe
+        url: https://files.pythonhosted.org/packages/3c/7b/e1376eb2e5c3c0c7feca70687ba1def829d848b607a7e8d1811ea9a2c155/xdg_base_dirs-6.0.3-py3-none-any.whl
+        sha256: c80886a8f4e369d6148fdebd7abf182bf053ce6c744f7b7eec5853fec835ff44
         x-checker-data:
           type: pypi
           name: xdg-base-dirs
           packagetype: bdist_wheel
-    cleanup:
-      - /bin
-      - /share/man/man1
   - name: python3-poetry-core
     buildsystem: simple
     build-commands:
       - pip3 install --verbose --exists-action=i --no-index --find-links="file://${PWD}"
         --prefix=${FLATPAK_DEST} "poetry-core" --no-build-isolation
+    cleanup:
+      - "*"
     sources:
       - type: file
-        url: https://files.pythonhosted.org/packages/50/36/e0703d73bc9f89b95014173c9c7754816630a3282f2727637de5b076e5e4/poetry_core-2.4.1-py3-none-any.whl
-        sha256: acf06f9537cd2625bdaec926d95d90b557ba15353bc71d27a3a8a441042b5316
+        url: https://files.pythonhosted.org/packages/b7/25/7ed0a2ea4fe12f7fd0394387b5debbcd6fdbd06e5ac9daab96ba11471da8/poetry_core-2.5.0-py3-none-any.whl
+        sha256: 98ee465b66f7e14bb9fbe68fb5e00d0cff184f036993ec94610ae4b5612f3add
         x-checker-data:
           type: pypi
           name: poetry-core
           packagetype: bdist_wheel
-    cleanup:
-      - /bin
-      - /share/man/man1
