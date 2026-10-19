@@ -67,7 +67,8 @@ def get_settings():
 
 THEME_KEY = "appearance/theme"
 THEME_DEFAULT = "system"
-# Where the theme was kept, apart from every other setting, before it moved to THEME_KEY
+
+# old store for themeing stuff
 LEGACY_THEME_STORE = ("Arcana Land", "Tarot Canvas")
 LEGACY_THEME_KEY = "theme"
 

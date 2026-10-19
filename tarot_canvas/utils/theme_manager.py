@@ -10,8 +10,6 @@ from tarot_canvas.settings import THEME_KEY, get_settings, get_theme
 from tarot_canvas.ui import colour_scheme
 from tarot_canvas.utils.logger import logger
 
-# Set by KColorSchemeManager; Breeze reads it for the menu bar's colours, and the Plasma
-# platform theme for the title bar's
 SCHEME_PATH_PROPERTY = "KDE_COLOR_SCHEME_PATH"
 
 
@@ -104,9 +102,6 @@ class ThemeManager(QObject):
             self._apply_system_theme(app)
             return
 
-        # An explicit palette, as a KDE app's Window Color Scheme menu sets; the
-        # platform theme ignores setColorScheme(), and the style's standardPalette()
-        # is the desktop's (#34)
         name = colour_scheme.LIGHT_SCHEME if theme == ThemeType.LIGHT else colour_scheme.DARK_SCHEME
         path = colour_scheme.SCHEME_DIR / name
         try:
@@ -134,7 +129,7 @@ class ThemeManager(QObject):
         logger.info(f"Applying {theme.value} theme with the macOS style")
 
     def _apply_system_theme(self, app):
-        """The style and palette the app started with, still following the desktop's"""
+        """The style and palette the app started with"""
         app.setProperty(SCHEME_PATH_PROPERTY, None)
         app.setPalette(QPalette())
         app.styleHints().unsetColorScheme()
@@ -142,10 +137,4 @@ class ThemeManager(QObject):
         logger.info("Applying system theme")
 
     def _renew_style(self, app):
-        """A fresh instance of the startup style, polishing every widget again.
-
-        Breeze reads SCHEME_PATH_PROPERTY once per window, when it first polishes it, and
-        keeps the menu bar's text colour from then on; switching Light to Dark at runtime
-        left dark labels on the dark header until the style was made anew.
-        """
         app.setStyle(self._startup_style or app.style().name())
