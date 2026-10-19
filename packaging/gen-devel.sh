@@ -13,9 +13,6 @@ mkdir -p "${OUT}"
 
 sed \
   -e "s|^app-id: ${PROD_ID}\$|app-id: ${DEVEL_ID}|" \
-  -e "s|packaging/\${FLATPAK_ID}\.desktop |packaging/${OUT}/\${FLATPAK_ID}.desktop |" \
-  -e "s|tarot_canvas/resources/\${FLATPAK_ID}\.appdata\.xml |packaging/${OUT}/\${FLATPAK_ID}.appdata.xml |" \
-  -e "s|packaging/icon\.svg |packaging/${OUT}/icon.svg |" \
   -e "s|^  - python3-modules\.yaml\$|  - ../python3-modules.yaml|" \
   -e "s|^        path: \.\.\$|        path: ../..|" \
   "${PROD_ID}.yml" >"${OUT}/${PROD_ID}.yml"
@@ -44,15 +41,7 @@ grep -q "desktop-id\">${DEVEL_ID}\.desktop<" "${OUT}/${DEVEL_ID}.appdata.xml" ||
 grep -q "<name>Tarot Canvas (Devel)</name>" "${OUT}/${DEVEL_ID}.appdata.xml" || fail "appdata <name> not rewritten"
 grep -q "^  - \.\./python3-modules\.yaml\$" "${OUT}/${PROD_ID}.yml" || fail "module path not rewritten"
 grep -q "^        path: \.\./\.\.\$" "${OUT}/${PROD_ID}.yml" || fail "source path not rewritten"
-for s in "packaging/${OUT}/\${FLATPAK_ID}.desktop" \
-  "packaging/${OUT}/\${FLATPAK_ID}.appdata.xml" \
-  "packaging/${OUT}/icon.svg"; do
-  grep -qF "install -Dm644 ${s} -t " "${OUT}/${PROD_ID}.yml" || fail "install source ${s} is wrong"
-done
-
-# No install line should read a production source
-if grep "install " "${OUT}/${PROD_ID}.yml" | grep -v "install -Dm644 packaging/${OUT}/" | grep -v "pip3 install"; then
-  fail "an install line still names a production source"
-fi
+# flatpak-build.sh picks packaging/${OUT}/ by app ID, so the build step is not rewritten
+grep -qx "      - bash packaging/flatpak-build.sh" "${OUT}/${PROD_ID}.yml" || fail "build step is not flatpak-build.sh"
 
 echo "generated packaging/${OUT}/ for ${DEVEL_ID}"

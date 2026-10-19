@@ -10,6 +10,8 @@ build-devel/
 packaging/build-dir/
 packaging/build-devel/
 packaging/devel/
+packaging/flathub/
+packaging/build-flathub/
 
 .pytest_cache
 .coverage

@@ -36,5 +36,5 @@ jobs:
     - name: Validate AppStream metainfo
       run: just flatpak validate
 
-    - name: Build Flatpak
-      run: just flatpak build
+    - name: Build Flatpak from the release tarball
+      run: just flatpak build-tarball
