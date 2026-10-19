@@ -103,6 +103,9 @@ class MotionChannels:
     # Logical rotation in degrees
     orient: float = 0.0
 
+    # upside down
+    reversed: bool = False
+
     # ----- ambient --------
 
     # Perspective tilt in degrees
@@ -132,7 +135,7 @@ class MotionChannels:
         cx, cy = width / 2.0, height / 2.0
         tilt_x = self.tilt_x + self.face_x
         tilt_y = self.tilt_y + self.face_y
-        spin = self.orient + self.orient_lag + self.spin
+        spin = self.drawn_angle()
         t = QTransform()
         t.translate(cx + self.drift_x, cy + self.drift_y)
         if tilt_x or tilt_y:
@@ -156,8 +159,12 @@ class MotionChannels:
         t.translate(-cx, -cy)
         return t
 
+    def drawn_angle(self):
+        """The rotation the card is drawn at in degrees."""
+        return self.orient + (180.0 if self.reversed else 0.0) + self.orient_lag + self.spin
+
     def at_rest(self):
-        """Whether every motion channel has landed (besides orient)"""
+        """Whether every motion channel has landed (besides orient and reversal)"""
         return (
             self.tilt_x == 0.0
             and self.tilt_y == 0.0
@@ -182,6 +189,7 @@ class MotionChannels:
     def snapshot(self):
         return (
             self.orient,
+            self.reversed,
             self.tilt_x,
             self.tilt_y,
             self.drift_x,

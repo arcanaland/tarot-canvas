@@ -853,6 +853,28 @@ def test_a_card_copied_in_one_deck_is_pasted_from_that_deck(qtbot, clipboard, ot
     qtbot.wait(1100)
 
 
+def test_a_canvas_card_opens_from_its_own_deck(qtbot, other_deck):
+    window, canvas = make_window_with_canvas(qtbot)
+    assert canvas.deck is not other_deck
+    centre = canvas.view.viewport().rect().center()
+    item = canvas.add_specific_card(
+        other_deck.get_card_by_id("major_arcana.01"),
+        card_deck=other_deck,
+        at=canvas.view.mapToScene(centre),
+    )
+
+    qtbot.mouseDClick(
+        canvas.view.viewport(),
+        Qt.MouseButton.LeftButton,
+        pos=canvas.view.mapFromScene(item.sceneBoundingRect().center()),
+    )
+
+    card_view = window.tab_widget.currentWidget()
+    assert isinstance(card_view, CardViewTab)
+    assert card_view.deck is other_deck
+    qtbot.wait(1100)
+
+
 def test_paste_waits_for_a_card_on_the_clipboard(qtbot, clipboard):
     window, canvas = make_window_with_canvas(qtbot)
     assert not window.paste_card_action.isEnabled()

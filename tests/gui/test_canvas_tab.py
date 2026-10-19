@@ -411,13 +411,12 @@ def test_flip_and_rotate_drive_the_orient_channel(qtbot):
     card = next(i for i in tab.scene.items() if isinstance(i, DraggableCardItem))
 
     tab.on_flip_card()
-    assert card.orient == 180
-    assert card.card_data["reversed"] is True
+    assert card.is_reversed()
+    assert card.orient == 0
     assert not card.transform().isIdentity()  # the channel really reaches the transform
 
     tab.on_flip_card()
-    assert card.orient == 0
-    assert card.card_data["reversed"] is False
+    assert not card.is_reversed()
 
     tab.on_rotate_card()
     assert card.orient == 90
@@ -425,6 +424,36 @@ def test_flip_and_rotate_drive_the_orient_channel(qtbot):
     tab.on_rotate_card()
     tab.on_rotate_card()
     assert card.orient == 0  # wraps rather than accumulating
+
+
+def test_a_flip_keeps_the_rotation_and_leaves_the_deck_alone(qtbot, minimal_deck):
+    tab = make_tab(qtbot)
+    card = minimal_deck.get_all_cards()[0]
+    item = tab.add_specific_card(card, card_deck=minimal_deck)
+
+    tab.on_rotate_card()
+    tab.on_flip_card()
+    assert item.orient == 90
+    assert item.is_reversed()
+    assert "reversed" not in minimal_deck.get_card_by_id(card["id"])
+
+    tab.on_flip_card()
+    assert item.orient == 90
+    assert not item.is_reversed()
+    assert "reversed" not in minimal_deck.get_card_by_id(card["id"])
+
+
+def test_a_card_summoned_reversed_is_drawn_upside_down(qtbot, minimal_deck):
+    tab = make_tab(qtbot)
+    card = minimal_deck.get_all_cards()[0]
+
+    item = tab.add_specific_card(card, card_deck=minimal_deck, is_reversed=True)
+
+    assert item.is_reversed()
+    assert item.orient == 0
+    item.settle_motion()
+    assert item.motion.drawn_angle() == 180.0
+    assert "reversed" not in minimal_deck.get_card_by_id(card["id"])
 
 
 def test_applying_preferences_starts_and_stops_the_clock(qtbot):

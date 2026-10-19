@@ -64,7 +64,7 @@ class ContactShadowItem(QGraphicsPixmapItem):
 class DraggableCardItem(QGraphicsPixmapItem):
     """A card on the playground canvas"""
 
-    def __init__(self, pixmap, card_data, parent_tab=None, deck=None):
+    def __init__(self, pixmap, card_data, parent_tab=None, deck=None, reversed=False):
         super().__init__(pixmap)
         self.card_data = card_data
         self.parent_tab = parent_tab
@@ -76,7 +76,7 @@ class DraggableCardItem(QGraphicsPixmapItem):
         self.setCursor(Qt.CursorShape.OpenHandCursor)
         self.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
 
-        self.motion = MotionChannels()
+        self.motion = MotionChannels(reversed=reversed)
         self._drift = AmbientDrift(card_data.get("id") or card_data.get("name") or "")
         self._applied = None
         self._applied_corners = None
@@ -114,22 +114,35 @@ class DraggableCardItem(QGraphicsPixmapItem):
     # Motion state
     @property
     def orient(self):
-        """The card's logical rotation in degrees."""
+        """The card's logical rotation in degrees"""
         return self.motion.orient
 
+    @property
+    def reversed(self):
+        return self.motion.reversed
+
     def is_reversed(self):
-        """Nearer upside down than upright"""
-        return 90 <= self.orient <= 270
+        return self.reversed
 
     def set_orient(self, degrees):
         """Turn the card."""
-        previous = self.motion.orient + self.motion.orient_lag
-        self.motion.orient = float(degrees) % 360
+        self._turn(float(degrees) % 360, self.motion.reversed)
+
+    def set_reversed(self, reversed):
+        """Turn the card upside down, or back."""
+        self._turn(self.motion.orient, bool(reversed))
+
+    def _turn(self, orient, reversed):
+        motion = self.motion
+        previous = motion.drawn_angle() - motion.spin
+        motion.orient = orient
+        motion.reversed = reversed
+        target = motion.drawn_angle() - motion.spin - motion.orient_lag
 
         if self._reactive_allowed():
-            self.motion.orient_lag = (previous - self.motion.orient + 180.0) % 360.0 - 180.0
+            motion.orient_lag = (previous - target + 180.0) % 360.0 - 180.0
         else:
-            self.motion.orient_lag = 0.0
+            motion.orient_lag = 0.0
 
         self._apply_motion()
 
@@ -307,7 +320,7 @@ class DraggableCardItem(QGraphicsPixmapItem):
             self._shadow_lift = lift
 
         # rotate shadow without perspective tilt
-        angle = self.motion.orient + self.motion.orient_lag + self.motion.spin
+        angle = self.motion.drawn_angle()
         settled = self.motion.orient_lag == 0.0 and self.motion.spin == 0.0
         angle_threshold = math.degrees(threshold / self._shadow_reach)
         if self._shadow_angle is None or (
@@ -486,5 +499,5 @@ class DraggableCardItem(QGraphicsPixmapItem):
     def mouseDoubleClickEvent(self, event):
         """Handle double click events to open a card view tab"""
         if self.parent_tab and hasattr(self.parent_tab, "open_card_view"):
-            self.parent_tab.open_card_view(self.card_data)
+            self.parent_tab.open_card_view(self)
         super().mouseDoubleClickEvent(event)
