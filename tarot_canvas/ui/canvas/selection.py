@@ -270,7 +270,7 @@ class SelectionMarks:
         dips = corner_dips(
             motion.tilt_x + motion.face_x,
             motion.tilt_y + motion.face_y,
-            motion.orient + motion.orient_lag + motion.spin,
+            motion.drawn_angle(),
         )
         if self._opacities is None:
             self._opacities = [None] * len(self.corners)
@@ -292,7 +292,7 @@ class SelectionMarks:
         aureole_rect = self.aureole.boundingRect()
         x = card.pos().x() + (rect.width() - aureole_rect.width()) / 2.0 + motion.drift_x
         y = card.pos().y() + (rect.height() - aureole_rect.height()) / 2.0 + motion.drift_y
-        angle = motion.orient + motion.orient_lag + motion.spin
+        angle = motion.drawn_angle()
         place = (x, y, angle, motion.lift)
 
         previous = self._aureole_place

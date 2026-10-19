@@ -667,15 +667,12 @@ class CanvasTab(BaseTab):
             pixmap, source_size = art
 
             # Create a draggable card item
-            card_item = DraggableCardItem(pixmap, card, self, deck=card_deck or self.deck)
+            card_item = DraggableCardItem(
+                pixmap, card, self, deck=card_deck or self.deck, reversed=is_reversed
+            )
             card_item.set_art_source(image_path, source_size)
 
             card_item.setZValue(self.take_top_z())
-
-            # Set initial rotation based on reversed status
-            card_item.set_orient(180 if is_reversed else 0)
-            if card_item.card_data:
-                card_item.card_data["reversed"] = is_reversed
 
             # Deselect any currently selected cards
             for selected_item in self.scene.selectedItems():
@@ -711,10 +708,10 @@ class CanvasTab(BaseTab):
             print(f"Error adding card to canvas: {e}")
             return None
 
-    def open_card_view(self, card_data):
-        """Open a card view tab for the given card"""
+    def open_card_view(self, item):
+        """Open a card view tab for the card on the canvas, from its own deck"""
         self.navigation_requested.emit(
-            "open_card_view", {"card": card_data, "deck": self.deck, "source_tab_id": self.id}
+            "open_card_view", {"card": item.card_data, "deck": item.deck, "source_tab_id": self.id}
         )
 
     # -- zoom --------------------------------------------------------------
@@ -776,15 +773,7 @@ class CanvasTab(BaseTab):
         items = self.scene.selectedItems()
         for item in items:
             if isinstance(item, DraggableCardItem):
-                new_rotation = 0 if item.is_reversed() else 180
-
-                # Set the new rotation directly
-                item.set_orient(new_rotation)
-
-                # Update the card's internal state to reflect reversed status
-                if hasattr(item, "card_data") and item.card_data:
-                    # Toggle the reversed flag (create if it doesn't exist)
-                    item.card_data["reversed"] = new_rotation == 180
+                item.set_reversed(not item.is_reversed())
 
     def on_delete_card(self):
         """Remove the selected card from canvas"""
