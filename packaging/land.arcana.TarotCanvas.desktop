@@ -5,7 +5,7 @@ Comment=Explore and arrange tarot decks
 Exec=env RESOURCE_NAME=tarot-canvas tarot-canvas %u
 Icon=land.arcana.TarotCanvas
 Categories=Graphics;Spirituality;
-Keywords=tarot;cards;deck;
+Keywords=tarot;divination;cartomancy;arcana;occult;spread;deck;
 StartupNotify=true
 Terminal=false
 MimeType=x-scheme-handler/tarot;
