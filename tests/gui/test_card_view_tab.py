@@ -3,11 +3,11 @@ import shutil
 import pytest
 from PyQt6.QtCore import QPoint, QPointF, QRect, QSize, Qt
 from PyQt6.QtGui import QColor, QMouseEvent, QPixmap
-from PyQt6.QtWidgets import QTabWidget
+from PyQt6.QtWidgets import QStyle, QTabWidget
 
 from tarot_canvas.models.deck import TarotDeck
 from tarot_canvas.ui.tabs import card_view_tab
-from tarot_canvas.ui.tabs.card_view.card_bar import DeckBar
+from tarot_canvas.ui.tabs.card_view.card_bar import CardBar, DeckBar
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tests.conftest import MINIMAL_DECK_PATH
 
@@ -229,6 +229,15 @@ def test_copying_from_the_bar_says_so(qtbot, big_image_deck, clipboard):
     assert clipboard.mimeData().hasFormat(CARD_MIME)
     assert tab.toast.isVisible()
     assert tab.toast.text() == f"Copied {tab.card['name']}"
+
+
+def test_only_the_mac_shrinks_the_card_bar_icons(qtbot, big_image_deck):
+    """The macOS style's toolbar icons are 32 px; elsewhere the style's size stands."""
+    tab = make_tab(qtbot, big_image_deck, 900, 900)
+    style_size = tab.style().pixelMetric(QStyle.PixelMetric.PM_ToolBarIconSize)
+
+    assert CardBar(tab, platform="linux").iconSize() == QSize(style_size, style_size)
+    assert CardBar(tab, platform="darwin").iconSize() == QSize(16, 16)
 
 
 # -- moving through the deck ---------------------------------------------------

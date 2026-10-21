@@ -1,7 +1,7 @@
 import logging
 
 import pytest
-from PyQt6.QtGui import QPalette
+from PyQt6.QtGui import QIcon, QPalette
 from PyQt6.QtWidgets import QApplication, QPushButton
 
 from tarot_canvas.settings import (
@@ -36,12 +36,16 @@ def window_lightness():
 
 @pytest.fixture
 def startup(qapp):
-    """The palette the app had before any theme, put back afterwards"""
+    """The palette and icon theme the app had before any theme, put back afterwards"""
     before = QPalette(qapp.palette())
+    icon_paths, icon_theme = QIcon.themeSearchPaths(), QIcon.themeName()
     yield before
     qapp.setProperty(SCHEME_PATH_PROPERTY, None)
     qapp.setPalette(QPalette())
     qapp.styleHints().unsetColorScheme()
+    # Last: on the Mac path, a scheme change sets the icon theme
+    QIcon.setThemeSearchPaths(icon_paths)
+    QIcon.setThemeName(icon_theme)
 
 
 @pytest.fixture
@@ -147,6 +151,16 @@ def test_the_mac_reads_no_scheme_and_sets_no_palette(manager, startup, theme, mo
     apply(manager, theme, platform="darwin")
 
     assert colours(QApplication.instance().palette()) == colours(startup)
+
+
+@pytest.mark.parametrize("theme", list(ThemeType))
+def test_linux_leaves_the_icon_theme_alone(manager, colour_schemes, theme):
+    paths, name = QIcon.themeSearchPaths(), QIcon.themeName()
+
+    apply(manager, theme)
+
+    assert QIcon.themeSearchPaths() == paths
+    assert QIcon.themeName() == name
 
 
 def test_a_scheme_sets_its_roles(colour_schemes, qapp):

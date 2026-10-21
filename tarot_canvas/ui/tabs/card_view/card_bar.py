@@ -1,5 +1,6 @@
 import math
 import os
+import sys
 
 from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtGui import QAction, QFontMetricsF, QIcon, QPixmap
@@ -198,13 +199,19 @@ class CardBar(QToolBar):
     shortcut would bind its key twice, and Qt fires neither.
     """
 
-    def __init__(self, tab):
+    # The macOS style's toolbar size is 32, which draws Breeze's glyphs large
+    # and thin under the art; 16 is their sharpest grid and the Mac's small size
+    MAC_ICON_SIZE = QSize(16, 16)
+
+    def __init__(self, tab, platform=sys.platform):
         super().__init__(tab)
         self.tab = tab
 
         self.setMovable(False)
         self.setFloatable(False)
         self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        if platform == "darwin":
+            self.setIconSize(self.MAC_ICON_SIZE)
 
         image_view = tab.image_view
         self.copy_action = self._add("edit-copy", "Copy", tab.copy_card)
