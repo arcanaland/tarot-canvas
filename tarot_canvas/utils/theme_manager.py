@@ -1,9 +1,10 @@
 import configparser
 import sys
 from enum import Enum
+from importlib.resources import files
 
 from PyQt6.QtCore import QObject, Qt, pyqtSignal
-from PyQt6.QtGui import QPalette
+from PyQt6.QtGui import QIcon, QPalette
 from PyQt6.QtWidgets import QApplication, QStyleFactory
 
 from tarot_canvas.settings import THEME_KEY, get_settings, get_theme
@@ -11,6 +12,8 @@ from tarot_canvas.ui import colour_scheme
 from tarot_canvas.utils.logger import logger
 
 SCHEME_PATH_PROPERTY = "KDE_COLOR_SCHEME_PATH"
+
+ICON_THEMES = str(files("tarot_canvas.resources").joinpath("icons"))
 
 
 class ThemeType(Enum):
@@ -41,6 +44,7 @@ class ThemeManager(QObject):
             self._current_theme = ThemeType(get_theme(self.settings))
         except ValueError:
             self._current_theme = ThemeType.SYSTEM
+        self._following_colour_scheme = False
 
         # The style the app started with, which System puts back; set by apply_at_startup
         self._startup_style = None
@@ -127,6 +131,25 @@ class ThemeManager(QObject):
         else:  # SYSTEM
             hints.unsetColorScheme()
         logger.info(f"Applying {theme.value} theme with the macOS style")
+
+        self._use_bundled_icons(hints)
+
+    def _use_bundled_icons(self, hints):
+        """Draw icons from bundled Breeze"""
+        paths = QIcon.themeSearchPaths()
+        if ICON_THEMES not in paths:
+            QIcon.setThemeSearchPaths([ICON_THEMES, *paths])
+        if not self._following_colour_scheme:
+            hints.colorSchemeChanged.connect(self._follow_colour_scheme)
+            self._following_colour_scheme = True
+        self._follow_colour_scheme(hints.colorScheme())
+
+    def _follow_colour_scheme(self, scheme):
+        if self._current_theme == ThemeType.LIGHT:
+            scheme = Qt.ColorScheme.Light
+        elif self._current_theme == ThemeType.DARK:
+            scheme = Qt.ColorScheme.Dark
+        QIcon.setThemeName("breeze-dark" if scheme == Qt.ColorScheme.Dark else "breeze")
 
     def _apply_system_theme(self, app):
         """The style and palette the app started with"""

@@ -62,6 +62,22 @@ esoterica-bundle TAG:
 fmt:
   uv run ruff format tarot_canvas tests
 
+# The Breeze icons the Mac build carries, re-extracted from this commit
+breeze_icons := "7d402d46afbbdbb73cf70be1ec3ee2aee1771279"
+
+[group('dev')]
+icons:
+  #!/bin/bash
+  set -euo pipefail
+
+  checkout=vendor/breeze-icons
+  if [ ! -d "$checkout" ]; then
+    git clone --filter=blob:none --no-checkout https://invent.kde.org/frameworks/breeze-icons.git "$checkout"
+  fi
+  git -C "$checkout" fetch --quiet origin
+  git -C "$checkout" -c advice.detachedHead=false checkout --quiet {{breeze_icons}}
+  uv run python scripts/bundle_breeze_icons.py "$checkout"
+
 # phase 1: bump the version but don't commit
 [group('release')]
 release-prepare VERSION="":
