@@ -193,14 +193,9 @@ class DeckBar(QWidget):
 
 
 class CardBar(QToolBar):
-    """What to do with the card on screen, below it.
+    """What to do with the card on screen."""
 
-    Triggers only. The keys stay on the window and the tab; an action here with a
-    shortcut would bind its key twice, and Qt fires neither.
-    """
-
-    # The macOS style's toolbar size is 32, which draws Breeze's glyphs large
-    # and thin under the art; 16 is their sharpest grid and the Mac's small size
+    # The macOS style's toolbar size is 32
     MAC_ICON_SIZE = QSize(16, 16)
 
     def __init__(self, tab, platform=sys.platform):

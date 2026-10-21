@@ -13,8 +13,6 @@ from tarot_canvas.utils.logger import logger
 
 SCHEME_PATH_PROPERTY = "KDE_COLOR_SCHEME_PATH"
 
-# Light and dark subsets of Breeze, for the Mac, which has no icon theme;
-# scripts/bundle_breeze_icons.py writes them
 ICON_THEMES = str(files("tarot_canvas.resources").joinpath("icons"))
 
 
@@ -137,17 +135,11 @@ class ThemeManager(QObject):
         self._use_bundled_icons(hints)
 
     def _use_bundled_icons(self, hints):
-        """Draw icons from bundled Breeze, light or dark with the colour scheme.
-
-        Qt's own table on the Mac maps only some names, to SF Symbols, and
-        leaves the rest blank. A theme it is told to use wins over that table,
-        which still answers any name the bundle lacks.
-        """
+        """Draw icons from bundled Breeze"""
         paths = QIcon.themeSearchPaths()
         if ICON_THEMES not in paths:
             QIcon.setThemeSearchPaths([ICON_THEMES, *paths])
         if not self._following_colour_scheme:
-            # System follows the OS live; a scheme the app set fires this too
             hints.colorSchemeChanged.connect(self._follow_colour_scheme)
             self._following_colour_scheme = True
         self._follow_colour_scheme(hints.colorScheme())

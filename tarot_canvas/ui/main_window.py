@@ -86,7 +86,6 @@ def corner_search_button(platform=sys.platform):
     button.setIcon(QIcon.fromTheme("search", QIcon.fromTheme("edit-find")))
 
     if platform == "darwin":
-        # The style's own metrics, as the + has, so the two sit on one line
         button.setAutoRaise(True)
         return button
 
