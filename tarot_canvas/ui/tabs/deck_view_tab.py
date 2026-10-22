@@ -1,9 +1,8 @@
-from PyQt6.QtCore import QSize, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QIcon, QPalette
+from PyQt6.QtCore import QItemSelectionModel, Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
     QFrame,
-    QHBoxLayout,
-    QLabel,
+    QMenu,
     QScrollArea,
     QTabWidget,
     QVBoxLayout,
@@ -11,26 +10,19 @@ from PyQt6.QtWidgets import (
 )
 
 from tarot_canvas.models.deck import TarotDeck
-from tarot_canvas.ui import typography
-from tarot_canvas.ui.card_transfer import copy_card_to_clipboard
+from tarot_canvas.settings import DECK_VIEW_DENSITY_DEFAULT, DECK_VIEW_DENSITY_KEY, get_settings
+from tarot_canvas.ui.activate_on_return import activate_on_return
+from tarot_canvas.ui.card_transfer import copy_cards_to_clipboard
+from tarot_canvas.ui.deck_view.card_delegate import CardDelegate
+from tarot_canvas.ui.deck_view.card_model import CardModel, CardRole
+from tarot_canvas.ui.deck_view.sections_view import SectionsView
+from tarot_canvas.ui.library import units
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.ui.widgets import deck_header
-from tarot_canvas.ui.widgets.card_thumbnail import CardThumbnail
 from tarot_canvas.ui.widgets.deck_header import DeckHeader
+from tarot_canvas.ui.widgets.zoom_slider import ZoomSlider
 
 SECTION_MARGIN = deck_header.EDGE_MARGIN
-
-
-class CardScrollArea(QScrollArea):
-    """Custom scroll area that scrolls horizontally, not vertically"""
-
-    def __init__(self, height, parent=None):
-        super().__init__(parent)
-        self.setWidgetResizable(True)
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        # Set fixed height to ensure all cards are fully visible
-        self.setFixedHeight(height)
 
 
 class DeckViewTab(BaseTab):
@@ -44,9 +36,7 @@ class DeckViewTab(BaseTab):
         super().__init__(parent)
         self.deck_path = deck_path
         self.deck = None
-        self.card_size = QSize(150, 240)
-        # Calculate row height (card height + padding + scrollbar)
-        self.row_height = self.card_size.height() + 40  # Extra padding for larger cards
+        self.settings = get_settings()
         self.setup_ui()
 
         # Set the tab icon after a short delay to ensure the tab is added
@@ -96,139 +86,126 @@ class DeckViewTab(BaseTab):
         self.header = DeckHeader(self.deck, parent=content)
         main_layout.addWidget(self.header)
 
-        sections = QVBoxLayout()
-        sections.setContentsMargins(SECTION_MARGIN, 0, SECTION_MARGIN, SECTION_MARGIN)
-        sections.setSpacing(main_layout.spacing())
-        self.add_major_arcana_journey(sections)
-
-        # Add Minor Arcana sections
-        self.add_minor_arcana_sections(sections)
-
-        sections.addStretch()
-        main_layout.addLayout(sections)
+        # The grid's own spacing makes up the rest of the margin, so headings line up
+        # with the header's text
+        grid_row = QVBoxLayout()
+        self.grid = self._build_grid()
+        inset = SECTION_MARGIN - self.grid.spacing()
+        grid_row.setContentsMargins(inset, 0, inset, SECTION_MARGIN)
+        grid_row.addWidget(self.grid)
+        main_layout.addLayout(grid_row)
+        main_layout.addStretch()
 
         # Add the content to a scroll area
-        scroll = QScrollArea()
+        self.scroll = scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setWidget(content)
+        # Anywhere on the page, where a wheel over the grid ends up too
+        self.zoom_slider.zoom_on_ctrl_wheel(scroll.viewport())
 
         # The frame would put a line between the banner and the tab bar.
         scroll.setFrameShape(QFrame.Shape.NoFrame)
 
         self.layout.addWidget(scroll)
 
-    def section_title(self, text):
-        return typography.apply(QLabel(text), typography.Role.HEADING_3)
+    def _build_zoom(self):
+        self.zoom_slider = ZoomSlider(units.DENSITIES, "Cover size", DECK_VIEW_DENSITY_DEFAULT)
+        density = self.settings.value(DECK_VIEW_DENSITY_KEY, DECK_VIEW_DENSITY_DEFAULT, type=str)
+        self.zoom_slider.set_key(
+            density if density in units.DENSITIES else DECK_VIEW_DENSITY_DEFAULT
+        )
+        self.zoom_slider.key_changed.connect(self.on_density_changed)
+        return self.zoom_slider
 
-    def add_major_arcana_journey(self, layout):
-        """Add the Major Arcana journey section"""
-        layout.addWidget(self.section_title("Major Arcana"))
+    def _build_grid(self):
+        self.model = CardModel(self.deck, self)
+        grid = SectionsView()
+        grid.setModel(self.model)
+        self.delegate = CardDelegate(grid, density=self._build_zoom().key())
+        grid.setItemDelegate(self.delegate)
+        grid.set_heading_widget(self.zoom_slider)
 
-        # Get Major Arcana cards
-        major_arcana = self.deck.get_cards_by_type("major_arcana")
-        # Sort by number
-        major_arcana.sort(key=lambda card: card.get("number", 999))
+        grid.activated.connect(self.on_card_activated)
+        activate_on_return(grid)
+        grid.clicked.connect(self.on_card_clicked)
+        grid.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        grid.customContextMenuRequested.connect(self.on_context_menu)
+        grid.selectionModel().currentChanged.connect(self.on_current_changed)
+        grid.selectionModel().selectionChanged.connect(self.edit_state_changed)
+        return grid
 
-        # Create scroll area for the cards with fixed height
-        scroll = CardScrollArea(self.row_height)
-        content = QWidget()
-        journey_layout = QHBoxLayout(content)
-        journey_layout.setSpacing(5)
-        journey_layout.setContentsMargins(5, 5, 5, 5)
+    # -- cards ------------------------------------------------------------
 
-        # Add cards to journey
-        for card in major_arcana:
-            journey_layout.addWidget(self.make_thumbnail(card))
+    def selected_cards(self):
+        """The selected cards, in deck order"""
+        rows = sorted(index.row() for index in self.grid.selectionModel().selectedIndexes())
+        return [self.model.index(row, 0).data(CardRole) for row in rows]
 
-        # Add spacer to prevent cards from stretching
-        journey_layout.addStretch()
-
-        scroll.setWidget(content)
-        layout.addWidget(scroll)
-
-    def add_minor_arcana_sections(self, layout):
-        """Add sections for each Minor Arcana suit"""
-        # Get all suits
-        suits = self.deck.get_suits()
-
-        # Check if we have any suits at all
-        if not suits:
-            # Add a note about excluded cards if there's a reason
-            exclusion_reason = self.deck.get_exclusion_reason()
-            if exclusion_reason:
-                note_label = QLabel(f"Note: {exclusion_reason}")
-                note_label.setWordWrap(True)
-                note_font = note_label.font()
-                note_font.setItalic(True)
-                note_label.setFont(note_font)
-                note_label.setForegroundRole(QPalette.ColorRole.PlaceholderText)
-                layout.addWidget(note_label)
-
-        for suit in suits:
-            # Get cards for this suit
-            suit_cards = self.deck.get_cards_by_suit(suit)
-
-            if not suit_cards:
-                continue
-
-            # Get display name for the suit
-            display_suit = self.deck.get_display_suit_name(suit)
-
-            layout.addWidget(self.section_title(display_suit))
-
-            # Sort cards by rank (numeric order for numbered cards, then court cards)
-            rank_order = {
-                "ace": 1,
-                "two": 2,
-                "three": 3,
-                "four": 4,
-                "five": 5,
-                "six": 6,
-                "seven": 7,
-                "eight": 8,
-                "nine": 9,
-                "ten": 10,
-                "page": 11,
-                "knight": 12,
-                "queen": 13,
-                "king": 14,
-            }
-            suit_cards.sort(key=lambda card: rank_order.get(card.get("rank"), 999))
-
-            # Create scroll area for the cards with fixed height
-            scroll = CardScrollArea(self.row_height)
-            content = QWidget()
-            cards_layout = QHBoxLayout(content)
-            cards_layout.setSpacing(5)
-            cards_layout.setContentsMargins(5, 5, 5, 5)
-
-            # Add cards to row
-            for card in suit_cards:
-                cards_layout.addWidget(self.make_thumbnail(card))
-
-            # Add spacer to prevent cards from stretching
-            cards_layout.addStretch()
-
-            scroll.setWidget(content)
-            layout.addWidget(scroll)
-
-    def make_thumbnail(self, card):
-        thumbnail = CardThumbnail(card, self.deck.deck_path, size=self.card_size)
-        # Connect signals to our local handlers
-        thumbnail.clicked.connect(lambda c=card: self.handle_card_click(c))
-        thumbnail.double_clicked.connect(lambda c=card: self.handle_card_double_click(c))
-        thumbnail.copy_requested.connect(lambda c=card: copy_card_to_clipboard(c, self.deck))
-        return thumbnail
-
-    def handle_card_click(self, card):
-        """Handle single click on a card thumbnail"""
-        if card.get("image"):
+    def on_card_clicked(self, index):
+        card = index.data(CardRole)
+        if card and card.get("image"):
             self.card_clicked.emit(card.get("image"))
 
-    def handle_card_double_click(self, card):
-        """Handle double click on a card thumbnail"""
-        # Emit signal to request opening card view
-        self.card_action_requested.emit("double_click", card, self.deck)
+    def on_card_activated(self, index):
+        card = index.data(CardRole)
+        if card:
+            self.card_action_requested.emit("double_click", card, self.deck)
+
+    def on_current_changed(self, current, _previous):
+        """Keep the keyboard's card on screen; the page scrolls, not the grid"""
+        if not current.isValid():
+            return
+        rect = self.grid.visualRect(current)
+        centre = self.grid.viewport().mapTo(self.scroll.widget(), rect.center())
+        margin = self.grid.spacing()
+        self.scroll.ensureVisible(
+            centre.x(), centre.y(), rect.width() // 2 + margin, rect.height() // 2 + margin
+        )
+
+    def card_menu(self, index):
+        """Open opens the card under the pointer; Copy copies the selection"""
+        menu = QMenu(self)
+        open_action = menu.addAction(QIcon.fromTheme("document-open"), "&Open Card")
+        open_action.triggered.connect(lambda: self.on_card_activated(index))
+        copy_action = menu.addAction(QIcon.fromTheme("edit-copy"), "&Copy Card")
+        copy_action.triggered.connect(self.copy_card)
+        return menu
+
+    def on_context_menu(self, pos):
+        index = self.grid.indexAt(pos)
+        if not index.isValid() or index.data(CardRole) is None:
+            return
+        selection = self.grid.selectionModel()
+        if not selection.isSelected(index):
+            selection.setCurrentIndex(index, QItemSelectionModel.SelectionFlag.ClearAndSelect)
+        menu = self.card_menu(index)
+        menu.exec(self.grid.viewport().mapToGlobal(pos))
+        menu.deleteLater()
+
+    def on_density_changed(self, density):
+        self.settings.setValue(DECK_VIEW_DENSITY_KEY, density)
+        if self.delegate.set_density(density):
+            self.grid.doItemsLayout()
+        self.zoom_state_changed()
+
+    # -- zoom ---------------------------------------------------------------
+    # View > Zoom, Ctrl+wheel and the slider are one control: the cover size
+
+    def can_zoom(self, how):
+        return self.deck is not None and self.zoom_slider.can_zoom(how)
+
+    def zoom(self, how):
+        self.zoom_slider.zoom(how)
+
+    # -- edit ---------------------------------------------------------------
+
+    def can_copy_card(self):
+        return self.deck is not None and self.grid.selectionModel().hasSelection()
+
+    def copy_card(self):
+        cards = self.selected_cards()
+        if cards:
+            copy_cards_to_clipboard(cards, self.deck)
 
     def clear_layout(self):
         """Clear the current layout"""

@@ -20,7 +20,7 @@ from tarot_canvas.settings import (
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
 from tarot_canvas.ui.canvas.motion import LIFT_SELECTED
 from tarot_canvas.ui.canvas.selection import GILT_ON_DARK, GILT_ON_LIGHT
-from tarot_canvas.ui.card_transfer import card_mime_data, copy_card_to_clipboard
+from tarot_canvas.ui.card_transfer import card_mime_data, cards_mime_data, copy_card_to_clipboard
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 
 
@@ -591,6 +591,23 @@ def test_a_paste_naming_a_removed_deck_places_nothing(qtbot, clipboard, minimal_
 
     assert tab.paste_card(card_mime_data(gone.get_random_card(), gone)) is None
     assert [i for i in tab.scene.items() if isinstance(i, DraggableCardItem)] == []
+    qtbot.wait(1100)
+
+
+def test_pasting_three_cards_places_three_at_distinct_positions(
+    qtbot, clipboard, full_deck, stub_deck_manager
+):
+    stub_deck_manager.get_all_decks = lambda: [full_deck]
+    ids = ["major_arcana.00", "minor_arcana.cups.two", "minor_arcana.swords.queen"]
+    tab = make_tab(qtbot)
+
+    first = tab.paste_card(cards_mime_data([full_deck.get_card_by_id(i) for i in ids], full_deck))
+
+    placed = canvas_cards(tab)
+    assert sorted(item.card_data["id"] for item in placed) == sorted(ids)
+    assert first.card_data["id"] == ids[0]
+    assert len({(item.pos().x(), item.pos().y()) for item in placed}) == 3
+    assert all(item.isSelected() for item in placed)
     qtbot.wait(1100)
 
 

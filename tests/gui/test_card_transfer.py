@@ -10,7 +10,10 @@ from tarot_canvas.ui.card_transfer import (
     CARD_MIME,
     card_from_mime,
     card_mime_data,
+    cards_from_mime,
+    cards_mime_data,
     copy_card_to_clipboard,
+    copy_cards_to_clipboard,
 )
 from tests.conftest import MINIMAL_DECK_PATH
 
@@ -121,3 +124,61 @@ def test_copying_puts_the_card_on_the_clipboard(clipboard, minimal_deck, card):
 
     assert clipboard.mimeData().hasFormat(CARD_MIME)
     assert card_from_mime(clipboard.mimeData(), [minimal_deck])[2] is True
+
+
+THREE_CARDS = ["minor_arcana.cups.two", "major_arcana.00", "minor_arcana.wands.king"]
+
+
+def test_several_cards_survive_the_round_trip_in_order(qapp, full_deck):
+    cards = [full_deck.get_card_by_id(card_id) for card_id in THREE_CARDS]
+
+    resolved = cards_from_mime(cards_mime_data(cards, full_deck), [full_deck])
+
+    assert [card["id"] for card, _, _ in resolved] == THREE_CARDS
+    assert all(deck is full_deck for _, deck, _ in resolved)
+
+
+def test_a_several_card_payload_still_names_its_first_card_alone(qapp, full_deck):
+    """A reader that knows only card_id reads the first card."""
+    cards = [full_deck.get_card_by_id(card_id) for card_id in THREE_CARDS]
+    mime = cards_mime_data(cards, full_deck)
+
+    assert payload(mime)["card_id"] == THREE_CARDS[0]
+    assert payload(mime)["card_ids"] == THREE_CARDS
+    assert card_from_mime(mime, [full_deck])[0]["id"] == THREE_CARDS[0]
+    assert mime.text().splitlines() == [
+        f"{card['name']} \N{EM DASH} Full Test Deck" for card in cards
+    ]
+    assert not mime.hasImage()
+
+
+def test_a_one_card_payload_reads_as_one_card(qapp, minimal_deck):
+    mime = with_payload(v=1, card_id="major_arcana.01", deck_path=str(MINIMAL_DECK_PATH))
+
+    resolved = cards_from_mime(mime, [minimal_deck])
+    assert [card["id"] for card, _, _ in resolved] == ["major_arcana.01"]
+
+
+def test_an_unknown_card_among_several_is_skipped(qapp, minimal_deck):
+    mime = with_payload(
+        v=1,
+        card_id="major_arcana.00",
+        card_ids=["major_arcana.00", "major_arcana.02", "major_arcana.01"],
+        deck_path=str(MINIMAL_DECK_PATH),
+    )
+
+    resolved = cards_from_mime(mime, [minimal_deck])
+    assert [card["id"] for card, _, _ in resolved] == ["major_arcana.00", "major_arcana.01"]
+
+
+def test_copying_several_cards_is_one_clipboard_write(qapp, clipboard, full_deck):
+    writes = []
+    clipboard.dataChanged.connect(lambda: writes.append(1))
+    cards = [full_deck.get_card_by_id(card_id) for card_id in THREE_CARDS]
+
+    copy_cards_to_clipboard(cards, full_deck)
+
+    assert len(writes) == 1
+    assert [card["id"] for card, _, _ in cards_from_mime(clipboard.mimeData(), [full_deck])] == (
+        THREE_CARDS
+    )
