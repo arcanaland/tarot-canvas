@@ -364,3 +364,16 @@ def test_two_patterns_are_read_as_none_and_warned_about_once(tmp_path, caplog):
     assert deck.get_pattern() is None
     warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
     assert len([w for w in warnings if "more than one pattern" in w]) == 1
+
+
+def test_suits_come_in_canonical_order_not_alphabetical(full_deck):
+    assert full_deck.get_suits() == ["wands", "cups", "swords", "pentacles"]
+
+
+def test_a_suit_outside_the_canonical_four_comes_last(full_deck):
+    cards = full_deck.get_all_cards()
+    first_sword = next(i for i, card in enumerate(cards) if card.get("suit") == "swords")
+    star = {"id": "minor_arcana.stars.ace", "type": "minor_arcana", "suit": "stars", "rank": "ace"}
+    full_deck._cards = cards[:first_sword] + [star] + cards[first_sword:]
+
+    assert full_deck.get_suits() == ["wands", "cups", "swords", "pentacles", "stars"]

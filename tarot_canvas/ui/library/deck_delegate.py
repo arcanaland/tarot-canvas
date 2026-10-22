@@ -107,7 +107,11 @@ class DeckDelegate(QStyledItemDelegate):
             self.title_font(option.font, selected=selected),
             title_colour,
         )
+        self._paint_subtitle(painter, layout.subtitle, palette, index, selected)
 
+        painter.restore()
+
+    def _paint_subtitle(self, painter, rect, palette, index, selected):
         if selected:
             subtitle_colour = QColor(palette.highlightedText().color())
             subtitle_colour.setAlpha(SELECTED_SUBTITLE_ALPHA)
@@ -115,13 +119,11 @@ class DeckDelegate(QStyledItemDelegate):
             subtitle_colour = palette.placeholderText().color()
         self._paint_line(
             painter,
-            layout.subtitle,
+            rect,
             index.data(SubtitleRole) or "",
             self.subtitle_font(),
             subtitle_colour,
         )
-
-        painter.restore()
 
     def _paint_background(self, painter, option, palette, selected, hovered):
         if not (selected or hovered):
@@ -150,6 +152,19 @@ class DeckDelegate(QStyledItemDelegate):
                 self._paint_ghost(painter, well, QPixmap(), index, state, palette)
             return
 
+        art = self._art_rect(well, pixmap)
+
+        # not installed
+        if ghost:
+            self._paint_ghost(painter, art, pixmap, index, state, palette, dimmed=not selected)
+        else:
+            painter.drawPixmap(art.topLeft(), pixmap)
+
+        self._paint_cover_border(painter, art, palette)
+
+    @staticmethod
+    def _art_rect(well, pixmap):
+        """Where pixmap goes in the well, in logical px"""
         art = QRect(
             0,
             0,
@@ -161,13 +176,10 @@ class DeckDelegate(QStyledItemDelegate):
         # the artwork whatever aspect ratio the deck's cards happen to be.
         art.moveCenter(well.center())
         art.moveBottom(well.bottom())
+        return art
 
-        # not installed
-        if ghost:
-            self._paint_ghost(painter, art, pixmap, index, state, palette, dimmed=not selected)
-        else:
-            painter.drawPixmap(art.topLeft(), pixmap)
-
+    @staticmethod
+    def _paint_cover_border(painter, art, palette):
         border = QColor(palette.text().color())
         border.setAlpha(units.COVER_BORDER_ALPHA)
         painter.setBrush(Qt.BrushStyle.NoBrush)
