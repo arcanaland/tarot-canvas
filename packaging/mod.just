@@ -67,7 +67,7 @@ lint-manifest:
     GHA=(--env=GITHUB_ACTIONS=true)
   fi
 
-  dbus-run-session -- flatpak run "${GHA[@]}" --command=flatpak-builder-lint \
+  {{dbus}} flatpak run "${GHA[@]}" --command=flatpak-builder-lint \
     org.flatpak.Builder --gha-format manifest land.arcana.TarotCanvas.yml
 
 # Validate the AppStream metainfo.
@@ -79,6 +79,18 @@ build:
 
 install:
   {{dbus}} flatpak run org.flatpak.Builder --user --install --force-clean build-dir land.arcana.TarotCanvas.yml
+
+# Build from the release tarball (match Flathub)
+build-tarball:
+  #!/bin/bash
+  set -euo pipefail
+
+  VERSION=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' ../tarot_canvas/_version.py)
+  rm -rf flathub
+  ../scripts/make-tarball.sh "${VERSION}" flathub
+  ./gen-flathub.sh "flathub/tarot-canvas-${VERSION}.tar.gz"
+  {{dbus}} flatpak run org.flatpak.Builder --user --force-clean \
+    build-flathub flathub/land.arcana.TarotCanvas.yml
 
 # Fast inner loop: run the devel build straight out of the build tree.
 devel-run: devel-build

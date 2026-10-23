@@ -22,10 +22,7 @@ modules:
   - name: tarot-canvas
     buildsystem: simple
     build-commands:
-      - pip3 install --no-deps --no-build-isolation --prefix=${FLATPAK_DEST} .
-      - install -Dm644 packaging/${FLATPAK_ID}.desktop -t ${FLATPAK_DEST}/share/applications/
-      - install -Dm644 packaging/icon.svg -t ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/
-      - install -Dm644 tarot_canvas/resources/${FLATPAK_ID}.appdata.xml -t ${FLATPAK_DEST}/share/metainfo/
+      - bash packaging/flatpak-build.sh
 
     sources:
       - type: dir

@@ -28,23 +28,9 @@ jobs:
         echo "Version: $VERSION"
 
     - name: Create source package
-      run: |
-        # Create the package directory structure
-        mkdir -p tarot-canvas-${{ steps.get_version.outputs.version }}
-
-        cp -r tarot_canvas tarot-canvas-${{ steps.get_version.outputs.version }}/
-        cp -r packaging tarot-canvas-${{ steps.get_version.outputs.version }}/
-
-        cp pyproject.toml tarot-canvas-${{ steps.get_version.outputs.version }}/
-        cp uv.lock tarot-canvas-${{ steps.get_version.outputs.version }}/
-        cp README.md tarot-canvas-${{ steps.get_version.outputs.version }}/
-        cp LICENSE tarot-canvas-${{ steps.get_version.outputs.version }}/
-
-        # DO NOT RENAME THIS ASSET.
-        # It is part of the Flathub manifest's x-checker-data.
-        tar -czf tarot-canvas-${{ steps.get_version.outputs.version }}.tar.gz tarot-canvas-${{ steps.get_version.outputs.version }}/
-
-        sha256sum tarot-canvas-${{ steps.get_version.outputs.version }}.tar.gz > tarot-canvas-${{ steps.get_version.outputs.version }}.tar.gz.sha256
+      # DO NOT RENAME THIS ASSET.
+      # It is part of the Flathub manifest's x-checker-data.
+      run: ./scripts/make-tarball.sh ${{ steps.get_version.outputs.version }} .
 
     - name: Create Release
       uses: softprops/action-gh-release@v1
