@@ -1,8 +1,8 @@
 #!/bin/bash
-# Generate the manifest Flathub builds: the production one, built from the
-# release tarball instead of the source tree.
+# Generate the Flathub manifest
 #
 #   ./gen-flathub.sh TARBALL
+
 set -euo pipefail
 
 TARBALL="$(realpath "${1:?usage: gen-flathub.sh TARBALL}")"

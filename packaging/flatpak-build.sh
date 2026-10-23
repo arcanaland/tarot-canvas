@@ -1,6 +1,4 @@
 #!/bin/bash
-# The manifest's build step. It lives here, not in the manifest, so that Flathub's
-# copy of the manifest doesn't have to change when a file moves.
 set -euo pipefail
 
 case "${FLATPAK_ID}" in

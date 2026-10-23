@@ -1,12 +1,8 @@
 #!/usr/bin/env bash
-# Build the release source tarball that Flathub builds from.
+# Build the release source tarball
 #
 #   ./scripts/make-tarball.sh VERSION OUTDIR
-#
-# Writes OUTDIR/tarot-canvas-VERSION.tar.gz and its .sha256. Used by release.yml
-# to publish it and by `just flatpak build-tarball` to build it in CI, so the
-# list of what ships exists only here. Files git ignores are left out, since a
-# local packaging/ also holds build trees; a CI checkout has none to leave out.
+
 set -euo pipefail
 
 VERSION="${1:?usage: make-tarball.sh VERSION OUTDIR}"

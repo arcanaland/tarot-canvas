@@ -41,7 +41,6 @@ grep -q "desktop-id\">${DEVEL_ID}\.desktop<" "${OUT}/${DEVEL_ID}.appdata.xml" ||
 grep -q "<name>Tarot Canvas (Devel)</name>" "${OUT}/${DEVEL_ID}.appdata.xml" || fail "appdata <name> not rewritten"
 grep -q "^  - \.\./python3-modules\.yaml\$" "${OUT}/${PROD_ID}.yml" || fail "module path not rewritten"
 grep -q "^        path: \.\./\.\.\$" "${OUT}/${PROD_ID}.yml" || fail "source path not rewritten"
-# flatpak-build.sh picks packaging/${OUT}/ by app ID, so the build step is not rewritten
 grep -qx "      - bash packaging/flatpak-build.sh" "${OUT}/${PROD_ID}.yml" || fail "build step is not flatpak-build.sh"
 
 echo "generated packaging/${OUT}/ for ${DEVEL_ID}"

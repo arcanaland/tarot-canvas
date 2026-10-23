@@ -80,7 +80,7 @@ build:
 install:
   {{dbus}} flatpak run org.flatpak.Builder --user --install --force-clean build-dir land.arcana.TarotCanvas.yml
 
-# Build from the release tarball, as Flathub does. CI runs this one.
+# Build from the release tarball (match Flathub)
 build-tarball:
   #!/bin/bash
   set -euo pipefail
