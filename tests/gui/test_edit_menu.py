@@ -179,3 +179,27 @@ def test_ctrl_f_on_a_canvas_opens_find_card(qtbot, minimal_deck, monkeypatch, no
     qtbot.keyClick(canvas.view, Qt.Key.Key_F, CTRL)
 
     assert len(opened) == 1
+
+
+def test_edit_copy_in_the_deck_view_copies_every_selected_card(qtbot, clipboard, full_deck):
+    import json
+
+    from tarot_canvas.ui.deck_view.card_model import CardRole
+
+    window = make_shown_window(qtbot)
+    tab = window.new_deck_view_tab(deck_path=full_deck.deck_path)
+    activate(qtbot, window, tab.grid)
+    assert not window.copy_card_action.isEnabled()
+
+    first = tab.model.index(tab.model.card_rows()[0], 0)
+    tab.grid.setCurrentIndex(first)
+    qtbot.keyClick(tab.grid, Qt.Key.Key_Right, SHIFT)
+    qtbot.keyClick(tab.grid, Qt.Key.Key_Right, SHIFT)
+    assert window.copy_card_action.isEnabled()
+
+    qtbot.keyClick(tab.grid, Qt.Key.Key_C, CTRL)
+
+    payload = json.loads(bytes(clipboard.mimeData().data(CARD_MIME)).decode())
+    assert payload["card_ids"] == [
+        tab.model.index(row, 0).data(CardRole)["id"] for row in tab.model.card_rows()[:3]
+    ]
