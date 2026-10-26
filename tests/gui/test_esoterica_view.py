@@ -577,6 +577,8 @@ def test_the_pane_stacks_its_columns_when_narrow(page, qtbot):
     from PyQt6.QtWidgets import QBoxLayout
 
     pane = page.details_pane
+    # Outside a LibraryTab it has no parent, so showing it opens a window of its own
+    qtbot.addWidget(pane)
     page.select("me/zeta")
     pane.show()
     qtbot.waitExposed(pane)

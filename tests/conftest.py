@@ -80,18 +80,29 @@ def block_reference_deck_network(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def flush_closed_widgets():
-    """Delete what qtbot closed before the next test runs an event loop.
+def flush_closed_widgets(monkeypatch):
+    """Keep qtbot's widgets alive until it has closed them, then delete them before
+    the next test runs an event loop."""
+    from pytestqt.qtbot import QtBot
 
-    qtbot closes its widgets with deleteLater, which lands only when an event loop
-    next runs, so a later test's qtbot.wait() would paint windows from tests long
-    over. On Qt 6.11 a LibraryTab's delegate segfaulted doing exactly that.
-    """
+    kept = {}
+    add_widget = QtBot.addWidget
+
+    def add_and_keep(self, widget, *, before_close_func=None):
+        key = id(widget)
+        kept[key] = widget
+        # A test that deletes its widget itself leaves qtbot nothing to close
+        widget.destroyed.connect(lambda _=None, key=key: kept.pop(key, None))
+        add_widget(self, widget, before_close_func=before_close_func)
+
+    monkeypatch.setattr(QtBot, "addWidget", add_and_keep)
     yield
     from PyQt6.QtCore import QCoreApplication, QEvent
 
     if QCoreApplication.instance() is not None:
         QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+    kept.clear()
 
 
 @pytest.fixture(autouse=True)
