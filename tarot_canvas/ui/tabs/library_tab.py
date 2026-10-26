@@ -10,7 +10,6 @@ from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QListView,
     QSplitter,
     QStackedWidget,
@@ -67,6 +66,7 @@ from tarot_canvas.ui.notes_text import text as notes_text
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.ui.widgets.placeholder_message import tinted_icon
 from tarot_canvas.ui.widgets.places_sidebar import PlacesSidebar
+from tarot_canvas.ui.widgets.search_field import search_field
 from tarot_canvas.ui.widgets.zoom_slider import ZoomSlider
 
 # The deck view's name. The notes and esoterica views take theirs from notes_text and
@@ -218,12 +218,7 @@ class LibraryTab(BaseTab):
         )
         row.setSpacing(units.LARGE_SPACING)
 
-        self.search_field = QLineEdit()
-        self.search_field.setPlaceholderText(SEARCH_DECKS_PLACEHOLDER)
-        self.search_field.setClearButtonEnabled(True)
-        self.search_field.addAction(
-            QIcon.fromTheme("search"), QLineEdit.ActionPosition.LeadingPosition
-        )
+        self.search_field = search_field(SEARCH_DECKS_PLACEHOLDER)
         self.search_field.textChanged.connect(self.on_search_changed)
         row.addWidget(self.search_field, 1)
 

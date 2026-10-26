@@ -998,8 +998,12 @@ def test_the_pane_below_keeps_its_minimum_height(sources, shown_library):
 
 def test_view_zoom_sizes_the_covers_and_resets_to_large(library):
     assert library.zoom_slider.key() == units.DENSITY_LARGE
-    assert not library.can_zoom("in")
     assert not library.can_zoom("reset")
+
+    library.zoom("in")
+    assert library.delegate.density == units.DENSITY_EXTRA_LARGE
+    assert not library.can_zoom("in")
+    library.zoom("reset")
 
     library.zoom("out")
     library.zoom("out")

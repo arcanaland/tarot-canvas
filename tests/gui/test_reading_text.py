@@ -185,10 +185,10 @@ def test_the_zoom_actions_are_in_the_view_menu(qtbot):
 
 def test_in_the_library_the_zoom_actions_size_the_covers(qtbot):
     """Not the reading text: the Library has none, and its zoom is the cover size, which
-    opens at its largest"""
+    opens one step below its largest"""
     window = make_window(qtbot)
     window.new_library_tab()
-    assert [action.isEnabled() for action in zoom_actions(window)] == [False, True, False]
+    assert [action.isEnabled() for action in zoom_actions(window)] == [True, True, False]
 
 
 @pytest.mark.parametrize(

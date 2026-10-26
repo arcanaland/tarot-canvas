@@ -114,8 +114,9 @@ def test_nothing_in_the_deck_view_opens_a_dialog(tab):
 def test_the_header_reaches_the_edges_of_the_view(tab):
     """The banner is a page header; an inset would make it read as a floating bar."""
     header = tab.findChildren(DeckHeader)[0]
+    bar = tab.search_field.parentWidget()
     assert header.mapTo(tab, QPoint(0, 0)).x() == 0
-    assert header.mapTo(tab, QPoint(0, 0)).y() == 0
+    assert header.mapTo(tab, QPoint(0, 0)).y() == bar.geometry().bottom() + 1
 
 
 def test_the_sections_take_back_the_margin_the_header_gave_up(tab):
@@ -387,25 +388,65 @@ def test_a_hairline_runs_under_each_heading(full_tab):
 # -- cover size ---------------------------------------------------------------------
 
 
-def test_the_slider_sits_at_the_end_of_the_first_headings_line(full_tab):
-    grid, slider = full_tab.grid, full_tab.zoom_slider
-    heading = indexes(full_tab, KIND_HEADING)[0]
-    line, _ = full_tab.delegate.heading_layout(grid.visualRect(heading), heading.row())
+def test_find_and_the_slider_are_pinned_above_the_banner(full_tab):
+    page = full_tab.scroll
+    for widget in (full_tab.search_field, full_tab.zoom_slider):
+        assert widget.isVisible()
+        assert not page.isAncestorOf(widget)
+    header = full_tab.findChildren(DeckHeader)[0]
+    assert page.isAncestorOf(header)
+    assert full_tab.search_field.placeholderText() == "Find card…"
 
-    assert slider.parentWidget() is grid.viewport()
-    assert slider.isVisible()
-    assert slider.geometry().right() == line.right()
-    assert line.top() <= slider.geometry().top()
-    assert slider.geometry().bottom() <= line.bottom()
+    before = full_tab.search_field.mapTo(full_tab, QPoint())
+    page.verticalScrollBar().setValue(page.verticalScrollBar().maximum())
+    assert page.verticalScrollBar().value() > 0
+    assert full_tab.search_field.mapTo(full_tab, QPoint()) == before
 
 
-def test_the_slider_follows_a_resize(qtbot, full_deck):
-    tab = shown(qtbot, full_deck.deck_path, width=1300, height=800)
-    tab.resize(800, 800)
-    qtbot.waitUntil(
-        lambda: tab.zoom_slider.geometry().right()
-        == tab.grid.viewport().width() - tab.grid.spacing() - 1
-    )
+def test_find_leaves_the_matching_cards_under_their_headings(full_tab):
+    full_tab.search_field.setText("ace")
+
+    names = [index.data() for index in indexes(full_tab, KIND_CARD)]
+    headings = [index.data() for index in indexes(full_tab, KIND_HEADING)]
+    assert names == ["Ace of Wands", "Ace of Cups", "Ace of Swords", "Ace of Pentacles"]
+    assert headings == ["Wands", "Cups", "Swords", "Pentacles"]
+
+    first = indexes(full_tab, KIND_HEADING)[0]
+    rect = full_tab.grid.visualRect(first)
+    assert full_tab.delegate.heading_layout(rect, first.row())[0].top() == rect.top()
+
+    full_tab.search_field.clear()
+    assert len(indexes(full_tab, KIND_CARD)) == 78
+
+
+def test_find_shrinks_the_grid_to_what_it_leaves(full_tab, qtbot):
+    full_height = full_tab.grid.height()
+    full_tab.search_field.setText("ace")
+    qtbot.waitUntil(lambda: full_tab.grid.height() < full_height)
+
+    full_tab.search_field.setText("no card is called this")
+    assert full_tab.grid.model().rowCount() == 0
+    qtbot.waitUntil(lambda: full_tab.grid.height() == 0)
+
+
+def test_copy_after_find_copies_only_cards_still_shown(full_tab, clipboard):
+    full_tab.grid.selectAll()
+    full_tab.search_field.setText("ace")
+
+    assert [card["id"] for card in full_tab.selected_cards()] == [
+        f"minor_arcana.{suit}.ace" for suit in ("wands", "cups", "swords", "pentacles")
+    ]
+    full_tab.copy_card()
+    payload = json.loads(bytes(clipboard.mimeData().data(CARD_MIME)).decode())
+    assert len(payload["card_ids"]) == 4
+
+
+def test_find_is_the_tabs_own_search(full_tab):
+    assert full_tab.can_find()
+    full_tab.search_field.setText("moon")
+    full_tab.find()
+    assert full_tab.search_field.hasFocus() or not full_tab.isActiveWindow()
+    assert full_tab.search_field.selectedText() == "moon"
 
 
 def test_the_deck_view_starts_at_medium(full_tab):
@@ -440,6 +481,8 @@ def test_view_zoom_steps_the_slider(full_tab):
 
     full_tab.zoom("in")
     assert full_tab.zoom_slider.key() == units.DENSITY_LARGE
+    full_tab.zoom("in")
+    assert full_tab.zoom_slider.key() == units.DENSITY_EXTRA_LARGE
     assert not full_tab.can_zoom("in")
     assert full_tab.can_zoom("reset")
 

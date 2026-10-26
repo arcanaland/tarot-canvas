@@ -2,6 +2,7 @@ from PyQt6.QtCore import QItemSelectionModel, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
     QFrame,
+    QHBoxLayout,
     QMenu,
     QScrollArea,
     QTabWidget,
@@ -14,15 +15,17 @@ from tarot_canvas.settings import DECK_VIEW_DENSITY_DEFAULT, DECK_VIEW_DENSITY_K
 from tarot_canvas.ui.activate_on_return import activate_on_return
 from tarot_canvas.ui.card_transfer import copy_cards_to_clipboard
 from tarot_canvas.ui.deck_view.card_delegate import CardDelegate
-from tarot_canvas.ui.deck_view.card_model import CardModel, CardRole
+from tarot_canvas.ui.deck_view.card_model import CardFilter, CardModel, CardRole
 from tarot_canvas.ui.deck_view.sections_view import SectionsView
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.ui.widgets import deck_header
 from tarot_canvas.ui.widgets.deck_header import DeckHeader
+from tarot_canvas.ui.widgets.search_field import search_field
 from tarot_canvas.ui.widgets.zoom_slider import ZoomSlider
 
 SECTION_MARGIN = deck_header.EDGE_MARGIN
+FIND_CARD_PLACEHOLDER = "Find card…"
 
 
 class DeckViewTab(BaseTab):
@@ -75,6 +78,10 @@ class DeckViewTab(BaseTab):
         self.title_changed.emit(self.deck.get_name())
 
         self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.setSpacing(0)
+
+        # Pinned above the page, as the Library's is
+        self.layout.addWidget(self._build_header())
 
         # Main content widget with vertical layout
         content = QWidget()
@@ -108,22 +115,37 @@ class DeckViewTab(BaseTab):
 
         self.layout.addWidget(scroll)
 
-    def _build_zoom(self):
+    def _build_header(self):
+        header = QWidget()
+        row = QHBoxLayout(header)
+        # Level with the banner's text and the headings
+        row.setContentsMargins(
+            SECTION_MARGIN, units.LARGE_SPACING, SECTION_MARGIN, units.LARGE_SPACING
+        )
+        row.setSpacing(units.LARGE_SPACING)
+
+        self.search_field = search_field(FIND_CARD_PLACEHOLDER)
+        self.search_field.textChanged.connect(self.on_search_changed)
+        row.addWidget(self.search_field, 1)
+
         self.zoom_slider = ZoomSlider(units.DENSITIES, "Cover size", DECK_VIEW_DENSITY_DEFAULT)
         density = self.settings.value(DECK_VIEW_DENSITY_KEY, DECK_VIEW_DENSITY_DEFAULT, type=str)
         self.zoom_slider.set_key(
             density if density in units.DENSITIES else DECK_VIEW_DENSITY_DEFAULT
         )
         self.zoom_slider.key_changed.connect(self.on_density_changed)
-        return self.zoom_slider
+        row.addWidget(self.zoom_slider)
+        return header
 
     def _build_grid(self):
         self.model = CardModel(self.deck, self)
+        # The grid shows what Find leaves of the deck
+        self.found = CardFilter(self)
+        self.found.setSourceModel(self.model)
         grid = SectionsView()
-        grid.setModel(self.model)
-        self.delegate = CardDelegate(grid, density=self._build_zoom().key())
+        grid.setModel(self.found)
+        self.delegate = CardDelegate(grid, density=self.zoom_slider.key())
         grid.setItemDelegate(self.delegate)
-        grid.set_heading_widget(self.zoom_slider)
 
         grid.activated.connect(self.on_card_activated)
         activate_on_return(grid)
@@ -138,8 +160,8 @@ class DeckViewTab(BaseTab):
 
     def selected_cards(self):
         """The selected cards, in deck order"""
-        rows = sorted(index.row() for index in self.grid.selectionModel().selectedIndexes())
-        return [self.model.index(row, 0).data(CardRole) for row in rows]
+        indexes = sorted(self.grid.selectionModel().selectedIndexes(), key=lambda i: i.row())
+        return [index.data(CardRole) for index in indexes]
 
     def on_card_clicked(self, index):
         card = index.data(CardRole)
@@ -187,6 +209,19 @@ class DeckViewTab(BaseTab):
         if self.delegate.set_density(density):
             self.grid.doItemsLayout()
         self.zoom_state_changed()
+
+    # -- find ---------------------------------------------------------------
+
+    def can_find(self):
+        return self.deck is not None
+
+    def find(self):
+        self.search_field.setFocus(Qt.FocusReason.ShortcutFocusReason)
+        self.search_field.selectAll()
+
+    def on_search_changed(self, text):
+        self.found.setFilterFixedString(text)
+        self.edit_state_changed()
 
     # -- zoom ---------------------------------------------------------------
     # View > Zoom, Ctrl+wheel and the slider are one control: the cover size

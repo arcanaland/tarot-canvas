@@ -1,6 +1,6 @@
 """One deck's cards in display order, with a heading row before each section"""
 
-from PyQt6.QtCore import QAbstractListModel, Qt
+from PyQt6.QtCore import QAbstractListModel, QSortFilterProxyModel, Qt
 
 from tarot_canvas.models.card_ids import COURTS, PIPS
 
@@ -66,6 +66,17 @@ class CardModel(QAbstractListModel):
         """Row of each card, in order"""
         return [row for row, (kind, _, _) in enumerate(self._rows) if kind == KIND_CARD]
 
+    def section_card_rows(self, row):
+        """Rows of the cards under the heading at row"""
+        rows = []
+        for below in range(row + 1, len(self._rows)):
+            kind = self._rows[below][0]
+            if kind == KIND_HEADING:
+                break
+            if kind == KIND_CARD:
+                rows.append(below)
+        return rows
+
     def rowCount(self, parent=None):
         if parent is not None and parent.isValid():
             return 0
@@ -100,3 +111,28 @@ class CardModel(QAbstractListModel):
         if role == ImageRole:
             return card.get("image")
         return None
+
+
+class CardFilter(QSortFilterProxyModel):
+    """The cards whose name holds the filter string, each under its heading.
+
+    A heading stays while any of its cards does; a note only while nothing is filtered.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+
+    def filterAcceptsRow(self, source_row, source_parent):
+        model = self.sourceModel()
+        if not self.filterRegularExpression().pattern():
+            return True
+        name_matches = super().filterAcceptsRow
+        kind = model.index(source_row, 0, source_parent).data(KindRole)
+        if kind == KIND_CARD:
+            return name_matches(source_row, source_parent)
+        if kind == KIND_HEADING:
+            return any(
+                name_matches(row, source_parent) for row in model.section_card_rows(source_row)
+            )
+        return False

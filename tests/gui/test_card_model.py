@@ -17,6 +17,7 @@ from tarot_canvas.ui.deck_view.card_model import (
     KIND_CARD,
     KIND_HEADING,
     KIND_NOTE,
+    CardFilter,
     CardModel,
     CardRole,
     KindRole,
@@ -91,6 +92,40 @@ def test_a_deck_with_no_suits_says_why_in_a_note(minimal_deck):
         (KIND_CARD, "The Magician"),
         (KIND_NOTE, "Note: Test fixture only needs enough cards to exercise the loader."),
     ]
+
+
+def found(deck, text):
+    proxy = CardFilter()
+    proxy.setSourceModel(CardModel(deck, proxy))
+    proxy.setFilterFixedString(text)
+    return proxy
+
+
+def test_find_keeps_a_heading_only_while_a_card_under_it_matches(full_deck):
+    assert rows(found(full_deck, "KING OF")) == [
+        (KIND_HEADING, "Wands"),
+        (KIND_CARD, "King of Wands"),
+        (KIND_HEADING, "Cups"),
+        (KIND_CARD, "King of Cups"),
+        (KIND_HEADING, "Swords"),
+        (KIND_CARD, "King of Swords"),
+        (KIND_HEADING, "Pentacles"),
+        (KIND_CARD, "King of Pentacles"),
+    ]
+    assert rows(found(full_deck, "fool")) == [
+        (KIND_HEADING, "Major Arcana"),
+        (KIND_CARD, "The Fool"),
+    ]
+
+
+def test_an_empty_find_keeps_every_row(full_deck, minimal_deck):
+    for deck in (full_deck, minimal_deck):
+        assert rows(found(deck, "")) == rows(CardModel(deck))
+
+
+def test_find_hides_the_note(minimal_deck):
+    assert KIND_NOTE in [kind for kind, _ in rows(found(minimal_deck, ""))]
+    assert KIND_NOTE not in [kind for kind, _ in rows(found(minimal_deck, "the"))]
 
 
 def test_a_major_with_no_number_goes_last(minimal_deck):

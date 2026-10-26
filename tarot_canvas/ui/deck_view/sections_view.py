@@ -3,7 +3,6 @@
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QAbstractItemView, QFrame, QListView
 
-from tarot_canvas.ui.deck_view.card_model import KIND_HEADING, KindRole
 from tarot_canvas.ui.library import units
 
 Cursor = QAbstractItemView.CursorAction
@@ -34,43 +33,6 @@ class SectionsView(QListView):
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         # The page's ground shows through, not a well of Base inside it
         self.viewport().setAutoFillBackground(False)
-        self._heading_widget = None
-
-    # -- the first heading's line -------------------------------------------
-
-    def set_heading_widget(self, widget):
-        """Put widget at the right end of the first heading's line, which grows to hold it.
-        Call it once the delegate is set."""
-        self._heading_widget = widget
-        widget.setParent(self.viewport())
-        self.itemDelegate().set_heading_line_min(widget.sizeHint().height())
-        self.scheduleDelayedItemsLayout()
-
-    def _first_heading(self):
-        model = self.model()
-        for row in range(model.rowCount() if model is not None else 0):
-            index = model.index(row, 0)
-            if index.data(KindRole) == KIND_HEADING:
-                return index
-        return None
-
-    def _place_heading_widget(self):
-        widget = self._heading_widget
-        if widget is None:
-            return
-        heading = self._first_heading()
-        if heading is None:
-            widget.hide()
-            return
-        line, _ = self.itemDelegate().heading_layout(self.visualRect(heading), heading.row())
-        size = widget.sizeHint()
-        widget.setGeometry(
-            line.right() + 1 - size.width(),
-            line.top() + (line.height() - size.height()) // 2,
-            size.width(),
-            size.height(),
-        )
-        widget.show()
 
     # -- height -------------------------------------------------------------
 
@@ -90,7 +52,6 @@ class SectionsView(QListView):
         height = self.contents_height() + 2 * self.frameWidth()
         if height != self.height():
             self.setFixedHeight(height)
-        self._place_heading_widget()
 
     def resizeEvent(self, event):
         if event.size().width() != event.oldSize().width() and self.model() is not None:

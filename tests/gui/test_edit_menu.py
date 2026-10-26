@@ -171,6 +171,16 @@ def test_ctrl_f_in_a_library_goes_to_its_search_field(qtbot):
     assert QApplication.focusWidget() is library.search_field
 
 
+def test_ctrl_f_in_a_deck_view_goes_to_its_find_field(qtbot, full_deck):
+    window = make_shown_window(qtbot)
+    tab = window.new_deck_view_tab(deck_path=full_deck.deck_path)
+    activate(qtbot, window, tab.grid)
+
+    qtbot.keyClick(tab.grid, Qt.Key.Key_F, CTRL)
+
+    assert QApplication.focusWidget() is tab.search_field
+
+
 def test_ctrl_f_on_a_canvas_opens_find_card(qtbot, minimal_deck, monkeypatch, no_timers):
     opened = []
     monkeypatch.setattr(CommandPalette, "exec", lambda palette: opened.append(palette))
@@ -191,7 +201,8 @@ def test_edit_copy_in_the_deck_view_copies_every_selected_card(qtbot, clipboard,
     activate(qtbot, window, tab.grid)
     assert not window.copy_card_action.isEnabled()
 
-    first = tab.model.index(tab.model.card_rows()[0], 0)
+    shown = tab.grid.model()
+    first = shown.mapFromSource(tab.model.index(tab.model.card_rows()[0], 0))
     tab.grid.setCurrentIndex(first)
     qtbot.keyClick(tab.grid, Qt.Key.Key_Right, SHIFT)
     qtbot.keyClick(tab.grid, Qt.Key.Key_Right, SHIFT)

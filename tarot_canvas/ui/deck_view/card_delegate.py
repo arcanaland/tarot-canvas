@@ -98,8 +98,6 @@ class CardDelegate(DeckDelegate):
     def __init__(self, parent=None, density=units.DENSITY_MEDIUM):
         super().__init__(parent, density=density)
         self._art = _ArtCache()
-        # Tall enough for whatever the view sets on a heading's line
-        self._heading_line_min = 0
 
     def set_density(self, density):
         changed = super().set_density(density)
@@ -141,13 +139,10 @@ class CardDelegate(DeckDelegate):
             return 1
         return max(1, view.viewport().width() - 2 * view.spacing())
 
-    def set_heading_line_min(self, height):
-        self._heading_line_min = height
-
     def heading_layout(self, rect, row):
         """(text line, rule) inside a heading's rect"""
         space = SECTION_SPACE if row > 0 else 0
-        line_height = max(QFontMetrics(self.heading_font()).height(), self._heading_line_min)
+        line_height = QFontMetrics(self.heading_font()).height()
         text = QRect(rect.left(), rect.top() + space, rect.width(), line_height)
         rule = QRect(rect.left(), text.bottom() + 1 + units.SMALL_SPACING, rect.width(), 1)
         return text, rule
