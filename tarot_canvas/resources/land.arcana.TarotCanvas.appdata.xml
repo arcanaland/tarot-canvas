@@ -121,6 +121,9 @@
     <control>pointing</control>
     <control>keyboard</control>
   </recommends>
+  <requires>
+    <display_length compare="ge">768</display_length>
+  </requires>
   <!-- Although the app doesn't bundle any decks, the RWS deck is fetched by
        default. Some of its cards contain these attributes (The Star, The
        Lovers, etc) so it's better to list these to be safe. -->
