@@ -97,7 +97,7 @@ def test_a_deck_with_no_suits_says_why_in_a_note(minimal_deck):
 def found(deck, text):
     proxy = CardFilter()
     proxy.setSourceModel(CardModel(deck, proxy))
-    proxy.setFilterFixedString(text)
+    proxy.set_find(text)
     return proxy
 
 

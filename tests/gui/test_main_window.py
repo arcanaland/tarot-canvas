@@ -543,6 +543,25 @@ def test_the_same_deck_reached_by_a_path_object_reuses_its_tab(qtbot):
     assert second is first
 
 
+def test_a_deck_views_selection_opens_on_a_new_canvas(qtbot):
+    window = make_shown_window(qtbot)
+    deck_tab = window.new_deck_view_tab(deck_path=str(MINIMAL_DECK_PATH))
+    deck_tab.grid.selectAll()
+    tabs_before = window.tab_widget.count()
+
+    deck_tab.new_canvas_from_selection()
+
+    canvas = window.tab_widget.currentWidget()
+    assert isinstance(canvas, CanvasTab)
+    assert window.tab_widget.count() == tabs_before + 1
+    placed = [item for item in canvas.scene.items() if isinstance(item, DraggableCardItem)]
+    assert sorted(item.card_data["id"] for item in placed) == [
+        "major_arcana.00",
+        "major_arcana.01",
+    ]
+    assert all(item.deck is deck_tab.deck for item in placed)
+
+
 def test_a_deck_link_from_a_card_view_reuses_the_open_deck_tab(qtbot):
     window = MainWindow()
     qtbot.addWidget(window)

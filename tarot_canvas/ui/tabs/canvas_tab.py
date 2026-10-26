@@ -594,6 +594,13 @@ class CanvasTab(BaseTab):
         if not resolved:
             logger.warning("Nothing placed: the card payload did not resolve")
             return None
+        return self.place_cards(resolved, at)
+
+    def place_cards(self, resolved, at=None):
+        """Place each (card, deck, reversed), each cascading from the last
+
+        Returns the first item placed
+        """
         placed = []
         for card, deck, is_reversed in resolved:
             if placed:

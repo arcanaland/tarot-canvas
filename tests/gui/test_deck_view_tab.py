@@ -323,11 +323,11 @@ def test_a_wheel_over_the_grid_is_left_to_the_page(full_tab):
     assert page.verticalScrollBar().value() > 0
 
 
-def test_the_context_menu_offers_open_and_copy(full_tab, qtbot):
+def test_the_context_menu_offers_open_copy_and_a_new_canvas(full_tab, qtbot):
     first = indexes(full_tab, KIND_CARD)[0]
     actions = {a.text().replace("&", ""): a for a in full_tab.card_menu(first).actions()}
 
-    assert list(actions) == ["Open Card", "Copy Card"]
+    assert list(actions) == ["Open Card", "Copy Card", module.NEW_CANVAS_FROM_SELECTION]
     with qtbot.waitSignal(full_tab.card_action_requested, timeout=1000) as opened:
         actions["Open Card"].trigger()
     assert opened.args[0] == "double_click"
