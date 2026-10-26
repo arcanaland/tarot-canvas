@@ -185,7 +185,7 @@ class DeckViewTab(BaseTab):
         )
 
     def card_menu(self, index):
-        """Open opens the card under the pointer; Copy copies the selection"""
+        """Open + copy"""
         menu = QMenu(self)
         open_action = menu.addAction(QIcon.fromTheme("document-open"), "&Open Card")
         open_action.triggered.connect(lambda: self.on_card_activated(index))
@@ -224,7 +224,6 @@ class DeckViewTab(BaseTab):
         self.edit_state_changed()
 
     # -- zoom ---------------------------------------------------------------
-    # View > Zoom, Ctrl+wheel and the slider are one control: the cover size
 
     def can_zoom(self, how):
         return self.deck is not None and self.zoom_slider.can_zoom(how)

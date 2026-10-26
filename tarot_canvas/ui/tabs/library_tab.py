@@ -469,7 +469,6 @@ class LibraryTab(BaseTab):
         self.zoom_state_changed()
 
     # -- zoom ---------------------------------------------------------------
-    # View > Zoom, Ctrl+wheel and the slider size the covers, in the deck view alone
 
     def can_zoom(self, how):
         return self.zoom_slider.isVisibleTo(self) and self.zoom_slider.can_zoom(how)

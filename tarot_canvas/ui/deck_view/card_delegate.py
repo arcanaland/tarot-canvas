@@ -1,5 +1,3 @@
-"""Paints a deck's cards as the Library paints decks, and its headings across the view"""
-
 from PyQt6 import sip
 from PyQt6.QtCore import QObject, QPersistentModelIndex, QRect, QSize, Qt
 from PyQt6.QtGui import QColor, QFont, QFontMetrics, QPalette, QPixmap
@@ -23,13 +21,12 @@ from tarot_canvas.ui.library.ghost_paint import paint_placeholder_well
 TEXT_FLAGS = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
 NOTE_FLAGS = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop | Qt.TextFlag.TextWordWrap
 
-# Above every heading but the first, so a section reads as starting, not as one more row
 SECTION_SPACE = 2 * units.GRID_UNIT
-HEADING_RULE_ALPHA = 51  # ~20% WindowText, the weight of a separator line
+HEADING_RULE_ALPHA = 51
 
 
 class _PendingArt(QObject):
-    """The loader's receiver for one decode; it keeps only a weakref, so the cache holds this"""
+    """The loader's receiver for one decode"""
 
     def __init__(self, cache, key, dpr):
         super().__init__()
@@ -48,41 +45,47 @@ class _PendingArt(QObject):
 
 
 class _ArtCache:
-    """Card art decoded off the GUI thread, by (path, well width, well height, dpr)"""
+    """Card art decoded off the GUI thread"""
 
     def __init__(self):
-        self._pixmaps = {}  # None for art that can't be read, so it is never asked for again
+        self._pixmaps = {}
         self._pending = {}
 
     def clear(self):
-        # A decode still in flight lands on a receiver nothing holds, so the loader drops it
         self._pixmaps.clear()
         self._pending.clear()
 
     def get(self, path, well, dpr, view, index):
-        """The pixmap, or None while it loads or if it can't"""
+        """The pixmap, or None while it loads"""
         key = (path, well.width(), well.height(), round(dpr, 3))
+
         if key in self._pixmaps:
             return self._pixmaps[key]
+
         pending = self._pending.get(key)
         if pending is None:
             source = art_size(path)
             size = fit_device_size(source, well, dpr) if source.isValid() else QSize()
+
             if size.isEmpty():
                 self._pixmaps[key] = None
                 return None
+
             pending = self._pending[key] = _PendingArt(self, key, dpr)
             art_loader().request(pending, path, size, 1)
+
         pending.wait(view, index)
         return None
 
     def deliver(self, pending, image):
         if self._pending.get(pending.key) is not pending:
             return
+
         del self._pending[pending.key]
         pixmap = QPixmap.fromImage(image)
         pixmap.setDevicePixelRatio(pending.dpr)
         self._pixmaps[pending.key] = pixmap
+
         for view, persistent in pending.waiting:
             if sip.isdeleted(view) or not persistent.isValid():
                 continue
@@ -90,11 +93,6 @@ class _ArtCache:
 
 
 class CardDelegate(DeckDelegate):
-    """A card cell is a deck cell without the subtitle; headings and notes span the view.
-
-    Its parent is the one view it paints, which is the view its art cache repaints.
-    """
-
     def __init__(self, parent=None, density=units.DENSITY_MEDIUM):
         super().__init__(parent, density=density)
         self._art = _ArtCache()
@@ -133,7 +131,6 @@ class CardDelegate(DeckDelegate):
         return CellLayout(cover=cover_rect, title=title_rect, subtitle=QRect())
 
     def line_width(self, option):
-        """The width a heading or note takes: the view's, so nothing shares its line"""
         view = self.parent()
         if view is None:
             return 1
@@ -168,8 +165,6 @@ class CardDelegate(DeckDelegate):
 
     @staticmethod
     def line_palette(option):
-        """The view's colours for a heading or note, which Qt would paint as disabled
-        because they have no flags"""
         palette = QPalette(option.palette)
         active = bool(option.state & QStyle.StateFlag.State_Active)
         palette.setCurrentColorGroup(
@@ -178,7 +173,7 @@ class CardDelegate(DeckDelegate):
         return palette
 
     def lines_resized(self, model):
-        """Re-ask every heading and note for its size, after the view's width changed"""
+        """after the view's width changed"""
         for row in range(model.rowCount()):
             index = model.index(row, 0)
             if index.data(KindRole) != KIND_CARD:

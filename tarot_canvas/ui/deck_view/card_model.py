@@ -1,4 +1,4 @@
-"""One deck's cards in display order, with a heading row before each section"""
+"""One deck's cards in display order with a heading row before each section"""
 
 from PyQt6.QtCore import QAbstractListModel, QSortFilterProxyModel, Qt
 
@@ -51,7 +51,7 @@ def display_rows(deck):
 
 
 class CardModel(QAbstractListModel):
-    """A deck's cards, interleaved with headings no view can select"""
+    """A deck's cards"""
 
     def __init__(self, deck, parent=None):
         super().__init__(parent)
@@ -114,11 +114,6 @@ class CardModel(QAbstractListModel):
 
 
 class CardFilter(QSortFilterProxyModel):
-    """The cards whose name holds the filter string, each under its heading.
-
-    A heading stays while any of its cards does; a note only while nothing is filtered.
-    """
-
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)

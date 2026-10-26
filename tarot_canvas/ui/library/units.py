@@ -14,7 +14,7 @@ COVER_WIDTHS = {
     DENSITY_SMALL: 6 * GRID_UNIT,  # 108
     DENSITY_MEDIUM: 8 * GRID_UNIT,  # 144
     DENSITY_LARGE: 192,
-    DENSITY_EXTRA_LARGE: 256,  # 4/3 of Large, as Large is of Medium
+    DENSITY_EXTRA_LARGE: 256,  # 4/3 of Large
 }
 
 COVER_ASPECT = 3 / 2

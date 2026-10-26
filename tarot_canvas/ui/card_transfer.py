@@ -29,10 +29,7 @@ def card_mime_data(card, deck, is_reversed=False):
 
 
 def cards_mime_data(cards, deck, is_reversed=False):
-    """Build one payload for cards of one deck, in order.
-
-    card_id names the first card, so a reader that knows only one still reads it.
-    """
+    """Build one payload for cards of one deck in order."""
     first = cards[0]
     payload = {
         "v": PAYLOAD_VERSION,
@@ -40,8 +37,10 @@ def cards_mime_data(cards, deck, is_reversed=False):
         "deck_path": os.fspath(deck.deck_path),
         "reversed": bool(is_reversed),
     }
+
     if len(cards) > 1:
         payload["card_ids"] = [card["id"] for card in cards]
+
     mime = QMimeData()
     mime.setData(CARD_MIME, json.dumps(payload).encode("utf-8"))
     mime.setText("\n".join(f"{card['name']} \N{EM DASH} {deck.get_name()}" for card in cards))
@@ -62,7 +61,6 @@ def card_from_mime(mime, decks):
 
 
 def cards_from_mime(mime, decks):
-    """[(card, deck, reversed), ...] for every card mime carries that resolves"""
     if not has_card(mime):
         return []
 

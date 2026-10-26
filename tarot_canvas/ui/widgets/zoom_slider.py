@@ -1,4 +1,4 @@
-"""A slider between zoom-out and zoom-in buttons, stepping through named sizes, as Dolphin's"""
+"""A slider between zoom-out and zoom-in buttons"""
 
 from PyQt6.QtCore import QEvent, QObject, Qt, pyqtSignal
 from PyQt6.QtGui import QIcon
@@ -14,11 +14,7 @@ def _plain(label):
 
 
 class ZoomSlider(QWidget):
-    """One stop per key, smallest first. Emits key_changed when the user moves it.
-
-    It is also the tab's View > Zoom: can_zoom and zoom answer for it, and reset goes
-    back to default.
-    """
+    """One stop per key (smallest first)"""
 
     key_changed = pyqtSignal(str)
 

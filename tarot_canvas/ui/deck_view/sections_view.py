@@ -1,4 +1,4 @@
-"""Every card of a deck in one wrapping grid, each section under a heading of its own"""
+"""Every card of a deck in a wrapping grid"""
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QAbstractItemView, QFrame, QListView
@@ -9,12 +9,6 @@ Cursor = QAbstractItemView.CursorAction
 
 
 class SectionsView(QListView):
-    """A grid that is as tall as its contents, for a page that does the scrolling.
-
-    Headings and notes are rows as wide as the view, so each takes a line; the
-    delegate is asked for their size again whenever the width changes.
-    """
-
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setViewMode(QListView.ViewMode.IconMode)
@@ -31,7 +25,6 @@ class SectionsView(QListView):
         self.setDragEnabled(False)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        # The page's ground shows through, not a well of Base inside it
         self.viewport().setAutoFillBackground(False)
 
     # -- height -------------------------------------------------------------
@@ -59,7 +52,7 @@ class SectionsView(QListView):
         super().resizeEvent(event)
 
     def wheelEvent(self, event):
-        # Nothing here scrolls, so the page under it does
+        # Nothing here scrolls
         event.ignore()
 
     # -- the keyboard -------------------------------------------------------
@@ -73,7 +66,7 @@ class SectionsView(QListView):
 
     def moveCursor(self, action, modifiers):
         """Left and Right step through the deck in order, across headings; Up and Down
-        go to the nearest card on the next line, never to a heading"""
+        go to the nearest card on the next line"""
         model = self.model()
         rows = self._card_rows() if model is not None else []
         if not rows:

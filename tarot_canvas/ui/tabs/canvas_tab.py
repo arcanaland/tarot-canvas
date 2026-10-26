@@ -586,9 +586,9 @@ class CanvasTab(BaseTab):
         return item
 
     def place_card(self, mime, at=None):
-        """Resolve a card payload and place every card in it, each cascading from the last.
+        """Resolve a card payload and place every card in it (cascading)
 
-        Returns the first item placed; None if it names nothing installed
+        Returns the first item placed
         """
         resolved = cards_from_mime(mime, deck_manager.get_all_decks())
         if not resolved:
@@ -597,8 +597,7 @@ class CanvasTab(BaseTab):
         placed = []
         for card, deck, is_reversed in resolved:
             if placed:
-                # Where the last card was centred, as add_specific_card measures it, so
-                # cascade_from_occupied steps the next one off it
+                # Where the last card was centered
                 last = placed[-1]
                 at = last.pos() + QPointF(last.pixmap().width() / 2, last.pixmap().height() / 2)
             item = self.add_specific_card(card, card_deck=deck, is_reversed=is_reversed, at=at)
