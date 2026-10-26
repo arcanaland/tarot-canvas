@@ -10,7 +10,6 @@ from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QListView,
     QSplitter,
     QStackedWidget,
@@ -67,6 +66,8 @@ from tarot_canvas.ui.notes_text import text as notes_text
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.ui.widgets.placeholder_message import tinted_icon
 from tarot_canvas.ui.widgets.places_sidebar import PlacesSidebar
+from tarot_canvas.ui.widgets.search_field import search_field
+from tarot_canvas.ui.widgets.zoom_slider import ZoomSlider
 
 # The deck view's name. The notes and esoterica views take theirs from notes_text and
 # esoterica_text, which is where every string those views add belongs.
@@ -80,12 +81,6 @@ SORT_CHOICES = [
     ("Author", SORT_AUTHOR),
     ("Card count", SORT_COUNT),
     ("Recently opened", SORT_RECENT),
-]
-
-DENSITY_CHOICES = [
-    ("Small", units.DENSITY_SMALL),
-    ("Medium", units.DENSITY_MEDIUM),
-    ("Large", units.DENSITY_LARGE),
 ]
 
 
@@ -195,6 +190,7 @@ class LibraryTab(BaseTab):
         content_column.setSpacing(0)
         self.header = self._build_header()
         content_column.addWidget(self.header)
+        self.zoom_slider.zoom_on_ctrl_wheel(self.view.viewport())
         content_column.addLayout(below_header, 1)
 
         body = QHBoxLayout()
@@ -222,12 +218,7 @@ class LibraryTab(BaseTab):
         )
         row.setSpacing(units.LARGE_SPACING)
 
-        self.search_field = QLineEdit()
-        self.search_field.setPlaceholderText(SEARCH_DECKS_PLACEHOLDER)
-        self.search_field.setClearButtonEnabled(True)
-        self.search_field.addAction(
-            QIcon.fromTheme("search"), QLineEdit.ActionPosition.LeadingPosition
-        )
+        self.search_field = search_field(SEARCH_DECKS_PLACEHOLDER)
         self.search_field.textChanged.connect(self.on_search_changed)
         row.addWidget(self.search_field, 1)
 
@@ -238,12 +229,9 @@ class LibraryTab(BaseTab):
         self.sort_combo.currentIndexChanged.connect(self.on_sort_changed)
         row.addWidget(self.sort_combo)
 
-        self.density_combo = QComboBox()
-        for label, key in DENSITY_CHOICES:
-            self.density_combo.addItem(label, key)
-        self.density_combo.setToolTip("Cover size")
-        self.density_combo.currentIndexChanged.connect(self.on_density_changed)
-        row.addWidget(self.density_combo)
+        self.zoom_slider = ZoomSlider(units.DENSITIES, "Cover size", LIBRARY_DENSITY_DEFAULT)
+        self.zoom_slider.key_changed.connect(self.on_density_changed)
+        row.addWidget(self.zoom_slider)
 
         # Opens a deck folder where it is; it installs nothing, so not "Add"
         self.open_deck_button = QToolButton()
@@ -366,8 +354,7 @@ class LibraryTab(BaseTab):
         self._apply_view(view)
 
         density = self.settings.value(LIBRARY_DENSITY_KEY, LIBRARY_DENSITY_DEFAULT, type=str)
-        index = self.density_combo.findData(density)
-        self.density_combo.setCurrentIndex(index if index >= 0 else 1)
+        self.zoom_slider.set_key(density if density in units.DENSITIES else units.DENSITY_MEDIUM)
 
         sort_key = self.settings.value(LIBRARY_SORT_KEY, LIBRARY_SORT_DEFAULT, type=str)
         index = self.sort_combo.findData(sort_key)
@@ -375,7 +362,7 @@ class LibraryTab(BaseTab):
 
         # setCurrentIndex only emits when the index actually moves, so apply
         # both explicitly rather than relying on the signals above.
-        self._apply_density(self.density_combo.currentData())
+        self._apply_density(self.zoom_slider.key())
         self.proxy_model.set_sort_key(self.sort_combo.currentData())
 
     def _apply_density(self, density):
@@ -417,7 +404,7 @@ class LibraryTab(BaseTab):
             self._set_details_open(True)
 
         self.sort_combo.setVisible(decks)
-        self.density_combo.setVisible(decks)
+        self.zoom_slider.setVisible(decks)
         self.open_deck_button.setVisible(decks)
         self.search_field.setPlaceholderText(
             SEARCH_DECKS_PLACEHOLDER if decks else page.search_placeholder()
@@ -476,10 +463,18 @@ class LibraryTab(BaseTab):
         self.proxy_model.set_sort_key(key)
         self.settings.setValue(LIBRARY_SORT_KEY, key)
 
-    def on_density_changed(self):
-        density = self.density_combo.currentData()
+    def on_density_changed(self, density):
         self._apply_density(density)
         self.settings.setValue(LIBRARY_DENSITY_KEY, density)
+        self.zoom_state_changed()
+
+    # -- zoom ---------------------------------------------------------------
+
+    def can_zoom(self, how):
+        return self.zoom_slider.isVisibleTo(self) and self.zoom_slider.can_zoom(how)
+
+    def zoom(self, how):
+        self.zoom_slider.zoom(how)
 
     def on_current_changed(self, current, _previous):
         # Invalid when the search hides the selection: the pane keeps showing that deck

@@ -139,17 +139,18 @@ def test_activation_records_recency(library, monkeypatch):
 
 def test_sort_and_density_persist(library, qtbot):
     library.sort_combo.setCurrentIndex(library.sort_combo.findData(SORT_AUTHOR))
-    library.density_combo.setCurrentIndex(library.density_combo.findData(units.DENSITY_LARGE))
+    # It opens at Large, the Library's default
+    library.zoom_slider.out_button.click()
 
     settings = get_settings()
     assert settings.value(LIBRARY_SORT_KEY, type=str) == SORT_AUTHOR
-    assert settings.value(LIBRARY_DENSITY_KEY, type=str) == units.DENSITY_LARGE
-    assert library.delegate.density == units.DENSITY_LARGE
+    assert settings.value(LIBRARY_DENSITY_KEY, type=str) == units.DENSITY_MEDIUM
+    assert library.delegate.density == units.DENSITY_MEDIUM
     assert names(library) == ["Zodiac", "Aurora"]
 
 
 def test_saved_density_is_restored_on_a_new_tab(library, qtbot, monkeypatch):
-    library.density_combo.setCurrentIndex(library.density_combo.findData(units.DENSITY_SMALL))
+    library.zoom_slider.slider.setValue(units.DENSITIES.index(units.DENSITY_SMALL))
 
     monkeypatch.setattr(
         "tarot_canvas.ui.tabs.library_tab.deck_manager",
@@ -767,7 +768,7 @@ def test_the_esoterica_view_hides_sort_size_and_open_deck(sources, library, qtbo
     library.show_view(LIBRARY_VIEW_ESOTERICA)
 
     assert not library.sort_combo.isVisible()
-    assert not library.density_combo.isVisible()
+    assert not library.zoom_slider.isVisible()
     assert not library.open_deck_button.isVisible()
     assert library.search_field.isVisible()
     assert library.details_toggle.isVisible()
@@ -993,3 +994,52 @@ def test_the_pane_below_keeps_its_minimum_height(sources, shown_library):
     shown_library.splitter.setSizes([total, 0])
 
     assert shown_library.splitter.sizes()[1] >= LibraryTab.DETAILS_PANE_MIN_HEIGHT
+
+
+def test_view_zoom_sizes_the_covers_and_resets_to_large(library):
+    assert library.zoom_slider.key() == units.DENSITY_LARGE
+    assert not library.can_zoom("reset")
+
+    library.zoom("in")
+    assert library.delegate.density == units.DENSITY_EXTRA_LARGE
+    assert not library.can_zoom("in")
+    library.zoom("reset")
+
+    library.zoom("out")
+    library.zoom("out")
+    assert library.delegate.density == units.DENSITY_SMALL
+    assert not library.can_zoom("out")
+
+    library.zoom("reset")
+    assert library.delegate.density == units.DENSITY_LARGE
+
+
+def test_ctrl_wheel_over_the_grid_sizes_the_covers(library, qtbot):
+    from PyQt6.QtCore import QPoint, QPointF
+    from PyQt6.QtGui import QWheelEvent
+    from PyQt6.QtWidgets import QApplication
+
+    library.show()
+    qtbot.waitExposed(library)
+    viewport = library.view.viewport()
+    centre = viewport.rect().center()
+    event = QWheelEvent(
+        QPointF(centre),
+        QPointF(viewport.mapToGlobal(centre)),
+        QPoint(),
+        QPoint(0, -120),
+        Qt.MouseButton.NoButton,
+        Qt.KeyboardModifier.ControlModifier,
+        Qt.ScrollPhase.NoScrollPhase,
+        False,
+    )
+    QApplication.sendEvent(viewport, event)
+
+    assert library.delegate.density == units.DENSITY_MEDIUM
+
+
+def test_view_zoom_is_off_where_there_are_no_covers(library, qtbot):
+    from tarot_canvas.settings import LIBRARY_VIEW_NOTES
+
+    library.show_view(LIBRARY_VIEW_NOTES)
+    assert not any(library.can_zoom(how) for how in ("in", "out", "reset"))

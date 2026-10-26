@@ -61,7 +61,7 @@ from tarot_canvas.ui.canvas.motion import (
 )
 from tarot_canvas.ui.canvas.selection import GILT_ON_DARK, gilt_for_ground
 from tarot_canvas.ui.canvas.view import MAX_ZOOM, MIN_ZOOM
-from tarot_canvas.ui.card_transfer import card_from_mime, copy_card_to_clipboard, has_card
+from tarot_canvas.ui.card_transfer import cards_from_mime, copy_card_to_clipboard, has_card
 from tarot_canvas.ui.commands import Scope, set_tooltip_with_keys
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.utils.logger import logger
@@ -586,13 +586,27 @@ class CanvasTab(BaseTab):
         return item
 
     def place_card(self, mime, at=None):
-        """Resolve a card payload and place it; None if it names nothing installed"""
-        resolved = card_from_mime(mime, deck_manager.get_all_decks())
-        if resolved is None:
+        """Resolve a card payload and place every card in it (cascading)
+
+        Returns the first item placed
+        """
+        resolved = cards_from_mime(mime, deck_manager.get_all_decks())
+        if not resolved:
             logger.warning("Nothing placed: the card payload did not resolve")
             return None
-        card, deck, is_reversed = resolved
-        return self.add_specific_card(card, card_deck=deck, is_reversed=is_reversed, at=at)
+        placed = []
+        for card, deck, is_reversed in resolved:
+            if placed:
+                # Where the last card was centered
+                last = placed[-1]
+                at = last.pos() + QPointF(last.pixmap().width() / 2, last.pixmap().height() / 2)
+            item = self.add_specific_card(card, card_deck=deck, is_reversed=is_reversed, at=at)
+            if item is not None:
+                placed.append(item)
+        # Each placement selected only itself
+        for item in placed:
+            item.setSelected(True)
+        return placed[0] if placed else None
 
     def selected_cards(self):
         return [item for item in self.scene.selectedItems() if isinstance(item, DraggableCardItem)]

@@ -214,6 +214,43 @@ def minimal_deck():
     return TarotDeck(str(MINIMAL_DECK_PATH))
 
 
+FULL_DECK_ART_SIZE = (60, 100)
+
+
+def write_full_deck(root, name="Full Test Deck"):
+    """A 78-card deck with a tiny PNG per card, laid out as the minimal fixture is."""
+    from PyQt6.QtGui import QColor, QImage
+
+    from tarot_canvas.models.card_ids import CANONICAL_CARD_IDS
+
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "deck.toml").write_text(
+        f'[deck]\nname = "{name}"\nversion = "1.0.0"\n', encoding="utf-8"
+    )
+    image = QImage(*FULL_DECK_ART_SIZE, QImage.Format.Format_RGB32)
+    image.fill(QColor("steelblue"))
+    art = root / "art.png"
+    assert image.save(str(art))
+    png = art.read_bytes()
+    art.unlink()
+
+    folder = root / f"h{FULL_DECK_ART_SIZE[1]}"
+    for card_id in CANONICAL_CARD_IDS:
+        # major_arcana.00 -> major_arcana/00.png, minor_arcana.cups.ace -> minor_arcana/cups/ace.png
+        *parts, stem = card_id.split(".")
+        path = folder.joinpath(*parts, f"{stem}.png")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(png)
+    return root
+
+
+@pytest.fixture
+def full_deck(tmp_path, qapp):
+    from tarot_canvas.models.deck import TarotDeck
+
+    return TarotDeck(str(write_full_deck(tmp_path / "full")))
+
+
 @pytest.fixture(autouse=True)
 def stub_deck_manager(monkeypatch, minimal_deck):
     """Replace the import-time `deck_manager` global everywhere"""

@@ -662,13 +662,17 @@ class TarotDeck:
         Get all suits available in this deck.
 
         Returns:
-            list: List of suit names (e.g., ["wands", "cups", "swords", "pentacles"])
+            list: Canonical suits in SUITS order, then any other suit in the order its
+                cards appear (e.g., ["wands", "cups", "swords", "pentacles"])
         """
-        suits = set()
+        found = []
         for card in self._cards:
-            if card.get("type") == "minor_arcana" and "suit" in card:
-                suits.add(card["suit"])
-        return sorted(list(suits))
+            suit = card.get("suit")
+            if card.get("type") == "minor_arcana" and suit and suit not in found:
+                found.append(suit)
+        return [suit for suit in SUITS if suit in found] + [
+            suit for suit in found if suit not in SUITS
+        ]
 
     def get_cards_by_suit(self, suit):
         """

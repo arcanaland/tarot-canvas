@@ -111,14 +111,14 @@ def test_sort_size_and_open_deck_are_the_deck_views_alone(library, qtbot):
     assert library.sort_combo.isVisible()
     assert library.open_deck_button.isVisible()
 
-    assert library.density_combo.isVisible()
+    assert library.zoom_slider.isVisible()
 
     notes_view(library)
 
     assert not library.sort_combo.isVisible()
     assert not library.open_deck_button.isVisible()
     # The list has no covers to size; search serves both
-    assert not library.density_combo.isVisible()
+    assert not library.zoom_slider.isVisible()
     assert library.search_field.isVisible()
 
 

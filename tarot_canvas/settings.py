@@ -111,6 +111,9 @@ def get_reading_text_scale(settings=None):
 LIBRARY_DENSITY_KEY = "library/density"
 LIBRARY_DENSITY_DEFAULT = "large"
 
+DECK_VIEW_DENSITY_KEY = "deck_view/density"
+DECK_VIEW_DENSITY_DEFAULT = "medium"
+
 LIBRARY_SORT_KEY = "library/sort"
 LIBRARY_SORT_DEFAULT = "name"
 
