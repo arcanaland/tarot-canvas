@@ -45,6 +45,22 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="1.7.0" date="2026-10-31" type="development">
+      <description>
+        <p>This version overhauls the tarot deck view in several ways:</p>
+        <ul>
+          <li>Allow selecting, copying and pasting multiple cards to a canvas.</li>
+          <li>Provide multiple views for a tarot deck.</li>
+          <li>Search for cards within a deck.</li>
+        </ul>
+        <p>Minor changes:</p>
+        <ul>
+          <li>Fix dark mode / light mode toggle.</li>
+          <li>Improve performance of canvas motion by using GPU acceleration.</li>
+          <li>Update Flathub metadata.</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.6.3" date="2026-10-14" type="stable">
       <description>
         <ul>
