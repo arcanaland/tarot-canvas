@@ -218,7 +218,6 @@ class DeckViewTab(BaseTab):
         return grid
 
     def _build_tableau(self):
-        # Find dims the tableau's cards instead, so every slot stays put
         self.tableau_model = TableauModel(self.model, self)
         tableau = TableauView()
         tableau.setItemDelegate(self.delegate)
@@ -264,10 +263,10 @@ class DeckViewTab(BaseTab):
         self.mode = mode
         self.view_buttons[mode].setChecked(True)
 
-        # The stack would otherwise be as wide and as tall as the hidden view too
         for each, page in self._pages.items():
             policy = QSizePolicy.Policy.Preferred if each == mode else QSizePolicy.Policy.Ignored
             page.setSizePolicy(policy, policy)
+
         self.views.setCurrentWidget(self._pages[mode])
 
         new = self.current_view()

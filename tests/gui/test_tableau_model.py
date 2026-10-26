@@ -1,5 +1,3 @@
-"""The tableau: the majors in sevens under the Fool, then ranks by suit"""
-
 import pytest
 from PyQt6.QtCore import Qt
 

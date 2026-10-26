@@ -19,7 +19,6 @@ RANK_ORDER = {rank: position for position, rank in enumerate(PIPS + COURTS)}
 
 
 def name_matches(name, text):
-    """Find's test: a case-insensitive substring of the card's name"""
     return text.casefold() in (name or "").casefold()
 
 

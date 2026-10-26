@@ -1,7 +1,7 @@
 """The deck view's view switch"""
 
-SECTIONS_NAME = "<clankertext>Sections</clankertext>"
-SECTIONS_TOOLTIP = "<clankertext>Show the cards in sections</clankertext>"
-TABLEAU_NAME = "<clankertext>Tableau</clankertext>"
-TABLEAU_TOOLTIP = "<clankertext>Show the cards laid out by suit and rank</clankertext>"
-VIEW_BAR_NAME = "<clankertext>View</clankertext>"
+SECTIONS_NAME = "Sections"
+SECTIONS_TOOLTIP = "Show cards by arcana"
+TABLEAU_NAME = "Tableau"
+TABLEAU_TOOLTIP = "Show cards in tableau"
+VIEW_BAR_NAME = "View"

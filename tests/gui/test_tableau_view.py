@@ -1,5 +1,3 @@
-"""The deck view's tableau, its view switch, and what carries between the two views"""
-
 import json
 
 import pytest

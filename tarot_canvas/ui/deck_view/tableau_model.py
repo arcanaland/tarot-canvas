@@ -1,5 +1,3 @@
-"""One deck's cards laid out by its structure: the majors in sevens, then a rank by suit table"""
-
 from PyQt6.QtCore import QAbstractTableModel, QModelIndex, Qt
 
 from tarot_canvas.models.card_ids import COURTS, MAJOR_ARCANA_COUNT, PIPS, SUITS
@@ -38,7 +36,7 @@ def rank_label(deck, rank):
 
 
 class TableauModel(QAbstractTableModel):
-    """A grid over a CardModel: each cell is a card, a label, a ghost or nothing"""
+    """A grid over a CardModel"""
 
     def __init__(self, source, parent=None):
         super().__init__(parent)
@@ -100,6 +98,7 @@ class TableauModel(QAbstractTableModel):
 
         for _ in range(1 + (MAJOR_ARCANA_COUNT - 1) // MAJOR_COLUMNS):
             self._new_row()
+
         for number in range(MAJOR_ARCANA_COUNT):
             row, column = slot(number)
             source_row = by_number.get(number)
@@ -108,7 +107,7 @@ class TableauModel(QAbstractTableModel):
             else:
                 self._put_card(row, column, source_row, cards[source_row])
 
-        # Unnumbered, or numbered past XXI: sevens of their own, in number order
+        # Unnumbered, or numbered past 21
         others.sort(key=lambda r: (cards[r].get("number") is None, cards[r].get("number") or 0))
         for position, source_row in enumerate(others):
             if position % MAJOR_COLUMNS == 0:
@@ -116,7 +115,6 @@ class TableauModel(QAbstractTableModel):
             self._put_card(row, left + position % MAJOR_COLUMNS, source_row, cards[source_row])
 
     def _build_minors(self, deck, suits, minors, cards):
-        # Rounded up, so a fifth suit takes the column right of the majors' last
         left = (self._columns - len(suits)) // 2
 
         row = self._new_row(ROW_LABELS)

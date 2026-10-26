@@ -1,5 +1,3 @@
-"""A deck laid out by its structure, sized to show all of it"""
-
 from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtWidgets import QAbstractItemView, QFrame, QStyleOptionViewItem, QTableView
 
@@ -74,7 +72,7 @@ class TableauView(QTableView):
     # -- the keyboard -------------------------------------------------------
 
     def moveCursor(self, action, modifiers):
-        """Arrows step to the next card that way, over labels, ghosts and gaps"""
+        """Arrows step to the next card"""
         model = self.model()
         cells = model.card_cells() if model is not None else []
         if not cells:
