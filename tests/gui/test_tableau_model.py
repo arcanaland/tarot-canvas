@@ -164,7 +164,9 @@ def test_every_card_cell_maps_to_its_card_and_back(full_deck):
     assert not model.mapToSource(model.index(0, 0)).isValid()
 
 
-@pytest.mark.parametrize(("text", "dimmed"), [("", False), ("FOOL", False), ("king", True)])
+@pytest.mark.parametrize(
+    ("text", "dimmed"), [("", False), ("FOOL", False), ("0", False), ("king", True), ("KoW", True)]
+)
 def test_find_dims_the_cards_it_does_not_match(full_deck, text, dimmed):
     model = tableau(full_deck)
     model.set_find(text)

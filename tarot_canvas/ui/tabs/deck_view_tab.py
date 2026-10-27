@@ -317,6 +317,13 @@ class DeckViewTab(BaseTab):
         if card:
             self.card_action_requested.emit("double_click", card, self.deck)
 
+    def open_selection(self, index):
+        """A tab for each selected card, or for the card at index if none is"""
+        cards = self.selected_cards() or [index.data(CardRole)]
+        for card in cards:
+            if card:
+                self.card_action_requested.emit("double_click", card, self.deck)
+
     def on_current_changed(self, current, _previous):
         """Keep the keyboard's card on screen; the page scrolls, not the grid"""
         view = self.current_view()
@@ -332,9 +339,14 @@ class DeckViewTab(BaseTab):
     def card_menu(self, index):
         """Open + copy"""
         menu = QMenu(self)
-        open_action = menu.addAction(QIcon.fromTheme("document-open"), "&Open Card")
-        open_action.triggered.connect(lambda: self.on_card_activated(index))
-        copy_action = menu.addAction(QIcon.fromTheme("edit-copy"), "&Copy Card")
+        several = len(self.selected_source_rows()) > 1
+        open_action = menu.addAction(
+            QIcon.fromTheme("document-open"), "&Open Cards" if several else "&Open Card"
+        )
+        open_action.triggered.connect(lambda: self.open_selection(index))
+        copy_action = menu.addAction(
+            QIcon.fromTheme("edit-copy"), "&Copy Cards" if several else "&Copy Card"
+        )
         copy_action.triggered.connect(self.copy_card)
         canvas_action = menu.addAction(QIcon.fromTheme("draw-rectangle"), NEW_CANVAS_FROM_SELECTION)
         canvas_action.triggered.connect(self.new_canvas_from_selection)

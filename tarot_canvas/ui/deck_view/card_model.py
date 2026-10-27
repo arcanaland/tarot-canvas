@@ -3,6 +3,7 @@
 from PyQt6.QtCore import QAbstractListModel, QSortFilterProxyModel, Qt
 
 from tarot_canvas.models.card_ids import COURTS, PIPS
+from tarot_canvas.models.card_search import CardTerms, Query
 
 KindRole = Qt.ItemDataRole.UserRole + 1
 CardRole = Qt.ItemDataRole.UserRole + 2
@@ -16,10 +17,6 @@ KIND_CARD = "card"
 MAJOR_ARCANA_HEADING = "Major Arcana"
 
 RANK_ORDER = {rank: position for position, rank in enumerate(PIPS + COURTS)}
-
-
-def name_matches(name, text):
-    return text.casefold() in (name or "").casefold()
 
 
 def _major_key(card):
@@ -61,6 +58,7 @@ class CardModel(QAbstractListModel):
         super().__init__(parent)
         self._deck = deck
         self._rows = display_rows(deck)
+        self._terms = {}
 
     @property
     def deck(self):
@@ -69,6 +67,13 @@ class CardModel(QAbstractListModel):
     def card_rows(self):
         """Row of each card, in order"""
         return [row for row, (kind, _, _) in enumerate(self._rows) if kind == KIND_CARD]
+
+    def matches(self, row, query):
+        """Whether the card at row is found by query"""
+        terms = self._terms.get(row)
+        if terms is None:
+            terms = self._terms[row] = CardTerms(self._rows[row][2], self._deck.get_name())
+        return terms.tier(query) is not None
 
     def section_card_rows(self, row):
         """Rows of the cards under the heading at row"""
@@ -120,10 +125,10 @@ class CardModel(QAbstractListModel):
 class CardFilter(QSortFilterProxyModel):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._find = ""
+        self._find = Query("")
 
     def set_find(self, text):
-        self._find = text
+        self._find = Query(text)
         self.invalidateFilter()
 
     def filterAcceptsRow(self, source_row, source_parent):
@@ -132,7 +137,7 @@ class CardFilter(QSortFilterProxyModel):
             return True
 
         def found(row):
-            return name_matches(model.index(row, 0, source_parent).data(), self._find)
+            return model.matches(row, self._find)
 
         kind = model.index(source_row, 0, source_parent).data(KindRole)
         if kind == KIND_CARD:

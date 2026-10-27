@@ -222,6 +222,15 @@ def test_a_resize_lays_the_headings_out_again(qtbot, full_deck):
     qtbot.waitUntil(lambda: headings_span() and tab.grid.height() == wide)
 
 
+def test_a_resize_warns_neither_view(qtbot, qtlog, full_deck):
+    # The grid and the tableau share a delegate over different models
+    tab = shown(qtbot, full_deck.deck_path, width=1300, height=800)
+    tab.resize(700, 800)
+    qtbot.waitUntil(lambda: tab.grid.width() < 1300)
+    qtbot.wait(50)
+    assert not [r.message for r in qtlog.records if "does not belong" in r.message]
+
+
 def test_the_majors_wrap_instead_of_running_off_the_page(full_tab):
     grid = full_tab.grid
     majors = [grid.visualRect(index) for index in indexes(full_tab, KIND_CARD)[:22]]
@@ -333,6 +342,22 @@ def test_the_context_menu_offers_open_copy_and_a_new_canvas(full_tab, qtbot):
     assert opened.args[0] == "double_click"
     assert opened.args[1]["id"] == "major_arcana.00"
     assert opened.args[2] is full_tab.deck
+
+
+def test_open_opens_every_selected_card(full_tab):
+    full_tab.grid.setCurrentIndex(indexes(full_tab, KIND_CARD)[0])
+    press(full_tab, Qt.Key.Key_Right, Qt.KeyboardModifier.ShiftModifier)
+    press(full_tab, Qt.Key.Key_Right, Qt.KeyboardModifier.ShiftModifier)
+    opened = []
+    full_tab.card_action_requested.connect(lambda _action, card, _deck: opened.append(card["id"]))
+
+    actions = {
+        a.text().replace("&", ""): a
+        for a in full_tab.card_menu(full_tab.grid.currentIndex()).actions()
+    }
+    assert list(actions) == ["Open Cards", "Copy Cards", module.NEW_CANVAS_FROM_SELECTION]
+    actions["Open Cards"].trigger()
+    assert opened == ["major_arcana.00", "major_arcana.01", "major_arcana.02"]
 
 
 def test_activating_a_card_opens_it(full_tab, qtbot):

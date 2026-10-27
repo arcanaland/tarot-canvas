@@ -1,12 +1,12 @@
 from PyQt6.QtCore import QAbstractTableModel, QModelIndex, Qt
 
 from tarot_canvas.models.card_ids import COURTS, MAJOR_ARCANA_COUNT, PIPS, SUITS
+from tarot_canvas.models.card_search import Query
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.deck_view.card_model import (
     KIND_CARD,
     CardRole,
     KindRole,
-    name_matches,
 )
 
 KIND_LABEL = "label"
@@ -41,7 +41,7 @@ class TableauModel(QAbstractTableModel):
     def __init__(self, source, parent=None):
         super().__init__(parent)
         self._source = source
-        self._find = ""
+        self._find = Query("")
         self._cells = {}  # (row, column) -> (kind, text, source row or None)
         self._row_kinds = []
         self._to_source = {}
@@ -182,9 +182,9 @@ class TableauModel(QAbstractTableModel):
     # -- find ---------------------------------------------------------------
 
     def set_find(self, text):
-        if text == self._find:
+        if text == self._find.text:
             return
-        self._find = text
+        self._find = Query(text)
         for row, column in self.card_cells():
             index = self.index(row, column)
             self.dataChanged.emit(index, index, [DimmedRole])
@@ -212,7 +212,7 @@ class TableauModel(QAbstractTableModel):
 
         if kind == KIND_CARD:
             if role == DimmedRole:
-                return bool(self._find) and not name_matches(text, self._find)
+                return bool(self._find) and not self._source.matches(source_row, self._find)
             return self._source.index(source_row, 0).data(role)
 
         if role == KindRole:
