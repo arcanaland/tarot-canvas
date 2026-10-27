@@ -48,7 +48,8 @@ class SectionsView(QListView):
 
     def resizeEvent(self, event):
         if event.size().width() != event.oldSize().width() and self.model() is not None:
-            self.itemDelegate().lines_resized(self.model())
+            # Headings and notes are as wide as the view, so their size hints just changed
+            self.scheduleDelayedItemsLayout()
         super().resizeEvent(event)
 
     def wheelEvent(self, event):

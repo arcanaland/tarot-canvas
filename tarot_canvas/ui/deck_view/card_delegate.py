@@ -187,13 +187,6 @@ class CardDelegate(DeckDelegate):
         )
         return palette
 
-    def lines_resized(self, model):
-        """after the view's width changed"""
-        for row in range(model.rowCount()):
-            index = model.index(row, 0)
-            if index.data(KindRole) != KIND_CARD:
-                self.sizeHintChanged.emit(index)
-
     # -- painting ---------------------------------------------------------
 
     def paint(self, painter, option, index):

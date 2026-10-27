@@ -222,6 +222,15 @@ def test_a_resize_lays_the_headings_out_again(qtbot, full_deck):
     qtbot.waitUntil(lambda: headings_span() and tab.grid.height() == wide)
 
 
+def test_a_resize_warns_neither_view(qtbot, qtlog, full_deck):
+    # The grid and the tableau share a delegate over different models
+    tab = shown(qtbot, full_deck.deck_path, width=1300, height=800)
+    tab.resize(700, 800)
+    qtbot.waitUntil(lambda: tab.grid.width() < 1300)
+    qtbot.wait(50)
+    assert not [r.message for r in qtlog.records if "does not belong" in r.message]
+
+
 def test_the_majors_wrap_instead_of_running_off_the_page(full_tab):
     grid = full_tab.grid
     majors = [grid.visualRect(index) for index in indexes(full_tab, KIND_CARD)[:22]]
