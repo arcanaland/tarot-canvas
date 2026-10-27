@@ -118,6 +118,14 @@ def test_find_keeps_a_heading_only_while_a_card_under_it_matches(full_deck):
     ]
 
 
+@pytest.mark.parametrize(
+    ("text", "name"),
+    [("3oC", "Three of Cups"), ("QoS", "Queen of Swords"), ("XIII", "Death"), ("lust", "Strength")],
+)
+def test_find_takes_what_the_command_palette_takes(full_deck, text, name):
+    assert (KIND_CARD, name) in rows(found(full_deck, text))
+
+
 def test_an_empty_find_keeps_every_row(full_deck, minimal_deck):
     for deck in (full_deck, minimal_deck):
         assert rows(found(deck, "")) == rows(CardModel(deck))
