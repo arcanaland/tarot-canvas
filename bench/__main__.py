@@ -50,8 +50,8 @@ def parser():
     p.add_argument(
         "--cache",
         choices=("background", "none"),
-        default="background",
-        help="the view's cache mode; the app caches its background",
+        default="none",
+        help="the view's cache mode; the app caches nothing",
     )
     p.add_argument("--dpr", type=float, default=1.0, help="device pixel ratio (offscreen only)")
     p.add_argument(

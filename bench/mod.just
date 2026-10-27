@@ -22,14 +22,23 @@ run *args:
 
 [doc('Raster and GL inside a headless compositor, e.g. `just bench headless drag --cards 32`.')]
 [group('bench')]
-[script('bash')]
 headless *args:
+  @just bench in-compositor uv run python -u -m bench --platform wayland --viewport raster,gl "$@"
+
+[doc('What a GL canvas does to its window: surface recreation, memory, in a headless compositor.')]
+[group('bench')]
+window *args:
+  @just bench in-compositor uv run python -u -m bench.window "$@"
+
+[private]
+[script('bash')]
+in-compositor *cmd:
   set -euo pipefail
   out=$(mktemp -d)
   trap 'rm -rf "$out"' EXIT
   printf -v forwarded '%q ' "$@"
   cat >"$out/session.sh" <<EOF
-  uv run python -u -m bench --platform wayland --viewport raster,gl $forwarded >$out/stdout 2>$out/stderr
+  $forwarded >$out/stdout 2>$out/stderr
   echo \$? >$out/status
   EOF
   touch "$out/stdout"

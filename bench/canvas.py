@@ -1,5 +1,6 @@
 """A CanvasTab under benchmark conditions."""
 
+import os
 import random
 import time
 from pathlib import Path
@@ -11,6 +12,7 @@ from PyQt6.QtWidgets import QApplication
 from bench.env import BenchError
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
 from tarot_canvas.ui.canvas.detail import load_card_art
+from tarot_canvas.ui.canvas.renderer import RENDERER_ENV, canvas_uses_gl
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 
 SYNTHETIC_ART_SIZE = QSize(720, 1200)
@@ -80,18 +82,16 @@ def pump(ms):
 class BenchCanvas:
     """A CanvasTab to bench."""
 
-    def __init__(self, viewport="raster", size=DEFAULT_SIZE, art=(), cache_background=True):
+    def __init__(self, viewport="raster", size=DEFAULT_SIZE, art=(), cache_background=False):
         self.viewport_kind = viewport
         self.art = [(*load_card_art(str(path)), str(path)) for path in art]
         self.ambient = False
 
-        tab = CanvasTab()
-        if viewport == "gl":
-            self._use_gl(tab)
-        if not cache_background:
+        tab = self._canvas_tab(viewport)
+        if cache_background:
             from PyQt6.QtWidgets import QGraphicsView
 
-            tab.view.setCacheMode(QGraphicsView.CacheModeFlag.CacheNone)
+            tab.view.setCacheMode(QGraphicsView.CacheModeFlag.CacheBackground)
         tab.resize(size)
         tab.show()
         pump(SETTLE_MS)
@@ -114,18 +114,29 @@ class BenchCanvas:
             self._attach_gl()
 
     @staticmethod
-    def _use_gl(tab):
+    def _canvas_tab(viewport):
+        """A CanvasTab whose view chose the viewport kind asked for, as the app chooses it."""
         from PyQt6.QtOpenGLWidgets import QOpenGLWidget
-        from PyQt6.QtWidgets import QGraphicsView
 
-        platform = QApplication.platformName()
-        if platform == "offscreen":
+        if viewport == "gl" and QApplication.platformName() == "offscreen":
             raise BenchError(
                 "the offscreen platform cannot show a QOpenGLWidget; "
                 "run under a compositor, e.g. `just bench headless`"
             )
-        tab.view.setViewport(QOpenGLWidget())
-        tab.view.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.FullViewportUpdate)
+        previous = os.environ.get(RENDERER_ENV)
+        os.environ[RENDERER_ENV] = viewport
+        canvas_uses_gl.cache_clear()
+        try:
+            tab = CanvasTab()
+        finally:
+            if previous is None:
+                os.environ.pop(RENDERER_ENV, None)
+            else:
+                os.environ[RENDERER_ENV] = previous
+            canvas_uses_gl.cache_clear()
+        if isinstance(tab.view.viewport(), QOpenGLWidget) != (viewport == "gl"):
+            raise BenchError(f"the canvas did not choose a {viewport} viewport")
+        return tab
 
     def _attach_gl(self):
         """Resolve the viewport's GL entry points; they must be looked up while current."""
