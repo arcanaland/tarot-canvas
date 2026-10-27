@@ -70,11 +70,11 @@ ESOTERICA_TEXT = {
     "pattern.land.arcana/pattern/thoth": "Thoth",
     # The Library's view of every source. An empty string hides what it labels
     "library.view_name": "Esoterica",
-    "library.search_placeholder": "",
-    "library.empty": "",
-    "library.empty_no_match": "",
-    "library.details_toggle_show": "",
-    "library.details_toggle_hide": "",
+    "library.search_placeholder": "Search esoterica…",
+    "library.empty": "Nothing found",
+    "library.empty_no_match": "Nothing found",
+    "library.details_toggle_show": "Show details",
+    "library.details_toggle_hide": "Hide details",
     "library.checkbox_tooltip": "",
     # The list's sections
     "library.section.installed": "Installed",
