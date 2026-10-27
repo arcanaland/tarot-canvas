@@ -344,6 +344,22 @@ def test_the_context_menu_offers_open_copy_and_a_new_canvas(full_tab, qtbot):
     assert opened.args[2] is full_tab.deck
 
 
+def test_open_opens_every_selected_card(full_tab):
+    full_tab.grid.setCurrentIndex(indexes(full_tab, KIND_CARD)[0])
+    press(full_tab, Qt.Key.Key_Right, Qt.KeyboardModifier.ShiftModifier)
+    press(full_tab, Qt.Key.Key_Right, Qt.KeyboardModifier.ShiftModifier)
+    opened = []
+    full_tab.card_action_requested.connect(lambda _action, card, _deck: opened.append(card["id"]))
+
+    actions = {
+        a.text().replace("&", ""): a
+        for a in full_tab.card_menu(full_tab.grid.currentIndex()).actions()
+    }
+    assert list(actions) == ["Open Cards", "Copy Cards", module.NEW_CANVAS_FROM_SELECTION]
+    actions["Open Cards"].trigger()
+    assert opened == ["major_arcana.00", "major_arcana.01", "major_arcana.02"]
+
+
 def test_activating_a_card_opens_it(full_tab, qtbot):
     second = indexes(full_tab, KIND_CARD)[1]
     with qtbot.waitSignal(full_tab.card_action_requested, timeout=1000) as opened:
