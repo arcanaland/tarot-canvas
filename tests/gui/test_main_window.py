@@ -1,7 +1,13 @@
 import pytest
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QPoint, Qt
 from PyQt6.QtGui import QAction, QKeySequence, QShortcut
-from PyQt6.QtWidgets import QWIDGETSIZE_MAX, QApplication, QTabWidget, QToolButton
+from PyQt6.QtWidgets import (
+    QWIDGETSIZE_MAX,
+    QApplication,
+    QInputDialog,
+    QTabWidget,
+    QToolButton,
+)
 
 from tarot_canvas.settings import EXPLORER_VISIBLE_KEY, get_settings
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
@@ -607,6 +613,132 @@ def test_middle_click_closes_exactly_one_tab(qtbot):
     assert window.tab_widget.count() == count_before - 1
     assert window.tab_widget.indexOf(doomed) == -1
     assert window.tab_widget.indexOf(survivor) != -1
+
+
+def canvases(window):
+    tabs = window.tab_widget
+    return [tabs.widget(i) for i in range(tabs.count()) if isinstance(tabs.widget(i), CanvasTab)]
+
+
+def test_double_clicking_beside_the_tabs_opens_one_canvas(qtbot):
+    window = make_shown_window(qtbot)
+    window.new_canvas_tab()
+    tab_bar = window.tab_widget.tabBar()
+    last = tab_bar.tabRect(tab_bar.count() - 1)
+    beside = last.center() + QPoint(last.width(), 0)
+    assert tab_bar.rect().contains(beside), "the bar runs on past its tabs"
+
+    qtbot.mouseDClick(tab_bar, Qt.MouseButton.LeftButton, pos=beside)
+
+    assert len(canvases(window)) == 2
+    assert window.tab_widget.currentWidget() is canvases(window)[-1]
+
+
+def stub_rename_dialog(monkeypatch, answer=("", False)):
+    calls = []
+
+    def get_text(*args, **kwargs):
+        calls.append(kwargs.get("text"))
+        return answer
+
+    monkeypatch.setattr(QInputDialog, "getText", get_text)
+    return calls
+
+
+def test_double_clicking_a_tab_neither_opens_nor_renames(qtbot, monkeypatch):
+    """Renaming moved to the context menu, as in other KDE tabbed apps."""
+    renames = stub_rename_dialog(monkeypatch)
+    window = make_shown_window(qtbot)
+    window.new_canvas_tab()
+    tab_bar = window.tab_widget.tabBar()
+
+    qtbot.mouseDClick(tab_bar, Qt.MouseButton.LeftButton, pos=tab_bar.tabRect(0).center())
+
+    assert len(canvases(window)) == 1
+    assert renames == []
+
+
+def test_double_clicking_below_the_strip_opens_nothing(qtbot):
+    window = make_shown_window(qtbot)
+    window.new_canvas_tab()
+
+    page = window.tab_widget.rect().center()
+    qtbot.mouseDClick(window.tab_widget, Qt.MouseButton.LeftButton, pos=page)
+
+    assert len(canvases(window)) == 1
+
+
+def menu_labels(menu):
+    return [action.text() for action in menu.actions() if not action.isSeparator()]
+
+
+def test_a_tabs_context_menu_offers_rename_and_close(qtbot):
+    window = make_shown_window(qtbot)
+    window.new_canvas_tab()
+
+    menu = window.tab_context_menu(0)
+
+    assert menu_labels(menu) == ["Rename tab…", "Close tab"]
+    assert all(action.isEnabled() for action in menu.actions())
+
+
+def test_only_a_canvas_tab_can_be_renamed(qtbot):
+    window = make_shown_window(qtbot)
+    window.new_library_action.trigger()
+
+    rename, close = window.tab_context_menu(0).actions()
+
+    assert not rename.isEnabled()
+    assert close.isEnabled()
+
+
+def test_rename_tab_renames_the_tab_it_was_opened_on(qtbot, monkeypatch):
+    renames = stub_rename_dialog(monkeypatch, answer=("Celtic Cross", True))
+    window = make_shown_window(qtbot)
+    first = window.new_canvas_tab()
+    window.new_canvas_tab()  # current, and not the one clicked
+
+    rename, _ = window.tab_context_menu(window.tab_widget.indexOf(first)).actions()
+    rename.trigger()
+
+    assert renames == ["Canvas"]
+    assert window.tab_widget.tabText(window.tab_widget.indexOf(first)) == "Celtic Cross"
+    assert first.tab_name == "Celtic Cross"
+
+
+def test_close_tab_closes_the_tab_it_was_opened_on(qtbot):
+    window = make_shown_window(qtbot)
+    doomed = window.new_canvas_tab()
+    survivor = window.new_canvas_tab()  # current, and not the one clicked
+
+    _, close = window.tab_context_menu(window.tab_widget.indexOf(doomed)).actions()
+    close.trigger()
+
+    assert window.tab_widget.indexOf(doomed) == -1
+    assert window.tab_widget.indexOf(survivor) != -1
+
+
+def test_the_welcome_tab_can_be_neither_renamed_nor_closed(qtbot):
+    window = make_shown_window(qtbot)
+    assert window.tab_widget.tabText(0) == "Welcome"
+
+    rename, close = window.tab_context_menu(0).actions()
+
+    assert not rename.isEnabled()
+    assert not close.isEnabled()
+
+
+def test_a_canvas_renamed_welcome_is_not_taken_for_the_welcome_tab(qtbot, monkeypatch):
+    stub_rename_dialog(monkeypatch, answer=("Welcome", True))
+    window = make_shown_window(qtbot)
+    canvas = window.new_canvas_tab()
+    window.show_tab_rename_dialog(window.tab_widget.indexOf(canvas))
+
+    rename, close = window.tab_context_menu(window.tab_widget.indexOf(canvas)).actions()
+    assert rename.isEnabled() and close.isEnabled()
+
+    window.new_library_action.trigger()
+    assert window.tab_widget.indexOf(canvas) != -1
 
 
 def file_menu(window):
