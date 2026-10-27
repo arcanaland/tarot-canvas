@@ -594,6 +594,10 @@ class CanvasTab(BaseTab):
         if not resolved:
             logger.warning("Nothing placed: the card payload did not resolve")
             return None
+        return self.place_cards(resolved, at)
+
+    def place_cards(self, resolved, at=None):
+        """Place multiple cards"""
         placed = []
         for card, deck, is_reversed in resolved:
             if placed:
@@ -601,11 +605,14 @@ class CanvasTab(BaseTab):
                 last = placed[-1]
                 at = last.pos() + QPointF(last.pixmap().width() / 2, last.pixmap().height() / 2)
             item = self.add_specific_card(card, card_deck=deck, is_reversed=is_reversed, at=at)
+
             if item is not None:
                 placed.append(item)
+
         # Each placement selected only itself
         for item in placed:
             item.setSelected(True)
+
         return placed[0] if placed else None
 
     def selected_cards(self):

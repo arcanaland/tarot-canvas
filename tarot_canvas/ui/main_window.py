@@ -539,6 +539,11 @@ class MainWindow(QMainWindow):
 
         return canvas_tab
 
+    def new_canvas_from_cards(self, cards, deck):
+        canvas_tab = self.new_canvas_tab()
+        canvas_tab.place_cards([(card, deck, False) for card in cards])
+        return canvas_tab
+
     def next_canvas_name(self):
         """Canvas, then Canvas (2), Canvas (3)..., reusing the lowest name no tab holds"""
         taken = {self.tab_widget.tabText(i) for i in range(self.tab_widget.count())}
@@ -652,6 +657,7 @@ class MainWindow(QMainWindow):
         try:
             deck_tab = DeckViewTab(deck_path=deck_path)
             deck_tab.card_action_requested.connect(self.on_card_action_requested)
+            deck_tab.new_canvas_requested.connect(self.new_canvas_from_cards)
 
             # Close welcome tab if needed
             self.close_welcome_tab()

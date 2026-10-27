@@ -18,6 +18,10 @@ MAJOR_ARCANA_HEADING = "Major Arcana"
 RANK_ORDER = {rank: position for position, rank in enumerate(PIPS + COURTS)}
 
 
+def name_matches(name, text):
+    return text.casefold() in (name or "").casefold()
+
+
 def _major_key(card):
     number = card.get("number")
     return (number is None, number or 0)
@@ -116,18 +120,23 @@ class CardModel(QAbstractListModel):
 class CardFilter(QSortFilterProxyModel):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self._find = ""
+
+    def set_find(self, text):
+        self._find = text
+        self.invalidateFilter()
 
     def filterAcceptsRow(self, source_row, source_parent):
         model = self.sourceModel()
-        if not self.filterRegularExpression().pattern():
+        if not self._find:
             return True
-        name_matches = super().filterAcceptsRow
+
+        def found(row):
+            return name_matches(model.index(row, 0, source_parent).data(), self._find)
+
         kind = model.index(source_row, 0, source_parent).data(KindRole)
         if kind == KIND_CARD:
-            return name_matches(source_row, source_parent)
+            return found(source_row)
         if kind == KIND_HEADING:
-            return any(
-                name_matches(row, source_parent) for row in model.section_card_rows(source_row)
-            )
+            return any(found(row) for row in model.section_card_rows(source_row))
         return False
