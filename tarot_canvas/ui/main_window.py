@@ -582,7 +582,6 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def is_welcome_tab(tab):
-        # By the page, not its title: a canvas can be renamed "Welcome"
         return tab is not None and tab.objectName() == WELCOME_TAB_NAME
 
     @staticmethod

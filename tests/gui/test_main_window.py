@@ -646,7 +646,6 @@ def stub_rename_dialog(monkeypatch, answer=("", False)):
 
 
 def test_double_clicking_a_tab_neither_opens_nor_renames(qtbot, monkeypatch):
-    """Renaming moved to the context menu, as in other KDE tabbed apps."""
     renames = stub_rename_dialog(monkeypatch)
     window = make_shown_window(qtbot)
     window.new_canvas_tab()
