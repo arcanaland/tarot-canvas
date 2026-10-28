@@ -23,6 +23,8 @@ from tarot_canvas.settings import (
     BACKGROUND_STYLE_KEY,
     CANVAS_TAB_MINIMAP_DEFAULT,
     CANVAS_TAB_MINIMAP_KEY,
+    CHECKERBOARD_COLOR_DEFAULT,
+    CHECKERBOARD_COLOR_KEY,
     MOTION_LEVEL_DEFAULT,
     MOTION_LEVEL_KEY,
     PREFERENCES_GEOMETRY_KEY,
@@ -53,6 +55,8 @@ BACKGROUND_STYLE_LABELS = (
     ("gradient", "Gradient"),
     ("solid", "Solid Color"),
 )
+# The styles drawn from a colour the user picks
+COLOURED_BACKGROUND_STYLES = ("checkerboard", "solid")
 
 MOTION_LEVEL_LABELS = (
     ("Off", "None"),
@@ -90,6 +94,7 @@ class PreferencesDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Preferences")
         self.bg_color = QColor(BACKGROUND_COLOR_DEFAULT)
+        self.checkerboard_color = QColor(CHECKERBOARD_COLOR_DEFAULT)
         self.stored_state = None
 
         self.page_list = PlacesSidebar(
@@ -198,7 +203,7 @@ class PreferencesDialog(QDialog):
         form = pane_form()
 
         self.bg_combo = keyed_combo(BACKGROUND_STYLE_LABELS)
-        self.bg_combo.currentIndexChanged.connect(self.update_swatch_visibility)
+        self.bg_combo.currentIndexChanged.connect(self.update_swatch)
 
         self.bg_color_btn = QToolButton()
         self.bg_color_btn.setToolTip(PREFERENCES_TEXT["background_colour"])
@@ -239,12 +244,24 @@ class PreferencesDialog(QDialog):
         self.shortcuts_page = ShortcutsPage()
         return self.shortcuts_page
 
-    def update_swatch_visibility(self):
-        self.bg_color_btn.setVisible(self.bg_combo.currentData() == "solid")
+    def swatch_color(self):
+        """The selected style's own colour, which the one swatch shows and edits"""
+        if self.bg_combo.currentData() == "checkerboard":
+            return self.checkerboard_color
+        return self.bg_color
+
+    def update_swatch(self):
+        self.bg_color_btn.setVisible(self.bg_combo.currentData() in COLOURED_BACKGROUND_STYLES)
+        self.bg_color_btn.setIcon(self.swatch_icon(self.swatch_color()))
 
     def set_bg_color(self, color):
         self.bg_color = QColor(color)
-        self.bg_color_btn.setIcon(self.swatch_icon(self.bg_color))
+        self.update_swatch()
+        self.update_apply_button()
+
+    def set_checkerboard_color(self, color):
+        self.checkerboard_color = QColor(color)
+        self.update_swatch()
         self.update_apply_button()
 
     def swatch_icon(self, color):
@@ -267,8 +284,12 @@ class PreferencesDialog(QDialog):
         return QIcon(pixmap)
 
     def select_bg_color(self):
-        color = QColorDialog.getColor(initial=self.bg_color, parent=self)
-        if color.isValid():
+        color = QColorDialog.getColor(initial=self.swatch_color(), parent=self)
+        if not color.isValid():
+            return
+        if self.bg_combo.currentData() == "checkerboard":
+            self.set_checkerboard_color(color)
+        else:
             self.set_bg_color(color)
 
     def form_state(self):
@@ -278,6 +299,7 @@ class PreferencesDialog(QDialog):
             self.text_size_combo.currentData(),
             self.bg_combo.currentData(),
             self.bg_color.name(),
+            self.checkerboard_color.name(),
             self.motion_combo.currentData(),
             self.canvas_tab_minimap_check.isChecked(),
             self.show_available_decks_check.isChecked(),
@@ -290,15 +312,26 @@ class PreferencesDialog(QDialog):
             self.stored_state is not None and self.form_state() != self.stored_state
         )
 
-    def show_state(self, theme, text_size, background, colour, motion, tab_minimap, show_available):
+    def show_state(
+        self,
+        theme,
+        text_size,
+        background,
+        colour,
+        checkerboard_colour,
+        motion,
+        tab_minimap,
+        show_available,
+    ):
         select_data(self.theme_combo, theme)
         select_data(self.text_size_combo, text_size)
         select_data(self.bg_combo, background)
         select_data(self.motion_combo, motion)
         self.set_bg_color(colour)
+        self.set_checkerboard_color(checkerboard_colour)
         self.canvas_tab_minimap_check.setChecked(tab_minimap)
         self.show_available_decks_check.setChecked(show_available)
-        self.update_swatch_visibility()
+        self.update_swatch()
         self.update_apply_button()
 
     def load_settings(self):
@@ -308,6 +341,7 @@ class PreferencesDialog(QDialog):
             typography.reading_scale(),
             get_background_style(settings),
             settings.value(BACKGROUND_COLOR_KEY, BACKGROUND_COLOR_DEFAULT),
+            settings.value(CHECKERBOARD_COLOR_KEY, CHECKERBOARD_COLOR_DEFAULT),
             get_motion_level(settings),
             bool(settings.value(CANVAS_TAB_MINIMAP_KEY, CANVAS_TAB_MINIMAP_DEFAULT, type=bool)),
             bool(settings.value(SHOW_AVAILABLE_DECKS_KEY, SHOW_AVAILABLE_DECKS_DEFAULT, type=bool)),
@@ -322,6 +356,7 @@ class PreferencesDialog(QDialog):
             READING_TEXT_SCALE_DEFAULT,
             BACKGROUND_STYLE_DEFAULT,
             BACKGROUND_COLOR_DEFAULT,
+            CHECKERBOARD_COLOR_DEFAULT,
             MOTION_LEVEL_DEFAULT,
             CANVAS_TAB_MINIMAP_DEFAULT,
             SHOW_AVAILABLE_DECKS_DEFAULT,
@@ -333,6 +368,7 @@ class PreferencesDialog(QDialog):
         settings.setValue(BACKGROUND_STYLE_KEY, self.bg_combo.currentData())
         settings.setValue(MOTION_LEVEL_KEY, self.motion_combo.currentData())
         settings.setValue(BACKGROUND_COLOR_KEY, self.bg_color.name())
+        settings.setValue(CHECKERBOARD_COLOR_KEY, self.checkerboard_color.name())
         settings.setValue(CANVAS_TAB_MINIMAP_KEY, self.canvas_tab_minimap_check.isChecked())
         settings.setValue(SHOW_AVAILABLE_DECKS_KEY, self.show_available_decks_check.isChecked())
 

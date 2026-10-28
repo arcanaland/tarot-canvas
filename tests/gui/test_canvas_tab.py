@@ -15,10 +15,12 @@ from tarot_canvas.settings import (
     BACKGROUND_COLOR_KEY,
     BACKGROUND_STYLE_KEY,
     CANVAS_TAB_MINIMAP_KEY,
+    CHECKERBOARD_COLOR_KEY,
     MOTION_LEVEL_KEY,
     get_settings,
 )
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
+from tarot_canvas.ui.canvas.ground import CHECKERBOARD_SQUARE, checkerboard_partner
 from tarot_canvas.ui.canvas.icons import CanvasIcon
 from tarot_canvas.ui.canvas.motion import LIFT_SELECTED
 from tarot_canvas.ui.canvas.selection import GILT_ON_DARK, GILT_ON_LIGHT
@@ -677,6 +679,26 @@ def test_a_light_solid_background_takes_the_dark_gilt(qtbot):
     tab.apply_background_settings()
 
     assert tab.gilt == QColor(GILT_ON_LIGHT)
+
+
+def test_the_checkerboard_is_the_stored_colour_and_its_partner(qtbot):
+    tab = make_tab(qtbot)
+    settings = get_settings()
+    settings.setValue(BACKGROUND_STYLE_KEY, "checkerboard")
+    settings.setValue(CHECKERBOARD_COLOR_KEY, "#35654d")
+    settings.sync()
+
+    tab.apply_background_settings()
+
+    tile = tab.view.backgroundBrush().texture().toImage()
+    colour = QColor("#35654d")
+    assert tile.width() == tile.height() == 2 * CHECKERBOARD_SQUARE
+    assert tile.pixelColor(10, 10) == colour
+    assert tile.pixelColor(tile.width() - 10, tile.height() - 10) == colour
+    assert tile.pixelColor(tile.width() - 10, 10) == checkerboard_partner(colour)
+    assert tile.pixelColor(10, tile.height() - 10) == checkerboard_partner(colour)
+    # A dark board takes the light gilt, as a dark solid ground does
+    assert tab.gilt == QColor(GILT_ON_DARK)
 
 
 def press_and_move(tab, card, by):

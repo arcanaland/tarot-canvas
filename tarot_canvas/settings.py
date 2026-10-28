@@ -11,7 +11,6 @@ SETTINGS_APPLICATION = "TarotCanvas"
 BACKGROUND_STYLE_KEY = "appearance/background_style"
 BACKGROUND_STYLE_DEFAULT = "gradient"
 BACKGROUND_STYLES = ("checkerboard", "gradient", "solid")
-# Before the key was stored, the combo's label was
 LEGACY_BACKGROUND_STYLES = {
     "Checkerboard": "checkerboard",
     "Gradient": "gradient",
@@ -20,6 +19,9 @@ LEGACY_BACKGROUND_STYLES = {
 
 BACKGROUND_COLOR_KEY = "appearance/background_color"
 BACKGROUND_COLOR_DEFAULT = "#1e1432"
+
+CHECKERBOARD_COLOR_KEY = "appearance/checkerboard_color"
+CHECKERBOARD_COLOR_DEFAULT = "#a3a3a3"
 
 ANIMATIONS_ENABLED_KEY = "appearance/enable_animations"
 ANIMATIONS_ENABLED_DEFAULT = True

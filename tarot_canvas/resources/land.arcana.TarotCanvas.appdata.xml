@@ -46,9 +46,20 @@
   </screenshots>
   <releases>
     <!--
-    <release version="1.7.1" date="2026-10-31" type="development">
+    <release version="1.7.x" date="2026-11-xx" type="development">
           <li>Improve performance of canvas motion by using GPU acceleration.</li>
      -->
+    <release version="1.7.1" date="2026-10-31" type="development">
+      <description>
+        <p>This version provides minor quality-of-life improvements:</p>
+        <ul>
+          <li>The icon for canvas tabs now show a colorful minimap.</li>
+          <li>Right-clicking a tab now opens a menu (for renaming a canvas).</li>
+          <li>Double-clicking the tab bar opens a new canvas tab.</li>
+          <li>Allow selection of checkerboard color in the canvas settings.</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.7.0" date="2026-10-27" type="stable">
       <description>
         <p>This version overhauls the tarot deck view in several ways:</p>
