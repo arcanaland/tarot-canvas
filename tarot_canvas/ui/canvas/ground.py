@@ -2,20 +2,16 @@ import math
 
 from PyQt6.QtGui import QColor
 
-# The canvas's default radial gradient, centre to edge
+# The canvas's default radial gradient, center to edge
 GRADIENT_STOPS = (
     (0.0, QColor(50, 30, 80)),
     (0.5, QColor(30, 18, 60)),
     (1.0, QColor(15, 10, 30)),
 )
 
-# The checkerboard's two squares, as a WCAG luminance contrast ratio. GIMP's three check
-# pairs and the old lavender board all sit near 1.6; a board under cards can be quieter
 CHECKERBOARD_CONTRAST = 1.35
-# Each square's side, in scene units, so it scales with the zoom
+# Each square's side in scene units
 CHECKERBOARD_SQUARE = 80
-# OKLab lightness at or above which the second square is the darker one. Below it, darkening
-# runs toward black, where sRGB has no chroma left to hold the hue
 CHECKERBOARD_DARKEN_FROM = 0.6
 _BISECTIONS = 40
 _GAMUT_EPSILON = 1e-6
@@ -44,8 +40,8 @@ def _contrast(y1, y2):
     return (max(y1, y2) + 0.05) / (min(y1, y2) + 0.05)
 
 
+# The clanker provided the following citation for this mess of floats:
 # Björn Ottosson, "A perceptual color space for image processing" (2020). The cone_* are its
-# long, medium and short cone responses
 def _to_oklab(rgb):
     r, g, b = rgb
     cone_l = math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b)
@@ -75,7 +71,7 @@ def _in_gamut(rgb):
 
 
 def _fit(lightness, chroma, hue):
-    """Linear sRGB at this OKLCH, chroma reduced until it fits, as CSS Color 4 maps gamut"""
+    """Linear sRGB at this OKLCH, chroma reduced until it fits"""
 
     def at(c):
         return _from_oklab((lightness, c * math.cos(hue), c * math.sin(hue)))
@@ -94,7 +90,7 @@ def _fit(lightness, chroma, hue):
 
 
 def checkerboard_partner(color, contrast=CHECKERBOARD_CONTRAST):
-    """The checkerboard's other square: `color` lighter or darker, holding its OKLCH hue"""
+    """The checkerboard's other square (lighter or darker)"""
     color = QColor(color)
     rgb = tuple(_decode(channel) for channel in (color.redF(), color.greenF(), color.blueF()))
     y = _luminance(rgb)
@@ -117,5 +113,6 @@ def checkerboard_partner(color, contrast=CHECKERBOARD_CONTRAST):
             low = mid
         else:
             high = mid
+
     partner = _fit((low + high) / 2, chroma, hue)
     return QColor(*(round(_encode(channel) * 255) for channel in partner))
