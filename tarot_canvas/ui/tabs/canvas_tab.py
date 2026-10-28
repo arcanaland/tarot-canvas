@@ -53,6 +53,7 @@ from tarot_canvas.ui.canvas.detail import (
     DETAIL_VISIBLE_MARGIN,
     load_card_art,
 )
+from tarot_canvas.ui.canvas.ground import GRADIENT_STOPS
 from tarot_canvas.ui.canvas.motion import (
     AMBIENT_GAIN_FLOOR,
     MotionClock,
@@ -60,6 +61,13 @@ from tarot_canvas.ui.canvas.motion import (
     system_animations_enabled,
 )
 from tarot_canvas.ui.canvas.selection import GILT_ON_DARK, gilt_for_ground
+from tarot_canvas.ui.canvas.tab_icon import (
+    MINIMAP,
+    card_marks,
+    layout_marks,
+    snapped,
+    spread_icon,
+)
 from tarot_canvas.ui.canvas.view import MAX_ZOOM, MIN_ZOOM
 from tarot_canvas.ui.card_transfer import cards_from_mime, copy_card_to_clipboard, has_card
 from tarot_canvas.ui.commands import Scope, set_tooltip_with_keys
@@ -89,6 +97,13 @@ class CanvasTab(BaseTab):
         self.motion_level = MOTION_LEVEL_DEFAULT
         self.desktop_wants_animation = True
         self.gilt = QColor(GILT_ON_DARK)
+
+        self._tab_marks = ()
+        self._tab_icon = CanvasIcon()
+        self._tab_icon_timer = QTimer(self)
+        self._tab_icon_timer.setSingleShot(True)
+        self._tab_icon_timer.setInterval(0)
+        self._tab_icon_timer.timeout.connect(self.refresh_tab_icon)
 
         self.setup_ui()
         self.deck = deck_manager.get_reference_deck()
@@ -245,11 +260,13 @@ class CanvasTab(BaseTab):
         if card not in self._cards:
             self._cards.append(card)
             self.schedule_detail()
+            self.schedule_tab_icon()
 
     def unregister_card(self, card):
         """Called by a card when it leaves this tab's scene."""
         if card in self._cards:
             self._cards.remove(card)
+            self.schedule_tab_icon()
 
     def _advance_motion(self, t, dt):
         """Step every card on this canvas one frame"""
@@ -287,9 +304,7 @@ class CanvasTab(BaseTab):
         radius = 800
         gradient = QRadialGradient(center, radius)
 
-        gradient.setColorAt(0, QColor(50, 30, 80))  # Center - medium purple
-        gradient.setColorAt(0.5, QColor(30, 18, 60))  # Middle - darker purple
-        gradient.setColorAt(1, QColor(15, 10, 30))  # Edge - very dark purple
+        gradient.setStops(GRADIENT_STOPS)
 
         brush = QBrush(gradient)
         self.scene.setBackgroundBrush(brush)
@@ -911,8 +926,20 @@ class CanvasTab(BaseTab):
             return QCursor.pos()
         return button.mapToGlobal(QPoint(0, button.height()))
 
+    def schedule_tab_icon(self):
+        self._tab_icon_timer.start()
+
+    def refresh_tab_icon(self):
+        """Redraw the tab icon if the spread's snapped marks have changed"""
+        marks = snapped(layout_marks(card_marks(self._cards), MINIMAP.max_fill))
+        if marks == self._tab_marks:
+            return
+        self._tab_marks = marks
+        self._tab_icon = spread_icon(marks) if marks else CanvasIcon()
+        self.update_tab_icon()
+
     def update_tab_icon(self):
-        """Update the tab with a canvas icon"""
+        """Show the tab icon on this tab"""
         parent = self.parent()
         if parent:
             # Find the tab widget that contains this widget
@@ -930,6 +957,4 @@ class CanvasTab(BaseTab):
             if tab_widget:
                 index = tab_widget.indexOf(self)
                 if index >= 0:
-                    # Create and set a canvas icon
-                    canvas_icon = CanvasIcon()
-                    tab_widget.setTabIcon(index, canvas_icon)
+                    tab_widget.setTabIcon(index, self._tab_icon)

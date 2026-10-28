@@ -9,7 +9,7 @@ from PyQt6.QtGui import (
     QMouseEvent,
     QPixmap,
 )
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QTabWidget
 
 from tarot_canvas.settings import (
     BACKGROUND_COLOR_KEY,
@@ -18,6 +18,7 @@ from tarot_canvas.settings import (
     get_settings,
 )
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
+from tarot_canvas.ui.canvas.icons import CanvasIcon
 from tarot_canvas.ui.canvas.motion import LIFT_SELECTED
 from tarot_canvas.ui.canvas.selection import GILT_ON_DARK, GILT_ON_LIGHT
 from tarot_canvas.ui.card_transfer import card_mime_data, cards_mime_data, copy_card_to_clipboard
@@ -805,4 +806,46 @@ def test_zooming_in_sharpens_the_cards_on_screen_and_only_those(qtbot, tmp_path)
 
     assert far.detail() <= max(1, round(dpr))
     QThreadPool.globalInstance().waitForDone()
+    qtbot.wait(1100)
+
+
+class CountingTabWidget(QTabWidget):
+    def __init__(self):
+        super().__init__()
+        self.icons_set = 0
+
+    def setTabIcon(self, index, icon):
+        self.icons_set += 1
+        super().setTabIcon(index, icon)
+
+
+def is_plain(tabs):
+    page = tabs.widget(0)
+    return (
+        isinstance(page._tab_icon, CanvasIcon)
+        and tabs.tabIcon(0).cacheKey() == page._tab_icon.cacheKey()
+    )
+
+
+def test_the_tab_icon_maps_the_spread(qtbot):
+    tabs = CountingTabWidget()
+    qtbot.addWidget(tabs)
+    tab = CanvasTab()
+    tabs.addTab(tab, "Canvas")
+    tabs.show()
+    qtbot.waitUntil(lambda: tabs.icons_set == 1)
+    assert is_plain(tabs)
+
+    add_cards(tab, 1)
+    card = canvas_cards(tab)[0]
+    qtbot.waitUntil(lambda: tabs.icons_set == 2)
+    assert not is_plain(tabs)
+
+    card.setPos(card.pos() + QPointF(1, 0))
+    qtbot.wait(10)
+    assert tabs.icons_set == 2
+
+    tab.scene.removeItem(card)
+    qtbot.waitUntil(lambda: tabs.icons_set == 3)
+    assert is_plain(tabs)
     qtbot.wait(1100)
