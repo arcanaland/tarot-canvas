@@ -9,6 +9,8 @@ from tarot_canvas.settings import (
     BACKGROUND_STYLE_DEFAULT,
     BACKGROUND_STYLE_KEY,
     CANVAS_TAB_MINIMAP_KEY,
+    CHECKERBOARD_COLOR_DEFAULT,
+    CHECKERBOARD_COLOR_KEY,
     MOTION_LEVEL_DEFAULT,
     MOTION_LEVEL_KEY,
     MOTION_LEVELS,
@@ -103,13 +105,53 @@ def test_the_dialog_opens_at_the_size_it_was_left(qtbot):
     assert reopened.size() == size
 
 
-def test_the_swatch_is_shown_only_for_a_solid_background(qtbot):
+def test_the_swatch_is_shown_for_the_styles_drawn_from_a_colour(qtbot):
     dialog = PreferencesDialog()
     qtbot.addWidget(dialog)
 
     for key in ("checkerboard", "gradient", "solid"):
         dialog.bg_combo.setCurrentIndex(dialog.bg_combo.findData(key))
-        assert dialog.bg_color_btn.isHidden() is (key != "solid")
+        assert dialog.bg_color_btn.isHidden() is (key == "gradient")
+
+
+def test_the_swatch_edits_the_selected_styles_own_colour(qtbot, monkeypatch):
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+    picked = []
+    monkeypatch.setattr(
+        "tarot_canvas.ui.windows.preferences_dialog.QColorDialog.getColor",
+        lambda initial, parent: picked.append(QColor(initial)) or QColor("#335544"),
+    )
+
+    dialog.bg_combo.setCurrentIndex(dialog.bg_combo.findData("checkerboard"))
+    dialog.select_bg_color()
+    assert picked[-1] == QColor(CHECKERBOARD_COLOR_DEFAULT)
+    assert dialog.checkerboard_color == QColor("#335544")
+    assert dialog.bg_color == QColor(BACKGROUND_COLOR_DEFAULT)
+
+    # Switching style and back keeps both
+    dialog.bg_combo.setCurrentIndex(dialog.bg_combo.findData("solid"))
+    assert dialog.swatch_color() == QColor(BACKGROUND_COLOR_DEFAULT)
+    dialog.select_bg_color()
+    assert picked[-1] == QColor(BACKGROUND_COLOR_DEFAULT)
+    assert dialog.bg_color == QColor("#335544")
+    dialog.bg_combo.setCurrentIndex(dialog.bg_combo.findData("checkerboard"))
+    assert dialog.swatch_color() == QColor("#335544")
+
+
+def test_the_checkerboard_colour_is_stored_and_shown_again(qtbot):
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+    dialog.set_checkerboard_color(QColor("#335544"))
+    assert dialog.apply_button.isEnabled()
+
+    dialog.accept()
+
+    assert get_settings().value(CHECKERBOARD_COLOR_KEY) == "#335544"
+    assert get_settings().value(BACKGROUND_COLOR_KEY) == BACKGROUND_COLOR_DEFAULT
+    reopened = PreferencesDialog()
+    qtbot.addWidget(reopened)
+    assert reopened.checkerboard_color == QColor("#335544")
 
 
 def test_apply_is_offered_only_while_the_form_differs_from_what_is_stored(qtbot):
@@ -134,6 +176,7 @@ def test_restore_defaults_resets_the_form_and_stores_nothing(qtbot, theme_kept):
     settings = get_settings()
     settings.setValue(BACKGROUND_STYLE_KEY, "solid")
     settings.setValue(BACKGROUND_COLOR_KEY, "#ffffff")
+    settings.setValue(CHECKERBOARD_COLOR_KEY, "#000000")
     settings.setValue(MOTION_LEVEL_KEY, "Off")
     settings.setValue(CANVAS_TAB_MINIMAP_KEY, False)
     settings.setValue(SHOW_AVAILABLE_DECKS_KEY, False)
@@ -149,6 +192,7 @@ def test_restore_defaults_resets_the_form_and_stores_nothing(qtbot, theme_kept):
         READING_TEXT_SCALE_DEFAULT,
         BACKGROUND_STYLE_DEFAULT,
         BACKGROUND_COLOR_DEFAULT,
+        CHECKERBOARD_COLOR_DEFAULT,
         MOTION_LEVEL_DEFAULT,
         True,
         True,

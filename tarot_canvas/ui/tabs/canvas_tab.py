@@ -32,6 +32,8 @@ from tarot_canvas.settings import (
     BACKGROUND_COLOR_KEY,
     CANVAS_TAB_MINIMAP_DEFAULT,
     CANVAS_TAB_MINIMAP_KEY,
+    CHECKERBOARD_COLOR_DEFAULT,
+    CHECKERBOARD_COLOR_KEY,
     MOTION_LEVEL_DEFAULT,
     get_background_style,
     get_motion_level,
@@ -55,7 +57,11 @@ from tarot_canvas.ui.canvas.detail import (
     DETAIL_VISIBLE_MARGIN,
     load_card_art,
 )
-from tarot_canvas.ui.canvas.ground import GRADIENT_STOPS
+from tarot_canvas.ui.canvas.ground import (
+    CHECKERBOARD_SQUARE,
+    GRADIENT_STOPS,
+    checkerboard_partner,
+)
 from tarot_canvas.ui.canvas.motion import (
     AMBIENT_GAIN_FLOOR,
     MotionClock,
@@ -189,7 +195,8 @@ class CanvasTab(BaseTab):
         bg_style = get_background_style(settings)
 
         if bg_style == "checkerboard":
-            ground = self.create_purple_checkerboard_background()
+            colour = settings.value(CHECKERBOARD_COLOR_KEY, CHECKERBOARD_COLOR_DEFAULT)
+            ground = self.create_checkerboard_background(colour)
         elif bg_style == "gradient":
             ground = self.create_gradient_background()
         else:
@@ -327,23 +334,23 @@ class CanvasTab(BaseTab):
         self.view.setBackgroundBrush(brush)
         return color
 
-    def create_purple_checkerboard_background(self):
-        """Create a purple checkerboard pattern background for the canvas"""
-        light_purple = QColor(220, 210, 240)  # Light lavender
-        dark_purple = QColor(180, 160, 220)  # Darker lavender
+    def create_checkerboard_background(self, color_str):
+        """A checkerboard of the user's colour and its derived partner"""
+        color = QColor(color_str)
+        partner = checkerboard_partner(color)
 
-        size = 50  # Size of each square
+        size = CHECKERBOARD_SQUARE
         pixmap = QPixmap(size * 2, size * 2)
         pixmap.fill(Qt.GlobalColor.transparent)
 
         painter = QPainter(pixmap)
         painter.setPen(Qt.PenStyle.NoPen)
 
-        painter.setBrush(QBrush(light_purple))
+        painter.setBrush(QBrush(color))
         painter.drawRect(0, 0, size, size)
         painter.drawRect(size, size, size, size)
 
-        painter.setBrush(QBrush(dark_purple))
+        painter.setBrush(QBrush(partner))
         painter.drawRect(0, size, size, size)
         painter.drawRect(size, 0, size, size)
 
@@ -351,7 +358,7 @@ class CanvasTab(BaseTab):
 
         pattern_brush = QBrush(pixmap)
         self.view.setBackgroundBrush(pattern_brush)
-        return light_purple
+        return color
 
     def ensure_window_bounds(self):
         """Ensure the window stays within screen boundaries"""

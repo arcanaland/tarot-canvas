@@ -400,7 +400,7 @@ def test_the_floor_never_lets_opposite_arms_meet():
     ("ground", "tone"),
     [
         (QColor(50, 30, 80), GILT_ON_DARK),  # the gradient's centre
-        (QColor(220, 210, 240), GILT_ON_LIGHT),  # the lavender checkerboard
+        (QColor(220, 210, 240), GILT_ON_LIGHT),  # the old lavender checkerboard
         (QColor("#ffffff"), GILT_ON_LIGHT),
         (QColor("#000000"), GILT_ON_DARK),
     ],
