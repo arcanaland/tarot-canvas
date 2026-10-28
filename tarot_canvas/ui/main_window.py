@@ -42,6 +42,7 @@ from tarot_canvas.settings import (
 from tarot_canvas.ui import commands, focused_text, typography
 from tarot_canvas.ui.command_palette import CommandPalette
 from tarot_canvas.ui.commands import Scope, set_tooltip_with_keys
+from tarot_canvas.ui.commands_text import COMMANDS_TEXT
 from tarot_canvas.ui.components.card_explorer import CardExplorerPanel
 from tarot_canvas.ui.library.catalog_client import deck_catalog
 from tarot_canvas.ui.library.deck_downloads import deck_downloads
@@ -60,6 +61,7 @@ from tarot_canvas.utils.theme_manager import ThemeManager, ThemeType
 
 ICON_PATH = files("tarot_canvas.resources.icons").joinpath("icon.png")
 WELCOME_TAB_ICON = files("tarot_canvas.resources.icons").joinpath("esoterica.svg")
+WELCOME_TAB_NAME = "welcome"  # objectName of its page
 
 # The Go menu's entries, in its groups
 GO_GROUPS = (
@@ -81,8 +83,8 @@ TAB_EDITS = {
 
 
 class TabBarEventFilter(QObject):
-    rename_tab_requested = pyqtSignal(int)  # Signal with tab index
     close_tab_requested = pyqtSignal(int)  # Signal with tab index
+    new_tab_requested = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -92,15 +94,12 @@ class TabBarEventFilter(QObject):
         """Filter events for the tab bar"""
         tab_bar = obj
         if event.type() == QEvent.Type.MouseButtonDblClick:
-            # Get the tab index that was double-clicked
-            for i in range(tab_bar.count()):
-                if tab_bar.tabRect(i).contains(event.pos()):
-                    # Check if we have a canvas tab at this index
-                    tab_widget = tab_bar.parent()
-                    tab = tab_widget.widget(i)
-                    if hasattr(tab, "id") and tab.id.startswith("canvas_"):
-                        self.rename_tab_requested.emit(i)
-                    break
+            # In document mode the bar runs on past its tabs up to the corner buttons
+            if (
+                event.button() == Qt.MouseButton.LeftButton
+                and tab_bar.tabAt(event.position().toPoint()) == -1
+            ):
+                self.new_tab_requested.emit()
         elif (
             event.type() == QEvent.Type.MouseButtonPress
             and event.button() == Qt.MouseButton.MiddleButton
@@ -397,8 +396,12 @@ class MainWindow(QMainWindow):
 
         self.tab_bar_filter = TabBarEventFilter(self)
         self.tab_widget.tabBar().installEventFilter(self.tab_bar_filter)
-        self.tab_bar_filter.rename_tab_requested.connect(self.show_tab_rename_dialog)
         self.tab_bar_filter.close_tab_requested.connect(self.close_tab)
+        self.tab_bar_filter.new_tab_requested.connect(self.new_canvas_action.trigger)
+
+        tab_bar = self.tab_widget.tabBar()
+        tab_bar.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        tab_bar.customContextMenuRequested.connect(self.show_tab_context_menu)
 
         self.tab_widget.currentChanged.connect(self.on_tab_changed)
         self.tab_widget.setMovable(True)
@@ -477,6 +480,7 @@ class MainWindow(QMainWindow):
 
     def add_welcome_tab(self):
         welcome_tab = QWidget()
+        welcome_tab.setObjectName(WELCOME_TAB_NAME)
         layout = QVBoxLayout()
 
         label = QLabel("Welcome to Tarot Canvas!")
@@ -522,7 +526,7 @@ class MainWindow(QMainWindow):
     def close_welcome_tab(self):
         """Close the welcome tab if it exists"""
         for i in range(self.tab_widget.count()):
-            if self.tab_widget.tabText(i) == "Welcome":
+            if self.is_welcome_tab(self.tab_widget.widget(i)):
                 self.tab_widget.removeTab(i)
                 break
 
@@ -531,12 +535,8 @@ class MainWindow(QMainWindow):
         canvas_tab.navigation_requested.connect(self.handle_tab_navigation)
         self.close_welcome_tab()
         canvas_tab.tab_name = self.next_canvas_name()
-        tab_index = self.tab_widget.addTab(canvas_tab, canvas_tab.tab_name)
+        self.tab_widget.addTab(canvas_tab, canvas_tab.tab_name)
         self.tab_widget.setCurrentWidget(canvas_tab)
-
-        # Set up double-click event filter for tab renaming
-        self.setup_tab_renaming(tab_index, canvas_tab)
-
         return canvas_tab
 
     def new_canvas_from_cards(self, cards, deck):
@@ -553,18 +553,45 @@ class MainWindow(QMainWindow):
             name = f"Canvas ({n})"
         return name
 
-    def setup_tab_renaming(self, tab_index, tab):
-        """Set up double-click renaming for a tab (currently only for Canvas tabs)"""
-        if not hasattr(tab, "id") or not tab.id.startswith("canvas_"):
-            return  # Only apply to canvas tabs
+    def show_tab_context_menu(self, pos):
+        tab_bar = self.tab_widget.tabBar()
+        index = tab_bar.tabAt(pos)
+        if index == -1:
+            return
+        menu = self.tab_context_menu(index)
+        menu.exec(tab_bar.mapToGlobal(pos))
+        menu.deleteLater()
 
-        # Store initial tab name for reference
-        tab.original_tab_name = self.tab_widget.tabText(tab_index)
+    def tab_context_menu(self, tab_index):
+        """The right-click menu for the tab at tab_index"""
+        menu = QMenu(self)
+        rename = menu.addAction(
+            QIcon.fromTheme("edit-rename"),
+            COMMANDS_TEXT["rename_tab"],
+            partial(self.show_tab_rename_dialog, tab_index),
+        )
+        tab = self.tab_widget.widget(tab_index)
+        rename.setEnabled(self.is_renamable_tab(tab))
+        close = menu.addAction(
+            QIcon.fromTheme("tab-close"),
+            COMMANDS_TEXT["close_this_tab"],
+            partial(self.close_tab, tab_index),
+        )
+        close.setEnabled(not self.is_welcome_tab(tab))  # closing it would only reopen it
+        return menu
+
+    @staticmethod
+    def is_welcome_tab(tab):
+        return tab is not None and tab.objectName() == WELCOME_TAB_NAME
+
+    @staticmethod
+    def is_renamable_tab(tab):
+        return tab is not None and hasattr(tab, "id") and tab.id.startswith("canvas_")
 
     def show_tab_rename_dialog(self, tab_index):
         """Show a dialog to rename the tab at the given index"""
         tab = self.tab_widget.widget(tab_index)
-        if not tab or not hasattr(tab, "id") or not tab.id.startswith("canvas_"):
+        if not self.is_renamable_tab(tab):
             return  # Only canvas tabs are renamable
 
         current_name = self.tab_widget.tabText(tab_index)

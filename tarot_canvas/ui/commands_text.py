@@ -6,6 +6,9 @@ COMMANDS_TEXT = {
     "open_deck": "&Open Deck…",
     "close_tab": "Close &Tab",
     "quit": "&Exit",
+    # Tab bar context menu
+    "rename_tab": "Rename tab…",
+    "close_this_tab": "Close tab",
     # Edit
     "cut": "Cut",
     "copy_card": "&Copy Card",
