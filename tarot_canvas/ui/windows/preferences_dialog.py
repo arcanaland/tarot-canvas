@@ -21,6 +21,8 @@ from tarot_canvas.settings import (
     BACKGROUND_COLOR_KEY,
     BACKGROUND_STYLE_DEFAULT,
     BACKGROUND_STYLE_KEY,
+    CANVAS_TAB_MINIMAP_DEFAULT,
+    CANVAS_TAB_MINIMAP_KEY,
     MOTION_LEVEL_DEFAULT,
     MOTION_LEVEL_KEY,
     PREFERENCES_GEOMETRY_KEY,
@@ -165,6 +167,7 @@ class PreferencesDialog(QDialog):
         for combo in (self.theme_combo, self.text_size_combo, self.bg_combo, self.motion_combo):
             combo.currentIndexChanged.connect(self.update_apply_button)
         self.show_available_decks_check.toggled.connect(self.update_apply_button)
+        self.canvas_tab_minimap_check.toggled.connect(self.update_apply_button)
         self.shortcuts_page.changed.connect(self.update_apply_button)
 
     def pages(self):
@@ -216,6 +219,9 @@ class PreferencesDialog(QDialog):
 
         self.motion_combo = keyed_combo(MOTION_LEVEL_LABELS)
         form.addRow("Canvas Motion:", self.motion_combo)
+
+        self.canvas_tab_minimap_check = QCheckBox(PREFERENCES_TEXT["canvas_tab_minimap"])
+        form.addRow(PREFERENCES_TEXT["canvas_tabs"], self.canvas_tab_minimap_check)
 
         page.setLayout(form)
         return page
@@ -273,6 +279,7 @@ class PreferencesDialog(QDialog):
             self.bg_combo.currentData(),
             self.bg_color.name(),
             self.motion_combo.currentData(),
+            self.canvas_tab_minimap_check.isChecked(),
             self.show_available_decks_check.isChecked(),
             self.shortcuts_page.state(),
         )
@@ -283,12 +290,13 @@ class PreferencesDialog(QDialog):
             self.stored_state is not None and self.form_state() != self.stored_state
         )
 
-    def show_state(self, theme, text_size, background, colour, motion, show_available):
+    def show_state(self, theme, text_size, background, colour, motion, tab_minimap, show_available):
         select_data(self.theme_combo, theme)
         select_data(self.text_size_combo, text_size)
         select_data(self.bg_combo, background)
         select_data(self.motion_combo, motion)
         self.set_bg_color(colour)
+        self.canvas_tab_minimap_check.setChecked(tab_minimap)
         self.show_available_decks_check.setChecked(show_available)
         self.update_swatch_visibility()
         self.update_apply_button()
@@ -301,6 +309,7 @@ class PreferencesDialog(QDialog):
             get_background_style(settings),
             settings.value(BACKGROUND_COLOR_KEY, BACKGROUND_COLOR_DEFAULT),
             get_motion_level(settings),
+            bool(settings.value(CANVAS_TAB_MINIMAP_KEY, CANVAS_TAB_MINIMAP_DEFAULT, type=bool)),
             bool(settings.value(SHOW_AVAILABLE_DECKS_KEY, SHOW_AVAILABLE_DECKS_DEFAULT, type=bool)),
         )
         self.shortcuts_page.load()
@@ -314,6 +323,7 @@ class PreferencesDialog(QDialog):
             BACKGROUND_STYLE_DEFAULT,
             BACKGROUND_COLOR_DEFAULT,
             MOTION_LEVEL_DEFAULT,
+            CANVAS_TAB_MINIMAP_DEFAULT,
             SHOW_AVAILABLE_DECKS_DEFAULT,
         )
         self.shortcuts_page.reset()
@@ -323,6 +333,7 @@ class PreferencesDialog(QDialog):
         settings.setValue(BACKGROUND_STYLE_KEY, self.bg_combo.currentData())
         settings.setValue(MOTION_LEVEL_KEY, self.motion_combo.currentData())
         settings.setValue(BACKGROUND_COLOR_KEY, self.bg_color.name())
+        settings.setValue(CANVAS_TAB_MINIMAP_KEY, self.canvas_tab_minimap_check.isChecked())
         settings.setValue(SHOW_AVAILABLE_DECKS_KEY, self.show_available_decks_check.isChecked())
 
         ThemeManager.get_instance().set_theme(ThemeType(self.theme_combo.currentData()))

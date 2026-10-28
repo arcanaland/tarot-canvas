@@ -30,6 +30,8 @@ from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.settings import (
     BACKGROUND_COLOR_DEFAULT,
     BACKGROUND_COLOR_KEY,
+    CANVAS_TAB_MINIMAP_DEFAULT,
+    CANVAS_TAB_MINIMAP_KEY,
     MOTION_LEVEL_DEFAULT,
     get_background_style,
     get_motion_level,
@@ -95,6 +97,7 @@ class CanvasTab(BaseTab):
         self._top_z = 0.0
         self._bottom_z = 0.0
         self.motion_level = MOTION_LEVEL_DEFAULT
+        self.tab_minimap = CANVAS_TAB_MINIMAP_DEFAULT
         self.desktop_wants_animation = True
         self.gilt = QColor(GILT_ON_DARK)
 
@@ -200,6 +203,11 @@ class CanvasTab(BaseTab):
         else:
             self.motion_clock.unsubscribe(self._advance_motion)
             self.settle_motion()
+
+        self.tab_minimap = settings.value(
+            CANVAS_TAB_MINIMAP_KEY, CANVAS_TAB_MINIMAP_DEFAULT, type=bool
+        )
+        self.schedule_tab_icon()
 
     # Motion
     def refresh_motion_settings(self):
@@ -931,7 +939,9 @@ class CanvasTab(BaseTab):
 
     def refresh_tab_icon(self):
         """Redraw the tab icon if the spread's snapped marks have changed"""
-        marks = snapped(layout_marks(card_marks(self._cards), MINIMAP.max_fill))
+        marks = ()
+        if self.tab_minimap:
+            marks = snapped(layout_marks(card_marks(self._cards), MINIMAP.max_fill))
         if marks == self._tab_marks:
             return
         self._tab_marks = marks

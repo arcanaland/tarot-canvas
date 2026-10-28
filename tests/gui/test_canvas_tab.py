@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import QApplication, QTabWidget
 from tarot_canvas.settings import (
     BACKGROUND_COLOR_KEY,
     BACKGROUND_STYLE_KEY,
+    CANVAS_TAB_MINIMAP_KEY,
     MOTION_LEVEL_KEY,
     get_settings,
 )
@@ -848,4 +849,28 @@ def test_the_tab_icon_maps_the_spread(qtbot):
     tab.scene.removeItem(card)
     qtbot.waitUntil(lambda: tabs.icons_set == 3)
     assert is_plain(tabs)
+    qtbot.wait(1100)
+
+
+@pytest.fixture
+def minimap_unset():
+    get_settings().remove(CANVAS_TAB_MINIMAP_KEY)
+    yield
+    get_settings().remove(CANVAS_TAB_MINIMAP_KEY)
+
+
+def test_the_minimap_setting_turns_the_tab_icon_plain(qtbot, minimap_unset):
+    get_settings().setValue(CANVAS_TAB_MINIMAP_KEY, False)
+    tabs = QTabWidget()
+    qtbot.addWidget(tabs)
+    tab = CanvasTab()
+    tabs.addTab(tab, "Canvas")
+    tabs.show()
+    add_cards(tab, 1)
+    qtbot.waitUntil(lambda: is_plain(tabs))
+    assert not tab.tab_minimap
+
+    get_settings().setValue(CANVAS_TAB_MINIMAP_KEY, True)
+    tab.apply_background_settings()
+    qtbot.waitUntil(lambda: not is_plain(tabs))
     qtbot.wait(1100)

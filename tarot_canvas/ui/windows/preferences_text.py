@@ -17,6 +17,8 @@ PREFERENCES_TEXT = {
     "shortcuts_taken": "Key is bound to {command}.",
     "shortcuts_bare": "{key} can't be a global shortcut.",
     "background_colour": "",
+    "canvas_tabs": "Tab icon:",
+    "canvas_tab_minimap": "Show a minimap of cards",
     "zoom_in": "Zoom &In",
     "zoom_out": "Zoom &Out",
     "reset_zoom": "&Reset Zoom",
