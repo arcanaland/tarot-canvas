@@ -145,6 +145,7 @@ class DraggableCardItem(QGraphicsPixmapItem):
             motion.orient_lag = 0.0
 
         self._apply_motion()
+        self._schedule_tab_icon()
 
     def place_and_settle(self):
         """Pop in and spring back"""
@@ -401,15 +402,21 @@ class DraggableCardItem(QGraphicsPixmapItem):
         elif change == QGraphicsItem.GraphicsItemChange.ItemZValueHasChanged:
             self.shadow.setZValue(self.zValue() + SHADOW_Z_OFFSET)
             self.marks.restack(self.zValue())
+            self._schedule_tab_icon()
         elif change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
             self._refresh_view_scale()
             self._place_shadow()
+            self._schedule_tab_icon()
         elif change == QGraphicsItem.GraphicsItemChange.ItemSelectedHasChanged:
             selected = self.isSelected()
             if selected:
                 self._refresh_view_scale()
             self.marks.set_selected(selected, animate=self._reactive_allowed())
         return super().itemChange(change, value)
+
+    def _schedule_tab_icon(self):
+        if self._registered_tab is not None:
+            self._registered_tab.schedule_tab_icon()
 
     def _register_with_scene(self, scene):
         """Join or leave the card list"""
