@@ -8,6 +8,7 @@ from tarot_canvas.settings import (
     BACKGROUND_COLOR_KEY,
     BACKGROUND_STYLE_DEFAULT,
     BACKGROUND_STYLE_KEY,
+    CANVAS_TAB_MINIMAP_KEY,
     MOTION_LEVEL_DEFAULT,
     MOTION_LEVEL_KEY,
     MOTION_LEVELS,
@@ -134,6 +135,7 @@ def test_restore_defaults_resets_the_form_and_stores_nothing(qtbot, theme_kept):
     settings.setValue(BACKGROUND_STYLE_KEY, "solid")
     settings.setValue(BACKGROUND_COLOR_KEY, "#ffffff")
     settings.setValue(MOTION_LEVEL_KEY, "Off")
+    settings.setValue(CANVAS_TAB_MINIMAP_KEY, False)
     settings.setValue(SHOW_AVAILABLE_DECKS_KEY, False)
     settings.setValue(READING_TEXT_SCALE_KEY, 150)
     dialog = PreferencesDialog()
@@ -148,6 +150,7 @@ def test_restore_defaults_resets_the_form_and_stores_nothing(qtbot, theme_kept):
         BACKGROUND_STYLE_DEFAULT,
         BACKGROUND_COLOR_DEFAULT,
         MOTION_LEVEL_DEFAULT,
+        True,
         True,
     )
     assert dialog.apply_button.isEnabled()
@@ -298,6 +301,44 @@ def test_applying_the_switch_reaches_the_catalog(qtbot, monkeypatch, switch_unse
     window.show_preferences()
 
     assert told == [False]
+
+
+@pytest.fixture
+def minimap_unset():
+    get_settings().remove(CANVAS_TAB_MINIMAP_KEY)
+    yield
+    get_settings().remove(CANVAS_TAB_MINIMAP_KEY)
+
+
+def test_the_canvas_tab_minimap_round_trips(qtbot, minimap_unset):
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+    assert dialog.canvas_tab_minimap_check.isChecked()
+
+    dialog.canvas_tab_minimap_check.setChecked(False)
+    assert dialog.apply_button.isEnabled()
+    dialog.apply_settings()
+    assert get_settings().value(CANVAS_TAB_MINIMAP_KEY, type=bool) is False
+
+    reopened = PreferencesDialog()
+    qtbot.addWidget(reopened)
+    assert not reopened.canvas_tab_minimap_check.isChecked()
+
+
+def test_applying_the_minimap_switch_reaches_an_open_canvas(qtbot, minimap_unset):
+    window = MainWindow()
+    qtbot.addWidget(window)
+    canvas_tab = window.new_canvas_tab()
+    assert canvas_tab.tab_minimap
+
+    dialog = PreferencesDialog(window)
+    qtbot.addWidget(dialog)
+    dialog.settings_changed.connect(window.apply_settings_to_open_canvases)
+    dialog.canvas_tab_minimap_check.setChecked(False)
+    dialog.apply_settings()
+
+    assert not canvas_tab.tab_minimap
+    qtbot.wait(1100)
 
 
 def test_the_text_size_sits_with_the_theme_and_offers_every_step_as_a_percentage(qtbot):

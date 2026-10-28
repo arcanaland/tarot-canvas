@@ -31,6 +31,9 @@ MOTION_LEVEL_KEY = "appearance/motion_level"
 MOTION_LEVEL_DEFAULT = "Full"
 MOTION_LEVELS = ("Off", "Reactive", "Full")
 
+CANVAS_TAB_MINIMAP_KEY = "appearance/canvas_tab_minimap"
+CANVAS_TAB_MINIMAP_DEFAULT = True
+
 
 def get_motion_level(settings=None):
     """How much the canvas is allowed to move"""
