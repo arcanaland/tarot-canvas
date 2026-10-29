@@ -13,6 +13,8 @@ MAX_ZOOM = 8.0
 class PannableGraphicsView(QGraphicsView):
     # A card dropped onto the canvas in scene coordinates
     card_dropped = pyqtSignal(QMimeData, QPointF)
+    # A double-click on empty canvas in scene coordinates
+    background_double_clicked = pyqtSignal(QPointF)
     # The view's new scale, after any zoom
     zoom_changed = pyqtSignal(float)
     # What the view shows, or how sharply, may have changed: a scroll, resize or new dpr
@@ -163,6 +165,23 @@ class PannableGraphicsView(QGraphicsView):
             event.accept()
         else:
             super().mouseReleaseEvent(event)
+
+    def _hits_item(self, pos):
+        """Whether there is an item under pos."""
+        return any(
+            item.acceptedMouseButtons() & Qt.MouseButton.LeftButton for item in self.items(pos)
+        )
+
+    def mouseDoubleClickEvent(self, event):
+        if (
+            event.button() == Qt.MouseButton.LeftButton
+            and event.modifiers() == Qt.KeyboardModifier.NoModifier
+            and not self._hits_item(event.pos())
+        ):
+            self.background_double_clicked.emit(self.mapToScene(event.pos()))
+            event.accept()
+        else:
+            super().mouseDoubleClickEvent(event)
 
     # -- drop -------------------------------------------------------------
 

@@ -55,6 +55,7 @@
         <ul>
           <li>The icon for canvas tabs now show a colorful minimap.</li>
           <li>Right-clicking a tab now opens a menu (for renaming a canvas).</li>
+          <li>Double-clicking on the canvas summons a random card.</li>
           <li>Double-clicking the tab bar opens a new canvas tab.</li>
           <li>Allow selection of checkerboard color in the canvas settings.</li>
         </ul>
