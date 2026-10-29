@@ -1,12 +1,24 @@
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 
 class BaseTab(QWidget):
+    tab_label_changed = pyqtSignal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.layout = QVBoxLayout(self)
         self.setLayout(self.layout)
+
+    # -- tab label ---------------------------------------------------------
+    # The tab widget reads these when the tab is added and on tab_label_changed
+
+    def tab_title(self):
+        return ""
+
+    def tab_icon(self):
+        return QIcon()
 
     def flush_pending_edits(self):
         """Persist anything this tab is holding unsaved."""

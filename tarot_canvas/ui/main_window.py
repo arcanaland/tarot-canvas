@@ -23,7 +23,6 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QSplitter,
-    QTabWidget,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -52,6 +51,7 @@ from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tarot_canvas.ui.tabs.deck_view_tab import DeckViewTab
 from tarot_canvas.ui.tabs.library_tab import LibraryTab
+from tarot_canvas.ui.widgets.document_tabs import DocumentTabs
 from tarot_canvas.ui.widgets.placeholder_message import tinted_icon
 from tarot_canvas.ui.widgets.toast import Toast
 from tarot_canvas.ui.windows.about import AboutDialog, app_icon
@@ -389,7 +389,7 @@ class MainWindow(QMainWindow):
         right_layout.setSpacing(0)
 
         # Create tab widget
-        self.tab_widget = QTabWidget()
+        self.tab_widget = DocumentTabs()
         self.tab_widget.setDocumentMode(True)
         self.tab_widget.setTabsClosable(True)
         self.tab_widget.tabCloseRequested.connect(self.close_tab)
@@ -600,17 +600,14 @@ class MainWindow(QMainWindow):
         )
 
         if ok and new_name:
-            # Update the tab text
-            self.tab_widget.setTabText(tab_index, new_name)
-
-            # Also store the name in the tab object
             tab.tab_name = new_name
+            tab.tab_label_changed.emit()
 
-    def add_card_tab(self, card_tab, title):
+    def add_card_tab(self, card_tab):
         """Adopt a card view tab. Every construction site must come through here."""
         card_tab.navigation_requested.connect(self.handle_tab_navigation)
         self.close_welcome_tab()
-        self.tab_widget.addTab(card_tab, title)
+        self.tab_widget.addTab(card_tab, "")
         self.tab_widget.setCurrentWidget(card_tab)
         return card_tab
 
@@ -637,7 +634,7 @@ class MainWindow(QMainWindow):
 
             # Create a new card view tab
             card_tab = CardViewTab(card=card, deck=deck, source_tab_id=source_tab_id)
-            self.add_card_tab(card_tab, card.get("name", "Card"))
+            self.add_card_tab(card_tab)
 
         elif action == "open_deck_view":
             deck_path = data.get("deck_path")
@@ -689,27 +686,8 @@ class MainWindow(QMainWindow):
             # Close welcome tab if needed
             self.close_welcome_tab()
 
-            # Add tab with initial title
-            initial_title = "Deck View"
-            if deck_path:
-                initial_title = os.path.basename(deck_path)
-
-            tab_index = self.tab_widget.addTab(deck_tab, initial_title)
-
-            # Set current to this tab
+            self.tab_widget.addTab(deck_tab, "")
             self.tab_widget.setCurrentWidget(deck_tab)
-
-            # Immediately try to update the title if we have a deck loaded
-            if deck_path and hasattr(deck_tab, "deck") and deck_tab.deck:
-                pretty_name = deck_tab.deck.get_name()
-                self.tab_widget.setTabText(tab_index, pretty_name)
-
-            # Still connect the signal for future updates
-            deck_tab.title_changed.connect(
-                lambda new_title: self.tab_widget.setTabText(
-                    self.tab_widget.indexOf(deck_tab), new_title
-                )
-            )
 
             return deck_tab
         except Exception:
@@ -738,7 +716,7 @@ class MainWindow(QMainWindow):
         return None
 
     def new_card_view_tab(self):
-        self.add_card_tab(CardViewTab(), "Card View")
+        self.add_card_tab(CardViewTab())
 
     def close_tab(self, index):
         # removeTab neither deletes the page nor tells it it has gone
@@ -1044,7 +1022,7 @@ class MainWindow(QMainWindow):
         from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 
         card_tab = CardViewTab(card=card, deck=deck)
-        self.add_card_tab(card_tab, card.get("name", "Card"))
+        self.add_card_tab(card_tab)
 
     def on_card_action_requested(self, action, card, deck):
         """Handle all card actions from the explorer based on context"""
@@ -1095,7 +1073,7 @@ class MainWindow(QMainWindow):
         from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 
         card_tab = CardViewTab(card=card, deck=deck, show_notes=show_notes)
-        self.add_card_tab(card_tab, card.get("name", "Card"))
+        self.add_card_tab(card_tab)
         return card_tab
 
     def show_faqs(self):
@@ -1123,7 +1101,7 @@ class MainWindow(QMainWindow):
         """
         from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 
-        self.add_card_tab(CardViewTab(card=card, deck=deck), card["name"])
+        self.add_card_tab(CardViewTab(card=card, deck=deck))
 
     def show_log_viewer(self):
         """Show the log viewer dialog"""

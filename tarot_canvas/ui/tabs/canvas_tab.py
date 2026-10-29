@@ -126,8 +126,6 @@ class CanvasTab(BaseTab):
         QTimer.singleShot(500, self.ensure_window_bounds)
         QTimer.singleShot(1000, self.ensure_window_bounds)
 
-        QTimer.singleShot(100, self.update_tab_icon)
-
     def setup_ui(self):
         container = QWidget()
         main_layout = QHBoxLayout(container)
@@ -955,25 +953,10 @@ class CanvasTab(BaseTab):
             return
         self._tab_marks = marks
         self._tab_icon = spread_icon(marks) if marks else CanvasIcon()
-        self.update_tab_icon()
+        self.tab_label_changed.emit()
 
-    def update_tab_icon(self):
-        """Show the tab icon on this tab"""
-        parent = self.parent()
-        if parent:
-            # Find the tab widget that contains this widget
-            tab_widget = None
-            parent_widget = parent
+    def tab_title(self):
+        return self.tab_name
 
-            # Try to find a parent that has setTabIcon method (likely a QTabWidget)
-            while parent_widget and not tab_widget:
-                if hasattr(parent_widget, "setTabIcon"):
-                    tab_widget = parent_widget
-                    break
-                parent_widget = parent_widget.parent()
-
-            # If we found a tab widget, update the tab icon
-            if tab_widget:
-                index = tab_widget.indexOf(self)
-                if index >= 0:
-                    tab_widget.setTabIcon(index, self._tab_icon)
+    def tab_icon(self):
+        return self._tab_icon

@@ -138,3 +138,14 @@ def test_a_tab_shows_the_icon_of_the_menu_item_that_opens_it(qtbot):
     qtbot.waitUntil(lambda: tabs.tabIcon(tabs.currentIndex()).name() == "view-list-icons")
     assert window.new_library_action.icon().name() == "view-list-icons"
     assert window.new_canvas_action.icon().name() == CanvasIcon().name()
+
+
+def test_a_new_deck_view_is_labelled_as_it_is_added(qtbot, full_deck):
+    window = make_window(qtbot)
+    tabs = window.tab_widget
+
+    tab = window.new_deck_view_tab(deck_path=full_deck.deck_path)
+
+    index = tabs.indexOf(tab)
+    assert tabs.tabText(index) == full_deck.get_name()
+    assert tabs.tabIcon(index).name() == "view-grid"

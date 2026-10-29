@@ -1,3 +1,5 @@
+import os
+
 from PyQt6.QtCore import QItemSelection, QItemSelectionModel, QModelIndex, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
@@ -8,7 +10,6 @@ from PyQt6.QtWidgets import (
     QScrollArea,
     QSizePolicy,
     QStackedWidget,
-    QTabWidget,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -55,7 +56,6 @@ class DeckViewTab(BaseTab):
     card_action_requested = pyqtSignal(
         str, dict, object
     )  # Signal for card actions (action, card, deck)
-    title_changed = pyqtSignal(str)  # Signal to update the tab title
     new_canvas_requested = pyqtSignal(list, object)  # cards, deck
 
     def __init__(self, deck_path=None, parent=None):
@@ -65,9 +65,6 @@ class DeckViewTab(BaseTab):
         self.mode = None
         self.settings = get_settings()
         self.setup_ui()
-
-        # Set the tab icon after a short delay to ensure the tab is added
-        QTimer.singleShot(100, self.update_tab_icon)
 
     def setup_ui(self):
         if self.deck_path:
@@ -82,24 +79,7 @@ class DeckViewTab(BaseTab):
         # Load the deck
         self.deck = TarotDeck(deck_path)
 
-        # Get the parent tab widget to update its title directly
-        parent_tab_widget = None
-        parent = self.parent()
-        while parent:
-            if isinstance(parent, QTabWidget):
-                parent_tab_widget = parent
-                break
-            parent = parent.parent()
-
-        # Directly update the tab title if we can find the parent tab widget
-        if parent_tab_widget:
-            tab_index = parent_tab_widget.indexOf(self)
-            if tab_index != -1:
-                parent_tab_widget.setTabText(tab_index, self.deck.get_name())
-                print(f"Direct title update: {self.deck.get_name()}")
-
-        # Also emit the signal as a backup mechanism
-        self.title_changed.emit(self.deck.get_name())
+        self.tab_label_changed.emit()
 
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(0)
@@ -415,23 +395,12 @@ class DeckViewTab(BaseTab):
             if item.widget():
                 item.widget().deleteLater()
 
-    def update_tab_icon(self):
-        """Update the tab with a deck icon"""
-        parent = self.parent()
-        if parent:
-            # Find the tab widget that contains this widget
-            tab_widget = None
-            parent_widget = parent
+    def tab_title(self):
+        if self.deck:
+            return self.deck.get_name()
+        if self.deck_path:
+            return os.path.basename(self.deck_path)
+        return "Deck View"
 
-            # Try to find a parent that has setTabIcon method
-            while parent_widget and not tab_widget:
-                if hasattr(parent_widget, "setTabIcon"):
-                    tab_widget = parent_widget
-                    break
-                parent_widget = parent_widget.parent()
-
-            # If we found a tab widget, update the tab icon
-            if tab_widget:
-                index = tab_widget.indexOf(self)
-                if index >= 0:
-                    tab_widget.setTabIcon(index, QIcon.fromTheme("view-grid"))
+    def tab_icon(self):
+        return QIcon.fromTheme("view-grid")

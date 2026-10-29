@@ -799,10 +799,22 @@ def test_opening_a_card_closes_the_welcome_tab(qtbot):
     window = MainWindow()
     qtbot.addWidget(window)
 
-    window.add_card_tab(CardViewTab(), "card")
+    tab = window.add_card_tab(CardViewTab())
 
     titles = [window.tab_widget.tabText(i) for i in range(window.tab_widget.count())]
-    assert titles == ["card"]
+    assert titles == [tab.card["name"]]
+
+
+def test_a_new_card_view_is_labelled_as_it_is_added(qtbot):
+    window = MainWindow()
+    qtbot.addWidget(window)
+
+    window.new_card_view_tab()
+
+    tab = window.tab_widget.currentWidget()
+    index = window.tab_widget.currentIndex()
+    assert window.tab_widget.tabText(index) == tab.card["name"]
+    assert not window.tab_widget.tabIcon(index).isNull()
 
 
 def test_the_search_button_is_still_reachable(qtbot):
