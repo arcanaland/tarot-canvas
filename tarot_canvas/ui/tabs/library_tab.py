@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 from importlib.resources import files
 
-from PyQt6.QtCore import QItemSelectionModel, QSize, Qt, QTimer, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QItemSelectionModel, QSize, Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
     QAbstractItemView,
@@ -117,9 +117,6 @@ class LibraryTab(BaseTab):
         catalog.cover_ready.connect(self.model.cover_ready)
         deck_downloads().changed.connect(self.model.download_changed)
         catalog.activate()
-
-        # Set the tab icon after a short delay to ensure the tab is added
-        QTimer.singleShot(100, self.update_tab_icon)
 
     def setup_ui(self):
         self.layout.setContentsMargins(0, 0, 0, 0)
@@ -743,29 +740,11 @@ class LibraryTab(BaseTab):
         self.empty_label.setVisible(empty)
         self.view.setVisible(not empty)
 
-    def update_tab_icon(self):
-        """Update the tab with a library icon"""
-        parent = self.parent()
-        if not parent:
-            return
+    def tab_title(self):
+        return "Library"
 
-        # Try to find a parent that has setTabIcon method
-        tab_widget = None
-        parent_widget = parent
-        while parent_widget and not tab_widget:
-            if hasattr(parent_widget, "setTabIcon"):
-                tab_widget = parent_widget
-                break
-            parent_widget = parent_widget.parent()
-
-        if not tab_widget:
-            return
-
-        index = tab_widget.indexOf(self)
-        if index < 0:
-            return
-
-        tab_widget.setTabIcon(index, QIcon.fromTheme("view-list-icons"))
+    def tab_icon(self):
+        return QIcon.fromTheme("view-list-icons")
 
 
 def _is_deck_at(deck_path):

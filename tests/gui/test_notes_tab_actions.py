@@ -221,7 +221,7 @@ def in_a_window(qtbot, tab):
     """Del is Edit > Delete's, so it needs the window"""
     window = MainWindow()
     qtbot.addWidget(window)
-    window.add_card_tab(tab, "card")
+    window.add_card_tab(tab)
     with qtbot.waitActive(window):
         window.show()
         window.activateWindow()

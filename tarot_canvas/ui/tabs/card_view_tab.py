@@ -3,8 +3,8 @@ import platform
 import random
 from functools import partial
 
-from PyQt6.QtCore import QEvent, Qt, QTimer, pyqtSignal, pyqtSlot
-from PyQt6.QtGui import QKeySequence, QPixmap
+from PyQt6.QtCore import QEvent, Qt, pyqtSignal, pyqtSlot
+from PyQt6.QtGui import QIcon, QKeySequence, QPixmap
 from PyQt6.QtWidgets import (
     QApplication,
     QFrame,
@@ -61,11 +61,6 @@ class CardViewTab(BaseTab):
         self.tab_name = self.card["name"] if self.card else "Card View"
 
         self.setup_ui()
-
-        # Call update_tab_name() after initialization to set the tab's name immediately
-        # Use a short timer to ensure the widget is fully added to its parent first
-        # TODO: this seems terrible and is a massive code smell
-        QTimer.singleShot(100, self.update_tab_name)
 
     def setup_ui(self):
         """Set up the card view tab UI"""
@@ -391,49 +386,11 @@ class CardViewTab(BaseTab):
         else:
             self.toast.dismiss()
 
-    def update_tab_name(self):
-        """Update the tab name and add color dot based on card type/suit"""
-        if self.card:
-            parent = self.parent()
-            if parent:
-                # Find the tab widget that contains this widget
-                tab_widget = None
-                parent_widget = parent
+    def tab_title(self):
+        return self.card["name"] if self.card else "Card View"
 
-                # Try to find a parent that has setTabText method (likely a QTabWidget)
-                while parent_widget and not tab_widget:
-                    if hasattr(parent_widget, "setTabText"):
-                        tab_widget = parent_widget
-                        break
-                    parent_widget = parent_widget.parent()
-
-                # If we found a tab widget, update the tab text and icon
-                if tab_widget:
-                    index = tab_widget.indexOf(self)
-                    if index >= 0:
-                        # Update tab text
-                        tab_widget.setTabText(index, self.card["name"])
-
-                        # Create and set a colored dot icon based on card type/suit
-                        color = self.get_card_color()
-                        dot_icon = ColorDot(color)
-                        tab_widget.setTabIcon(index, dot_icon)
-
-                # If parent is a QStackedWidget inside a tab widget
-                if hasattr(parent, "parent") and hasattr(parent.parent(), "setTabText"):
-                    tab_widget = parent.parent()
-                    index = tab_widget.indexOf(parent)
-                    if index >= 0:
-                        tab_widget.setTabText(index, self.card["name"])
-
-                        # Create and set a colored dot icon based on card type/suit
-                        color = self.get_card_color()
-                        dot_icon = ColorDot(color)
-                        tab_widget.setTabIcon(index, dot_icon)
-
-    def get_card_color(self):
-        """Get the appropriate color for this card based on its type/suit"""
-        return card_colour(self.card)
+    def tab_icon(self):
+        return ColorDot(card_colour(self.card)) if self.card else QIcon()
 
     def navigate_back(self):
         """Navigate back to the source tab"""
@@ -456,7 +413,7 @@ class CardViewTab(BaseTab):
             self.overview_tab.refresh_notes()
             if hasattr(self.esoterica_tab, "update_card_info"):
                 self.esoterica_tab.update_card_info(card, self.deck)
-            self.update_tab_name()
+            self.tab_label_changed.emit()
 
             self.deck_bar.update_decks(card, self.deck, self.deck_manager)
             self.sync_deck_bar()

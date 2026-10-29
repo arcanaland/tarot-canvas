@@ -9,7 +9,7 @@ from PyQt6.QtGui import (
     QMouseEvent,
     QPixmap,
 )
-from PyQt6.QtWidgets import QApplication, QTabWidget
+from PyQt6.QtWidgets import QApplication
 
 from tarot_canvas.settings import (
     BACKGROUND_COLOR_KEY,
@@ -26,6 +26,7 @@ from tarot_canvas.ui.canvas.motion import LIFT_SELECTED
 from tarot_canvas.ui.canvas.selection import GILT_ON_DARK, GILT_ON_LIGHT
 from tarot_canvas.ui.card_transfer import card_mime_data, cards_mime_data, copy_card_to_clipboard
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
+from tarot_canvas.ui.widgets.document_tabs import DocumentTabs
 
 
 def add_cards(tab, count):
@@ -862,7 +863,7 @@ def test_zooming_in_sharpens_the_cards_on_screen_and_only_those(qtbot, tmp_path)
     qtbot.wait(1100)
 
 
-class CountingTabWidget(QTabWidget):
+class CountingTabWidget(DocumentTabs):
     def __init__(self):
         super().__init__()
         self.icons_set = 0
@@ -885,8 +886,8 @@ def test_the_tab_icon_maps_the_spread(qtbot):
     qtbot.addWidget(tabs)
     tab = CanvasTab()
     tabs.addTab(tab, "Canvas")
+    assert tabs.icons_set == 1
     tabs.show()
-    qtbot.waitUntil(lambda: tabs.icons_set == 1)
     assert is_plain(tabs)
 
     add_cards(tab, 1)
@@ -913,7 +914,7 @@ def minimap_unset():
 
 def test_the_minimap_setting_turns_the_tab_icon_plain(qtbot, minimap_unset):
     get_settings().setValue(CANVAS_TAB_MINIMAP_KEY, False)
-    tabs = QTabWidget()
+    tabs = DocumentTabs()
     qtbot.addWidget(tabs)
     tab = CanvasTab()
     tabs.addTab(tab, "Canvas")
