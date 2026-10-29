@@ -143,6 +143,7 @@ class CanvasTab(BaseTab):
         # Use our custom view with middle-drag and shift+drag panning
         self.view = PannableGraphicsView(self.scene)
         self.view.card_dropped.connect(self.on_card_dropped)
+        self.view.background_double_clicked.connect(self.on_draw_card)
         self.view.zoom_changed.connect(self._on_zoom_changed)
 
         # Sharpen the cards on screen once the camera settles
@@ -538,8 +539,9 @@ class CanvasTab(BaseTab):
         typography.apply(label, typography.Role.SMALL)
         return label
 
-    def on_draw_card(self):
-        """Draw a random card from the selected deck in Card Explorer (or default deck)"""
+    def on_draw_card(self, at=None):
+        """Draw a random card from the selected deck in Card Explorer (or default deck),
+        centred on at in scene coordinates, or under the pointer"""
         # Get the main window to access the card explorer
         main_window = self.window()
         if not main_window:
@@ -578,7 +580,7 @@ class CanvasTab(BaseTab):
         is_reversed = random.choice([True, False])
 
         # Add the card, possibly reversed, using the selected deck
-        self.add_specific_card(card, card_deck=deck_to_use, is_reversed=is_reversed)
+        self.add_specific_card(card, card_deck=deck_to_use, is_reversed=is_reversed, at=at)
 
         # Log what deck we drew from
         print(f"Drew card from {deck_to_use.get_name()} deck")

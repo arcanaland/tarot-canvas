@@ -165,6 +165,36 @@ def send_mouse(tab, kind, pos, button, buttons=None, modifiers=Qt.KeyboardModifi
     )
 
 
+def double_click(tab, pos):
+    send_mouse(tab, QMouseEvent.Type.MouseButtonDblClick, pos, Qt.MouseButton.LeftButton)
+
+
+def test_double_clicking_empty_canvas_summons_a_card_there(qtbot, minimal_deck):
+    tab = make_tab(qtbot)
+    tab.deck = minimal_deck
+    spot = QPoint(120, 90)
+
+    double_click(tab, spot)
+
+    centre = only_card(tab).sceneBoundingRect().center()
+    expected = tab.view.mapToScene(spot)
+    assert abs(centre.x() - expected.x()) <= 1
+    assert abs(centre.y() - expected.y()) <= 1
+
+
+def test_double_clicking_a_card_summons_nothing(qtbot, minimal_deck):
+    tab = make_tab(qtbot)
+    tab.deck = minimal_deck
+    add_cards(tab, 1)
+    card = only_card(tab)
+    card.settle_motion()
+    spot = tab.view.mapFromScene(card.sceneBoundingRect().center())
+
+    double_click(tab, spot)
+
+    assert only_card(tab) is card
+
+
 def drag(tab, button, start, end, modifiers=Qt.KeyboardModifier.NoModifier):
     send_mouse(tab, QMouseEvent.Type.MouseButtonPress, start, button, modifiers=modifiers)
     send_mouse(
