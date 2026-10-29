@@ -3,6 +3,7 @@ default:
   @just --list --list-submodules
 
 mod flatpak 'packaging/mod.just'
+mod bench 'bench/mod.just'
 
 # Build+install+run in the flatpak
 [group('dev')]
@@ -22,8 +23,8 @@ lint:
   #!/bin/bash
   set -euo pipefail
 
-  uv run ruff check tarot_canvas tests
-  uv run ruff format --check tarot_canvas tests
+  uv run ruff check tarot_canvas tests bench
+  uv run ruff format --check tarot_canvas tests bench
   ./scripts/slop-guard.sh
 
 # Refresh the bundled esoterica from a release, checked against its SHA256SUMS
@@ -60,7 +61,7 @@ esoterica-bundle TAG:
 
 [group('dev')]
 fmt:
-  uv run ruff format tarot_canvas tests
+  uv run ruff format tarot_canvas tests bench
 
 # phase 1: bump the version but don't commit
 [group('release')]

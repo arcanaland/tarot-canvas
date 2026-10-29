@@ -25,3 +25,5 @@ agents/
 *.local.md
 
 .DS_Store
+
+bench-*.json

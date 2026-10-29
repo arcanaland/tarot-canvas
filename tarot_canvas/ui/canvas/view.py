@@ -1,10 +1,15 @@
+import logging
 from contextlib import contextmanager
 
-from PyQt6.QtCore import QEvent, QMimeData, QPointF, Qt, pyqtSignal
+from PyQt6.QtCore import QEvent, QMimeData, QPointF, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QPainter
-from PyQt6.QtWidgets import QApplication, QGraphicsView
+from PyQt6.QtOpenGLWidgets import QOpenGLWidget
+from PyQt6.QtWidgets import QApplication, QGraphicsView, QWidget
 
+from tarot_canvas.ui.canvas.renderer import canvas_uses_gl
 from tarot_canvas.ui.card_transfer import has_card
+
+log = logging.getLogger("TarotCanvas.canvas")
 
 MIN_ZOOM = 0.1
 MAX_ZOOM = 8.0
@@ -25,7 +30,13 @@ class PannableGraphicsView(QGraphicsView):
         self.setAcceptDrops(True)
         self.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
-        self.setCacheMode(QGraphicsView.CacheModeFlag.CacheBackground)
+        self.setCacheMode(QGraphicsView.CacheModeFlag.CacheNone)
+        if canvas_uses_gl():
+            self.setViewport(QOpenGLWidget())
+            self.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.FullViewportUpdate)
+        # A child, so it can't fire on a deleted view
+        self._gl_check = QTimer(self, singleShot=True, interval=0)
+        self._gl_check.timeout.connect(self._fall_back_if_gl_failed)
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
         self._pan_button = None
         self._last_mouse_pos = None
@@ -112,6 +123,16 @@ class PannableGraphicsView(QGraphicsView):
     def showEvent(self, event):
         super().showEvent(event)
         self.grow_scene_rect()
+        if isinstance(self.viewport(), QOpenGLWidget):
+            self._gl_check.start()
+
+    def _fall_back_if_gl_failed(self):
+        viewport = self.viewport()
+        if not isinstance(viewport, QOpenGLWidget) or viewport.isValid():
+            return
+        log.warning("The canvas's GL viewport failed to initialize; painting with raster")
+        self.setViewport(QWidget())
+        self.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.MinimalViewportUpdate)
 
     def _starts_pan(self, event):
         if event.button() == Qt.MouseButton.MiddleButton:
