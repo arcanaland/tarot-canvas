@@ -64,6 +64,7 @@
         <p>Bug fixes:</p>
         <ul>
           <li>Fixed bug where tab names flicker briefly when first opened.</li>
+          <li>Fixed bug where the app would sometimes crash when exiting.</li>
         </ul>
       </description>
     </release>

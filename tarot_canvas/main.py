@@ -4,6 +4,7 @@ import sys
 import urllib.parse
 from importlib.resources import files
 
+from PyQt6 import sip
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
@@ -189,7 +190,13 @@ def main():
     process_uri_argument(app.arguments(), main_window)
 
     # Run the application event loop
-    return app.exec()
+    exit_code = app.exec()
+
+    # for some reason, if I don't manually delete the window here, the app sometimes
+    # segfaults when exiting
+    sip.delete(main_window)
+
+    return exit_code
 
 
 def process_uri_argument(args, main_window):
