@@ -15,6 +15,9 @@ packaging/build-flathub/
 
 .pytest_cache
 .coverage
+.coverage.*
+htmlcov/
+coverage.json
 
 WIP/
 docs/*.webp

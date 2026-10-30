@@ -17,6 +17,37 @@ run:
 test *ARGS:
   QT_QPA_PLATFORM=offscreen uv run pytest {{ARGS}}
 
+# Run the suite under coverage
+[group('dev')]
+coverage *ARGS:
+  QT_QPA_PLATFORM=offscreen UV_PROJECT_ENVIRONMENT=.venv-3.14 COVERAGE_FILE=.coverage.suite \
+    uv run --python 3.14 pytest --cov --cov-report= {{ARGS}}
+  @just _coverage-report
+
+# Record a session of the real app under coverage
+[group('dev')]
+coverage-session:
+  UV_PROJECT_ENVIRONMENT=.venv-3.14 COVERAGE_FILE=.coverage.session \
+    uv run --python 3.14 coverage run -m tarot_canvas.main
+  @just _coverage-report
+
+[private]
+_coverage-report:
+  #!/bin/bash
+  set -euo pipefail
+
+  export UV_PROJECT_ENVIRONMENT=.venv-3.14
+  data=()
+  for f in .coverage.suite .coverage.session; do
+    [ -f "$f" ] && data+=("$f")
+  done
+  [ "${#data[@]}" -gt 0 ] || { echo "no coverage data; run just coverage first" >&2; exit 1; }
+
+  uv run --python 3.14 coverage combine --keep "${data[@]}"
+  uv run --python 3.14 coverage html --keep-combined
+  uv run --python 3.14 coverage json --keep-combined
+  uv run --python 3.14 coverage report --keep-combined
+
 [group('dev')]
 lint:
   #!/bin/bash
