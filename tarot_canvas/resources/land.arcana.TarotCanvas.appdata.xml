@@ -49,7 +49,7 @@
     <release version="1.7.x" date="2026-11-xx" type="development">
           <li>Improve performance of canvas motion by using GPU acceleration.</li>
      -->
-    <release version="1.7.1" date="2026-10-31" type="development">
+    <release version="1.7.1" date="2026-10-31" type="stable">
       <description>
         <p>🎃 Samhain Update 🕯️</p>
         <p>This version provides minor quality-of-life improvements and bug fixes.</p>
