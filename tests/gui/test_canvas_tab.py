@@ -2,6 +2,7 @@ import pytest
 from PyQt6.QtCore import QEvent, QMimeData, QPoint, QPointF, Qt
 from PyQt6.QtGui import (
     QColor,
+    QContextMenuEvent,
     QDragEnterEvent,
     QDragMoveEvent,
     QDropEvent,
@@ -927,3 +928,192 @@ def test_the_minimap_setting_turns_the_tab_icon_plain(qtbot, minimap_unset):
     tab.apply_background_settings()
     qtbot.waitUntil(lambda: not is_plain(tabs))
     qtbot.wait(1100)
+
+
+def test_the_rotate_command_turns_a_card_and_leaves_it_upright(qtbot):
+    tab = make_tab(qtbot)
+    add_cards(tab, 1)
+    card = only_card(tab)
+
+    tab.commands["canvas.rotate"].trigger()
+    assert card.orient == 90
+    assert not card.is_reversed()
+
+    tab.commands["canvas.rotate"].trigger()
+    assert card.orient == 180
+    assert not card.is_reversed()
+
+
+def card_centre(card):
+    return card.sceneBoundingRect().center()
+
+
+def menu_layout(menu):
+    """A menu's entries, as command ids, submenus and None for a separator."""
+    rows = []
+    for action in menu.actions():
+        if action.isSeparator():
+            rows.append(None)
+        elif action.menu() is not None:
+            rows.append("swap")
+        else:
+            rows.append(action.objectName() or "open")
+    return rows
+
+
+def test_right_clicking_an_unselected_card_selects_only_it(qtbot, stub_deck_manager, minimal_deck):
+    tab = make_tab(qtbot)
+    other = tab.add_specific_card(minimal_deck.get_all_cards()[1], card_deck=minimal_deck)
+    first = tab.add_specific_card(
+        minimal_deck.get_all_cards()[0], card_deck=minimal_deck, at=other.pos() + QPointF(900, 0)
+    )
+    first.setSelected(False)
+    other.setSelected(True)
+
+    menu = tab.card_menu(card_centre(first))
+
+    assert tab.selected_cards() == [first]
+    assert menu_layout(menu) == [
+        "open",
+        None,
+        "canvas.flip",
+        "canvas.rotate",
+        "swap",
+        None,
+        "canvas.delete",
+    ]
+
+
+def test_right_clicking_inside_a_selection_keeps_it(qtbot):
+    tab = make_tab(qtbot)
+    add_cards(tab, 3)
+    card = tab.cards()[1]
+
+    menu = tab.card_menu(card_centre(card))
+
+    assert len(tab.selected_cards()) == 3
+    assert "swap" not in menu_layout(menu)
+
+
+def test_right_clicking_the_empty_canvas_builds_no_menu(qtbot):
+    tab = make_tab(qtbot)
+    add_cards(tab, 1)
+    assert tab.card_menu(QPointF(5000, 5000)) is None
+    assert len(tab.selected_cards()) == 1
+
+
+def test_the_menu_is_for_the_topmost_card(qtbot):
+    tab = make_tab(qtbot)
+    add_cards(tab, 2)
+    below, above = tab.cards()
+    above.setPos(below.pos())
+    above.setZValue(below.zValue() + 10)
+    tab.scene.clearSelection()
+
+    tab.card_menu(card_centre(above))
+
+    assert tab.selected_cards() == [above]
+
+
+def test_a_context_menu_leaves_no_press_behind(qtbot, monkeypatch):
+    # The menu swallows the release, which would leave the card lifted and grabbing the mouse
+    monkeypatch.setattr("tarot_canvas.ui.tabs.canvas_tab.QMenu.exec", lambda *_: None)
+    tab = make_tab(qtbot)
+    add_cards(tab, 1)
+    card = only_card(tab)
+    pos = tab.view.mapFromScene(card_centre(card))
+
+    send_mouse(tab, QEvent.Type.MouseButtonPress, pos, Qt.MouseButton.RightButton)
+    assert tab.scene.mouseGrabberItem() is card
+
+    QApplication.sendEvent(
+        tab.view.viewport(),
+        QContextMenuEvent(
+            QContextMenuEvent.Reason.Mouse, pos, tab.view.viewport().mapToGlobal(pos)
+        ),
+    )
+
+    assert tab.scene.mouseGrabberItem() is None
+    assert not card._pressed
+
+
+def swap_rows(menu):
+    swap = next(action.menu() for action in menu.actions() if action.menu() is not None)
+    return swap, swap.actions()
+
+
+def test_swap_lists_the_decks_that_have_the_card(qtbot, minimal_deck, other_deck):
+    tab = make_tab(qtbot)
+    card = tab.add_specific_card(minimal_deck.get_all_cards()[0], card_deck=minimal_deck)
+
+    swap, (here, there) = swap_rows(tab.card_menu(card_centre(card)))
+
+    assert swap.isEnabled()
+    assert here.isChecked() and not here.isEnabled()
+    assert there.isEnabled() and not there.isChecked()
+
+
+def test_swap_is_disabled_with_no_other_deck(qtbot, stub_deck_manager, minimal_deck):
+    tab = make_tab(qtbot)
+    card = tab.add_specific_card(minimal_deck.get_all_cards()[0], card_deck=minimal_deck)
+
+    swap, rows = swap_rows(tab.card_menu(card_centre(card)))
+
+    assert not swap.isEnabled()
+    assert len(rows) == 1
+
+
+def test_swap_keeps_the_card_exactly_where_it_lay(qtbot, minimal_deck, other_deck):
+    tab = make_tab(qtbot)
+    cards = minimal_deck.get_all_cards()
+    tab.add_specific_card(cards[1], card_deck=minimal_deck)
+    card = tab.add_specific_card(cards[0], card_deck=minimal_deck, at=QPointF(900, 0))
+    card.set_orient(90)
+    card.set_reversed(True)
+    tab.on_bring_to_front()
+    place, stack = card.pos(), card.zValue()
+
+    _, (_, there) = swap_rows(tab.card_menu(card_centre(card)))
+    there.trigger()
+
+    swapped = tab.selected_cards()
+    assert len(swapped) == 1
+    assert len(tab.cards()) == 2
+    swapped = swapped[0]
+    assert swapped is not card
+    assert card.scene() is None
+    assert swapped.deck is other_deck
+    assert swapped.pos() == place
+    assert swapped.zValue() == stack
+    assert swapped.orient == 90
+    assert swapped.is_reversed()
+
+
+def test_swap_turns_nothing_on_screen(qtbot, minimal_deck, other_deck):
+    tab = make_tab(qtbot)
+    card = tab.add_specific_card(minimal_deck.get_all_cards()[0], card_deck=minimal_deck)
+    card.set_orient(90)
+    card.settle_motion()
+
+    swapped = tab.swap_card(card, other_deck, other_deck.get_card_by_id(card.card_data["id"]))
+
+    assert swapped.motion.orient_lag == 0.0
+    assert swapped.motion.drawn_angle() == card.motion.drawn_angle()
+    assert swapped.marks.level == 1.0
+
+
+def test_a_card_taking_anothers_place_keeps_its_centre_when_the_art_differs(qtbot):
+    tab = make_tab(qtbot)
+    add_cards(tab, 1)
+    card = only_card(tab)
+    card.set_orient(90)
+    wider = QPixmap(140, 200)
+    wider.fill()
+    replacement = DraggableCardItem(wider, {"id": "card-0"})
+
+    replacement.take_place_of(card)
+
+    assert (
+        replacement.pos() + replacement.boundingRect().center()
+        == card.pos() + card.boundingRect().center()
+    )

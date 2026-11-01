@@ -147,6 +147,19 @@ class DraggableCardItem(QGraphicsPixmapItem):
         self._apply_motion()
         self._schedule_tab_icon()
 
+    def take_place_of(self, other):
+        """Replace a card's pos with another"""
+        self.setPos(other.pos() + other.boundingRect().center() - self.boundingRect().center())
+        self.setZValue(other.zValue())
+        self._visual_pos = QPointF(self.pos())
+        self.motion.orient = other.motion.orient
+        self.motion.reversed = other.motion.reversed
+        self.motion.orient_lag = other.motion.orient_lag
+        self.motion.spin = other.motion.spin
+        self.motion.lift = other.motion.lift
+        self._lift.snap(other._lift.value, other._lift.velocity)
+        self._apply_motion()
+
     def place_and_settle(self):
         """Pop in and spring back"""
         if not self._reactive_allowed():
@@ -497,6 +510,14 @@ class DraggableCardItem(QGraphicsPixmapItem):
         self._pressed = False
         self._dragging = False
         self._group_dragging = False
+
+    def abandon_press(self):
+        """Let go of a press whose release a popup is about to swallow."""
+        self.end_drag()
+        self.setCursor(Qt.CursorShape.OpenHandCursor)
+        scene = self.scene()
+        if scene is not None and scene.mouseGrabberItem() is self:
+            self.ungrabMouse()
 
     def mouseReleaseEvent(self, event):
         self.end_drag()

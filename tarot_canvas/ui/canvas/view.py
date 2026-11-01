@@ -1,6 +1,6 @@
 from contextlib import contextmanager
 
-from PyQt6.QtCore import QEvent, QMimeData, QPointF, Qt, pyqtSignal
+from PyQt6.QtCore import QEvent, QMimeData, QPoint, QPointF, Qt, pyqtSignal
 from PyQt6.QtGui import QPainter
 from PyQt6.QtWidgets import QApplication, QGraphicsView
 
@@ -19,6 +19,8 @@ class PannableGraphicsView(QGraphicsView):
     zoom_changed = pyqtSignal(float)
     # What the view shows, or how sharply, may have changed: a scroll, resize or new dpr
     camera_moved = pyqtSignal()
+    # A context menu was asked for, at this scene position and this screen position
+    context_menu_requested = pyqtSignal(QPointF, QPoint)
 
     def __init__(self, scene, parent=None):
         super().__init__(scene, parent)
@@ -182,6 +184,10 @@ class PannableGraphicsView(QGraphicsView):
             event.accept()
         else:
             super().mouseDoubleClickEvent(event)
+
+    def contextMenuEvent(self, event):
+        self.context_menu_requested.emit(self.mapToScene(event.pos()), event.globalPos())
+        event.accept()
 
     # -- drop -------------------------------------------------------------
 
