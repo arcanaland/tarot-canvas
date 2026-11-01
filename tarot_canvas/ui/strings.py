@@ -4,7 +4,7 @@
 COMMANDS = {
     # File
     "new_canvas": "New &Canvas",
-    "new_spread": "New S&pread",
+    "new_spread": "New Spread",
     "new_library": "New &Library View",
     "new_card_view": "New C&ard View",
     "open_deck": "&Open Deck…",
