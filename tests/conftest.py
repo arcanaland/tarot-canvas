@@ -80,6 +80,16 @@ def block_reference_deck_network(monkeypatch):
     )
 
 
+@pytest.fixture
+def spreads_base(tmp_path, monkeypatch):
+    """Spreads are read from and written under a fresh directory."""
+    from tarot_canvas.models import spreads
+
+    base = tmp_path / "spreads"
+    monkeypatch.setattr(spreads, "spreads_base", lambda: base)
+    return base
+
+
 @pytest.fixture(autouse=True)
 def flush_closed_widgets(monkeypatch):
     """Keep qtbot's widgets alive until it has closed them, then delete them before
