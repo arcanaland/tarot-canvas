@@ -13,10 +13,10 @@ from tarot_canvas.settings import (
     get_settings,
 )
 from tarot_canvas.ui.card_transfer import CARD_MIME
-from tarot_canvas.ui.deck_view import view_text
 from tarot_canvas.ui.deck_view.card_model import CardRole, KindRole
 from tarot_canvas.ui.deck_view.tableau_model import KIND_GHOST, ROW_LABELS, DimmedRole
 from tarot_canvas.ui.library import units
+from tarot_canvas.ui.strings import DECK_VIEW
 from tarot_canvas.ui.tabs.deck_view_tab import DeckViewTab
 from tests.conftest import MINIMAL_DECK_PATH
 from tests.gui.test_tableau_model import deck_without
@@ -143,11 +143,11 @@ def test_the_view_bar_is_two_exclusive_icon_buttons_with_placeholder_names(tab):
     assert tab.view_group.exclusive()
     assert sections.isCheckable() and tableau.isCheckable()
     assert sections.toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonIconOnly
-    assert sections.toolTip() == view_text.SECTIONS_TOOLTIP
-    assert sections.accessibleName() == view_text.SECTIONS_NAME
-    assert tableau.toolTip() == view_text.TABLEAU_TOOLTIP
-    assert tableau.accessibleName() == view_text.TABLEAU_NAME
-    assert sections.parentWidget().accessibleName() == view_text.VIEW_BAR_NAME
+    assert sections.toolTip() == DECK_VIEW["sections_tooltip"]
+    assert sections.accessibleName() == DECK_VIEW["sections_name"]
+    assert tableau.toolTip() == DECK_VIEW["tableau_tooltip"]
+    assert tableau.accessibleName() == DECK_VIEW["tableau_name"]
+    assert sections.parentWidget().accessibleName() == DECK_VIEW["view_bar_name"]
     assert tableau.isChecked() and not sections.isChecked()
 
     sections.click()

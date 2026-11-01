@@ -3,6 +3,7 @@ from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import QFrame, QLabel, QVBoxLayout
 
 from tarot_canvas.ui import typography
+from tarot_canvas.ui.strings import CARD_VIEW
 from tarot_canvas.utils.logger import logger
 
 
@@ -72,7 +73,7 @@ class CardPreviewWidget(QFrame):
         card_type = ""
         card_id = card.get("id", "")
         if "major_arcana" in card_id:
-            card_type = "Major Arcana"
+            card_type = CARD_VIEW["major_arcana"]
         elif "suit" in card:
             card_type = f"{card['suit'].title()}"
             if "rank" in card:
@@ -103,16 +104,16 @@ class CardPreviewWidget(QFrame):
                     )
                 else:
                     logger.debug("Failed to load image - pixmap is null")
-                    self.image_label.setText("No Image")
+                    self.image_label.setText(CARD_VIEW["preview_no_image"])
             except Exception as e:
                 logger.error(f"Error loading card image: {e}")
                 import traceback
 
                 logger.debug(traceback.format_exc())
-                self.image_label.setText("Image Error")
+                self.image_label.setText(CARD_VIEW["preview_image_error"])
         else:
             logger.debug("No image specified for card")
-            self.image_label.setText("No Image")
+            self.image_label.setText(CARD_VIEW["preview_no_image"])
 
         # Resize the widget based on content
         self.adjustSize()

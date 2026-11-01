@@ -12,8 +12,8 @@ from tarot_canvas.settings import SHORTCUTS_PREFIX, get_settings
 from tarot_canvas.ui import commands
 from tarot_canvas.ui.commands import COMMANDS
 from tarot_canvas.ui.main_window import MainWindow
+from tarot_canvas.ui.strings import PREFERENCES
 from tarot_canvas.ui.windows.preferences_dialog import PreferencesDialog
-from tarot_canvas.ui.windows.preferences_text import PREFERENCES_TEXT
 from tarot_canvas.ui.windows.shortcuts_page import COMMAND_ROLE
 
 
@@ -78,7 +78,7 @@ def test_searching_a_key_leaves_only_its_command(qtbot):
 
     page.search.setText("ctrl+]")
 
-    assert visible_rows(page) == [(PREFERENCES_TEXT["shortcuts_canvas"], ["Bring to Front"])]
+    assert visible_rows(page) == [(PREFERENCES["shortcuts_canvas"], ["Bring to Front"])]
 
 
 def test_a_fixed_command_is_listed_greyed_and_not_editable(qtbot):

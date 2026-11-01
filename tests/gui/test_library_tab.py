@@ -24,7 +24,7 @@ from tarot_canvas.ui.library.deck_model import (
     ProgressRole,
     StateRole,
 )
-from tarot_canvas.ui.library.download_text import DOWNLOAD_TEXT
+from tarot_canvas.ui.strings import DOWNLOAD
 from tarot_canvas.ui.tabs.library_tab import LibraryTab
 from tests.gui.test_catalog_client import FakeTransport
 from tests.unit.test_catalog import index, raw_entry
@@ -554,7 +554,7 @@ def test_try_again_restarts_a_failed_download(ghost_library, fake_downloads):
 
     pane = ghost_library.details_pane
     assert pane.action_button.text() == "Try Again"
-    assert pane.failure_label.text() == DOWNLOAD_TEXT["failed: network"]
+    assert pane.failure_label.text() == DOWNLOAD["failed: network"]
 
     pane.action_button.click()
     assert len(fake_downloads) == 2
@@ -715,7 +715,7 @@ def test_a_finished_download_raises_the_main_window_toast(qtbot, fake_downloads)
     deck_downloads().start(AQUATIC)
     fake_downloads[0].succeeded.emit(str(fake_downloads[0].dest))
 
-    assert window.toast.text() == DOWNLOAD_TEXT["installed_toast"].format(name=AQUATIC.name)
+    assert window.toast.text() == DOWNLOAD["installed_toast"].format(name=AQUATIC.name)
     assert window.toast.isVisibleTo(window)
 
 
@@ -747,7 +747,7 @@ def esoterica_names(tab):
 
 def test_the_third_row_shows_the_esoterica_page_and_its_pane(sources, library):
     from tarot_canvas.settings import LIBRARY_VIEW_ESOTERICA, LIBRARY_VIEWS
-    from tarot_canvas.ui.esoterica_text import label_for
+    from tarot_canvas.ui.strings import label_for
 
     row = LIBRARY_VIEWS.index(LIBRARY_VIEW_ESOTERICA)
     assert row == 2
@@ -810,11 +810,11 @@ def test_selecting_a_source_enables_the_details_toggle(sources, library):
 
 def test_an_empty_esoterica_key_hides_its_element(sources, library, monkeypatch):
     from tarot_canvas.settings import LIBRARY_VIEW_ESOTERICA
-    from tarot_canvas.ui import esoterica_text
+    from tarot_canvas.ui import strings
 
-    monkeypatch.setitem(esoterica_text.ESOTERICA_TEXT, "library.empty_no_match", "")
-    monkeypatch.setitem(esoterica_text.ESOTERICA_TEXT, "library.search_placeholder", "")
-    monkeypatch.setitem(esoterica_text.ESOTERICA_TEXT, "library.details_toggle_show", "")
+    monkeypatch.setitem(strings.ESOTERICA, "library.empty_no_match", "")
+    monkeypatch.setitem(strings.ESOTERICA, "library.search_placeholder", "")
+    monkeypatch.setitem(strings.ESOTERICA, "library.details_toggle_show", "")
     library.show_view(LIBRARY_VIEW_ESOTERICA)
     page = library.esoterica_page
 
@@ -828,9 +828,9 @@ def test_an_empty_esoterica_key_hides_its_element(sources, library, monkeypatch)
 
 def test_a_filled_empty_key_shows_its_element(sources, library, monkeypatch):
     from tarot_canvas.settings import LIBRARY_VIEW_ESOTERICA
-    from tarot_canvas.ui import esoterica_text
+    from tarot_canvas.ui import strings
 
-    monkeypatch.setitem(esoterica_text.ESOTERICA_TEXT, "library.empty_no_match", "None")
+    monkeypatch.setitem(strings.ESOTERICA, "library.empty_no_match", "None")
     library.show_view(LIBRARY_VIEW_ESOTERICA)
 
     library.search_field.setText("nothing matches this")

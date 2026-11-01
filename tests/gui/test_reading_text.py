@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import QApplication
 from tarot_canvas.models.esoterica import Entry, SourceReading
 from tarot_canvas.models.esoterica_registry import PASSAGES, Role
 from tarot_canvas.settings import get_reading_text_scale
-from tarot_canvas.ui import esoterica_text, typography
+from tarot_canvas.ui import strings, typography
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.card_view import esoterica_tab, overview_tab
@@ -39,7 +39,7 @@ def stub_esoterica(monkeypatch):
     )
     for module in (esoterica_tab, overview_tab):
         monkeypatch.setattr(module, "get_esoterica_manager", lambda: manager)
-    monkeypatch.setitem(esoterica_text.ESOTERICA_TEXT, "joiner", ", ")
+    monkeypatch.setitem(strings.ESOTERICA, "joiner", ", ")
 
 
 def point_size(widget):

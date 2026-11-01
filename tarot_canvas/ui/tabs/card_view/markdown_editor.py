@@ -3,6 +3,7 @@ from PyQt6.QtGui import QColor, QFont, QSyntaxHighlighter, QTextCharFormat, QTex
 from PyQt6.QtWidgets import QCompleter, QPlainTextEdit
 
 from tarot_canvas.ui import typography
+from tarot_canvas.ui.strings import NOTES
 from tarot_canvas.ui.tabs.card_view.card_preview import CardPreviewWidget
 from tarot_canvas.utils.logger import logger
 
@@ -77,9 +78,7 @@ class MarkdownEditor(QPlainTextEdit):
         # Monospace, at the reading size
         typography.apply(self, typography.Role.BODY, fixed=True, reading=True)
         # self.setWordWrapMode(QPlainTextEdit.rdWrapMode.WidgetWidth)
-        self.setPlaceholderText(
-            "Write your notes here using Markdown...\n\n# Heading\n\n**Bold text**\n\n- List item\n\n[[Link to card or note]]"
-        )
+        self.setPlaceholderText(NOTES["editor_placeholder"])
 
         # Syntax highlighting
         self.highlighter = MarkdownHighlighter(self.document())

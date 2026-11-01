@@ -4,9 +4,8 @@ from PyQt6.QtCore import QAbstractListModel, QModelIndex, Qt
 
 from tarot_canvas.models.coverage import CellState
 from tarot_canvas.settings import get_esoterica_disabled, set_esoterica_disabled
-from tarot_canvas.ui.esoterica_text import label_for
 from tarot_canvas.ui.library.deck_model import SubtitleRole
-from tarot_canvas.ui.license_names import license_name
+from tarot_canvas.ui.strings import label_for, license_name
 
 KindRole = Qt.ItemDataRole.UserRole + 31
 NotReadRole = Qt.ItemDataRole.UserRole + 33

@@ -15,9 +15,8 @@ from PyQt6.QtWidgets import (
 from tarot_canvas.ui import commands
 from tarot_canvas.ui.commands import COMMANDS, Scope
 from tarot_canvas.ui.library import units
-from tarot_canvas.ui.notes_text import NOTES_TEXT
+from tarot_canvas.ui.strings import NOTES, PREFERENCES
 from tarot_canvas.ui.widgets.inline_message import InlineMessage
-from tarot_canvas.ui.windows.preferences_text import PREFERENCES_TEXT
 
 GROUPS = (
     ("shortcuts_global", (Scope.WINDOW,)),
@@ -113,13 +112,13 @@ class ShortcutsPage(QWidget):
         self.model = QStandardItemModel(0, 1 + CELLS, self)
         self.model.setHorizontalHeaderLabels(
             [
-                PREFERENCES_TEXT["shortcuts_action"],
-                PREFERENCES_TEXT["shortcuts_primary"],
-                PREFERENCES_TEXT["shortcuts_alternate"],
+                PREFERENCES["shortcuts_action"],
+                PREFERENCES["shortcuts_primary"],
+                PREFERENCES["shortcuts_alternate"],
             ]
         )
         for group_key, scopes in GROUPS:
-            group = [QStandardItem(PREFERENCES_TEXT[group_key])]
+            group = [QStandardItem(PREFERENCES[group_key])]
             group += [QStandardItem() for _ in range(CELLS)]
             for item in group:
                 item.setEditable(False)
@@ -136,7 +135,7 @@ class ShortcutsPage(QWidget):
 
         self.search = QLineEdit()
         self.search.setClearButtonEnabled(True)
-        self.search.setPlaceholderText(PREFERENCES_TEXT["shortcuts_search"])
+        self.search.setPlaceholderText(PREFERENCES["shortcuts_search"])
         self.search.textChanged.connect(self.filter)
 
         self.tree = QTreeView()
@@ -156,7 +155,7 @@ class ShortcutsPage(QWidget):
             header.resizeSection(column, 7 * units.GRID_UNIT)
         self.tree.expandAll()
 
-        self.message = InlineMessage(close_text=NOTES_TEXT["dismiss"], warning=True)
+        self.message = InlineMessage(close_text=NOTES["dismiss"], warning=True)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -231,7 +230,7 @@ class ShortcutsPage(QWidget):
             sequence
         ):
             native = sequence.toString(QKeySequence.SequenceFormat.NativeText)
-            self.message.show_message(PREFERENCES_TEXT["shortcuts_bare"].format(key=native))
+            self.message.show_message(PREFERENCES["shortcuts_bare"].format(key=native))
             return
 
         cells[index.column() - 1] = key
@@ -240,7 +239,7 @@ class ShortcutsPage(QWidget):
             if clash == key and command_id in (holder, other):
                 owner = commands.by_id(other if holder == command_id else holder)
                 self.message.show_message(
-                    PREFERENCES_TEXT["shortcuts_taken"].format(command=label(owner))
+                    PREFERENCES["shortcuts_taken"].format(command=label(owner))
                 )
                 return
 

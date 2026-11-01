@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import (
 
 from tarot_canvas.about import AboutData, Person, Release, load_about_data
 from tarot_canvas.ui import typography
+from tarot_canvas.ui.strings import ABOUT
 from tarot_canvas.utils.dates import relative_date_from_iso
 
 ICON_PATH = files("tarot_canvas.resources.icons").joinpath("icon.png")
@@ -64,7 +65,7 @@ class AboutDialog(QDialog):
 
     def __init__(self, parent=None, about: AboutData | None = None):
         super().__init__(parent)
-        self.setWindowTitle("About Tarot Canvas")
+        self.setWindowTitle(ABOUT["title"])
         self.setMinimumSize(*DEFAULT_SIZE)
         self.resize(*DEFAULT_SIZE)
 
@@ -75,10 +76,10 @@ class AboutDialog(QDialog):
         layout.addWidget(self._build_header(), 0)
 
         self.tabs = QTabWidget()
-        self.tabs.addTab(self._build_about_tab(), "About")
+        self.tabs.addTab(self._build_about_tab(), ABOUT["tab_about"])
         if self.about.releases:
-            self.tabs.addTab(self._build_whats_new_tab(), "What's New")
-        self.tabs.addTab(self._build_authors_tab(), "Authors")
+            self.tabs.addTab(self._build_whats_new_tab(), ABOUT["tab_whats_new"])
+        self.tabs.addTab(self._build_authors_tab(), ABOUT["tab_authors"])
         layout.addWidget(self.tabs, 1)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
@@ -112,7 +113,7 @@ class AboutDialog(QDialog):
         name_label = typography.apply(QLabel(self.about.name), typography.Role.HEADING_1)
         text.addWidget(name_label)
 
-        self.version_label = QLabel(f"Version {self.about.version}")
+        self.version_label = QLabel(ABOUT["version"].format(version=self.about.version))
         typography.apply(self.version_label, typography.Role.HEADING_2)
         self.version_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         text.addWidget(self.version_label)
@@ -128,7 +129,7 @@ class AboutDialog(QDialog):
 
     def _build_about_tab(self) -> QWidget:
         license_url = LICENSE_URLS.get(self.about.license)
-        license_text = f"{self.about.license} License"
+        license_text = ABOUT["license"].format(license=self.about.license)
 
         page, layout = self._page()
         layout.addWidget(self._body_label(self.about.summary))
@@ -178,14 +179,11 @@ class AboutDialog(QDialog):
 
         if self.about.bugtracker:
             layout.addWidget(
-                self._body_label(f"Please use {_link(self.about.bugtracker)} to report bugs.")
+                self._body_label(ABOUT["report_bugs"].format(link=_link(self.about.bugtracker)))
             )
         if self.about.faq:
             layout.addWidget(
-                self._body_label(
-                    "If you have questions or need help, please visit the "
-                    f"{_link(self.about.faq, 'Frequently Asked Questions')}."
-                )
+                self._body_label(ABOUT["help"].format(link=_link(self.about.faq, ABOUT["faq"])))
             )
 
         layout.addSpacing(8)
@@ -239,8 +237,8 @@ class AboutDialog(QDialog):
             button.setText("✉")
         else:
             button.setIcon(icon)
-        button.setToolTip(f"Email {person.name} at {person.email}")
-        button.setAccessibleName(f"Email {person.name}")
+        button.setToolTip(ABOUT["email_tooltip"].format(name=person.name, email=person.email))
+        button.setAccessibleName(ABOUT["email_name"].format(name=person.name))
         button.clicked.connect(
             lambda _checked=False, email=person.email: QDesktopServices.openUrl(
                 QUrl(f"mailto:{email}")

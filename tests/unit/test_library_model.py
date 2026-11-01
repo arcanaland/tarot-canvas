@@ -23,7 +23,7 @@ from tarot_canvas.ui.library.deck_model import (
     deck_subtitle,
     is_majors_only,
 )
-from tarot_canvas.ui.library.download_text import failure_text
+from tarot_canvas.ui.strings import failure_text
 from tarot_canvas.utils.package_download import DownloadFailure, FailureKind
 from tests.unit.test_catalog import index, raw_entry
 

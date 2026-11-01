@@ -39,29 +39,29 @@ from tarot_canvas.settings import (
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.pane_text import pane_form
+from tarot_canvas.ui.strings import PREFERENCES
 from tarot_canvas.ui.widgets.places_sidebar import PlacesSidebar
-from tarot_canvas.ui.windows.preferences_text import PREFERENCES_TEXT
 from tarot_canvas.ui.windows.shortcuts_page import ShortcutsPage
 from tarot_canvas.utils.theme_manager import ThemeManager, ThemeType
 
 THEME_LABELS = (
-    (ThemeType.SYSTEM.value, "System"),
-    (ThemeType.LIGHT.value, "Light"),
-    (ThemeType.DARK.value, "Dark"),
+    (ThemeType.SYSTEM.value, PREFERENCES["theme_system"]),
+    (ThemeType.LIGHT.value, PREFERENCES["theme_light"]),
+    (ThemeType.DARK.value, PREFERENCES["theme_dark"]),
 )
 
 BACKGROUND_STYLE_LABELS = (
-    ("checkerboard", "Checkerboard"),
-    ("gradient", "Gradient"),
-    ("solid", "Solid Color"),
+    ("checkerboard", PREFERENCES["background_checkerboard"]),
+    ("gradient", PREFERENCES["background_gradient"]),
+    ("solid", PREFERENCES["background_solid"]),
 )
 # The styles drawn from a colour the user picks
 COLOURED_BACKGROUND_STYLES = ("checkerboard", "solid")
 
 MOTION_LEVEL_LABELS = (
-    ("Off", "None"),
-    ("Reactive", "Response only"),
-    ("Full", "Full"),
+    ("Off", PREFERENCES["motion_off"]),
+    ("Reactive", PREFERENCES["motion_reactive"]),
+    ("Full", PREFERENCES["motion_full"]),
 )
 
 
@@ -92,14 +92,14 @@ class PreferencesDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Preferences")
+        self.setWindowTitle(PREFERENCES["title"])
         self.bg_color = QColor(BACKGROUND_COLOR_DEFAULT)
         self.checkerboard_color = QColor(CHECKERBOARD_COLOR_DEFAULT)
         self.stored_state = None
 
         self.page_list = PlacesSidebar(
             [
-                (QIcon.fromTheme(icon_name), PREFERENCES_TEXT[key], key)
+                (QIcon.fromTheme(icon_name), PREFERENCES[key], key)
                 for key, icon_name, _build in self.pages()
             ],
             filled=True,
@@ -192,9 +192,9 @@ class PreferencesDialog(QDialog):
         page = QWidget()
         form = pane_form()
         self.theme_combo = keyed_combo(THEME_LABELS)
-        form.addRow("Theme:", self.theme_combo)
+        form.addRow(PREFERENCES["theme"], self.theme_combo)
         self.text_size_combo = keyed_combo(percent_labels(READING_TEXT_SCALE_STEPS))
-        form.addRow(PREFERENCES_TEXT["text_size"], self.text_size_combo)
+        form.addRow(PREFERENCES["text_size"], self.text_size_combo)
         page.setLayout(form)
         return page
 
@@ -206,8 +206,8 @@ class PreferencesDialog(QDialog):
         self.bg_combo.currentIndexChanged.connect(self.update_swatch)
 
         self.bg_color_btn = QToolButton()
-        self.bg_color_btn.setToolTip(PREFERENCES_TEXT["background_colour"])
-        self.bg_color_btn.setAccessibleName(PREFERENCES_TEXT["background_colour"])
+        self.bg_color_btn.setToolTip(PREFERENCES["background_colour"])
+        self.bg_color_btn.setAccessibleName(PREFERENCES["background_colour"])
         self.bg_color_btn.clicked.connect(self.select_bg_color)
         # Hiding the swatch keeps its room, so the combo doesn't change width under the pointer
         policy = self.bg_color_btn.sizePolicy()
@@ -220,13 +220,13 @@ class PreferencesDialog(QDialog):
         row.setContentsMargins(0, 0, 0, 0)
         row.addWidget(self.bg_combo, 1)
         row.addWidget(self.bg_color_btn)
-        form.addRow("Canvas Background:", background)
+        form.addRow(PREFERENCES["canvas_background"], background)
 
         self.motion_combo = keyed_combo(MOTION_LEVEL_LABELS)
-        form.addRow("Canvas Motion:", self.motion_combo)
+        form.addRow(PREFERENCES["canvas_motion"], self.motion_combo)
 
-        self.canvas_tab_minimap_check = QCheckBox(PREFERENCES_TEXT["canvas_tab_minimap"])
-        form.addRow(PREFERENCES_TEXT["canvas_tabs"], self.canvas_tab_minimap_check)
+        self.canvas_tab_minimap_check = QCheckBox(PREFERENCES["canvas_tab_minimap"])
+        form.addRow(PREFERENCES["canvas_tabs"], self.canvas_tab_minimap_check)
 
         page.setLayout(form)
         return page
@@ -235,8 +235,8 @@ class PreferencesDialog(QDialog):
         page = QWidget()
         form = pane_form()
         # Ghost tiles for catalog decks not installed yet
-        self.show_available_decks_check = QCheckBox("Show available decks")
-        form.addRow("Library:", self.show_available_decks_check)
+        self.show_available_decks_check = QCheckBox(PREFERENCES["show_available_decks"])
+        form.addRow(PREFERENCES["library_label"], self.show_available_decks_check)
         page.setLayout(form)
         return page
 

@@ -16,6 +16,7 @@ from tarot_canvas.models.card_search import CardTerms, Query
 from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.library.cover_cache import CoverCache
+from tarot_canvas.ui.strings import PALETTE
 
 THUMBNAIL_SIZE = QSize(25, 40)
 
@@ -68,7 +69,7 @@ class CommandPaletteItem(QWidget):
         layout.addStretch()
 
         # Action hint based on context (will be set later)
-        self.action_label = QLabel("Open")
+        self.action_label = QLabel(PALETTE["open"])
         self.action_label.setStyleSheet("color: #666;")
         typography.apply(self.action_label, typography.Role.SMALL)
         self.action_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
@@ -97,7 +98,7 @@ class CommandPalette(QDialog):
 
     def __init__(self, parent=None, active_tab_type=None):
         super().__init__(parent)
-        self.setWindowTitle("Find Card")
+        self.setWindowTitle(PALETTE["title"])
         self.setMinimumWidth(500)
         self.setMinimumHeight(400)
 
@@ -122,13 +123,17 @@ class CommandPalette(QDialog):
 
         # Search input
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Search for cards...")
+        self.search_input.setPlaceholderText(PALETTE["search"])
         self.search_input.textChanged.connect(self.filter_results)
         layout.addWidget(self.search_input)
 
         # Context indicator
-        action_text = "Add to Canvas" if self.active_tab_type == "canvas" else "Open Card View"
-        context_label = QLabel(f"Press Enter to {action_text}")
+        action_text = (
+            PALETTE["add_to_canvas"]
+            if self.active_tab_type == "canvas"
+            else PALETTE["open_card_view"]
+        )
+        context_label = QLabel(PALETTE["hint"].format(action=action_text))
         context_label.setStyleSheet("color: #666; font-style: italic;")
         context_label.setAlignment(Qt.AlignmentFlag.AlignRight)
         layout.addWidget(context_label)
@@ -170,7 +175,9 @@ class CommandPalette(QDialog):
             card_widget = CommandPaletteItem(card, deck, device_pixel_ratio)
 
             # Set action hint based on active tab type
-            action_text = "Add to Canvas" if self.active_tab_type == "canvas" else "Open"
+            action_text = (
+                PALETTE["add_to_canvas"] if self.active_tab_type == "canvas" else PALETTE["open"]
+            )
             card_widget.set_action_hint(action_text)
 
             # Store card and deck data with the item

@@ -28,13 +28,13 @@ from tarot_canvas.settings import (
 )
 from tarot_canvas.ui.activate_on_return import activate_on_return
 from tarot_canvas.ui.card_transfer import copy_cards_to_clipboard
-from tarot_canvas.ui.deck_view import view_text
 from tarot_canvas.ui.deck_view.card_delegate import CardDelegate
 from tarot_canvas.ui.deck_view.card_model import CardFilter, CardModel, CardRole
 from tarot_canvas.ui.deck_view.sections_view import SectionsView
 from tarot_canvas.ui.deck_view.tableau_model import TableauModel
 from tarot_canvas.ui.deck_view.tableau_view import TableauView
 from tarot_canvas.ui.library import units
+from tarot_canvas.ui.strings import DECK_VIEW
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.ui.widgets import deck_header
 from tarot_canvas.ui.widgets.deck_header import DeckHeader
@@ -42,8 +42,6 @@ from tarot_canvas.ui.widgets.search_field import search_field
 from tarot_canvas.ui.widgets.zoom_slider import ZoomSlider
 
 SECTION_MARGIN = deck_header.EDGE_MARGIN
-FIND_CARD_PLACEHOLDER = "Find card…"
-NEW_CANVAS_FROM_SELECTION = "Create New Canvas From Selection"
 
 VIEW_ICONS = {
     DECK_VIEW_MODE_SECTIONS: "view-list-icons",
@@ -71,7 +69,7 @@ class DeckViewTab(BaseTab):
             # Load deck from deck_path
             self.load_deck(self.deck_path)
         else:
-            self.set_placeholder("Open a deck to view its cards")
+            self.set_placeholder(DECK_VIEW["no_deck"])
 
     def load_deck(self, deck_path):
         self.clear_layout()
@@ -141,11 +139,13 @@ class DeckViewTab(BaseTab):
         )
         row.setSpacing(units.LARGE_SPACING)
 
-        self.search_field = search_field(FIND_CARD_PLACEHOLDER)
+        self.search_field = search_field(DECK_VIEW["find_card"])
         self.search_field.textChanged.connect(self.on_search_changed)
         row.addWidget(self.search_field, 1)
 
-        self.zoom_slider = ZoomSlider(units.DENSITIES, "Cover size", DECK_VIEW_DENSITY_DEFAULT)
+        self.zoom_slider = ZoomSlider(
+            units.DENSITIES, DECK_VIEW["cover_size"], DECK_VIEW_DENSITY_DEFAULT
+        )
         density = self.settings.value(DECK_VIEW_DENSITY_KEY, DECK_VIEW_DENSITY_DEFAULT, type=str)
         self.zoom_slider.set_key(
             density if density in units.DENSITIES else DECK_VIEW_DENSITY_DEFAULT
@@ -158,7 +158,7 @@ class DeckViewTab(BaseTab):
 
     def _build_view_bar(self):
         bar = QWidget()
-        bar.setAccessibleName(view_text.VIEW_BAR_NAME)
+        bar.setAccessibleName(DECK_VIEW["view_bar_name"])
         buttons = QHBoxLayout(bar)
         buttons.setContentsMargins(0, 0, 0, 0)
         buttons.setSpacing(0)
@@ -167,8 +167,8 @@ class DeckViewTab(BaseTab):
         self.view_group.setExclusive(True)
         self.view_buttons = {}
         names = {
-            DECK_VIEW_MODE_SECTIONS: (view_text.SECTIONS_NAME, view_text.SECTIONS_TOOLTIP),
-            DECK_VIEW_MODE_TABLEAU: (view_text.TABLEAU_NAME, view_text.TABLEAU_TOOLTIP),
+            DECK_VIEW_MODE_SECTIONS: (DECK_VIEW["sections_name"], DECK_VIEW["sections_tooltip"]),
+            DECK_VIEW_MODE_TABLEAU: (DECK_VIEW["tableau_name"], DECK_VIEW["tableau_tooltip"]),
         }
         for mode in DECK_VIEW_MODES:
             name, tooltip = names[mode]
@@ -321,14 +321,18 @@ class DeckViewTab(BaseTab):
         menu = QMenu(self)
         several = len(self.selected_source_rows()) > 1
         open_action = menu.addAction(
-            QIcon.fromTheme("document-open"), "&Open Cards" if several else "&Open Card"
+            QIcon.fromTheme("document-open"),
+            DECK_VIEW["open_cards"] if several else DECK_VIEW["open_card"],
         )
         open_action.triggered.connect(lambda: self.open_selection(index))
         copy_action = menu.addAction(
-            QIcon.fromTheme("edit-copy"), "&Copy Cards" if several else "&Copy Card"
+            QIcon.fromTheme("edit-copy"),
+            DECK_VIEW["copy_cards"] if several else DECK_VIEW["copy_card"],
         )
         copy_action.triggered.connect(self.copy_card)
-        canvas_action = menu.addAction(QIcon.fromTheme("draw-rectangle"), NEW_CANVAS_FROM_SELECTION)
+        canvas_action = menu.addAction(
+            QIcon.fromTheme("draw-rectangle"), DECK_VIEW["new_canvas_from_selection"]
+        )
         canvas_action.triggered.connect(self.new_canvas_from_selection)
         return menu
 
@@ -400,7 +404,7 @@ class DeckViewTab(BaseTab):
             return self.deck.get_name()
         if self.deck_path:
             return os.path.basename(self.deck_path)
-        return "Deck View"
+        return DECK_VIEW["tab_fallback"]
 
     def tab_icon(self):
         return QIcon.fromTheme("view-grid")

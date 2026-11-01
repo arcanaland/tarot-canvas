@@ -32,6 +32,7 @@ from tarot_canvas.ui.deck_view.card_model import (
     KindRole,
 )
 from tarot_canvas.ui.library import units
+from tarot_canvas.ui.strings import DECK_VIEW
 from tarot_canvas.ui.tabs import deck_view_tab as module
 from tarot_canvas.ui.tabs.deck_view_tab import DeckViewTab
 from tarot_canvas.ui.widgets.deck_header import DeckHeader
@@ -336,7 +337,7 @@ def test_the_context_menu_offers_open_copy_and_a_new_canvas(full_tab, qtbot):
     first = indexes(full_tab, KIND_CARD)[0]
     actions = {a.text().replace("&", ""): a for a in full_tab.card_menu(first).actions()}
 
-    assert list(actions) == ["Open Card", "Copy Card", module.NEW_CANVAS_FROM_SELECTION]
+    assert list(actions) == ["Open Card", "Copy Card", DECK_VIEW["new_canvas_from_selection"]]
     with qtbot.waitSignal(full_tab.card_action_requested, timeout=1000) as opened:
         actions["Open Card"].trigger()
     assert opened.args[0] == "double_click"
@@ -355,7 +356,7 @@ def test_open_opens_every_selected_card(full_tab):
         a.text().replace("&", ""): a
         for a in full_tab.card_menu(full_tab.grid.currentIndex()).actions()
     }
-    assert list(actions) == ["Open Cards", "Copy Cards", module.NEW_CANVAS_FROM_SELECTION]
+    assert list(actions) == ["Open Cards", "Copy Cards", DECK_VIEW["new_canvas_from_selection"]]
     actions["Open Cards"].trigger()
     assert opened == ["major_arcana.00", "major_arcana.01", "major_arcana.02"]
 

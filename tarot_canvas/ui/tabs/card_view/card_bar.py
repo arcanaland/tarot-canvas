@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
 
 from tarot_canvas.ui.card_transfer import deck_path_key
 from tarot_canvas.ui.commands import set_menu_text, set_tooltip_with_keys
+from tarot_canvas.ui.strings import CARD_VIEW
 
 
 class TitleButton(QToolButton):
@@ -96,7 +97,7 @@ class DeckBar(QWidget):
         self.deck_button = TitleButton()
         self.deck_button.setMinimumWidth(self.MIN_BUTTON_WIDTH)
         self.deck_button.setMaximumWidth(self.MAX_BUTTON_WIDTH)
-        self.deck_button.setToolTip("Show this card from another deck ([ and ])")
+        self.deck_button.setToolTip(CARD_VIEW["other_decks_tooltip"])
 
         # A list inside the menu, not menu items: a list draws its icons at the
         # size it is given, where a menu item's icon size is the style's to pick
@@ -207,26 +208,26 @@ class CardBar(QToolBar):
         self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
 
         image_view = tab.image_view
-        self.copy_action = self._add("edit-copy", "Copy", tab.copy_card)
-        set_tooltip_with_keys(self.copy_action, "Copy card", "window.copy_card")
+        self.copy_action = self._add("edit-copy", CARD_VIEW["copy"], tab.copy_card)
+        set_tooltip_with_keys(self.copy_action, CARD_VIEW["copy_tooltip"], "window.copy_card")
 
         # One button for the zoom state; the menu is the discoverable half of the
         # wheel, Ctrl+± and double-click. Text after a tab is only displayed.
         menu = QMenu(self)
         self.zoom_in_action = self._menu_item(menu, "zoom-in", image_view.zoom_in)
-        set_menu_text(self.zoom_in_action, "Zoom In", "window.zoom_in")
+        set_menu_text(self.zoom_in_action, CARD_VIEW["zoom_in"], "window.zoom_in")
         self.zoom_out_action = self._menu_item(menu, "zoom-out", image_view.zoom_out)
-        set_menu_text(self.zoom_out_action, "Zoom Out", "window.zoom_out")
+        set_menu_text(self.zoom_out_action, CARD_VIEW["zoom_out"], "window.zoom_out")
         menu.addSeparator()
         self.fit_action = self._menu_item(menu, "zoom-fit-best", image_view.reset_to_fit)
-        set_menu_text(self.fit_action, "Fit", "window.reset_zoom")
+        set_menu_text(self.fit_action, CARD_VIEW["fit"], "window.reset_zoom")
         self.native_action = self._menu_item(menu, "zoom-original", image_view.zoom_to_native)
-        self.native_action.setText("Actual Size\tDouble-click")
+        self.native_action.setText(CARD_VIEW["actual_size"])
         self.zoom_button = QToolButton()
         self.zoom_button.setMenu(menu)
         self.zoom_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.zoom_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
-        self.zoom_button.setToolTip("Zoom")
+        self.zoom_button.setToolTip(CARD_VIEW["zoom"])
         # As wide as the widest label, so the bar doesn't shift as the zoom changes
         self.zoom_button.setText("400%")
         self.zoom_button.setMinimumWidth(self.zoom_button.sizeHint().width())
@@ -237,13 +238,17 @@ class CardBar(QToolBar):
         self.addWidget(spacer)
 
         self.fullscreen_action = self._add(
-            "view-fullscreen", "Fullscreen", tab.request_fullscreen_toggle
+            "view-fullscreen", CARD_VIEW["fullscreen"], tab.request_fullscreen_toggle
         )
-        set_tooltip_with_keys(self.fullscreen_action, "Fullscreen", "card_image.fullscreen")
-        self.fullscreen_action.setCheckable(True)
-        self.info_pane_action = self._add("sidebar-collapse-right", "Details", tab.toggle_info_pane)
         set_tooltip_with_keys(
-            self.info_pane_action, "Hide card details", "card_image.toggle_details"
+            self.fullscreen_action, CARD_VIEW["fullscreen"], "card_image.fullscreen"
+        )
+        self.fullscreen_action.setCheckable(True)
+        self.info_pane_action = self._add(
+            "sidebar-collapse-right", CARD_VIEW["details"], tab.toggle_info_pane
+        )
+        set_tooltip_with_keys(
+            self.info_pane_action, CARD_VIEW["hide_details"], "card_image.toggle_details"
         )
 
         image_view.zoom_changed.connect(self.sync_zoom)
@@ -266,13 +271,13 @@ class CardBar(QToolBar):
     def sync_zoom(self):
         view = self.tab.image_view
         if not view.has_image():
-            self.zoom_button.setText("Fit")
+            self.zoom_button.setText(CARD_VIEW["fit"])
             self.zoom_button.setEnabled(False)
             return
         self.zoom_button.setEnabled(True)
         at_fit = view.is_at_fit()
         percent = round(100 * view.current_scale() / view.native_scale())
-        self.zoom_button.setText("Fit" if at_fit else f"{percent}%")
+        self.zoom_button.setText(CARD_VIEW["fit"] if at_fit else f"{percent}%")
         self.zoom_out_action.setEnabled(not at_fit)
         self.fit_action.setEnabled(not at_fit)
         self.zoom_in_action.setEnabled(view.current_scale() < view.max_scale())
@@ -285,10 +290,10 @@ class CardBar(QToolBar):
         if is_open:
             self.info_pane_action.setIcon(QIcon.fromTheme("sidebar-collapse-right"))
             set_tooltip_with_keys(
-                self.info_pane_action, "Hide card details", "card_image.toggle_details"
+                self.info_pane_action, CARD_VIEW["hide_details"], "card_image.toggle_details"
             )
         else:
             self.info_pane_action.setIcon(QIcon.fromTheme("sidebar-expand-right"))
             set_tooltip_with_keys(
-                self.info_pane_action, "Show card details", "card_image.toggle_details"
+                self.info_pane_action, CARD_VIEW["show_details"], "card_image.toggle_details"
             )

@@ -77,7 +77,6 @@ from tarot_canvas.ui.canvas.tab_icon import (
     spread_icon,
 )
 from tarot_canvas.ui.canvas.view import MAX_ZOOM, MIN_ZOOM
-from tarot_canvas.ui.canvas_text import CANVAS_TEXT
 from tarot_canvas.ui.card_transfer import (
     cards_from_mime,
     copy_card_to_clipboard,
@@ -85,6 +84,7 @@ from tarot_canvas.ui.card_transfer import (
     has_card,
 )
 from tarot_canvas.ui.commands import Scope, set_tooltip_with_keys
+from tarot_canvas.ui.strings import CANVAS
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.utils.logger import logger
 
@@ -96,7 +96,7 @@ class CanvasTab(BaseTab):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.id = f"canvas_{id(self)}"
-        self.tab_name = "Canvas"
+        self.tab_name = CANVAS["tab_name"]
         # Set once the clipboard's card has been pasted here, until the next copy
         self._clipboard_pasted = False
 
@@ -448,10 +448,10 @@ class CanvasTab(BaseTab):
         full = self.is_fullscreen()
         self.fullscreen_action.setChecked(full)
         if full:
-            set_tooltip_with_keys(self.fullscreen_action, "Leave fullscreen (Esc)", None)
+            set_tooltip_with_keys(self.fullscreen_action, CANVAS["leave_fullscreen"], None)
         else:
             set_tooltip_with_keys(
-                self.fullscreen_action, "Fullscreen canvas", self.fullscreen_action
+                self.fullscreen_action, CANVAS["fullscreen_tooltip"], self.fullscreen_action
             )
 
     def create_toolbar(self, parent_layout):
@@ -465,23 +465,23 @@ class CanvasTab(BaseTab):
         self.toolbar.setFloatable(False)
 
         # Primary actions group
-        self.toolbar.addWidget(self.create_section_label("Cards"))
+        self.toolbar.addWidget(self.create_section_label(CANVAS["section_cards"]))
 
         # The toolbar's buttons are the commands', so each shows the key it has
         # Del is Edit > Delete's, which reaches the same handler
         for command_id, tooltip, keys in (
-            ("canvas.summon", "Summon a random card", "canvas.summon"),
-            ("canvas.flip", "Flip card", "canvas.flip"),
-            ("canvas.rotate", CANVAS_TEXT["rotate_tooltip"], "canvas.rotate"),
-            ("canvas.delete", "Remove selected card", "window.delete"),
+            ("canvas.summon", CANVAS["summon_tooltip"], "canvas.summon"),
+            ("canvas.flip", CANVAS["flip_tooltip"], "canvas.flip"),
+            ("canvas.rotate", CANVAS["rotate_tooltip"], "canvas.rotate"),
+            ("canvas.delete", CANVAS["delete_tooltip"], "window.delete"),
         ):
             action = self.commands[command_id]
             set_tooltip_with_keys(action, tooltip, keys)
             self.toolbar.addAction(action)
 
         # Paste
-        self.paste_action = QAction(QIcon.fromTheme("edit-paste"), "Paste", self)
-        set_tooltip_with_keys(self.paste_action, "Paste card", "window.paste_card")
+        self.paste_action = QAction(QIcon.fromTheme("edit-paste"), CANVAS["paste"], self)
+        set_tooltip_with_keys(self.paste_action, CANVAS["paste_tooltip"], "window.paste_card")
         self.paste_action.triggered.connect(self.on_paste_card)
         self.toolbar.addAction(self.paste_action)
         QGuiApplication.clipboard().dataChanged.connect(self.on_clipboard_changed)
@@ -489,13 +489,13 @@ class CanvasTab(BaseTab):
 
         # Arrangement actions group
         self.toolbar.addSeparator()
-        self.toolbar.addWidget(self.create_section_label("Arrange"))
+        self.toolbar.addWidget(self.create_section_label(CANVAS["section_arrange"]))
 
         self.arrange_actions = {}
         for command_id, slot, tooltip in (
-            ("canvas.bring_to_front", self.on_bring_to_front, "Bring card to front"),
-            ("canvas.send_to_back", self.on_send_to_back, "Send card to back"),
-            ("canvas.align", self.on_align_cards, "Align selected cards"),
+            ("canvas.bring_to_front", self.on_bring_to_front, CANVAS["bring_to_front_tooltip"]),
+            ("canvas.send_to_back", self.on_send_to_back, CANVAS["send_to_back_tooltip"]),
+            ("canvas.align", self.on_align_cards, CANVAS["align_tooltip"]),
         ):
             action = self.commands[command_id]
             set_tooltip_with_keys(action, tooltip, action)
@@ -509,12 +509,12 @@ class CanvasTab(BaseTab):
 
         # View control actions group
         self.toolbar.addSeparator()
-        self.toolbar.addWidget(self.create_section_label("View"))
+        self.toolbar.addWidget(self.create_section_label(CANVAS["section_view"]))
 
         # Zooming is View > Zoom's, whose keys are the window's
         for icon_name, slot, tooltip in (
-            ("zoom-in", self.on_zoom_in, "Zoom in"),
-            ("zoom-out", self.on_zoom_out, "Zoom out"),
+            ("zoom-in", self.on_zoom_in, CANVAS["zoom_in_tooltip"]),
+            ("zoom-out", self.on_zoom_out, CANVAS["zoom_out_tooltip"]),
         ):
             action = QAction(QIcon.fromTheme(icon_name), "", self)
             action.setToolTip(tooltip)
@@ -522,17 +522,19 @@ class CanvasTab(BaseTab):
             self.toolbar.addAction(action)
 
         fit_action = self.commands["canvas.fit"]
-        fit_action.setToolTip("Fit all cards in view")
+        fit_action.setToolTip(CANVAS["fit_tooltip"])
         self.toolbar.addAction(fit_action)
 
         reset_action = QAction(QIcon.fromTheme("zoom-original"), "", self)
-        reset_action.setToolTip("Reset to default view")
+        reset_action.setToolTip(CANVAS["reset_view_tooltip"])
         reset_action.triggered.connect(self.on_reset_view)
         self.toolbar.addAction(reset_action)
 
         self.fullscreen_action = self.commands["canvas.fullscreen"]
         self.fullscreen_action.setCheckable(True)
-        set_tooltip_with_keys(self.fullscreen_action, "Fullscreen canvas", self.fullscreen_action)
+        set_tooltip_with_keys(
+            self.fullscreen_action, CANVAS["fullscreen_tooltip"], self.fullscreen_action
+        )
         self.toolbar.addAction(self.fullscreen_action)
 
         # Add the toolbar to the main layout
@@ -797,7 +799,7 @@ class CanvasTab(BaseTab):
             item.setSelected(True)
 
         menu = QMenu(self)
-        open_action = menu.addAction(QIcon.fromTheme("document-open"), CANVAS_TEXT["open_card"])
+        open_action = menu.addAction(QIcon.fromTheme("document-open"), CANVAS["open_card"])
         open_action.triggered.connect(lambda: self.open_card_view(item))
         menu.addSeparator()
         menu.addAction(self.commands["canvas.flip"])
@@ -809,7 +811,7 @@ class CanvasTab(BaseTab):
         return menu
 
     def _add_swap_menu(self, menu, item):
-        swap_menu = menu.addMenu(CANVAS_TEXT["swap_deck"])
+        swap_menu = menu.addMenu(CANVAS["swap_deck"])
         current = deck_path_key(item.deck.deck_path) if item.deck else None
         card_id = item.card_data.get("id")
         others = 0
@@ -961,43 +963,43 @@ class CanvasTab(BaseTab):
         menu = QMenu(self)
 
         # Horizontal alignment actions
-        horizontal_menu = menu.addMenu("Horizontal Align")
+        horizontal_menu = menu.addMenu(CANVAS["align_horizontal"])
         horizontal_menu.setIcon(QIcon.fromTheme("align-horizontal-left"))
 
-        h_left = horizontal_menu.addAction("Left Edges")
+        h_left = horizontal_menu.addAction(CANVAS["align_left"])
         h_left.setIcon(QIcon.fromTheme("align-horizontal-left"))
 
-        h_center = horizontal_menu.addAction("Centers")
+        h_center = horizontal_menu.addAction(CANVAS["align_centers"])
         h_center.setIcon(QIcon.fromTheme("align-horizontal-center"))
 
-        h_right = horizontal_menu.addAction("Right Edges")
+        h_right = horizontal_menu.addAction(CANVAS["align_right"])
         h_right.setIcon(QIcon.fromTheme("align-horizontal-right"))
 
         # Vertical alignment actions
-        vertical_menu = menu.addMenu("Vertical Align")
+        vertical_menu = menu.addMenu(CANVAS["align_vertical"])
         vertical_menu.setIcon(QIcon.fromTheme("align-vertical-top"))
 
-        v_top = vertical_menu.addAction("Top Edges")
+        v_top = vertical_menu.addAction(CANVAS["align_top"])
         v_top.setIcon(QIcon.fromTheme("align-vertical-top"))
 
-        v_center = vertical_menu.addAction("Centers")
+        v_center = vertical_menu.addAction(CANVAS["align_centers"])
         v_center.setIcon(QIcon.fromTheme("align-vertical-center"))
 
-        v_bottom = vertical_menu.addAction("Bottom Edges")
+        v_bottom = vertical_menu.addAction(CANVAS["align_bottom"])
         v_bottom.setIcon(QIcon.fromTheme("align-vertical-bottom"))
 
         # Distribution options
         menu.addSeparator()
 
-        distribute_h = menu.addAction("Distribute Horizontally")
+        distribute_h = menu.addAction(CANVAS["distribute_horizontal"])
         distribute_h.setIcon(QIcon.fromTheme("distribute-horizontal-center"))
 
-        distribute_v = menu.addAction("Distribute Vertically")
+        distribute_v = menu.addAction(CANVAS["distribute_vertical"])
         distribute_v.setIcon(QIcon.fromTheme("distribute-vertical-center"))
 
         # Circle arrangement (useful for tarot spread)
         menu.addSeparator()
-        circle_arrange = menu.addAction("Arrange in Circle")
+        circle_arrange = menu.addAction(CANVAS["arrange_circle"])
         circle_arrange.setIcon(QIcon.fromTheme("object-rotate-right"))
 
         # Connect actions to alignment functions

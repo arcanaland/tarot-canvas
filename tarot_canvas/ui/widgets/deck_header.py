@@ -24,7 +24,7 @@ from tarot_canvas.ui import typography
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.cover_cache import CoverCache
 from tarot_canvas.ui.library.deck_model import deck_cover_path
-from tarot_canvas.ui.license_names import license_name
+from tarot_canvas.ui.strings import DECK_VIEW, license_name
 from tarot_canvas.ui.widgets.cover_banner import (
     BANNER_PADDING,
     BANNER_SUBTEXT,
@@ -39,30 +39,29 @@ MEASURE_CHARACTERS = 85
 
 COLLAPSED_COVER_UNITS = 3
 
-BUY_TEXT = "Buy Deck"
 BUY_ICON = "wallet-open"
 
 # a row per 2.0 link rel; `publisher` links join the Publisher row instead
 LINK_PREFIX = "links."
 
 DETAIL_FIELDS = (
-    ("description", "Description"),
-    ("license", "License"),
-    ("copyright", "Copyright"),
-    ("attribution", "Attribution"),
-    ("publisher", "Publisher"),
-    ("website", "Website"),
-    ("links.homepage", "Homepage"),
-    ("links.artist", "Artist"),
-    ("links.buy", "Buy"),
-    ("links.source", "Source"),
-    ("created_date", "Created"),
-    ("updated_date", "Updated"),
-    ("published_date", "Published"),
-    ("tags", "Tags"),
-    ("id", "Identifier"),
-    ("version", "Version"),
-    ("schema_version", "Schema version"),
+    ("description", DECK_VIEW["field.description"]),
+    ("license", DECK_VIEW["field.license"]),
+    ("copyright", DECK_VIEW["field.copyright"]),
+    ("attribution", DECK_VIEW["field.attribution"]),
+    ("publisher", DECK_VIEW["field.publisher"]),
+    ("website", DECK_VIEW["field.website"]),
+    ("links.homepage", DECK_VIEW["field.links.homepage"]),
+    ("links.artist", DECK_VIEW["field.links.artist"]),
+    ("links.buy", DECK_VIEW["field.links.buy"]),
+    ("links.source", DECK_VIEW["field.links.source"]),
+    ("created_date", DECK_VIEW["field.created_date"]),
+    ("updated_date", DECK_VIEW["field.updated_date"]),
+    ("published_date", DECK_VIEW["field.published_date"]),
+    ("tags", DECK_VIEW["field.tags"]),
+    ("id", DECK_VIEW["field.id"]),
+    ("version", DECK_VIEW["field.version"]),
+    ("schema_version", DECK_VIEW["field.schema_version"]),
 )
 
 DATE_KEYS = ("created_date", "updated_date", "published_date")
@@ -80,7 +79,7 @@ def cover_size(expanded):
 
 def format_value(value):
     if value is None or isinstance(value, bool):
-        return None if value is None else ("Yes" if value else "No")
+        return None if value is None else (DECK_VIEW["yes"] if value else DECK_VIEW["no"])
 
     if isinstance(value, list | tuple):
         parts = [format_value(item) for item in value]
@@ -216,7 +215,7 @@ class DeckHeader(QWidget):
     def _build_cover(self):
         self.cover_label = QLabel()
         self.cover_label.setWordWrap(True)
-        self.cover_label.setAccessibleName(f"Cover of {self.deck.get_name()}")
+        self.cover_label.setAccessibleName(DECK_VIEW["cover_of"].format(name=self.deck.get_name()))
         self._cover_path = deck_cover_path(self.deck)
         self._apply_cover(expanded=False)
         return self.cover_label
@@ -235,7 +234,7 @@ class DeckHeader(QWidget):
             )
         else:
             self.cover_label.setForegroundRole(QPalette.ColorRole.PlaceholderText)
-            self.cover_label.setText("No cover")
+            self.cover_label.setText(DECK_VIEW["no_cover"])
             self.cover_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
     def _build_text_column(self):
@@ -257,10 +256,10 @@ class DeckHeader(QWidget):
             title_row.addWidget(self.buy_button, 0, Qt.AlignmentFlag.AlignTop)
 
         self.details_button = QToolButton()
-        self.details_button.setText("Details")
+        self.details_button.setText(DECK_VIEW["details"])
         self.details_button.setCheckable(True)
         self.details_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        self.details_button.setToolTip("Show the rest of this deck's metadata")
+        self.details_button.setToolTip(DECK_VIEW["details_tooltip"])
         self.details_button.toggled.connect(self._on_toggled)
         title_row.addWidget(self.details_button, 0, Qt.AlignmentFlag.AlignTop)
         column.addLayout(title_row)
@@ -282,7 +281,7 @@ class DeckHeader(QWidget):
         if link is None:
             return None
         url, title = link
-        button = QPushButton(QIcon.fromTheme(BUY_ICON), title or BUY_TEXT)
+        button = QPushButton(QIcon.fromTheme(BUY_ICON), title or DECK_VIEW["buy"])
         button.setToolTip(url)
         button.clicked.connect(lambda _checked=False: QDesktopServices.openUrl(QUrl(url)))
         return button
@@ -343,7 +342,7 @@ class DeckHeader(QWidget):
         author = self.deck.get_author()
         if author:
             parts.append(author)
-        parts.append(f"{len(self.deck.get_all_cards())} cards")
+        parts.append(DECK_VIEW["card_count"].format(count=len(self.deck.get_all_cards())))
         return " · ".join(parts)
 
     def details_label_measure(self):
@@ -407,7 +406,7 @@ class DeckHeader(QWidget):
             Qt.ArrowType.DownArrow if expanded else Qt.ArrowType.RightArrow
         )
         self.details_button.setAccessibleDescription(
-            "Hide deck metadata" if expanded else "Show deck metadata"
+            DECK_VIEW["hide_metadata"] if expanded else DECK_VIEW["show_metadata"]
         )
         self._apply_cover(expanded)
         self.row.setAlignment(

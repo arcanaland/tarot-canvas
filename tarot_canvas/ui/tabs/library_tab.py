@@ -42,7 +42,6 @@ from tarot_canvas.settings import (
 from tarot_canvas.ui import commands
 from tarot_canvas.ui.activate_on_return import activate_on_return
 from tarot_canvas.ui.commands import Scope, set_tooltip_with_keys
-from tarot_canvas.ui.esoterica_text import label_for as esoterica_text
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.catalog_client import deck_catalog
 from tarot_canvas.ui.library.deck_delegate import DeckDelegate
@@ -62,25 +61,20 @@ from tarot_canvas.ui.library.deck_model import (
 from tarot_canvas.ui.library.deselect import deselect_on_empty_click_or_escape
 from tarot_canvas.ui.library.esoterica_page import EsotericaPage
 from tarot_canvas.ui.library.notes_page import NotesPage
-from tarot_canvas.ui.notes_text import text as notes_text
+from tarot_canvas.ui.strings import LIBRARY, label_for, notes_text
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.ui.widgets.placeholder_message import tinted_icon
 from tarot_canvas.ui.widgets.places_sidebar import PlacesSidebar
 from tarot_canvas.ui.widgets.search_field import search_field
 from tarot_canvas.ui.widgets.zoom_slider import ZoomSlider
 
-# The deck view's name. The notes and esoterica views take theirs from notes_text and
-# esoterica_text, which is where every string those views add belongs.
-DECKS_VIEW_NAME = "Decks"
-SEARCH_DECKS_PLACEHOLDER = "Search decks…"
-
 ESOTERICA_VIEW_ICON = files("tarot_canvas.resources.icons").joinpath("esoterica.svg")
 
 SORT_CHOICES = [
-    ("Name", SORT_NAME),
-    ("Author", SORT_AUTHOR),
-    ("Card count", SORT_COUNT),
-    ("Recently opened", SORT_RECENT),
+    (LIBRARY["sort_name"], SORT_NAME),
+    (LIBRARY["sort_author"], SORT_AUTHOR),
+    (LIBRARY["sort_count"], SORT_COUNT),
+    (LIBRARY["sort_recent"], SORT_RECENT),
 ]
 
 
@@ -215,24 +209,26 @@ class LibraryTab(BaseTab):
         )
         row.setSpacing(units.LARGE_SPACING)
 
-        self.search_field = search_field(SEARCH_DECKS_PLACEHOLDER)
+        self.search_field = search_field(LIBRARY["search_decks"])
         self.search_field.textChanged.connect(self.on_search_changed)
         row.addWidget(self.search_field, 1)
 
         self.sort_combo = QComboBox()
         for label, key in SORT_CHOICES:
             self.sort_combo.addItem(label, key)
-        self.sort_combo.setToolTip("Sort decks")
+        self.sort_combo.setToolTip(LIBRARY["sort_tooltip"])
         self.sort_combo.currentIndexChanged.connect(self.on_sort_changed)
         row.addWidget(self.sort_combo)
 
-        self.zoom_slider = ZoomSlider(units.DENSITIES, "Cover size", LIBRARY_DENSITY_DEFAULT)
+        self.zoom_slider = ZoomSlider(
+            units.DENSITIES, LIBRARY["cover_size"], LIBRARY_DENSITY_DEFAULT
+        )
         self.zoom_slider.key_changed.connect(self.on_density_changed)
         row.addWidget(self.zoom_slider)
 
         # Opens a deck folder where it is; it installs nothing, so not "Add"
         self.open_deck_button = QToolButton()
-        self.open_deck_button.setText("Open Deck…")
+        self.open_deck_button.setText(LIBRARY["open_deck"])
         # Not document-open, which the details pane's Open uses on the same screen
         self.open_deck_button.setIcon(QIcon.fromTheme("document-open-folder"))
         self.open_deck_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
@@ -249,12 +245,12 @@ class LibraryTab(BaseTab):
     def _view_rows(self):
         """(icon, name, view) per sidebar row, in LIBRARY_VIEWS order"""
         return [
-            (QIcon.fromTheme("view-list-icons"), DECKS_VIEW_NAME, LIBRARY_VIEW_DECKS),
+            (QIcon.fromTheme("view-list-icons"), LIBRARY["decks_view"], LIBRARY_VIEW_DECKS),
             (QIcon.fromTheme("story-editor"), notes_text("view_name"), LIBRARY_VIEW_NOTES),
             # The app's own file, not a theme name
             (
                 tinted_icon(ESOTERICA_VIEW_ICON),
-                esoterica_text("library.view_name"),
+                label_for("library.view_name"),
                 LIBRARY_VIEW_ESOTERICA,
             ),
         ]
@@ -404,7 +400,7 @@ class LibraryTab(BaseTab):
         self.zoom_slider.setVisible(decks)
         self.open_deck_button.setVisible(decks)
         self.search_field.setPlaceholderText(
-            SEARCH_DECKS_PLACEHOLDER if decks else page.search_placeholder()
+            LIBRARY["search_decks"] if decks else page.search_placeholder()
         )
 
         # Each view searches its own content, so the field starts clean on a switch
@@ -621,9 +617,9 @@ class LibraryTab(BaseTab):
         if page is not None:
             tooltip = page.details_toggle_tooltip(is_open)
         elif is_open:
-            tooltip = "Hide deck details"
+            tooltip = LIBRARY["hide_details"]
         else:
-            tooltip = "Show deck details"
+            tooltip = LIBRARY["show_details"]
         set_tooltip_with_keys(self.details_toggle, tooltip, "library.toggle_details")
 
     def _show_details(self, index):
@@ -733,15 +729,13 @@ class LibraryTab(BaseTab):
         empty = self.proxy_model.rowCount() == 0
         if empty:
             self.empty_label.setText(
-                "No decks match your search."
-                if self.model.rowCount()
-                else "No decks installed yet. Use Add Deck… to install one."
+                LIBRARY["empty_no_match"] if self.model.rowCount() else LIBRARY["empty_no_decks"]
             )
         self.empty_label.setVisible(empty)
         self.view.setVisible(not empty)
 
     def tab_title(self):
-        return "Library"
+        return LIBRARY["tab_title"]
 
     def tab_icon(self):
         return QIcon.fromTheme("view-list-icons")

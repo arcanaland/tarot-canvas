@@ -23,6 +23,7 @@ from tarot_canvas.ui import commands, typography
 from tarot_canvas.ui.card_colours import card_colour
 from tarot_canvas.ui.card_transfer import copy_card_to_clipboard
 from tarot_canvas.ui.commands import Scope, set_tooltip_with_keys
+from tarot_canvas.ui.strings import CARD_VIEW
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.ui.tabs.card_view.card_bar import CardBar, DeckBar
 from tarot_canvas.ui.tabs.card_view.color_dot import ColorDot
@@ -58,7 +59,7 @@ class CardViewTab(BaseTab):
             self.card = self.deck.get_random_card()
 
         # Set the tab name to the card name when it's created
-        self.tab_name = self.card["name"] if self.card else "Card View"
+        self.tab_name = self.card["name"] if self.card else CARD_VIEW["tab_fallback"]
 
         self.setup_ui()
 
@@ -67,7 +68,7 @@ class CardViewTab(BaseTab):
         main_layout = QVBoxLayout()
 
         if not self.deck or not self.card:
-            self.layout.addWidget(QLabel("No deck or card available"))
+            self.layout.addWidget(QLabel(CARD_VIEW["no_card"]))
             return
 
         self.splitter = splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -84,7 +85,7 @@ class CardViewTab(BaseTab):
             self.image_view,
             "view-restore",
             "⛶",
-            "Leave fullscreen (Esc)",
+            CARD_VIEW["leave_fullscreen"],
             self.request_fullscreen_toggle,
             row=0,
         )
@@ -98,7 +99,7 @@ class CardViewTab(BaseTab):
             row=1,
         )
         set_tooltip_with_keys(
-            self.info_pane_button, "Show card details", "card_image.toggle_details"
+            self.info_pane_button, CARD_VIEW["show_details"], "card_image.toggle_details"
         )
         self.toast = Toast(self.image_view)
 
@@ -152,15 +153,15 @@ class CardViewTab(BaseTab):
 
         # Tab 1: Overview
         self.overview_tab = OverviewTab(self.card, self.deck, self)
-        self.info_tabs.addTab(self.overview_tab, "Overview")
+        self.info_tabs.addTab(self.overview_tab, CARD_VIEW["tab_overview"])
 
         # Tab 2: Esoterica
         self.esoterica_tab = EsotericaTab(self.card, self.deck, self)
-        self.info_tabs.addTab(self.esoterica_tab, "Esoterica")
+        self.info_tabs.addTab(self.esoterica_tab, CARD_VIEW["tab_esoterica"])
 
         # Tab 3: Notes
         self.notes_tab = NotesTab(self)
-        self.info_tabs.addTab(self.notes_tab, "Notes")
+        self.info_tabs.addTab(self.notes_tab, CARD_VIEW["tab_notes"])
         self.notes_tab.list_view.selectionModel().currentChanged.connect(self.edit_state_changed)
 
         # Raising another tab of this card is leaving the editor, and leaving the
@@ -228,7 +229,7 @@ class CardViewTab(BaseTab):
         ):
             self.image_view.set_pixmap(QPixmap(self.card["image"]))
         else:
-            self.image_view.set_message("No image available")
+            self.image_view.set_message(CARD_VIEW["no_image"])
 
     def setup_key_bindings(self):
         """Keys on the whole tab, then the ones only the art takes. The zoom keys are the
@@ -293,7 +294,7 @@ class CardViewTab(BaseTab):
         if not self.can_copy_card():
             return
         copy_card_to_clipboard(self.card, self.deck)
-        self.toast.show_message(f"Copied {self.card['name']}")
+        self.toast.show_message(CARD_VIEW["copied"].format(name=self.card["name"]))
 
     def can_delete(self):
         """Only while the Notes list has focus, as its own Delete did"""
@@ -367,12 +368,12 @@ class CardViewTab(BaseTab):
         if self.info_pane_is_open():
             self.info_pane_button.set_icon("sidebar-collapse-right", ">")
             set_tooltip_with_keys(
-                self.info_pane_button, "Hide card details", "card_image.toggle_details"
+                self.info_pane_button, CARD_VIEW["hide_details"], "card_image.toggle_details"
             )
         else:
             self.info_pane_button.set_icon("sidebar-expand-right", "<")
             set_tooltip_with_keys(
-                self.info_pane_button, "Show card details", "card_image.toggle_details"
+                self.info_pane_button, CARD_VIEW["show_details"], "card_image.toggle_details"
             )
 
     def on_fullscreen_changed(self):
@@ -382,12 +383,12 @@ class CardViewTab(BaseTab):
         self.card_bar.sync_fullscreen(full)
         self.sync_info_pane_button()
         if full:
-            self.toast.show_message("Press Esc to exit fullscreen")
+            self.toast.show_message(CARD_VIEW["exit_fullscreen_hint"])
         else:
             self.toast.dismiss()
 
     def tab_title(self):
-        return self.card["name"] if self.card else "Card View"
+        return self.card["name"] if self.card else CARD_VIEW["tab_fallback"]
 
     def tab_icon(self):
         return ColorDot(card_colour(self.card)) if self.card else QIcon()

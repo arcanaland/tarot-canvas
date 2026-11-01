@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import (
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.pane_text import pane_text
-from tarot_canvas.ui.notes_text import text as notes_text
+from tarot_canvas.ui.strings import notes_text
 from tarot_canvas.ui.tabs.card_view.notes_section import NoteRowsView
 
 

@@ -2,12 +2,12 @@ from PyQt6.QtCore import pyqtSignal, pyqtSlot
 
 from tarot_canvas.models.esoterica import get_esoterica_manager
 from tarot_canvas.models.esoterica_events import esoterica_events
-from tarot_canvas.ui.esoterica_text import label_for
 from tarot_canvas.ui.library.esoterica_list_model import EsotericaListModel
 from tarot_canvas.ui.library.list_page import LibraryListPage
 from tarot_canvas.ui.library.notes_model import card_name
 from tarot_canvas.ui.library.source_details_pane import SourceDetailsPane, details_for
 from tarot_canvas.ui.library.source_row_delegate import SourceRowDelegate
+from tarot_canvas.ui.strings import label_for
 
 
 class EsotericaPage(LibraryListPage):
