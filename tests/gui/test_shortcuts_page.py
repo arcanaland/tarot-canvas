@@ -102,7 +102,7 @@ def test_a_key_another_command_holds_is_refused_naming_it(qtbot):
     assert not page.message.isHidden()
     assert "New Canvas" in page.message.label.text()
 
-    propose(page, "canvas.summon", "G")
+    propose(page, "canvas.summon", "S")
     assert page.message.isHidden()
 
 
@@ -122,7 +122,7 @@ def test_a_key_freed_on_the_page_can_be_taken_before_apply(qtbot):
     propose(page, "canvas.flip", "D", column=2)
     assert page.keys["canvas.flip"] == ("R",)
 
-    propose(page, "canvas.summon", "G")
+    propose(page, "canvas.summon", "S")
     propose(page, "canvas.flip", "D", column=2)
     # The art's D never fires while a canvas's does
     assert page.keys["canvas.flip"] == ("R", "D")
@@ -138,9 +138,9 @@ def test_a_key_typed_into_the_editor_is_taken(qtbot, qtlog):
 
     editor = open_editor(page, "canvas.summon")
     qtbot.waitUntil(editor.hasFocus)
-    qtbot.keyClick(editor, Qt.Key.Key_G)
+    qtbot.keyClick(editor, Qt.Key.Key_S)
 
-    assert page.keys["canvas.summon"] == ("G",)
+    assert page.keys["canvas.summon"] == ("S",)
     assert page.tree.state() is not QAbstractItemView.State.EditingState
     # Finished once, not again as it closes
     assert not [record for record in qtlog.records if "does not belong" in record.message]
@@ -148,7 +148,7 @@ def test_a_key_typed_into_the_editor_is_taken(qtbot, qtlog):
     # Esc is a key to record, not a way out
     editor = open_editor(page, "canvas.summon", column=2)
     qtbot.keyClick(editor, Qt.Key.Key_Escape)
-    assert page.keys["canvas.summon"] == ("G",)
+    assert page.keys["canvas.summon"] == ("S",)
     assert not page.message.isHidden()
     assert dialog.isVisible()
 
@@ -172,7 +172,7 @@ def test_changing_a_key_offers_apply_and_changing_it_back_withdraws_it(qtbot):
     dialog, page = make_dialog(qtbot)
     assert not dialog.apply_button.isEnabled()
 
-    propose(page, "canvas.summon", "G")
+    propose(page, "canvas.summon", "S")
     assert dialog.apply_button.isEnabled()
 
     propose(page, "canvas.summon", "D")
@@ -193,7 +193,7 @@ def test_an_unedited_command_keeps_every_key_and_an_edited_one_keeps_two(qtbot):
     all_keys = commands.default_keys("window.copy_card")
     assert len(all_keys) > 2
 
-    propose(page, "canvas.summon", "G")
+    propose(page, "canvas.summon", "S")
     dialog.apply_settings()
     assert commands.keys_for("window.copy_card") == all_keys
     assert stored_shortcuts() == [SHORTCUTS_PREFIX + "canvas.summon"]

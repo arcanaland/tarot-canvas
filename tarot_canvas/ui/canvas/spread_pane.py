@@ -311,14 +311,10 @@ class SpreadPane(SidePane):
 
         self.name_edit = heading_edit(SPREADS["name_hint"])
         self.name_edit.setAccessibleName(SPREADS["name_title"])
-        self.add_slot_button = QToolButton()
-        self.add_slot_button.setDefaultAction(add_slot_action)
-        self.add_slot_button.setAutoRaise(True)
         heading = QHBoxLayout()
         margin = units.LARGE_SPACING
         heading.setContentsMargins(margin, margin, margin, margin)
-        heading.addWidget(self.name_edit, 1)
-        heading.addWidget(self.add_slot_button)
+        heading.addWidget(self.name_edit)
         self.body.addLayout(heading)
 
         self.list_view = self._build_list()
@@ -431,13 +427,6 @@ class SpreadPane(SidePane):
         self.editor = self._open_slot = None
         self.list_view.setIndexWidget(index, None)
         self.delegate.sizeHintChanged.emit(index)
-
-    def focus_label(self):
-        self.editor.label_edit.setFocus()
-        self.editor.label_edit.selectAll()
-
-    def focus_meaning(self):
-        self.editor.meaning_edit.setFocus()
 
     def _edit(self, value, role):
         self.positions.setData(self.positions.index_of(self._open_slot), value, role)

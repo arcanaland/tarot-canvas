@@ -143,7 +143,6 @@ COMMANDS = (
     ),
     # Canvas
     _command("canvas.summon", T["summon_card"], "document-new", ["D"], CV),
-    _command("canvas.add_slot", T["add_slot"], "list-add", ["S"], CV),
     _command("canvas.flip", T["flip_card"], "object-flip-vertical", ["R"], CV),
     _command("canvas.rotate", T["rotate_card"], "object-rotate-right", ["Shift+R"], CV),
     _command("canvas.delete", T["delete_card"], "edit-delete", ["Backspace"], CV),

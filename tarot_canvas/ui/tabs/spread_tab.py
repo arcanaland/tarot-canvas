@@ -9,7 +9,7 @@ from tarot_canvas.models.spread_events import spread_events
 from tarot_canvas.models.spreads import Position, Spread, next_position_id
 from tarot_canvas.ui.canvas.detail import card_unit_size
 from tarot_canvas.ui.canvas.spread_pane import PositionModel, SpreadPane
-from tarot_canvas.ui.strings import CANVAS, SPREADS
+from tarot_canvas.ui.strings import CANVAS, COMMANDS, SPREADS
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.utils.logger import logger
 
@@ -37,7 +37,7 @@ class SpreadTab(CanvasTab):
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.layout.replaceWidget(self.canvas_area, self.splitter)
         self.splitter.addWidget(self.canvas_area)
-        self.pane = SpreadPane(self.positions, self.commands["canvas.add_slot"])
+        self.pane = SpreadPane(self.positions, self.commands["canvas.summon"])
         self.pane.dock(self.splitter)
 
         self.pane_action = QAction(self)
@@ -76,17 +76,21 @@ class SpreadTab(CanvasTab):
         if path is not None:
             self.pane.set_usage_open(bool(spread.usage))
 
+    def bind_commands(self):
+        super().bind_commands()
+        # Summoning here adds a slot, on the same key
+        add_slot = self.commands["canvas.summon"]
+        add_slot.setText(COMMANDS["add_slot"])
+        add_slot.setIcon(QIcon.fromTheme("list-add"))
+
     def command_handlers(self):
         handlers = super().command_handlers()
-        del handlers["canvas.summon"], handlers["canvas.flip"]
-        return {
-            "canvas.add_slot": self.add_next_slot,
-            **handlers,
-        }
+        del handlers["canvas.flip"]
+        return handlers
 
     def tools(self):
         return (
-            ("canvas.add_slot", SPREADS["add_slot_tooltip"], "canvas.add_slot"),
+            ("canvas.summon", SPREADS["add_slot_tooltip"], "canvas.summon"),
             ("canvas.rotate", CANVAS["rotate_tooltip"], "canvas.rotate"),
             ("canvas.delete", CANVAS["delete_tooltip"], "window.delete"),
         )
@@ -138,51 +142,14 @@ class SpreadTab(CanvasTab):
         super().on_delete_card()
         self.positions.remove_unplaced()
 
-    def move_slot(self, slot, index):
-        """Give slot the place index in the numbering"""
-        row = self._slots.index(slot)
-        self.pane.list_view.move_row(row, index + 1 if index > row else index)
-
     # -- the slot's menu ---------------------------------------------------
 
     def build_card_menu(self, item):
-        single = len(self.selected_cards()) == 1
-        index = self._slots.index(item)
-
         menu = QMenu(self)
-        edit_label = menu.addAction(QIcon.fromTheme("edit-rename"), SPREADS["edit_label"])
-        edit_label.triggered.connect(self.edit_label)
-        edit_label.setEnabled(single)
-        edit_meaning = menu.addAction(QIcon.fromTheme("document-edit"), SPREADS["edit_meaning"])
-        edit_meaning.triggered.connect(self.edit_meaning)
-        edit_meaning.setEnabled(single)
-
-        number_menu = menu.addMenu(SPREADS["number"])
-        number_menu.setEnabled(single)
-        for text, icon, target, allowed in (
-            (SPREADS["move_earlier"], "go-up", index - 1, index > 0),
-            (SPREADS["move_later"], "go-down", index + 1, index < len(self._slots) - 1),
-            (SPREADS["make_first"], "go-top", 0, index > 0),
-        ):
-            action = number_menu.addAction(QIcon.fromTheme(icon), text)
-            action.setEnabled(allowed)
-            action.triggered.connect(
-                lambda _checked=False, target=target: self.move_slot(item, target)
-            )
-
-        menu.addSeparator()
         menu.addAction(self.commands["canvas.rotate"])
         menu.addSeparator()
         menu.addAction(self.commands["canvas.delete"])
         return menu
-
-    def edit_label(self):
-        self.pane.set_open(True)
-        self.pane.focus_label()
-
-    def edit_meaning(self):
-        self.pane.set_open(True)
-        self.pane.focus_meaning()
 
     # -- the pane ----------------------------------------------------------
 

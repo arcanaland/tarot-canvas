@@ -1,14 +1,17 @@
 import pytest
 from PyQt6.QtCore import QModelIndex, QPoint, QPointF, QRect, QSize, Qt
+from PyQt6.QtGui import QKeySequence
 from PyQt6.QtWidgets import QApplication, QMessageBox, QStyleOptionViewItem, QToolButton
 
 from tarot_canvas.models import spreads
 from tarot_canvas.models.spreads import Position, Spread
+from tarot_canvas.ui import commands
 from tarot_canvas.ui.canvas.slot_item import SlotItem
 from tarot_canvas.ui.canvas.spread_pane import MeaningRole, NumberRole
 from tarot_canvas.ui.card_transfer import card_mime_data, copy_card_to_clipboard
 from tarot_canvas.ui.main_window import MainWindow
-from tarot_canvas.ui.strings import SPREADS
+from tarot_canvas.ui.strings import COMMANDS, SPREADS
+from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.spread_tab import AUTOSAVE_MS, SpreadTab
 from tarot_canvas.ui.widgets.reorder_list import GRIP_WIDTH
 
@@ -71,10 +74,6 @@ def centre(slot):
     return slot.pos() + slot.boundingRect().center()
 
 
-def menu_action(menu, words):
-    return next(action for action in menu.actions() if words in action.text())
-
-
 @pytest.fixture(autouse=True)
 def discard_on_teardown(monkeypatch):
     """A window left with unsaved work would otherwise wait on a dialog as it closes"""
@@ -95,21 +94,39 @@ def window(qtbot, spreads_base):
 
 def test_each_added_slot_takes_the_next_number_and_id(qtbot):
     tab = make_tab(qtbot)
-    slots = [tab.commands["canvas.add_slot"].trigger() or tab.slots()[-1] for _ in range(3)]
+    slots = [tab.commands["canvas.summon"].trigger() or tab.slots()[-1] for _ in range(3)]
 
     assert [slot.number for slot in slots] == [1, 2, 3]
     assert [slot.position_id for slot in slots] == ["p1", "p2", "p3"]
 
 
-def test_the_toolbar_adds_slots_and_has_no_summon_or_flip(qtbot):
+def test_the_summon_command_adds_a_slot_here_and_has_no_flip(qtbot):
     tab = make_tab(qtbot)
     ids = [action.objectName() for action in tab.toolbar.actions()]
+    add_slot = tab.commands["canvas.summon"]
 
-    assert "canvas.add_slot" in ids
+    assert "canvas.summon" in ids
     assert "canvas.rotate" in ids
-    assert "canvas.summon" not in ids
-    assert "canvas.flip" not in ids
-    assert not {"canvas.summon", "canvas.flip"} & tab.commands.keys()
+    assert "canvas.flip" not in tab.commands
+    assert add_slot.text() == COMMANDS["add_slot"]
+    assert add_slot.toolTip() == f'{SPREADS["add_slot_tooltip"]} (D)'
+
+
+def test_a_slot_takes_the_key_a_summon_is_given(qtbot):
+    tab = make_tab(qtbot)
+
+    commands.store_keys("canvas.summon", ["G"])
+    commands.apply_shortcuts()
+
+    assert tab.commands["canvas.summon"].shortcut() == QKeySequence("G")
+    assert tab.commands["canvas.summon"].toolTip() == f'{SPREADS["add_slot_tooltip"]} (G)'
+
+
+def test_a_plain_canvas_still_summons(qtbot):
+    tab = CanvasTab()
+    qtbot.addWidget(tab)
+
+    assert tab.commands["canvas.summon"].text() == COMMANDS["summon_card"]
 
 
 def test_double_clicking_the_canvas_adds_a_slot_there(qtbot):
@@ -144,70 +161,17 @@ def test_a_new_slot_after_a_delete_takes_a_fresh_id(qtbot):
     assert tab.add_next_slot().position_id == "p4"
 
 
-def test_make_first_moves_the_last_slot_to_one_and_keeps_its_id(qtbot):
-    tab = make_tab(qtbot)
-    first, second, third = add_slots(tab, 3)
-    select(tab, third)
-
-    menu = tab.build_card_menu(third)
-    number = menu_action(menu, SPREADS["number"]).menu()
-    menu_action(number, SPREADS["make_first"]).trigger()
-
-    assert tab.slots() == (third, first, second)
-    assert [slot.number for slot in tab.slots()] == [1, 2, 3]
-    assert third.position_id == "p3"
-
-
-def test_moving_a_slot_earlier_and_later_swaps_its_neighbour(qtbot):
-    tab = make_tab(qtbot)
-    first, second, third = add_slots(tab, 3)
-
-    tab.move_slot(second, 0)
-    assert tab.slots() == (second, first, third)
-    tab.move_slot(second, 1)
-    assert tab.slots() == (first, second, third)
-
-
-def test_a_slot_cannot_move_past_either_end(qtbot):
-    tab = make_tab(qtbot)
-    first, second = add_slots(tab, 2)
-
-    number = menu_action(tab.build_card_menu(first), SPREADS["number"]).menu()
-    assert not menu_action(number, SPREADS["move_earlier"]).isEnabled()
-    assert not menu_action(number, SPREADS["make_first"]).isEnabled()
-    assert menu_action(number, SPREADS["move_later"]).isEnabled()
-
-    number = menu_action(tab.build_card_menu(second), SPREADS["number"]).menu()
-    assert not menu_action(number, SPREADS["move_later"]).isEnabled()
-
-
-def test_a_slot_menu_has_the_slot_entries_in_order(qtbot):
+def test_a_slot_menu_has_only_rotate_and_delete(qtbot):
     tab = make_tab(qtbot)
     (slot,) = add_slots(tab, 1)
 
     menu = tab.card_menu(centre(slot))
 
     assert [action.isSeparator() or action.text() for action in menu.actions()] == [
-        SPREADS["edit_label"],
-        SPREADS["edit_meaning"],
-        SPREADS["number"],
-        True,
         tab.commands["canvas.rotate"].text(),
         True,
         tab.commands["canvas.delete"].text(),
     ]
-
-
-def test_editing_and_numbering_need_a_single_slot(qtbot):
-    tab = make_tab(qtbot)
-    first, second = add_slots(tab, 2)
-    first.setSelected(True)
-    second.setSelected(True)
-
-    menu = tab.build_card_menu(first)
-
-    for words in ("edit_label", "edit_meaning", "number"):
-        assert not menu_action(menu, SPREADS[words]).isEnabled()
 
 
 def test_a_pasted_card_becomes_a_slot(qtbot, clipboard, minimal_deck):
@@ -243,7 +207,7 @@ def test_every_slot_is_a_row_in_number_order(qtbot):
     second.set_label("Past")
     tab.positions.setData(tab.positions.index(1), "Past")
 
-    tab.move_slot(third, 0)
+    tab.pane.list_view.move_row(2, 0)
 
     assert listed(tab) == [(1, ""), (2, ""), (3, "Past")]
 
@@ -347,16 +311,12 @@ def test_typing_a_label_changes_the_slot_and_its_face_and_keeps_focus(qtbot):
     (slot,) = add_slots(tab, 1)
     before = image(slot)
     editor = tab.pane.editor
-    tab.window().activateWindow()
-    tab.edit_label()
-
     qtbot.keyClicks(editor.label_edit, "Past")
 
     assert slot.label == "Past"
     assert image(slot) != before
     assert tab.pane.editor is editor
     assert tab.positions.index(0).data() == "Past"
-    assert QApplication.focusWidget() in (editor.label_edit, None)
 
 
 def test_typing_a_meaning_changes_the_slot(qtbot):
@@ -405,7 +365,7 @@ def test_a_moved_slot_keeps_its_open_row(qtbot):
     select(tab, first)
     editor = tab.pane.editor
 
-    tab.move_slot(first, 2)
+    tab.pane.list_view.move_row(0, 3)
 
     assert tab.pane.editor is editor
     assert tab.pane.list_view.indexWidget(tab.positions.index(2)) is editor
@@ -507,30 +467,11 @@ def test_deleting_the_last_slot_brings_the_placeholder_back(qtbot):
     assert tab.pane.stack.currentIndex() == 1
 
 
-def test_the_pane_add_button_is_the_command(qtbot):
-    tab = make_tab(qtbot)
-
-    assert tab.pane.add_slot_button.defaultAction() is tab.commands["canvas.add_slot"]
-
-
 def test_a_stored_spread_opens_with_no_row_open(window, spreads_base):
     tab = window.open_spread(stored(spreads_base))
 
     assert tab.pane.editor is None
     assert listed(tab) == [(1, "Past"), (2, "Next")]
-
-
-def test_edit_label_reopens_a_collapsed_pane(qtbot):
-    tab = make_tab(qtbot)
-    add_slots(tab, 1)
-    tab.pane.set_open(False)
-    assert not tab.pane.is_open()
-    assert not tab.pane_action.isChecked()
-
-    tab.edit_label()
-
-    assert tab.pane.is_open()
-    assert tab.pane_action.isChecked()
 
 
 def test_the_toolbar_toggle_collapses_the_pane(qtbot):
@@ -772,7 +713,7 @@ def test_an_edit_after_the_first_save_lands_after_the_timer(qtbot, spreads_base)
         lambda tab: tab.on_delete_card(),
         lambda tab: tab.on_bring_to_front(),
         lambda tab: tab.on_send_to_back(),
-        lambda tab: tab.move_slot(tab.slots()[1], 0),
+        lambda tab: tab.pane.list_view.move_row(1, 0),
         lambda tab: tab.pane.usage_edit.setPlainText("Use it"),
         lambda tab: tab.pane.editor.label_edit.setText("Past"),
         lambda tab: tab.pane.editor.meaning_edit.setPlainText("Before"),
