@@ -46,6 +46,7 @@ from tarot_canvas.ui.canvas import (
     CanvasIcon,
     DraggableCardItem,
     PannableGraphicsView,
+    SlotItem,
     align_items_horizontally,
     align_items_vertically,
     arrange_items_in_circle,
@@ -736,31 +737,7 @@ class CanvasTab(BaseTab):
             card_item = self.make_card_item(card, card_deck or self.deck, is_reversed)
             if card_item is None:
                 return None
-            pixmap = card_item.pixmap()
-
-            card_item.setZValue(self.take_top_z())
-
-            # Deselect any currently selected cards
-            for selected_item in self.scene.selectedItems():
-                selected_item.setSelected(False)
-
-            # Place under the pointer (or middle of the view if it's in Narnia)
-            target = at if at is not None else self.view.pointer_scene_pos()
-            if target is None:
-                target = self.view.mapToScene(self.view.viewport().rect().center())
-                # slight nudge
-                target = QPointF(
-                    target.x() + random.randint(-50, 50), target.y() + random.randint(-50, 50)
-                )
-            pos = QPointF(target.x() - pixmap.width() / 2, target.y() - pixmap.height() / 2)
-            pos = self.cascade_from_occupied(pos)
-            card_item.setPos(pos)
-
-            # Add the card to the scene
-            self.scene.addItem(card_item)
-
-            # Select the newly added card
-            card_item.setSelected(True)
+            self._place_item(card_item, at)
 
             # Pop in and spring back
             card_item.place_and_settle()
@@ -774,8 +751,39 @@ class CanvasTab(BaseTab):
             print(f"Error adding card to canvas: {e}")
             return None
 
+    def add_slot(self, number, position_id, at=None, label="", meaning=""):
+        """Add a slot, centred on at or under the pointer"""
+        slot = SlotItem(number, position_id, self, label=label, meaning=meaning)
+        self._place_item(slot, at)
+        if at is None:
+            slot.place_and_settle()
+        return slot
+
+    def _place_item(self, item, at):
+        """Put item on top of the canvas, selected alone"""
+        item.setZValue(self.take_top_z())
+
+        # Deselect any currently selected cards
+        for selected_item in self.scene.selectedItems():
+            selected_item.setSelected(False)
+
+        # Place under the pointer (or middle of the view if it's in Narnia)
+        target = at if at is not None else self.view.pointer_scene_pos()
+        if target is None:
+            target = self.view.mapToScene(self.view.viewport().rect().center())
+            # slight nudge
+            target = QPointF(
+                target.x() + random.randint(-50, 50), target.y() + random.randint(-50, 50)
+            )
+        item.setPos(self.cascade_from_occupied(target - item.boundingRect().center()))
+
+        self.scene.addItem(item)
+        item.setSelected(True)
+
     def open_card_view(self, item):
         """Open a card view tab for the card on the canvas, from its own deck"""
+        if isinstance(item, SlotItem):
+            return
         self.navigation_requested.emit(
             "open_card_view", {"card": item.card_data, "deck": item.deck, "source_tab_id": self.id}
         )

@@ -20,11 +20,17 @@ from tarot_canvas.settings import (
     MOTION_LEVEL_KEY,
     get_settings,
 )
+from tarot_canvas.ui.canvas import (
+    align_items_horizontally,
+    align_items_vertically,
+    distribute_items_horizontally,
+)
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
 from tarot_canvas.ui.canvas.ground import CHECKERBOARD_SQUARE, checkerboard_partner
 from tarot_canvas.ui.canvas.icons import CanvasIcon
-from tarot_canvas.ui.canvas.motion import LIFT_SELECTED
+from tarot_canvas.ui.canvas.motion import LIFT_REST, LIFT_SELECTED
 from tarot_canvas.ui.canvas.selection import GILT_ON_DARK, GILT_ON_LIGHT
+from tarot_canvas.ui.card_colours import CARD_COLOURS, SLOT_COLOUR
 from tarot_canvas.ui.card_transfer import card_mime_data, cards_mime_data, copy_card_to_clipboard
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.widgets.document_tabs import DocumentTabs
@@ -1117,3 +1123,155 @@ def test_a_card_taking_anothers_place_keeps_its_centre_when_the_art_differs(qtbo
         replacement.pos() + replacement.boundingRect().center()
         == card.pos() + card.boundingRect().center()
     )
+
+
+def slots_and_cards(tab):
+    """Two slots and two cards the same size, each pair in the same starting places."""
+    size = tab.add_slot(1, "p1", at=QPointF(0, 0)).pixmap().size()
+    tab.add_slot(2, "p2", at=QPointF(150, 40))
+    slots = list(tab.cards())
+    pixmap = QPixmap(size)
+    pixmap.fill()
+    cards = []
+    for slot in slots:
+        card = DraggableCardItem(pixmap, {"id": slot.position_id}, tab)
+        card.setPos(slot.pos())
+        tab.scene.addItem(card)
+        cards.append(card)
+    return slots, cards
+
+
+def select_only(tab, items):
+    tab.scene.clearSelection()
+    for item in items:
+        item.setSelected(True)
+
+
+def test_add_slot_puts_slots_among_the_cards(qtbot):
+    tab = make_tab(qtbot)
+    first = tab.add_slot(1, "p1", at=QPointF(10, 20), label="Past", meaning="Before")
+    second = tab.add_slot(2, "p2")
+    assert tab.cards() == (first, second)
+    assert first.sceneBoundingRect().center() == QPointF(10, 20)
+    assert (first.number, first.position_id, first.label, first.meaning, first.deck) == (
+        1,
+        "p1",
+        "Past",
+        "Before",
+        None,
+    )
+    qtbot.wait(1100)
+
+
+def test_a_slot_given_a_place_does_not_pop_in(qtbot):
+    tab = make_tab(qtbot)
+    assert tab.add_slot(1, "p1", at=QPointF(0, 0)).motion.lift == LIFT_REST
+    qtbot.wait(1100)
+
+
+@pytest.mark.parametrize(
+    "arrange",
+    [
+        lambda tab, items: align_items_vertically(items, "top"),
+        lambda tab, items: align_items_horizontally(items, "left"),
+        lambda tab, items: distribute_items_horizontally(items),
+        lambda tab, items: tab.on_bring_to_front(),
+        lambda tab, items: tab.on_rotate_card(),
+    ],
+)
+def test_a_slot_arranges_exactly_as_a_card_does(qtbot, arrange):
+    tab = make_tab(qtbot)
+    slots, cards = slots_and_cards(tab)
+    for group in (slots, cards):
+        select_only(tab, group)
+        arrange(tab, group)
+    assert [s.pos() for s in slots] == [c.pos() for c in cards]
+    assert [s.orient for s in slots] == [c.orient for c in cards]
+    assert slots[0].zValue() < slots[1].zValue()
+    qtbot.wait(1100)
+
+
+def test_flip_leaves_a_slot_alone(qtbot):
+    tab = make_tab(qtbot)
+    slot = tab.add_slot(1, "p1", at=QPointF(0, 0))
+    before = slot.transform()
+    tab.on_flip_card()
+    assert not slot.is_reversed()
+    assert slot.transform() == before
+    qtbot.wait(1100)
+
+
+def test_a_selection_with_a_slot_in_it_cannot_be_copied_or_cut(qtbot):
+    tab = make_tab(qtbot)
+    slots, cards = slots_and_cards(tab)
+    cards[0].deck = object()
+    select_only(tab, [cards[0]])
+    assert tab.can_copy_card()
+
+    for selection in ([slots[0]], [slots[0], cards[0]]):
+        select_only(tab, selection)
+        assert not tab.can_copy_card()
+        assert not tab.can_cut_card()
+    qtbot.wait(1100)
+
+
+def test_a_slot_opens_nothing(qtbot):
+    tab = make_tab(qtbot)
+    slot = tab.add_slot(1, "p1", at=QPointF(0, 0))
+    requests = []
+    tab.navigation_requested.connect(lambda *args: requests.append(args))
+    double_click(tab, tab.view.mapFromScene(slot.sceneBoundingRect().center()))
+    tab.open_card_view(slot)
+    assert requests == []
+    qtbot.wait(1100)
+
+
+def test_a_slots_menu_offers_no_deck_to_swap_to(qtbot):
+    tab = make_tab(qtbot)
+    slot = tab.add_slot(1, "p1", at=QPointF(0, 0))
+    menu = tab.card_menu(slot.sceneBoundingRect().center())
+    qtbot.addWidget(menu)
+    _, rows = swap_rows(menu)
+    assert rows == []
+    qtbot.wait(1100)
+
+
+def test_zooming_sharpens_a_slot_without_the_loader(qtbot, monkeypatch):
+    from tarot_canvas.ui.canvas import detail
+
+    monkeypatch.setattr(detail, "art_loader", lambda: pytest.fail("a slot loaded art"))
+    tab = make_tab(qtbot)
+    slot = tab.add_slot(1, "p1", at=QPointF(0, 0))
+    size = slot.boundingRect().size()
+    tab.view.centerOn(slot)
+
+    tab.view.zoom_by_from_center(4.0)
+    tab.view.centerOn(slot)
+    qtbot.waitUntil(lambda: slot.detail() >= 4, timeout=5000)
+
+    assert slot.pixmap().devicePixelRatio() == slot.detail()
+    assert slot.boundingRect().size() == size
+    qtbot.wait(1100)
+
+
+def test_renumbering_a_slot_repaints_it_at_its_level(qtbot):
+    tab = make_tab(qtbot)
+    slot = tab.add_slot(1, "p1", at=QPointF(0, 0))
+    slot.set_detail(3)
+    before = slot.pixmap().toImage()
+    slot.set_number(2)
+    assert slot.pixmap().devicePixelRatio() == 3
+    assert slot.pixmap().toImage() != before
+    qtbot.wait(1100)
+
+
+def test_the_tab_icon_paints_a_slot_in_its_colour(qtbot):
+    tab = make_tab(qtbot)
+    add_cards(tab, 1)
+    tab.add_slot(1, "p1", at=QPointF(500, 0))
+    tab.tab_minimap = True
+    tab.refresh_tab_icon()
+    (card, slot) = sorted(tab._tab_marks, key=lambda mark: mark.x)
+    assert card.colour == CARD_COLOURS["default"]
+    assert slot.colour == SLOT_COLOUR
+    qtbot.wait(1100)

@@ -27,6 +27,7 @@ MINIMAL_DECK_PATH = FIXTURES_DIR / "decks" / "minimal"
 # `from tarot_canvas.models.deck_manager import deck_manager`
 DECK_MANAGER_CONSUMERS = [
     "tarot_canvas.ui.command_palette",
+    "tarot_canvas.ui.canvas.detail",
     "tarot_canvas.ui.tabs.canvas_tab",
     "tarot_canvas.ui.main_window",
     "tarot_canvas.ui.tabs.card_view_tab",

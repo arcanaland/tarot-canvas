@@ -6,8 +6,8 @@ from tarot_canvas.ui.canvas.tab_icon import MINIMAP, layout_marks, snapped, spre
 from tarot_canvas.ui.card_colours import CARD_COLOURS
 
 
-def card(x, y, angle=0.0, colour_key="cups", z=0.0, w=100.0, h=160.0):
-    return (x, y, w, h, angle, colour_key, z)
+def card(x, y, angle=0.0, colour=CARD_COLOURS["cups"], z=0.0, w=100.0, h=160.0):
+    return (x, y, w, h, angle, colour, z)
 
 
 def test_an_empty_canvas_has_no_marks():
@@ -54,7 +54,7 @@ def test_moving_the_whole_spread_changes_nothing():
 
 
 def test_one_card_paints_its_colour_on_the_ground(qapp):
-    marks = snapped(layout_marks((card(0, 0, colour_key="wands"),), MINIMAP.max_fill))
+    marks = snapped(layout_marks((card(0, 0, colour=CARD_COLOURS["wands"]),), MINIMAP.max_fill))
     image = spread_icon(marks).pixmap(QSize(32, 32)).toImage()
     assert image.pixelColor(16, 16) == QColor(CARD_COLOURS["wands"])
     assert image.pixelColor(0, 0).alpha() == 0
