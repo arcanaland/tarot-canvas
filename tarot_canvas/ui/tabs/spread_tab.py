@@ -1,6 +1,6 @@
 from contextlib import suppress
 
-from PyQt6.QtCore import QPointF, Qt, QTimer, pyqtSlot
+from PyQt6.QtCore import QPointF, QSignalBlocker, Qt, QTimer, pyqtSlot
 from PyQt6.QtGui import QAction, QIcon
 from PyQt6.QtWidgets import QApplication, QMenu, QSplitter
 
@@ -8,7 +8,7 @@ from tarot_canvas.models import spreads
 from tarot_canvas.models.spread_events import spread_events
 from tarot_canvas.models.spreads import Position, Spread, next_position_id
 from tarot_canvas.ui.canvas.detail import card_unit_size
-from tarot_canvas.ui.canvas.spread_pane import SpreadPane
+from tarot_canvas.ui.canvas.spread_pane import PositionModel, SpreadPane
 from tarot_canvas.ui.strings import CANVAS, SPREADS
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.utils.logger import logger
@@ -27,13 +27,17 @@ class SpreadTab(CanvasTab):
         spread = spread or Spread()
         self.spread_path = None
         self._slots = []  # in number order
+        self.positions = PositionModel(self._slots, self)
+        self._name = spread.name
+        self._sources = spread.sources  # kept for the file: nothing here edits them yet
+        self._modified = False
         self._extra = spread.extra
         self._position_extra = {position.id: position.extra for position in spread.positions}
 
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.layout.replaceWidget(self.canvas_area, self.splitter)
         self.splitter.addWidget(self.canvas_area)
-        self.pane = SpreadPane()
+        self.pane = SpreadPane(self.positions, self.commands["canvas.add_slot"])
         self.pane.dock(self.splitter)
 
         self.pane_action = QAction(self)
@@ -44,9 +48,8 @@ class SpreadTab(CanvasTab):
         self._sync_pane_action(True)
         self.toolbar.addAction(self.pane_action)
 
-        self.pane.set_document(spread.name, spread.usage, spread.sources)
+        self.pane.set_document(spread.name, spread.usage)
         self._lay_out(spread.positions)
-        self.refresh_slot_section()
 
         self.autosave_timer = QTimer(self)
         self.autosave_timer.setSingleShot(True)
@@ -60,26 +63,24 @@ class SpreadTab(CanvasTab):
         self._fit_on_show = bool(spread.positions)
 
         self.layout_changed.connect(self.schedule_save)
+        self.positions.moved.connect(self.layout_changed)
         self.pane.edited.connect(self.schedule_save)
-        self.pane.name_edited.connect(self.tab_label_changed)
-        self.pane.label_edited.connect(self._on_label_edited)
-        self.pane.meaning_edited.connect(self._on_meaning_edited)
-        self.pane.slot_clicked.connect(self._select_slot)
-        self.scene.selectionChanged.connect(self.refresh_slot_section)
+        self.pane.name_edit.textChanged.connect(self._on_name_edited)
+        self.pane.slot_chosen.connect(self._select_slot)
+        self.scene.selectionChanged.connect(self.show_selection)
 
         # Closing the window closes no tab
         QApplication.instance().aboutToQuit.connect(self.flush_pending_edits)
 
+        self.spread_path = path
         if path is not None:
-            self.spread_path = path
-            self.commands["canvas.save"].setEnabled(False)
+            self.pane.set_usage_open(bool(spread.usage))
 
     def command_handlers(self):
         handlers = super().command_handlers()
         del handlers["canvas.summon"], handlers["canvas.flip"]
         return {
             "canvas.add_slot": self.add_next_slot,
-            "canvas.save": self.on_save,
             **handlers,
         }
 
@@ -88,7 +89,6 @@ class SpreadTab(CanvasTab):
             ("canvas.add_slot", SPREADS["add_slot_tooltip"], "canvas.add_slot"),
             ("canvas.rotate", CANVAS["rotate_tooltip"], "canvas.rotate"),
             ("canvas.delete", CANVAS["delete_tooltip"], "window.delete"),
-            ("canvas.save", SPREADS["save_tooltip"], "canvas.save"),
         )
 
     def showEvent(self, event):
@@ -106,8 +106,8 @@ class SpreadTab(CanvasTab):
     def add_next_slot(self, at=None):
         ids = [slot.position_id for slot in self._slots]
         slot = self.add_slot(len(self._slots) + 1, next_position_id(ids), at=at)
-        self._slots.append(slot)
-        self.refresh_slot_section()
+        self.positions.append(slot)
+        self.show_selection()
         return slot
 
     def on_draw_card(self, at=None):
@@ -127,7 +127,7 @@ class SpreadTab(CanvasTab):
             slot.setPos(centre - slot.boundingRect().center())
             slot.setZValue(position.z)
             slot.set_orient(position.rotation)
-            self._slots.append(slot)
+            self.positions.append(slot)
         if positions:
             self._top_z = max(position.z for position in positions)
             self._bottom_z = min(position.z for position in positions)
@@ -136,21 +136,12 @@ class SpreadTab(CanvasTab):
 
     def on_delete_card(self):
         super().on_delete_card()
-        self._slots = [slot for slot in self._slots if slot.scene() is not None]
-        self._renumber()
+        self.positions.remove_unplaced()
 
     def move_slot(self, slot, index):
         """Give slot the place index in the numbering"""
-        self._slots.remove(slot)
-        self._slots.insert(index, slot)
-        self._renumber()
-        self.layout_changed.emit()
-
-    def _renumber(self):
-        for number, slot in enumerate(self._slots, start=1):
-            if slot.number != number:
-                slot.set_number(number)
-        self.refresh_slot_section()
+        row = self._slots.index(slot)
+        self.pane.list_view.move_row(row, index + 1 if index > row else index)
 
     # -- the slot's menu ---------------------------------------------------
 
@@ -196,41 +187,45 @@ class SpreadTab(CanvasTab):
     # -- the pane ----------------------------------------------------------
 
     @pyqtSlot()
-    def refresh_slot_section(self):
-        selected = self.selected_cards()
-        if len(selected) == 1:
-            slot = selected[0]
-            self.pane.show_slot(slot.number, slot.label, slot.meaning)
-        else:
-            self.pane.show_slots([(slot.number, slot.label) for slot in self._slots])
+    def show_selection(self):
+        # A new slot is selected before it has a row
+        selected = [card for card in self.selected_cards() if card in self._slots]
+        self.pane.show_selected(selected[0] if len(selected) == 1 else None)
 
     def _sync_pane_action(self, is_open):
         self.pane_action.setChecked(is_open)
         name = "sidebar-collapse-right" if is_open else "sidebar-expand-right"
         self.pane_action.setIcon(QIcon.fromTheme(name))
 
-    def _on_label_edited(self, text):
-        (slot,) = self.selected_cards()
-        slot.set_label(text)
-        self.schedule_save()
-
-    def _on_meaning_edited(self, text):
-        (slot,) = self.selected_cards()
-        slot.meaning = text
-        self.schedule_save()
-
     def _select_slot(self, row):
-        self.scene.clearSelection()
-        self._slots[row].setSelected(True)
+        slot = self._slots[row]
+        if self.selected_cards() != [slot]:
+            # One selection change, not a clear and then a select
+            with QSignalBlocker(self.scene):
+                self.scene.clearSelection()
+            slot.setSelected(True)
+
+    def display_name(self):
+        return self._name or SPREADS["untitled"]
 
     def tab_title(self):
-        return self.pane.name() or SPREADS["untitled"]
+        if self.has_unsaved_changes():
+            return SPREADS["unsaved_tab"].format(title=self.display_name())
+        return self.display_name()
 
     def rename_text(self):
-        return self.pane.name()
+        return self._name
+
+    def rename_dialog_text(self):
+        return SPREADS["rename_title"], SPREADS["rename_prompt"]
 
     def rename(self, name):
-        self.pane.set_name(name)
+        self.pane.name_edit.setText(name)
+
+    def _on_name_edited(self, text):
+        self._name = text.strip()
+        self.tab_label_changed.emit()
+        self.schedule_save()
 
     # -- keeping it --------------------------------------------------------
 
@@ -257,9 +252,9 @@ class SpreadTab(CanvasTab):
             for slot, centre in zip(self._slots, centres, strict=True)
         )
         return Spread(
-            name=self.pane.name(),
+            name=self._name,
             usage=self.pane.usage(),
-            sources=self.pane.sources(),
+            sources=self._sources,
             positions=positions,
             extra=self._extra,
         )
@@ -276,26 +271,36 @@ class SpreadTab(CanvasTab):
         spread_events().spreads_changed.emit()
         return True
 
-    def on_save(self):
+    def can_save(self):
+        return self.spread_path is None
+
+    def has_unsaved_changes(self):
+        return self.spread_path is None and self._modified
+
+    def save(self):
         """The first save makes the folder. Autosave keeps it after that"""
         if self.spread_path is not None:
-            return
+            return True
         try:
             path = spreads.new_spread_dir()
         except OSError as error:
             logger.error(f"Could not make a folder for a spread: {error}")
-            return
+            return False
         if not self._write(path):
             with suppress(OSError):
                 path.rmdir()
-            return
+            return False
         self.spread_path = path
-        self.commands["canvas.save"].setEnabled(False)
+        self.tab_label_changed.emit()
+        return True
 
     @pyqtSlot()
     def schedule_save(self):
         if self.spread_path is not None:
             self.autosave_timer.start()
+        elif not self._modified:
+            self._modified = True
+            self.tab_label_changed.emit()
 
     @pyqtSlot()
     def _write_autosave(self):

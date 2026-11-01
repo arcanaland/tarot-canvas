@@ -26,6 +26,18 @@ class BaseTab(QWidget):
     def about_to_close(self):
         """The tab is leaving the window for good; finish anything it left pending."""
 
+    def can_save(self):
+        """Whether File > Save has anything to do here"""
+        return False
+
+    def save(self):
+        """Save, and return whether that worked"""
+        return False
+
+    def has_unsaved_changes(self):
+        """Whether closing this tab would lose work"""
+        return False
+
     def set_placeholder(self, text):
         """Helper to show placeholder text in empty tabs"""
         placeholder = QLabel(text)

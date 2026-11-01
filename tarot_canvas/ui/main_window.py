@@ -185,6 +185,7 @@ class MainWindow(QMainWindow):
                 "window.new_library": self.new_library_tab,
                 "window.new_card_view": self.new_card_view_tab,
                 "window.open_deck": self.open_deck,
+                "window.save": self.save_current_tab,
                 "window.close_tab": self.close_current_tab,
                 "window.quit": self.close,
                 "window.cut": partial(self.edit, "cut"),
@@ -225,6 +226,8 @@ class MainWindow(QMainWindow):
         )
         file_menu.addSeparator()
         file_menu.addAction(actions["window.open_deck"])
+        self.save_action = actions["window.save"]
+        file_menu.addAction(self.save_action)
         file_menu.addSeparator()
         file_menu.addAction(actions["window.close_tab"])
         file_menu.addSeparator()
@@ -556,6 +559,7 @@ class MainWindow(QMainWindow):
 
     def add_canvas_tab(self, canvas_tab):
         canvas_tab.navigation_requested.connect(self.handle_tab_navigation)
+        canvas_tab.tab_label_changed.connect(self.update_save_action)
         self.close_welcome_tab()
         self.tab_widget.addTab(canvas_tab, canvas_tab.tab_title())
         self.tab_widget.setCurrentWidget(canvas_tab)
@@ -635,12 +639,8 @@ class MainWindow(QMainWindow):
         if not self.is_renamable_tab(tab):
             return  # Only canvas tabs are renamable
 
-        new_name, ok = QInputDialog.getText(
-            self,
-            MAIN_WINDOW["rename_canvas"],
-            MAIN_WINDOW["rename_canvas_prompt"],
-            text=tab.rename_text(),
-        )
+        title, prompt = tab.rename_dialog_text()
+        new_name, ok = QInputDialog.getText(self, title, prompt, text=tab.rename_text())
 
         if ok and new_name:
             tab.rename(new_name)
@@ -763,6 +763,8 @@ class MainWindow(QMainWindow):
     def close_tab(self, index):
         # removeTab neither deletes the page nor tells it it has gone
         tab = self.tab_widget.widget(index)
+        if not self.confirm_close(tab):
+            return
         if isinstance(tab, BaseTab):
             tab.about_to_close()
 
@@ -792,6 +794,33 @@ class MainWindow(QMainWindow):
     def close_current_tab(self):
         current_index = self.tab_widget.currentIndex()
         self.close_tab(current_index)
+
+    def confirm_close(self, tab):
+        """Ask about any unsaved work in tab, and return whether it may close"""
+        if not isinstance(tab, BaseTab) or not tab.has_unsaved_changes():
+            return True
+        self.tab_widget.setCurrentWidget(tab)
+        Button = QMessageBox.StandardButton
+        answer = QMessageBox.warning(
+            self,
+            SPREADS["close_unsaved_title"],
+            SPREADS["close_unsaved_text"].format(name=tab.display_name()),
+            Button.Save | Button.Discard | Button.Cancel,
+            Button.Save,
+        )
+        if answer == Button.Save:
+            return tab.save()
+        return answer == Button.Discard
+
+    def save_current_tab(self):
+        tab = self.current_base_tab()
+        if tab is not None and tab.can_save():
+            tab.save()
+
+    @pyqtSlot()
+    def update_save_action(self):
+        tab = self.current_base_tab()
+        self.save_action.setEnabled(tab is not None and tab.can_save())
 
     def open_deck(self):
         """Open a deck by selecting the directory containing deck.toml"""
@@ -871,6 +900,7 @@ class MainWindow(QMainWindow):
         self.update_edit_actions()
         self.update_fullscreen_action()
         self.update_zoom_actions()
+        self.update_save_action()
 
     # A real slot, so Qt drops the app-wide connection when the window is deleted
     @pyqtSlot()
@@ -1008,6 +1038,10 @@ class MainWindow(QMainWindow):
         tab.on_fullscreen_changed()
 
     def closeEvent(self, event):
+        for index in range(self.tab_widget.count()):
+            if not self.confirm_close(self.tab_widget.widget(index)):
+                event.ignore()
+                return
         # Remember the window as it was before any tab took it over
         if self.fullscreen_tab is not None:
             self.exit_tab_fullscreen()

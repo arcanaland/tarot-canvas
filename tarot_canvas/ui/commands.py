@@ -74,10 +74,11 @@ T = COMMANDS
 COMMANDS = (
     # File
     _command("window.new_canvas", T["new_canvas"], "draw-rectangle", ["Ctrl+N"], W),
-    _command("window.new_spread", T["new_spread"], "view-grid", [], W),
+    _command("window.new_spread", T["new_spread"], "view-grid", ["Ctrl+Shift+N"], W),
     _command("window.new_library", T["new_library"], "view-list-icons", ["Ctrl+L"], W),
     _command("window.new_card_view", T["new_card_view"], "view-pages-single", ["Ctrl+T"], W),
     _command("window.open_deck", T["open_deck"], "document-open-folder", ["Ctrl+O"], W),
+    _command("window.save", T["save_spread"], "document-save", ["Ctrl+S"], W),
     _command("window.close_tab", T["close_tab"], "tab-close", ["Ctrl+W"], W),
     _command("window.quit", T["quit"], "application-exit", ["Ctrl+Q"], W),
     # Edit
@@ -143,7 +144,6 @@ COMMANDS = (
     # Canvas
     _command("canvas.summon", T["summon_card"], "document-new", ["D"], CV),
     _command("canvas.add_slot", T["add_slot"], "list-add", ["S"], CV),
-    _command("canvas.save", T["save_spread"], "document-save", ["Ctrl+S"], CV),
     _command("canvas.flip", T["flip_card"], "object-flip-vertical", ["R"], CV),
     _command("canvas.rotate", T["rotate_card"], "object-rotate-right", ["Shift+R"], CV),
     _command("canvas.delete", T["delete_card"], "edit-delete", ["Backspace"], CV),

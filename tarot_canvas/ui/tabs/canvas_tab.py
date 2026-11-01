@@ -85,7 +85,7 @@ from tarot_canvas.ui.card_transfer import (
     has_card,
 )
 from tarot_canvas.ui.commands import Scope, set_tooltip_with_keys
-from tarot_canvas.ui.strings import CANVAS
+from tarot_canvas.ui.strings import CANVAS, MAIN_WINDOW
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.utils.logger import logger
 
@@ -1070,6 +1070,10 @@ class CanvasTab(BaseTab):
     def rename_text(self):
         """What the rename dialog starts from"""
         return self.tab_name
+
+    def rename_dialog_text(self):
+        """The rename dialog's title and prompt"""
+        return MAIN_WINDOW["rename_canvas"], MAIN_WINDOW["rename_canvas_prompt"]
 
     def rename(self, name):
         self.tab_name = name

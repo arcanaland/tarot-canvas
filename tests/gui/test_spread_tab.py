@@ -1,17 +1,19 @@
 import pytest
-from PyQt6.QtCore import QPointF, QSize, Qt
-from PyQt6.QtWidgets import QApplication, QToolButton
+from PyQt6.QtCore import QModelIndex, QPoint, QPointF, QRect, QSize, Qt
+from PyQt6.QtWidgets import QApplication, QMessageBox, QStyleOptionViewItem, QToolButton
 
 from tarot_canvas.models import spreads
 from tarot_canvas.models.spreads import Position, Spread
 from tarot_canvas.ui.canvas.slot_item import SlotItem
+from tarot_canvas.ui.canvas.spread_pane import MeaningRole, NumberRole
 from tarot_canvas.ui.card_transfer import card_mime_data, copy_card_to_clipboard
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.strings import SPREADS
-from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.spread_tab import AUTOSAVE_MS, SpreadTab
+from tarot_canvas.ui.widgets.reorder_list import GRIP_WIDTH
 
 PAST_THE_TIMER = AUTOSAVE_MS + 200
+Answer = QMessageBox.StandardButton
 UNIT = 200
 
 
@@ -45,9 +47,24 @@ def select(tab, slot):
     slot.setSelected(True)
 
 
+def row_rect(tab, row):
+    view = tab.pane.list_view
+    return view.visualRect(tab.positions.index(row))
+
+
 def listed(tab):
-    rows = tab.pane.slot_list
-    return [rows.item(row).text() for row in range(rows.count())]
+    """Each row's number and label, in row order"""
+    return [
+        (tab.positions.index(row).data(NumberRole), tab.positions.index(row).data())
+        for row in range(tab.positions.rowCount())
+    ]
+
+
+def click_row(qtbot, tab, row):
+    view = tab.pane.list_view
+    qtbot.mouseClick(
+        view.viewport(), Qt.MouseButton.LeftButton, pos=row_rect(tab, row).topLeft() + QPoint(4, 4)
+    )
 
 
 def centre(slot):
@@ -56,6 +73,14 @@ def centre(slot):
 
 def menu_action(menu, words):
     return next(action for action in menu.actions() if words in action.text())
+
+
+@pytest.fixture(autouse=True)
+def discard_on_teardown(monkeypatch):
+    """A window left with unsaved work would otherwise wait on a dialog as it closes"""
+    monkeypatch.setattr(
+        "tarot_canvas.ui.main_window.QMessageBox.warning", lambda *_: Answer.Discard
+    )
 
 
 @pytest.fixture
@@ -212,68 +237,287 @@ def test_a_dropped_card_becomes_a_slot_where_it_landed(qtbot, minimal_deck):
 # -- the pane
 
 
-def test_typing_a_label_changes_the_slot_and_its_face(qtbot):
+def test_every_slot_is_a_row_in_number_order(qtbot):
+    tab = make_tab(qtbot)
+    first, second, third = add_slots(tab, 3)
+    second.set_label("Past")
+    tab.positions.setData(tab.positions.index(1), "Past")
+
+    tab.move_slot(third, 0)
+
+    assert listed(tab) == [(1, ""), (2, ""), (3, "Past")]
+
+
+def test_a_label_with_no_meaning_is_level_with_its_number(qtbot):
+    tab = make_tab(qtbot)
+    delegate = tab.pane.delegate
+    option = QStyleOptionViewItem()
+    option.font = tab.pane.list_view.font()
+    option.rect = QRect(0, 0, 300, delegate.sizeHint(option, QModelIndex()).height())
+    number = delegate._number_rect(option)
+
+    alone = delegate.title_rect(option, has_meaning=False)
+    over_a_meaning = delegate.title_rect(option, has_meaning=True)
+
+    assert abs(alone.center().y() - number.center().y()) <= 1
+    assert over_a_meaning.top() == number.top()
+
+
+def test_a_row_reads_as_its_number_and_label(qtbot):
+    tab = make_tab(qtbot)
+    (slot,) = add_slots(tab, 1)
+    slot.set_label("Past")
+
+    text = tab.positions.index(0).data(Qt.ItemDataRole.AccessibleTextRole)
+
+    assert text == SPREADS["slot_row"].format(number=1, label="Past")
+
+
+def test_one_selected_slot_opens_its_row(qtbot):
+    tab = make_tab(qtbot)
+    first, second = add_slots(tab, 2)
+    select(tab, first)
+    first.set_label("Past")
+    first.meaning = "Before"
+
+    select(tab, second)
+    assert tab.pane.editor.label_edit.text() == ""
+    select(tab, first)
+
+    view = tab.pane.list_view
+    assert view.indexWidget(tab.positions.index(0)) is tab.pane.editor
+    assert view.indexWidget(tab.positions.index(1)) is None
+    assert tab.pane.editor.label_edit.text() == "Past"
+    assert tab.pane.editor.meaning_edit.toPlainText() == "Before"
+    assert row_rect(tab, 0).height() > row_rect(tab, 1).height()
+
+
+def test_the_open_row_leaves_the_grip_exposed(qtbot):
+    tab = make_tab(qtbot)
+    (slot,) = add_slots(tab, 1)
+    qtbot.wait(0)
+
+    left = tab.pane.editor.geometry().left()
+
+    assert left >= GRIP_WIDTH
+    assert tab.pane.list_view.indexAt(QPoint(4, row_rect(tab, 0).center().y())).row() == 0
+
+
+def test_nothing_or_several_selected_opens_no_row(qtbot):
+    tab = make_tab(qtbot)
+    first, second = add_slots(tab, 2)
+    view = tab.pane.list_view
+
+    tab.scene.clearSelection()
+    assert tab.pane.editor is None
+    assert view.indexWidget(tab.positions.index(1)) is None
+    assert not view.selectionModel().hasSelection()
+
+    first.setSelected(True)
+    assert tab.pane.editor is not None
+
+    second.setSelected(True)
+    assert tab.pane.editor is None
+    assert view.indexWidget(tab.positions.index(0)) is None
+
+
+def test_selecting_on_the_canvas_selects_the_row(qtbot):
+    tab = make_tab(qtbot)
+    first, second = add_slots(tab, 2)
+
+    select(tab, first)
+
+    assert [index.row() for index in tab.pane.list_view.selectedIndexes()] == [0]
+
+
+def test_clicking_a_row_selects_its_slot_alone(qtbot):
+    tab = make_tab(qtbot)
+    first, second, third = add_slots(tab, 3)
+    first.setSelected(True)
+    second.setSelected(True)
+
+    click_row(qtbot, tab, 2)
+
+    assert tab.selected_cards() == [third]
+    assert tab.pane.list_view.indexWidget(tab.positions.index(2)) is tab.pane.editor
+
+
+def test_typing_a_label_changes_the_slot_and_its_face_and_keeps_focus(qtbot):
     tab = make_tab(qtbot)
     (slot,) = add_slots(tab, 1)
     before = image(slot)
+    editor = tab.pane.editor
+    tab.window().activateWindow()
+    tab.edit_label()
 
-    qtbot.keyClicks(tab.pane.label_edit, "Past")
+    qtbot.keyClicks(editor.label_edit, "Past")
 
     assert slot.label == "Past"
     assert image(slot) != before
+    assert tab.pane.editor is editor
+    assert tab.positions.index(0).data() == "Past"
+    assert QApplication.focusWidget() in (editor.label_edit, None)
 
 
 def test_typing_a_meaning_changes_the_slot(qtbot):
     tab = make_tab(qtbot)
     (slot,) = add_slots(tab, 1)
 
-    qtbot.keyClicks(tab.pane.meaning_edit, "Before")
+    qtbot.keyClicks(tab.pane.editor.meaning_edit, "Before")
 
     assert slot.meaning == "Before"
+    assert tab.positions.index(0).data(MeaningRole) == "Before"
 
 
-def test_selecting_a_slot_shows_its_fields_and_keeps_the_other_slots_own(qtbot):
+def test_reselecting_the_slot_keeps_the_editor(qtbot):
+    tab = make_tab(qtbot)
+    (slot,) = add_slots(tab, 1)
+    editor = tab.pane.editor
+
+    tab.scene.selectionChanged.emit()
+
+    assert tab.pane.editor is editor
+
+
+def test_a_drop_renumbers_keeps_ids_and_arms_the_timer(qtbot, spreads_base):
+    tab = make_tab(qtbot)
+    first, second, third = add_slots(tab, 3)
+    tab.save()
+    tab.autosave_timer.stop()
+    select(tab, first)
+    view = tab.pane.list_view
+    changes = []
+    tab.layout_changed.connect(lambda: changes.append(1))
+
+    view.move_row(0, view.drop_row(row_rect(tab, 2).bottomLeft()))
+
+    assert tab.slots() == (second, third, first)
+    assert [slot.number for slot in tab.slots()] == [1, 2, 3]
+    assert [slot.position_id for slot in tab.slots()] == ["p2", "p3", "p1"]
+    assert len(changes) == 1
+    assert tab.autosave_timer.isActive()
+    tab.autosave_timer.stop()
+
+
+def test_a_moved_slot_keeps_its_open_row(qtbot):
+    tab = make_tab(qtbot)
+    first, second, third = add_slots(tab, 3)
+    select(tab, first)
+    editor = tab.pane.editor
+
+    tab.move_slot(first, 2)
+
+    assert tab.pane.editor is editor
+    assert tab.pane.list_view.indexWidget(tab.positions.index(2)) is editor
+
+
+def test_the_row_buttons_move_the_slot_and_stop_at_the_ends(qtbot):
     tab = make_tab(qtbot)
     first, second = add_slots(tab, 2)
     select(tab, first)
-    tab.pane.label_edit.setText("Past")
+    editor = tab.pane.editor
+    assert not editor.earlier_button.isEnabled()
+
+    editor.later_button.click()
+
+    assert tab.slots() == (second, first)
+    assert editor.earlier_button.isEnabled()
+    assert not editor.later_button.isEnabled()
+
+    editor.earlier_button.click()
+
+    assert tab.slots() == (first, second)
+
+
+def test_a_row_far_down_the_list_scrolls_into_view_when_it_opens(qtbot):
+    tab = make_tab(qtbot)
+    slots = add_slots(tab, 30)
+    tab.scene.clearSelection()
+
+    select(tab, slots[-1])
+    qtbot.wait(0)
+
+    assert tab.pane.list_view.viewport().rect().contains(row_rect(tab, 29))
+
+
+def test_alt_arrows_in_the_label_field_move_the_slot(qtbot):
+    tab = make_tab(qtbot)
+    first, second = add_slots(tab, 2)
+    select(tab, first)
+
+    qtbot.keyClick(tab.pane.editor.label_edit, Qt.Key.Key_Down, Qt.KeyboardModifier.AltModifier)
+
+    assert tab.slots() == (second, first)
+
+
+def test_deleting_the_open_slot_opens_no_other(qtbot):
+    tab = make_tab(qtbot)
+    first, second, third = add_slots(tab, 3)
     select(tab, second)
-    assert tab.pane.label_edit.text() == ""
 
+    tab.on_delete_card()
+
+    assert tab.pane.editor is None
+    assert tab.selected_cards() == []
+    assert tab.positions.rowCount() == 2
+    assert listed(tab) == [(1, ""), (2, "")]
+
+
+def test_a_new_slot_opens_its_row(qtbot):
+    tab = make_tab(qtbot)
+    first, second = add_slots(tab, 2)
     select(tab, first)
+    tab.on_delete_card()
 
-    assert tab.pane.label_edit.text() == "Past"
-    assert second.label == ""
+    third = tab.add_next_slot()
+
+    assert tab.selected_cards() == [third]
+    assert tab.pane.list_view.indexWidget(tab.positions.index(1)) is tab.pane.editor
 
 
-def test_with_nothing_or_several_selected_the_pane_lists_every_slot(qtbot):
+def test_deleting_an_earlier_slot_keeps_the_later_row_right(qtbot):
     tab = make_tab(qtbot)
     first, second = add_slots(tab, 2)
-    first.set_label("Past")
+    second.set_label("Next")
+    select(tab, first)
+    tab.on_delete_card()
+    select(tab, second)
 
-    tab.scene.clearSelection()
-    rows = [SPREADS["slot_row"].format(number=1, label="Past")]
-    rows.append(SPREADS["slot_row"].format(number=2, label=""))
-    assert listed(tab) == rows
-    assert not tab.pane.slot_list.isHidden()
-    assert tab.pane.slot_editor.isHidden()
-
-    first.setSelected(True)
-    assert tab.pane.slot_list.isHidden()
-
-    second.setSelected(True)
-    assert listed(tab) == rows
-    assert not tab.pane.slot_list.isHidden()
+    assert tab.pane.editor.label_edit.text() == "Next"
+    assert tab.pane.list_view.indexWidget(tab.positions.index(0)) is tab.pane.editor
 
 
-def test_clicking_a_row_selects_its_slot(qtbot):
+def test_an_empty_spread_shows_the_placeholder_and_it_adds_a_slot(qtbot):
     tab = make_tab(qtbot)
-    first, second = add_slots(tab, 2)
-    tab.scene.clearSelection()
+    assert tab.pane.stack.currentIndex() == 1
+    assert tab.pane.placeholder.heading.text() == SPREADS["slots_empty"]
 
-    tab.pane.slot_list.itemClicked.emit(tab.pane.slot_list.item(1))
+    tab.pane.placeholder.helpful_button.click()
 
-    assert tab.selected_cards() == [second]
+    assert len(tab.slots()) == 1
+    assert tab.pane.stack.currentWidget() is tab.pane.list_view
+
+
+def test_deleting_the_last_slot_brings_the_placeholder_back(qtbot):
+    tab = make_tab(qtbot)
+    add_slots(tab, 1)
+
+    tab.on_delete_card()
+
+    assert tab.pane.stack.currentIndex() == 1
+
+
+def test_the_pane_add_button_is_the_command(qtbot):
+    tab = make_tab(qtbot)
+
+    assert tab.pane.add_slot_button.defaultAction() is tab.commands["canvas.add_slot"]
+
+
+def test_a_stored_spread_opens_with_no_row_open(window, spreads_base):
+    tab = window.open_spread(stored(spreads_base))
+
+    assert tab.pane.editor is None
+    assert listed(tab) == [(1, "Past"), (2, "Next")]
 
 
 def test_edit_label_reopens_a_collapsed_pane(qtbot):
@@ -300,30 +544,48 @@ def test_the_toolbar_toggle_collapses_the_pane(qtbot):
     assert tab.pane.is_open()
 
 
-def test_a_blank_source_row_is_not_kept(qtbot):
+# -- the description
+
+
+def test_a_new_spread_starts_with_the_description_open_and_its_button_closes_it(qtbot):
     tab = make_tab(qtbot)
-    tab.pane.add_source_row()
-    tab.pane.add_source_row().edits["author"].setText("Someone")
+    assert tab.pane.usage_edit.isVisible()
 
-    assert tab.pane.sources() == ({"author": "Someone"},)
+    tab.pane.usage_button.click()
+    assert not tab.pane.usage_edit.isVisible()
+
+    tab.pane.usage_button.click()
+    assert tab.pane.usage_edit.isVisible()
 
 
-def test_removing_a_source_row_drops_it(qtbot):
+def test_a_stored_description_opens_the_section(window, spreads_base):
+    tab = window.open_spread(stored(spreads_base))
+
+    assert tab.pane.usage_open()
+
+
+def test_a_stored_spread_with_no_description_starts_with_it_closed(window, spreads_base):
+    path = spreads_base / "1000"
+    path.mkdir(parents=True)
+    spreads.save(path, Spread(name="Plain"))
+
+    assert not window.open_spread(path).pane.usage_open()
+
+
+def test_each_tab_has_its_own_section_state(qtbot):
+    first, second = make_tab(qtbot), make_tab(qtbot)
+
+    first.pane.usage_button.click()
+
+    assert not first.pane.usage_open()
+    assert second.pane.usage_open()
+
+
+def test_the_tab_has_no_band_over_the_canvas(qtbot):
     tab = make_tab(qtbot)
-    row = tab.pane.add_source_row({"url": "a"})
-    tab.pane.add_source_row({"url": "b"})
 
-    row.remove_button.click()
-
-    assert tab.pane.sources() == ({"url": "b"},)
-
-
-def test_a_source_keeps_keys_the_pane_does_not_show(qtbot):
-    tab = make_tab(qtbot)
-    row = tab.pane.add_source_row({"url": "a", "x_seen": "2026"})
-    row.edits["url"].setText("b")
-
-    assert tab.pane.sources() == ({"url": "b", "x_seen": "2026"},)
+    assert tab.layout.count() == 1
+    assert tab.layout.itemAt(0).widget() is tab.splitter
 
 
 # -- the label
@@ -334,15 +596,49 @@ def test_the_tab_label_follows_the_name(qtbot):
     assert tab.tab_title() == SPREADS["untitled"]
 
     with qtbot.waitSignal(tab.tab_label_changed):
-        tab.pane.name_edit.setText("The Horseshoe")
+        tab.rename("The Horseshoe")
 
-    assert tab.tab_title() == "The Horseshoe"
+    assert tab.display_name() == "The Horseshoe"
+
+
+def test_the_name_field_starts_empty_and_says_what_it_is_for(qtbot):
+    tab = make_tab(qtbot)
+
+    assert tab.pane.name_edit.text() == ""
+    assert tab.pane.name_edit.placeholderText() == SPREADS["name_hint"]
+    assert tab.pane.name_edit.accessibleName() == SPREADS["name_title"]
+
+
+def test_typing_in_the_name_field_names_the_tab_as_it_goes(window, qtbot):
+    tab = window.new_spread_tab()
+    index = window.tab_widget.indexOf(tab)
+
+    qtbot.keyClicks(tab.pane.name_edit, "Sh")
+
+    assert window.tab_widget.tabText(index) == SPREADS["unsaved_tab"].format(title="Sh")
+    assert tab.slots() == ()
+
+
+def test_clearing_the_name_field_goes_back_to_untitled(qtbot):
+    tab = make_tab(qtbot)
+    tab.pane.name_edit.setText("Named")
+
+    tab.pane.name_edit.clear()
+
+    assert tab.rename_text() == ""
+    assert tab.display_name() == SPREADS["untitled"]
+
+
+def test_a_stored_name_is_in_the_field(window, spreads_base):
+    tab = window.open_spread(stored(spreads_base))
+
+    assert tab.pane.name_edit.text() == "The Horseshoe"
 
 
 def test_renaming_the_tab_sets_the_name(window, qtbot, monkeypatch):
     tab = window.new_spread_tab()
     index = window.tab_widget.indexOf(tab)
-    tab.pane.set_name("Old")
+    tab.rename("Old")
     offered = []
 
     def answer(*_, text):
@@ -353,8 +649,9 @@ def test_renaming_the_tab_sets_the_name(window, qtbot, monkeypatch):
     window.show_tab_rename_dialog(index)
 
     assert offered == ["Old"]
-    assert tab.pane.name() == "New"
-    assert window.tab_widget.tabText(index) == "New"
+    assert tab.rename_text() == "New"
+    assert tab.pane.name_edit.text() == "New"
+    assert window.tab_widget.tabText(index) == SPREADS["unsaved_tab"].format(title="New")
 
 
 # -- ways in
@@ -385,13 +682,37 @@ def test_new_spread_opens_a_spread_tab(window):
 # -- keeping it
 
 
-def test_a_plain_canvas_has_no_save(qtbot):
-    tab = CanvasTab()
-    qtbot.addWidget(tab)
+def test_save_follows_open_deck_in_the_file_menu(window):
+    actions = window.menuBar().actions()[0].menu().actions()
+    open_deck = window.window_actions["window.open_deck"]
 
-    assert "canvas.save" not in tab.commands
-    assert "canvas.save" not in [action.objectName() for action in tab.toolbar.actions()]
-    assert "canvas.save" not in [action.objectName() for action in tab.actions()]
+    assert actions[actions.index(open_deck) + 1] is window.save_action
+
+
+def test_save_starts_disabled(window):
+    assert not window.save_action.isEnabled()
+
+
+def test_save_is_enabled_only_on_a_spread_not_yet_saved(window, spreads_base):
+    window.new_canvas_tab()
+    assert not window.save_action.isEnabled()
+
+    tab = window.new_spread_tab()
+    assert window.save_action.isEnabled()
+
+    window.save_action.trigger()
+    assert tab.spread_path is not None
+    assert not window.save_action.isEnabled()
+
+
+def test_the_toolbar_has_no_save(qtbot):
+    tab = make_tab(qtbot)
+
+    assert "window.save" not in [action.objectName() for action in tab.toolbar.actions()]
+
+
+def test_new_spread_has_a_key(window):
+    assert window.new_spread_action.shortcut().toString() == "Ctrl+Shift+N"
 
 
 def test_ctrl_s_writes_card_widths_about_the_layout_centre(qtbot, spreads_base):
@@ -402,7 +723,7 @@ def test_ctrl_s_writes_card_widths_about_the_layout_centre(qtbot, spreads_base):
     second.setSelected(True)
     tab.on_rotate_card()
 
-    tab.commands["canvas.save"].trigger()
+    tab.save()
 
     assert tab.spread_path.parent == spreads_base
     first, second = spreads.load(tab.spread_path).positions
@@ -414,11 +735,11 @@ def test_ctrl_s_writes_card_widths_about_the_layout_centre(qtbot, spreads_base):
 
 def test_save_is_disabled_after_the_first(qtbot, spreads_base):
     tab = make_tab(qtbot)
-    tab.on_save()
+    tab.save()
     folder = tab.spread_path
 
-    assert not tab.commands["canvas.save"].isEnabled()
-    tab.on_save()
+    assert not tab.can_save()
+    tab.save()
     assert tab.spread_path == folder
     assert len(list(spreads_base.iterdir())) == 1
 
@@ -426,7 +747,7 @@ def test_save_is_disabled_after_the_first(qtbot, spreads_base):
 def test_nothing_is_written_before_the_first_save(qtbot, spreads_base):
     tab = make_tab(qtbot)
     add_slots(tab, 1)
-    tab.pane.name_edit.setText("Nope")
+    tab.rename("Nope")
 
     assert not tab.autosave_timer.isActive()
     assert not spreads_base.exists()
@@ -434,9 +755,9 @@ def test_nothing_is_written_before_the_first_save(qtbot, spreads_base):
 
 def test_an_edit_after_the_first_save_lands_after_the_timer(qtbot, spreads_base):
     tab = make_tab(qtbot)
-    tab.on_save()
+    tab.save()
 
-    tab.pane.name_edit.setText("The Horseshoe")
+    tab.rename("The Horseshoe")
     assert spreads.load(tab.spread_path).name == ""
 
     qtbot.wait(PAST_THE_TIMER)
@@ -453,16 +774,16 @@ def test_an_edit_after_the_first_save_lands_after_the_timer(qtbot, spreads_base)
         lambda tab: tab.on_send_to_back(),
         lambda tab: tab.move_slot(tab.slots()[1], 0),
         lambda tab: tab.pane.usage_edit.setPlainText("Use it"),
-        lambda tab: tab.pane.label_edit.setText("Past"),
-        lambda tab: tab.pane.meaning_edit.setPlainText("Before"),
-        lambda tab: tab.pane.add_source_row().edits["url"].setText("a"),
+        lambda tab: tab.pane.editor.label_edit.setText("Past"),
+        lambda tab: tab.pane.editor.meaning_edit.setPlainText("Before"),
+        lambda tab: tab.rename("Named"),
     ],
 )
 def test_every_kind_of_change_arms_the_timer(qtbot, spreads_base, change):
     tab = make_tab(qtbot)
     first, _ = add_slots(tab, 2)
     select(tab, first)
-    tab.on_save()
+    tab.save()
     assert not tab.autosave_timer.isActive()
 
     change(tab)
@@ -474,7 +795,7 @@ def test_every_kind_of_change_arms_the_timer(qtbot, spreads_base, change):
 def test_a_drag_arms_the_timer_when_it_ends(qtbot, spreads_base):
     tab = make_tab(qtbot)
     (slot,) = add_slots(tab, 1)
-    tab.on_save()
+    tab.save()
     tab.autosave_timer.stop()
 
     slot.begin_drag()
@@ -487,7 +808,7 @@ def test_a_drag_arms_the_timer_when_it_ends(qtbot, spreads_base):
 def test_a_press_with_no_drag_arms_nothing(qtbot, spreads_base):
     tab = make_tab(qtbot)
     (slot,) = add_slots(tab, 1)
-    tab.on_save()
+    tab.save()
 
     slot.end_drag()
 
@@ -499,7 +820,7 @@ def test_an_arrangement_from_the_align_menu_arms_the_timer(qtbot, spreads_base, 
     first, second = add_slots(tab, 2)
     first.setSelected(True)
     second.setSelected(True)
-    tab.on_save()
+    tab.save()
 
     monkeypatch.setattr(
         "tarot_canvas.ui.tabs.canvas_tab.QMenu.exec",
@@ -513,8 +834,8 @@ def test_an_arrangement_from_the_align_menu_arms_the_timer(qtbot, spreads_base, 
 
 def test_closing_the_tab_writes_what_is_pending(window, spreads_base):
     tab = window.new_spread_tab()
-    tab.on_save()
-    tab.pane.name_edit.setText("Kept")
+    tab.save()
+    tab.rename("Kept")
 
     window.close_tab(window.tab_widget.indexOf(tab))
 
@@ -524,8 +845,8 @@ def test_closing_the_tab_writes_what_is_pending(window, spreads_base):
 
 def test_quitting_writes_what_is_pending(qtbot, spreads_base):
     tab = make_tab(qtbot)
-    tab.on_save()
-    tab.pane.name_edit.setText("Kept")
+    tab.save()
+    tab.rename("Kept")
 
     QApplication.instance().aboutToQuit.emit()
 
@@ -541,11 +862,20 @@ def test_a_failed_write_keeps_the_tab_unsaved_and_leaves_no_folder(
     monkeypatch.setattr(spreads, "save", fail)
     tab = make_tab(qtbot)
 
-    tab.on_save()
+    tab.save()
 
     assert tab.spread_path is None
-    assert tab.commands["canvas.save"].isEnabled()
+    assert tab.can_save()
     assert list(spreads_base.iterdir()) == []
+
+
+def test_a_stored_sources_list_survives_a_save(window, spreads_base, qtbot):
+    tab = window.open_spread(stored(spreads_base))
+
+    tab.rename("Renamed")
+    qtbot.wait(PAST_THE_TIMER)
+
+    assert spreads.load(tab.spread_path).sources == ({"author": "Someone"},)
 
 
 def test_every_write_announces_itself(qtbot, spreads_base):
@@ -553,10 +883,163 @@ def test_every_write_announces_itself(qtbot, spreads_base):
 
     tab = make_tab(qtbot)
     with qtbot.waitSignal(spread_events().spreads_changed, timeout=500):
-        tab.on_save()
-    tab.pane.name_edit.setText("Again")
+        tab.save()
+    tab.rename("Again")
     with qtbot.waitSignal(spread_events().spreads_changed, timeout=PAST_THE_TIMER):
         pass
+
+
+# -- unsaved changes
+
+
+def starred(name):
+    return SPREADS["unsaved_tab"].format(title=name)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        lambda tab: tab.add_next_slot(),
+        lambda tab: tab.pane.name_edit.setText("Named"),
+        lambda tab: tab.pane.usage_edit.setPlainText("Use it"),
+    ],
+)
+def test_a_change_stars_the_tab(window, change):
+    tab = window.new_spread_tab()
+    index = window.tab_widget.indexOf(tab)
+    assert window.tab_widget.tabText(index) == SPREADS["untitled"]
+
+    change(tab)
+
+    assert window.tab_widget.tabText(index).endswith("*")
+
+
+def test_saving_takes_the_star_off_and_autosave_keeps_it_off(window, spreads_base):
+    tab = window.new_spread_tab()
+    tab.add_next_slot()
+    index = window.tab_widget.indexOf(tab)
+    assert window.tab_widget.tabText(index) == starred(SPREADS["untitled"])
+
+    tab.save()
+    assert window.tab_widget.tabText(index) == SPREADS["untitled"]
+
+    tab.add_next_slot()
+    assert window.tab_widget.tabText(index) == SPREADS["untitled"]
+    assert not tab.has_unsaved_changes()
+
+
+def test_an_opened_spread_has_no_star(window, spreads_base):
+    tab = window.open_spread(stored(spreads_base))
+
+    assert window.tab_widget.tabText(window.tab_widget.indexOf(tab)) == "The Horseshoe"
+
+
+def answer_with(monkeypatch, button):
+    asked = []
+
+    def warning(_parent, title, text, _buttons, _default):
+        asked.append((title, text))
+        return button
+
+    monkeypatch.setattr("tarot_canvas.ui.main_window.QMessageBox.warning", warning)
+    return asked
+
+
+def unsaved_tab(window):
+    tab = window.new_spread_tab()
+    tab.rename("Mine")
+    return tab
+
+
+def test_closing_an_untouched_spread_asks_nothing(window, monkeypatch):
+    asked = answer_with(monkeypatch, Answer.Cancel)
+    tab = window.new_spread_tab()
+
+    window.close_tab(window.tab_widget.indexOf(tab))
+
+    assert asked == []
+    assert window.tab_widget.indexOf(tab) == -1
+
+
+def test_cancel_keeps_the_tab(window, monkeypatch):
+    asked = answer_with(monkeypatch, Answer.Cancel)
+    tab = unsaved_tab(window)
+
+    window.close_tab(window.tab_widget.indexOf(tab))
+
+    assert asked == [
+        (SPREADS["close_unsaved_title"], SPREADS["close_unsaved_text"].format(name="Mine"))
+    ]
+    assert window.tab_widget.indexOf(tab) >= 0
+    assert tab.has_unsaved_changes()
+
+
+def test_discard_closes_it_and_writes_nothing(window, spreads_base, monkeypatch):
+    answer_with(monkeypatch, Answer.Discard)
+    tab = unsaved_tab(window)
+
+    window.close_tab(window.tab_widget.indexOf(tab))
+
+    assert window.tab_widget.indexOf(tab) == -1
+    assert not spreads_base.exists() or list(spreads_base.iterdir()) == []
+
+
+def test_save_writes_it_and_closes(window, spreads_base, monkeypatch):
+    answer_with(monkeypatch, Answer.Save)
+    tab = unsaved_tab(window)
+
+    window.close_tab(window.tab_widget.indexOf(tab))
+
+    assert window.tab_widget.indexOf(tab) == -1
+    assert spreads.load(tab.spread_path).name == "Mine"
+
+
+def test_a_failed_save_keeps_the_tab(window, spreads_base, monkeypatch):
+    def fail(*_):
+        raise OSError("disk full")
+
+    answer_with(monkeypatch, Answer.Save)
+    monkeypatch.setattr(spreads, "save", fail)
+    tab = unsaved_tab(window)
+
+    window.close_tab(window.tab_widget.indexOf(tab))
+
+    assert window.tab_widget.indexOf(tab) >= 0
+
+
+def test_closing_a_saved_spread_asks_nothing(window, spreads_base, monkeypatch):
+    asked = answer_with(monkeypatch, Answer.Cancel)
+    tab = unsaved_tab(window)
+    tab.save()
+    tab.add_next_slot()
+
+    window.close_tab(window.tab_widget.indexOf(tab))
+
+    assert asked == []
+
+
+def test_cancel_stops_the_window_closing_and_raises_the_tab(window, monkeypatch):
+    answer_with(monkeypatch, Answer.Cancel)
+    tab = unsaved_tab(window)
+    window.new_canvas_tab()
+    window.show()
+
+    assert not window.close()
+    assert window.tab_widget.currentWidget() is tab
+    answer_with(monkeypatch, Answer.Discard)
+
+
+def test_quitting_asks_about_each_unsaved_spread_in_turn(window, monkeypatch):
+    asked = answer_with(monkeypatch, Answer.Discard)
+    unsaved_tab(window).rename("One")
+    unsaved_tab(window).rename("Two")
+    window.show()
+
+    assert window.close()
+    assert [text for _, text in asked] == [
+        SPREADS["close_unsaved_text"].format(name="One"),
+        SPREADS["close_unsaved_text"].format(name="Two"),
+    ]
 
 
 # -- opening it
@@ -597,9 +1080,9 @@ def test_a_stored_spread_opens_as_it_was(window, spreads_base):
     assert centre(second) == QPointF(UNIT, -UNIT / 4)
     assert (first.orient, second.orient) == (90.0, 0.0)
     assert (first.zValue(), second.zValue()) == (5.0, 2.0)
-    assert tab.pane.name() == "The Horseshoe"
+    assert tab.rename_text() == "The Horseshoe"
     assert tab.pane.usage() == "Left to right"
-    assert tab.pane.sources() == ({"author": "Someone"},)
+    assert tab.current_spread().sources == ({"author": "Someone"},)
     assert window.tab_widget.tabText(window.tab_widget.indexOf(tab)) == "The Horseshoe"
 
 
@@ -622,7 +1105,7 @@ def test_opening_writes_nothing_and_arms_nothing(window, spreads_base, qtbot):
     assert not tab.autosave_timer.isActive()
     qtbot.wait(PAST_THE_TIMER)
     assert file.stat().st_mtime_ns == before
-    assert not tab.commands["canvas.save"].isEnabled()
+    assert not tab.can_save()
 
 
 def test_opening_twice_raises_the_tab(window, spreads_base):
@@ -649,7 +1132,7 @@ def test_an_unreadable_spread_opens_nothing(window, spreads_base):
 def test_saving_a_reopened_spread_keeps_its_unknown_keys_and_order(window, spreads_base, qtbot):
     tab = window.open_spread(stored(spreads_base))
 
-    tab.pane.name_edit.setText("Renamed")
+    tab.rename("Renamed")
     qtbot.wait(PAST_THE_TIMER)
 
     loaded = spreads.load(tab.spread_path)
@@ -671,7 +1154,7 @@ def test_a_spread_saved_and_reopened_comes_back_in_place(window, spreads_base):
     tab.add_next_slot(QPointF(3 * UNIT, UNIT))
     select(tab, tab.slots()[1])
     tab.on_rotate_card()
-    tab.on_save()
+    tab.save()
     path = tab.spread_path
     window.close_tab(window.tab_widget.indexOf(tab))
 
