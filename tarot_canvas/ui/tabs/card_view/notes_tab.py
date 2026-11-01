@@ -10,7 +10,6 @@ from PyQt6.QtWidgets import (
     QFileDialog,
     QFrame,
     QHBoxLayout,
-    QLineEdit,
     QMenu,
     QMessageBox,
     QPushButton,
@@ -31,6 +30,7 @@ from tarot_canvas.ui.library.notes_model import NoteRole, NotesListModel
 from tarot_canvas.ui.strings import NOTES, notes_text
 from tarot_canvas.ui.tabs.card_view.markdown_editor import MarkdownEditor
 from tarot_canvas.ui.tabs.card_view.notes_list import NotesEmptyPage, NotesListPage
+from tarot_canvas.ui.widgets.heading_edit import heading_edit
 from tarot_canvas.ui.widgets.inline_message import InlineMessage
 from tarot_canvas.utils.logger import logger
 
@@ -191,10 +191,7 @@ class NotesTab(QWidget):
         header_layout.addWidget(back_button)
 
         # The note's name (editable)
-        self.note_title = QLineEdit()
-        self.note_title.setFrame(False)
-        self.note_title.setPlaceholderText(notes_text("name_placeholder"))
-        typography.apply(self.note_title, typography.Role.HEADING_2)
+        self.note_title = heading_edit(notes_text("name_placeholder"))
         self.note_title.editingFinished.connect(self.apply_title_edit)
         header_layout.addWidget(self.note_title)
 

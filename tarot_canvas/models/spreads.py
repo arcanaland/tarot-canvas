@@ -45,7 +45,7 @@ def spreads_base():
 
 
 def new_spread_dir(base=None):
-    """A new folder named by the current time, or the next free second"""
+    """A new folder with the name as the current time"""
     base = Path(base) if base is not None else spreads_base()
     base.mkdir(parents=True, exist_ok=True)
     stamp = int(time.time())
@@ -60,7 +60,6 @@ def new_spread_dir(base=None):
 
 
 def next_position_id(positions):
-    """p<n>, one past the largest n among the ids given"""
     numbers = [int(match[1]) for id in positions if (match := _POSITION_ID.fullmatch(id))]
     return f"p{max(numbers, default=0) + 1}"
 
@@ -82,7 +81,6 @@ def _position(table):
 
 
 def load(path):
-    """The Spread in folder path. Raises OSError or ValueError if it can't be read"""
     with open(Path(path) / SPREAD_FILE, "rb") as handle:
         table = tomllib.load(handle)
 
@@ -92,6 +90,7 @@ def load(path):
         raise ValueError("positions and sources must be arrays")
     if not all(isinstance(source, dict) for source in sources):
         raise ValueError("a source is not a table")
+
     return Spread(
         name=str(table.get("name", "")),
         description=str(table.get("description", "")),
@@ -125,7 +124,7 @@ def _table(spread):
 
 
 def save(path, spread):
-    """Write spread to folder path, whole or not at all"""
+    """Write spread to folder path"""
     path = Path(path)
     text = tomli_w.dumps(_table(spread), multiline_strings=True)
     descriptor, temporary = tempfile.mkstemp(dir=path, prefix=f".{SPREAD_FILE}.")
@@ -139,7 +138,7 @@ def save(path, spread):
 
 
 def scan(base=None):
-    """(folder, Spread) for each readable spread, oldest first"""
+    """(folder, Spread) for each readable spread (oldest first)"""
     base = Path(base) if base is not None else spreads_base()
     try:
         folders = sorted(entry for entry in base.iterdir() if entry.is_dir())

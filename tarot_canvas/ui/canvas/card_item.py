@@ -512,9 +512,12 @@ class DraggableCardItem(QGraphicsPixmapItem):
         return [item for item in scene.selectedItems() if isinstance(item, DraggableCardItem)]
 
     def end_drag(self):
+        moved = self._dragging or self._group_dragging
         self._pressed = False
         self._dragging = False
         self._group_dragging = False
+        if moved and self._registered_tab is not None:
+            self._registered_tab.layout_changed.emit()
 
     def abandon_press(self):
         """Let go of a press whose release a popup is about to swallow."""

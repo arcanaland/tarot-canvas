@@ -535,10 +535,13 @@ class MainWindow(QMainWindow):
 
     def new_canvas_tab(self):
         canvas_tab = CanvasTab()
+        canvas_tab.tab_name = self.next_canvas_name()
+        return self.add_canvas_tab(canvas_tab)
+
+    def add_canvas_tab(self, canvas_tab):
         canvas_tab.navigation_requested.connect(self.handle_tab_navigation)
         self.close_welcome_tab()
-        canvas_tab.tab_name = self.next_canvas_name()
-        self.tab_widget.addTab(canvas_tab, canvas_tab.tab_name)
+        self.tab_widget.addTab(canvas_tab, canvas_tab.tab_title())
         self.tab_widget.setCurrentWidget(canvas_tab)
         return canvas_tab
 
@@ -597,17 +600,11 @@ class MainWindow(QMainWindow):
         if not self.is_renamable_tab(tab):
             return  # Only canvas tabs are renamable
 
-        current_name = self.tab_widget.tabText(tab_index)
-        new_name, ok = QInputDialog.getText(
-            self,
-            MAIN_WINDOW["rename_canvas"],
-            MAIN_WINDOW["rename_canvas_prompt"],
-            text=current_name,
-        )
+        title, prompt = tab.rename_dialog_text()
+        new_name, ok = QInputDialog.getText(self, title, prompt, text=tab.rename_text())
 
         if ok and new_name:
-            tab.tab_name = new_name
-            tab.tab_label_changed.emit()
+            tab.rename(new_name)
 
     def add_card_tab(self, card_tab):
         """Adopt a card view tab. Every construction site must come through here."""
