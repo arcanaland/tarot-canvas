@@ -1,4 +1,4 @@
-# Generated with flatpak-pip-generator -r requirements.txt -o python3-modules --yaml --checker-data --runtime=org.kde.Sdk//6.11
+# Generated with flatpak-pip-generator --yaml --checker-data --runtime=org.kde.Sdk//6.11 requests xdg-base-dirs tomli-w poetry-core
 name: python3-modules
 buildsystem: simple
 build-commands: []
@@ -56,6 +56,19 @@ modules:
         x-checker-data:
           type: pypi
           name: xdg-base-dirs
+          packagetype: bdist_wheel
+  - name: python3-tomli-w
+    buildsystem: simple
+    build-commands:
+      - pip3 install --verbose --exists-action=i --no-index --find-links="file://${PWD}"
+        --prefix=${FLATPAK_DEST} "tomli-w" --no-build-isolation
+    sources:
+      - type: file
+        url: https://files.pythonhosted.org/packages/c7/18/c86eb8e0202e32dd3df50d43d7ff9854f8e0603945ff398974c1d91ac1ef/tomli_w-1.2.0-py3-none-any.whl
+        sha256: 188306098d013b691fcadc011abd66727d3c414c571bb01b1a174ba8c983cf90
+        x-checker-data:
+          type: pypi
+          name: tomli-w
           packagetype: bdist_wheel
   - name: python3-poetry-core
     buildsystem: simple

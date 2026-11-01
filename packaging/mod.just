@@ -26,7 +26,7 @@ gen-modules:
   # PyYAML isn't in this script's PEP 723 metadata for some reason
   uv run --with PyYAML "${TEMP_DIR}/flatpak-pip-generator.py" \
     --yaml --checker-data --runtime=org.kde.Sdk//${RUNTIME_VERSION} \
-    requests xdg-base-dirs poetry-core
+    requests xdg-base-dirs tomli-w poetry-core
 
   rm -rf "${TEMP_DIR}"
 

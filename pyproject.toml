@@ -24,6 +24,7 @@ classifiers = [
 dependencies = [
     "PyQt6>=6.8.0,<7.0.0",
     "requests>=2.31.0,<3.0.0",
+    "tomli-w>=1.0,<2",
     "xdg-base-dirs>=6.0.2,<7.0.0",
 ]
 
