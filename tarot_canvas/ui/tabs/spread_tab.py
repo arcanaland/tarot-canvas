@@ -61,7 +61,7 @@ class SpreadTab(CanvasTab):
 
         self.spread_path = path
         if path is not None:
-            self.pane.set_usage_open(bool(spread.usage))
+            self.pane.set_description_open(bool(spread.description))
 
     def bind_commands(self):
         super().bind_commands()
@@ -131,7 +131,7 @@ class SpreadTab(CanvasTab):
         self._sources = spread.sources  # kept for the file: nothing here edits them yet
         self._extra = spread.extra
         self._position_extra = {position.id: position.extra for position in spread.positions}
-        self.pane.set_document(spread.name, spread.usage)
+        self.pane.set_document(spread.name, spread.description)
         self._lay_out(spread.positions)
 
     def _lay_out(self, positions):
@@ -239,7 +239,7 @@ class SpreadTab(CanvasTab):
         )
         return Spread(
             name=self._name,
-            usage=self.pane.usage(),
+            description=self.pane.description(),
             sources=self._sources,
             positions=positions,
             extra=self._extra,

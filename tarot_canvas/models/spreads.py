@@ -15,7 +15,7 @@ SPREADS_SUBPATH = "tarot-canvas/spreads"
 SPREAD_FILE = "spread.toml"
 
 _POSITION_ID = re.compile(r"p(\d+)")
-_SPREAD_KEYS = {"name", "usage", "sources", "positions"}
+_SPREAD_KEYS = {"name", "description", "sources", "positions"}
 _POSITION_KEYS = {"id", "label", "meaning", "x", "y", "rotation", "z"}
 
 
@@ -34,7 +34,7 @@ class Position:
 @dataclass(frozen=True)
 class Spread:
     name: str = ""
-    usage: str = ""
+    description: str = ""
     sources: tuple = ()
     positions: tuple = ()
     extra: dict = field(default_factory=dict)
@@ -94,7 +94,7 @@ def load(path):
         raise ValueError("a source is not a table")
     return Spread(
         name=str(table.get("name", "")),
-        usage=str(table.get("usage", "")),
+        description=str(table.get("description", "")),
         sources=tuple(sources),
         positions=tuple(_position(position) for position in positions),
         extra={key: value for key, value in table.items() if key not in _SPREAD_KEYS},
@@ -116,8 +116,8 @@ def _position_table(position):
 
 def _table(spread):
     table = {"name": spread.name}
-    if spread.usage:
-        table["usage"] = spread.usage
+    if spread.description:
+        table["description"] = spread.description
     if spread.sources:
         table["sources"] = list(spread.sources)
     table["positions"] = [_position_table(position) for position in spread.positions]

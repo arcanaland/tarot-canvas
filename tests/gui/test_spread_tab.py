@@ -487,19 +487,19 @@ def test_the_toolbar_toggle_collapses_the_pane(qtbot):
 
 def test_a_new_spread_starts_with_the_description_open_and_its_button_closes_it(qtbot):
     tab = make_tab(qtbot)
-    assert tab.pane.usage_edit.isVisible()
+    assert tab.pane.description_edit.isVisible()
 
-    tab.pane.usage_button.click()
-    assert not tab.pane.usage_edit.isVisible()
+    tab.pane.description_button.click()
+    assert not tab.pane.description_edit.isVisible()
 
-    tab.pane.usage_button.click()
-    assert tab.pane.usage_edit.isVisible()
+    tab.pane.description_button.click()
+    assert tab.pane.description_edit.isVisible()
 
 
 def test_a_stored_description_opens_the_section(window, spreads_base):
     tab = window.open_spread(stored(spreads_base))
 
-    assert tab.pane.usage_open()
+    assert tab.pane.description_open()
 
 
 def test_a_stored_spread_with_no_description_starts_with_it_closed(window, spreads_base):
@@ -507,16 +507,137 @@ def test_a_stored_spread_with_no_description_starts_with_it_closed(window, sprea
     path.mkdir(parents=True)
     spreads.save(path, Spread(name="Plain"))
 
-    assert not window.open_spread(path).pane.usage_open()
+    assert not window.open_spread(path).pane.description_open()
 
 
 def test_each_tab_has_its_own_section_state(qtbot):
     first, second = make_tab(qtbot), make_tab(qtbot)
 
-    first.pane.usage_button.click()
+    first.pane.description_button.click()
 
-    assert not first.pane.usage_open()
-    assert second.pane.usage_open()
+    assert not first.pane.description_open()
+    assert second.pane.description_open()
+
+
+LONG_TEXT = "\n\n".join(f"Paragraph {number}" for number in range(20))
+
+
+def test_an_empty_description_is_one_line_high_with_no_expand_button(qtbot):
+    tab = make_tab(qtbot)
+    pane = tab.pane
+
+    assert pane.description_edit.height() < 2 * pane.fontMetrics().lineSpacing() + 12
+    assert not pane.expand_button.isVisible()
+
+
+def test_the_description_grows_with_its_text_up_to_its_limit(qtbot):
+    tab = make_tab(qtbot)
+    box = tab.pane.description_edit
+    empty = box.height()
+
+    box.setPlainText("One\nTwo\nThree")
+    assert box.height() > empty
+    assert not tab.pane.expand_button.isVisible()
+
+    three_lines = box.height()
+    box.setPlainText(LONG_TEXT)
+    assert box.height() > three_lines
+    limit = box.height()
+
+    box.setPlainText(LONG_TEXT + LONG_TEXT)
+    assert box.height() == limit
+
+
+def test_wrapped_lines_count_towards_the_limit(qtbot):
+    tab = make_tab(qtbot)
+
+    tab.pane.description_edit.setPlainText("word " * 500)
+
+    assert tab.pane.expand_button.isVisible()
+
+
+def test_four_lines_fit_and_a_fifth_offers_the_button(qtbot):
+    tab = make_tab(qtbot)
+    box = tab.pane.description_edit
+
+    box.setPlainText("1\n2\n3\n4")
+    assert not box.overflowing
+
+    box.setPlainText("1\n2\n3\n4\n5")
+    assert box.overflowing
+    assert tab.pane.expand_button.isVisible()
+
+
+def test_expanding_trades_the_list_for_the_description_and_back(qtbot):
+    tab = make_tab(qtbot)
+    add_slots(tab, 2)
+    pane = tab.pane
+    pane.description_edit.setPlainText(LONG_TEXT)
+    compact = pane.description_edit.height()
+
+    pane.expand_button.click()
+    qtbot.waitUntil(lambda: pane.description_edit.height() > compact)
+    assert not pane.stack.isVisible()
+    assert pane.name_edit.isVisible()
+
+    pane.expand_button.click()
+    assert pane.stack.isVisible()
+    assert pane.description_edit.height() == compact
+
+
+def test_expanded_text_cut_short_can_still_be_collapsed(qtbot):
+    tab = make_tab(qtbot)
+    pane = tab.pane
+    pane.description_edit.setPlainText(LONG_TEXT)
+    pane.expand_button.click()
+
+    pane.description_edit.setPlainText("Short")
+    assert pane.expand_button.isVisible()
+
+    pane.expand_button.click()
+    assert not pane.expand_button.isVisible()
+    assert pane.stack.isVisible()
+
+
+def test_selecting_a_slot_brings_the_list_back(qtbot):
+    tab = make_tab(qtbot)
+    first, second = add_slots(tab, 2)
+    pane = tab.pane
+    pane.description_edit.setPlainText(LONG_TEXT)
+    pane.expand_button.click()
+
+    select(tab, first)
+
+    assert pane.stack.isVisible()
+    assert not pane.description_expanded()
+
+
+def test_folding_an_expanded_description_brings_the_list_back(qtbot):
+    tab = make_tab(qtbot)
+    pane = tab.pane
+    pane.description_edit.setPlainText(LONG_TEXT)
+    pane.expand_button.click()
+
+    pane.description_button.click()
+
+    assert pane.stack.isVisible()
+    assert not pane.expand_button.isVisible()
+
+
+def test_a_stored_long_description_offers_the_button(qtbot, window, spreads_base):
+    path = spreads_base / "1000"
+    path.mkdir(parents=True)
+    spreads.save(path, Spread(name="Long", description=LONG_TEXT))
+    window.show()
+    qtbot.waitExposed(window)
+
+    pane = window.open_spread(path).pane
+
+    qtbot.waitUntil(pane.expand_button.isVisible)
+
+
+def test_pasted_rich_text_stays_plain(qtbot):
+    assert not make_tab(qtbot).pane.description_edit.acceptRichText()
 
 
 def test_the_tab_has_no_band_over_the_canvas(qtbot):
@@ -718,7 +839,7 @@ def test_an_edit_reaches_the_file_only_when_saved(qtbot, spreads_base):
         lambda tab: tab.on_bring_to_front(),
         lambda tab: tab.on_send_to_back(),
         lambda tab: tab.pane.list_view.move_row(1, 0),
-        lambda tab: tab.pane.usage_edit.setPlainText("Use it"),
+        lambda tab: tab.pane.description_edit.setPlainText("Use it"),
         lambda tab: tab.pane.editor.label_edit.setText("Past"),
         lambda tab: tab.pane.editor.meaning_edit.setPlainText("Before"),
         lambda tab: tab.rename("Named"),
@@ -851,7 +972,7 @@ def starred(name):
     [
         lambda tab: tab.add_next_slot(),
         lambda tab: tab.pane.name_edit.setText("Named"),
-        lambda tab: tab.pane.usage_edit.setPlainText("Use it"),
+        lambda tab: tab.pane.description_edit.setPlainText("Use it"),
     ],
 )
 def test_a_change_stars_the_tab(window, change):
@@ -1022,7 +1143,7 @@ def test_quitting_asks_about_each_unsaved_spread_in_turn(window, monkeypatch):
 def stored_spread():
     return Spread(
         name="The Horseshoe",
-        usage="Left to right",
+        description="Left to right",
         sources=({"author": "Someone"},),
         positions=(
             Position("p1", "Past", "Before", -1.0, 0.25, 90.0, 5.0, {"x_keep": 1}),
@@ -1055,7 +1176,7 @@ def test_a_stored_spread_opens_as_it_was(window, spreads_base):
     assert (first.orient, second.orient) == (90.0, 0.0)
     assert (first.zValue(), second.zValue()) == (5.0, 2.0)
     assert tab.rename_text() == "The Horseshoe"
-    assert tab.pane.usage() == "Left to right"
+    assert tab.pane.description() == "Left to right"
     assert tab.current_spread().sources == ({"author": "Someone"},)
     assert window.tab_widget.tabText(window.tab_widget.indexOf(tab)) == "The Horseshoe"
 
@@ -1154,7 +1275,7 @@ def saved_tab(window, *slots):
     """A spread saved with a slot per label, unmodified"""
     tab = window.new_spread_tab()
     tab.pane.name_edit.setText("Mine")
-    tab.pane.usage_edit.setPlainText("Use it")
+    tab.pane.description_edit.setPlainText("Use it")
     for index, label in enumerate(slots):
         tab.add_next_slot(QPointF(index * 300, 0)).set_label(label)
     assert tab.save()
@@ -1212,7 +1333,7 @@ def test_revert_is_offered_only_with_changes_since_the_save(window):
 def test_a_duplicate_is_a_new_unsaved_tab_of_the_current_state(window):
     tab = saved_tab(window, "Past", "Future")
     tab.slots()[1].set_orient(90)
-    tab.pane.usage_edit.setPlainText("Changed")
+    tab.pane.description_edit.setPlainText("Changed")
 
     tab.duplicate_action.trigger()
 
@@ -1260,7 +1381,7 @@ def test_revert_restores_the_saved_spread(window, monkeypatch):
     answer_warning(monkeypatch, Answer.Discard)
 
     tab.pane.name_edit.setText("Other")
-    tab.pane.usage_edit.setPlainText("Changed")
+    tab.pane.description_edit.setPlainText("Changed")
     select(tab, tab.slots()[0])
     tab.commands["canvas.delete"].trigger()
     tab.add_next_slot(QPointF(900, 900)).set_label("New")

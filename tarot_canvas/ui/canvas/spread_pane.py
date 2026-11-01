@@ -1,3 +1,5 @@
+from math import ceil
+
 from PyQt6.QtCore import (
     QAbstractListModel,
     QItemSelectionModel,
@@ -10,6 +12,7 @@ from PyQt6.QtCore import (
 )
 from PyQt6.QtGui import QFont, QFontMetrics, QIcon
 from PyQt6.QtWidgets import (
+    QWIDGETSIZE_MAX,
     QAbstractItemView,
     QFrame,
     QHBoxLayout,
@@ -20,6 +23,7 @@ from PyQt6.QtWidgets import (
     QStackedWidget,
     QStyle,
     QStyledItemDelegate,
+    QTextEdit,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -35,7 +39,7 @@ from tarot_canvas.ui.widgets.placeholder_message import PlaceholderMessage
 from tarot_canvas.ui.widgets.reorder_list import GRIP_WIDTH, ReorderListView, paint_grip
 
 MEANING_LINES = 6
-USAGE_LINES = 4
+DESCRIPTION_LINES = 4
 NUMBER_TEXT = "88"  # we should fit "88" at its widest
 
 NumberRole = Qt.ItemDataRole.UserRole + 1
@@ -48,6 +52,52 @@ def text_box(hint, lines):
     box.setTabChangesFocus(True)
     box.setFixedHeight(box.fontMetrics().lineSpacing() * lines + 2 * box.frameWidth() + 8)
     return box
+
+
+class DescriptionBox(QTextEdit):
+    """Plain text, as high as its text up to lines, or as high as the layout gives it when roomy.
+
+    Not text_box's QPlainTextEdit, which lays out only what it shows and so can't say how
+    high its text is.
+    """
+
+    overflow_changed = pyqtSignal()
+
+    def __init__(self, hint, lines):
+        super().__init__()
+        self.setAcceptRichText(False)
+        self.setPlaceholderText(hint)
+        self.setTabChangesFocus(True)
+        self.roomy = False
+        self.overflowing = False
+
+        document = self.document()
+        margins = 2 * document.documentMargin()
+        self._limit = (document.size().height() - margins) * lines + margins
+        document.documentLayout().documentSizeChanged.connect(self._fit)
+        self._fit()
+
+    def set_roomy(self, roomy):
+        self.roomy = roomy
+        if roomy:
+            self.setMinimumHeight(0)
+            self.setMaximumHeight(QWIDGETSIZE_MAX)
+        self._fit()
+
+    def _fit(self):
+        height = self.document().size().height()
+        overflowing = height > self._limit
+        # Off until needed: a bar appearing would narrow the text as it fits
+        self.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+            if overflowing or self.roomy
+            else Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        if not self.roomy:
+            self.setFixedHeight(ceil(min(height, self._limit)) + 2 * self.frameWidth())
+        if overflowing != self.overflowing:
+            self.overflowing = overflowing
+            self.overflow_changed.emit()
 
 
 class PositionModel(QAbstractListModel):
@@ -342,7 +392,7 @@ class SpreadPane(SidePane):
         self.stack.addWidget(self.list_view)
         self.stack.addWidget(empty_page)
         self.body.addWidget(self.stack, 1)
-        self._build_usage()
+        self._build_description()
 
         self.positions.rowsInserted.connect(self._on_rows_changed)
         self.positions.rowsRemoved.connect(self._on_rows_changed)
@@ -364,44 +414,84 @@ class SpreadPane(SidePane):
         view.selectionModel().selectionChanged.connect(self._on_row_selected)
         return view
 
-    def _build_usage(self):
+    def _build_description(self):
         seam = QFrame()
         seam.setFrameShape(QFrame.Shape.HLine)
         seam.setFrameShadow(QFrame.Shadow.Plain)
         self.body.addWidget(seam)
 
-        self.usage_button = QToolButton()
-        self.usage_button.setText(SPREADS["usage_title"])
-        self.usage_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        self.usage_button.setAutoRaise(True)
-        self.usage_button.clicked.connect(lambda: self.set_usage_open(not self.usage_open()))
+        self.description_button = QToolButton()
+        self.description_button.setText(SPREADS["description_title"])
+        self.description_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.description_button.setAutoRaise(True)
+        self.description_button.clicked.connect(
+            lambda: self.set_description_open(not self.description_open())
+        )
 
-        self.usage_edit = text_box(SPREADS["usage_hint"], USAGE_LINES)
-        self.usage_edit.setAccessibleName(SPREADS["usage_title"])
-        self.usage_edit.textChanged.connect(self.edited)
+        self.expand_button = QToolButton()
+        self.expand_button.setAutoRaise(True)
+        self.expand_button.clicked.connect(
+            lambda: self.set_description_expanded(not self.description_expanded())
+        )
+
+        self.description_edit = DescriptionBox(SPREADS["description_hint"], DESCRIPTION_LINES)
+        self.description_edit.setAccessibleName(SPREADS["description_title"])
+        self.description_edit.textChanged.connect(self.edited)
+        self.description_edit.overflow_changed.connect(self._sync_expand_button)
+
+        top = QHBoxLayout()
+        top.addWidget(self.description_button)
+        top.addStretch(1)
+        top.addWidget(self.expand_button)
 
         column = QVBoxLayout()
         margin = units.LARGE_SPACING
         column.setContentsMargins(margin, units.SMALL_SPACING, margin, units.SMALL_SPACING)
         column.setSpacing(units.SMALL_SPACING)
-        column.addWidget(self.usage_button, alignment=Qt.AlignmentFlag.AlignLeft)
-        column.addWidget(self.usage_edit)
+        column.addLayout(top)
+        column.addWidget(self.description_edit)
         self.body.addLayout(column)
-        self.set_usage_open(True)
+        self.set_description_open(True)
 
-    def usage_open(self):
-        return not self.usage_edit.isHidden()
+    def description_open(self):
+        return not self.description_edit.isHidden()
 
-    def set_usage_open(self, wanted):
-        self.usage_edit.setHidden(not wanted)
-        self.usage_button.setIcon(QIcon.fromTheme("arrow-down" if wanted else "arrow-right"))
+    def set_description_open(self, wanted):
+        if not wanted:
+            self.set_description_expanded(False)
+        self.description_edit.setHidden(not wanted)
+        self.description_button.setIcon(QIcon.fromTheme("arrow-down" if wanted else "arrow-right"))
+        self._sync_expand_button()
 
-    def usage(self):
-        return self.usage_edit.toPlainText()
+    def description_expanded(self):
+        return self.description_edit.roomy
 
-    def set_document(self, name, usage):
+    def set_description_expanded(self, wanted):
+        """Give the description the list's room, or give it back"""
+        self.description_edit.set_roomy(wanted)
+        self.stack.setHidden(wanted)
+        self._sync_expand_button()
+
+    @pyqtSlot()
+    def _sync_expand_button(self):
+        # Only text that doesn't fit needs it, so an empty description never shows it
+        expanded = self.description_expanded()
+        self.expand_button.setVisible(
+            self.description_open() and (expanded or self.description_edit.overflowing)
+        )
+        self.expand_button.setIcon(
+            QIcon.fromTheme("view-restore" if expanded else "view-fullscreen")
+        )
+        tooltip = SPREADS["description_collapse" if expanded else "description_expand"]
+        self.expand_button.setToolTip(tooltip)
+        self.expand_button.setAccessibleName(tooltip)
+
+    def description(self):
+        return self.description_edit.toPlainText()
+
+    def set_document(self, name, description):
         self.name_edit.setText(name)
-        self.usage_edit.setPlainText(usage)
+        self.description_edit.setPlainText(description)
 
     def show_selected(self, slot):
         """Select slot's row and open it, or with None no row"""
@@ -416,6 +506,7 @@ class SpreadPane(SidePane):
             selection.setCurrentIndex(index, QItemSelectionModel.SelectionFlag.ClearAndSelect)
         # Reselecting keeps the editor, and the focus in it
         if slot is not self._open_slot:
+            self.set_description_expanded(False)
             self._close_row()
             self._open_row(slot, index)
         self.list_view.scrollTo(index)

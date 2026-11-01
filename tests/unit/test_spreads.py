@@ -9,7 +9,7 @@ from tarot_canvas.models.spreads import Position, Spread
 def sample():
     return Spread(
         name="The Horseshoe",
-        usage="Lay them left to right.\nRead them in order.",
+        description="Lay them left to right.\nRead them in order.",
         sources=({"url": "https://example.org/a", "author": "Someone"}, {"note": "Only a note"}),
         positions=(
             Position("p1", "Past", "What led here", -1.5, 0.0, 0.0, 1.0, {"x_colour": "red"}),
@@ -22,6 +22,12 @@ def sample():
 def test_a_spread_survives_a_round_trip_with_its_unknown_keys(tmp_path):
     spreads.save(tmp_path, sample())
     assert spreads.load(tmp_path) == sample()
+
+
+def test_the_description_is_stored_under_that_key(tmp_path):
+    spreads.save(tmp_path, sample())
+    table = tomllib.loads((tmp_path / "spread.toml").read_text())
+    assert table["description"] == sample().description
 
 
 def test_position_order_is_kept(tmp_path):
