@@ -4,6 +4,7 @@
 COMMANDS = {
     # File
     "new_canvas": "New &Canvas",
+    "new_spread": "New S&pread",
     "new_library": "New &Library View",
     "new_card_view": "New C&ard View",
     "open_deck": "&Open Deck…",
@@ -36,6 +37,8 @@ COMMANDS = {
     "tab_n": "Switch to Tab {n}",
     # Canvas
     "summon_card": "Summon Card",
+    "add_slot": "Add Slot",
+    "save_spread": "Save Spread",
     "flip_card": "Flip Card (Reversed)",
     "rotate_card": "Rotate Card",
     "delete_card": "Delete Card",
@@ -373,6 +376,41 @@ CANVAS = {
     "card_fallback": "Card",
 }
 
+
+SPREADS = {
+    "untitled": "Untitled spread",
+    # The toolbar
+    "section_slots": "Slots",
+    "add_slot_tooltip": "Add card  slot",
+    "save_tooltip": "Save this spread",
+    "pane_tooltip": "<Show or hide the spread's details",
+    # The pane
+    "name_title": "Name",
+    "name_hint": "Human-readable name for the spread",
+    "usage_title": "Description",
+    "usage_hint": "How to read this spread",
+    "sources_title": "Sources",
+    "source_url_hint": "Webpage for this spread",
+    "source_author_hint": "Who created this spread",
+    "source_note_hint": "Free-form notes",
+    "add_source": "Add Source",
+    "remove_source": "Remove Source",
+    "slot_title": "<clankertext>Slot {number}</clankertext>",
+    "slots_title": "<clankertext>Slots</clankertext>",
+    "label_hint": "<clankertext>A short name, shown on the slot</clankertext>",
+    "meaning_hint": "<clankertext>What a card in this slot speaks to</clankertext>",
+    "slot_row": "<clankertext>{number}. {label}</clankertext>",
+    # A slot's menu
+    "edit_label": "<clankertext>Edit Label…</clankertext>",
+    "edit_meaning": "<clankertext>Edit Meaning…</clankertext>",
+    "number": "<clankertext>Number</clankertext>",
+    "move_earlier": "<clankertext>Move Earlier</clankertext>",
+    "move_later": "<clankertext>Move Later</clankertext>",
+    "make_first": "<clankertext>Make First</clankertext>",
+    # Failures
+    "save_failed": "Failed to save spread",
+    "open_failed": "Cannot open spread",
+}
 
 # The first-run dialog, and the command line
 SETUP = {

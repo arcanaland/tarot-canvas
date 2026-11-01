@@ -3,6 +3,7 @@ import os
 import sys
 from functools import partial
 from importlib.resources import files
+from pathlib import Path
 
 from PyQt6.QtCore import QEvent, QObject, Qt, QUrl, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import (
@@ -29,6 +30,7 @@ from PyQt6.QtWidgets import (
 )
 
 from tarot_canvas.about import load_about_data
+from tarot_canvas.models import spreads
 from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.settings import (
     EXPLORER_VISIBLE_DEFAULT,
@@ -44,12 +46,13 @@ from tarot_canvas.ui.commands import Scope, set_tooltip_with_keys
 from tarot_canvas.ui.components.card_explorer import CardExplorerPanel
 from tarot_canvas.ui.library.catalog_client import deck_catalog
 from tarot_canvas.ui.library.deck_downloads import deck_downloads
-from tarot_canvas.ui.strings import COMMANDS, DOWNLOAD, LIBRARY, MAIN_WINDOW
+from tarot_canvas.ui.strings import COMMANDS, DOWNLOAD, LIBRARY, MAIN_WINDOW, SPREADS
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tarot_canvas.ui.tabs.deck_view_tab import DeckViewTab
 from tarot_canvas.ui.tabs.library_tab import LibraryTab
+from tarot_canvas.ui.tabs.spread_tab import SpreadTab
 from tarot_canvas.ui.widgets.document_tabs import DocumentTabs
 from tarot_canvas.ui.widgets.placeholder_message import tinted_icon
 from tarot_canvas.ui.widgets.toast import Toast
@@ -163,6 +166,7 @@ class MainWindow(QMainWindow):
 
         detached = {
             "window.new_canvas",
+            "window.new_spread",
             "window.new_library",
             "window.new_card_view",
             "window.open_deck",
@@ -177,6 +181,7 @@ class MainWindow(QMainWindow):
             Scope.WINDOW,
             {
                 "window.new_canvas": self.new_canvas_tab,
+                "window.new_spread": self.new_spread_tab,
                 "window.new_library": self.new_library_tab,
                 "window.new_card_view": self.new_card_view_tab,
                 "window.open_deck": self.open_deck,
@@ -207,10 +212,16 @@ class MainWindow(QMainWindow):
         file_menu = menu_bar.addMenu(MAIN_WINDOW["menu_file"])
 
         self.new_canvas_action = actions["window.new_canvas"]
+        self.new_spread_action = actions["window.new_spread"]
         self.new_library_action = actions["window.new_library"]
         self.new_card_view_action = actions["window.new_card_view"]
         file_menu.addActions(
-            [self.new_canvas_action, self.new_library_action, self.new_card_view_action]
+            [
+                self.new_canvas_action,
+                self.new_spread_action,
+                self.new_library_action,
+                self.new_card_view_action,
+            ]
         )
         file_menu.addSeparator()
         file_menu.addAction(actions["window.open_deck"])
@@ -423,6 +434,7 @@ class MainWindow(QMainWindow):
 
         new_tab_menu = QMenu(new_tab_button)
         new_tab_menu.addAction(self.new_canvas_action)
+        new_tab_menu.addAction(self.new_spread_action)
         new_tab_menu.addAction(self.new_library_action)
         new_tab_menu.addAction(self.new_card_view_action)
         new_tab_button.setMenu(new_tab_menu)
@@ -539,12 +551,34 @@ class MainWindow(QMainWindow):
 
     def new_canvas_tab(self):
         canvas_tab = CanvasTab()
+        canvas_tab.tab_name = self.next_canvas_name()
+        return self.add_canvas_tab(canvas_tab)
+
+    def add_canvas_tab(self, canvas_tab):
         canvas_tab.navigation_requested.connect(self.handle_tab_navigation)
         self.close_welcome_tab()
-        canvas_tab.tab_name = self.next_canvas_name()
-        self.tab_widget.addTab(canvas_tab, canvas_tab.tab_name)
+        self.tab_widget.addTab(canvas_tab, canvas_tab.tab_title())
         self.tab_widget.setCurrentWidget(canvas_tab)
         return canvas_tab
+
+    def new_spread_tab(self):
+        return self.add_canvas_tab(SpreadTab())
+
+    def open_spread(self, path):
+        """Raise the tab holding the spread in folder path, or open one, and return it"""
+        path = Path(path)
+        for index in range(self.tab_widget.count()):
+            tab = self.tab_widget.widget(index)
+            if isinstance(tab, SpreadTab) and tab.spread_path == path:
+                self.tab_widget.setCurrentWidget(tab)
+                return tab
+        try:
+            spread = spreads.load(path)
+        except (OSError, ValueError) as error:
+            logger.error(f"Could not open spread {path}: {error}")
+            self.toast.show_message(SPREADS["open_failed"])
+            return None
+        return self.add_canvas_tab(SpreadTab(spread, path))
 
     def new_canvas_from_cards(self, cards, deck):
         canvas_tab = self.new_canvas_tab()
@@ -601,17 +635,15 @@ class MainWindow(QMainWindow):
         if not self.is_renamable_tab(tab):
             return  # Only canvas tabs are renamable
 
-        current_name = self.tab_widget.tabText(tab_index)
         new_name, ok = QInputDialog.getText(
             self,
             MAIN_WINDOW["rename_canvas"],
             MAIN_WINDOW["rename_canvas_prompt"],
-            text=current_name,
+            text=tab.rename_text(),
         )
 
         if ok and new_name:
-            tab.tab_name = new_name
-            tab.tab_label_changed.emit()
+            tab.rename(new_name)
 
     def add_card_tab(self, card_tab):
         """Adopt a card view tab. Every construction site must come through here."""

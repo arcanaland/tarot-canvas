@@ -75,6 +75,7 @@ def test_every_key_is_bound_as_it_was(qtbot):
     window.show()
     qtbot.waitExposed(window)
     window.new_canvas_tab()
+    window.new_spread_tab()
     window.new_card_view_tab()
     window.new_library_tab()
 
@@ -83,15 +84,25 @@ def test_every_key_is_bound_as_it_was(qtbot):
     # Read on Linux; the standard keys (Copy, Zoom In, Settings…) are its bindings for them
     expected = [
         ("canvas", "Backspace", W, "CanvasTab"),
+        ("canvas", "Backspace", W, "SpreadTab"),
         ("canvas", "Ctrl+Alt+A", W, "CanvasTab"),
+        ("canvas", "Ctrl+Alt+A", W, "SpreadTab"),
+        ("canvas", "Ctrl+S", W, "SpreadTab"),
         ("canvas", "Ctrl+[", W, "CanvasTab"),
+        ("canvas", "Ctrl+[", W, "SpreadTab"),
         ("canvas", "Ctrl+]", W, "CanvasTab"),
+        ("canvas", "Ctrl+]", W, "SpreadTab"),
         ("canvas", "D", W, "CanvasTab"),
         ("canvas", "Esc", W, "CanvasTab"),
+        ("canvas", "Esc", W, "SpreadTab"),
         ("canvas", "F", WC, "CanvasTab"),
+        ("canvas", "F", WC, "SpreadTab"),
         ("canvas", "R", W, "CanvasTab"),
+        ("canvas", "S", W, "SpreadTab"),
         ("canvas", "Shift+F", W, "CanvasTab"),
+        ("canvas", "Shift+F", W, "SpreadTab"),
         ("canvas", "Shift+R", W, "CanvasTab"),
+        ("canvas", "Shift+R", W, "SpreadTab"),
         ("card", "Ctrl+I", WC, "CardViewTab"),
         ("card", "Esc", WC, "CardViewTab"),
         ("card_image", "Backspace", WC, "ZoomableImageView"),

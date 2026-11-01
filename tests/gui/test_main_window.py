@@ -13,6 +13,7 @@ from tarot_canvas.settings import EXPLORER_VISIBLE_KEY, get_settings
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
 from tarot_canvas.ui.card_transfer import CARD_MIME
 from tarot_canvas.ui.main_window import MainWindow
+from tarot_canvas.ui.strings import COMMANDS
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tarot_canvas.ui.tabs.deck_view_tab import DeckViewTab
@@ -752,7 +753,12 @@ def test_opening_a_tab_takes_no_drill_down(qtbot):
     assert not any(action.menu() for action in actions), "File has no submenus"
 
     labels = [action.text() for action in actions if not action.isSeparator()]
-    assert labels[:3] == ["New &Canvas", "New &Library View", "New C&ard View"]
+    assert labels[:4] == [
+        "New &Canvas",
+        COMMANDS["new_spread"],
+        "New &Library View",
+        "New C&ard View",
+    ]
 
 
 def test_the_new_tab_shortcuts_survived_the_flattening(qtbot):
@@ -778,6 +784,7 @@ def test_the_tab_bar_has_a_new_tab_button(qtbot):
     assert new_tab.popupMode() == QToolButton.ToolButtonPopupMode.MenuButtonPopup
     assert new_tab.menu().actions() == [
         window.new_canvas_action,
+        window.new_spread_action,
         window.new_library_action,
         window.new_card_view_action,
     ]
