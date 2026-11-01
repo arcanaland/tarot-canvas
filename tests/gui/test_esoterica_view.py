@@ -7,8 +7,7 @@ from tarot_canvas.models.coverage import CellState
 from tarot_canvas.models.esoterica import EsotericaManager
 from tarot_canvas.models.esoterica_events import esoterica_events
 from tarot_canvas.settings import get_esoterica_disabled, set_esoterica_disabled
-from tarot_canvas.ui import esoterica_text
-from tarot_canvas.ui.esoterica_text import label_for
+from tarot_canvas.ui import strings
 from tarot_canvas.ui.library import source_row_delegate
 from tarot_canvas.ui.library.deck_model import SubtitleRole
 from tarot_canvas.ui.library.esoterica_list_model import (
@@ -19,6 +18,7 @@ from tarot_canvas.ui.library.esoterica_list_model import (
 )
 from tarot_canvas.ui.library.esoterica_page import EsotericaPage
 from tarot_canvas.ui.library.source_row_delegate import GENERIC_ICON, type_icon
+from tarot_canvas.ui.strings import label_for
 from tests.unit.test_esoterica import every_card, write
 
 FOOL = '[card."major_arcana.00".passages]\ntext = "The Fool."\n'
@@ -462,7 +462,7 @@ def test_the_source_file_group_starts_closed_and_stays_as_left(page):
 
 
 def test_an_empty_source_file_heading_hides_the_group(qtbot, roots, monkeypatch):
-    monkeypatch.setitem(esoterica_text.ESOTERICA_TEXT, "library.source_file_heading", "")
+    monkeypatch.setitem(strings.ESOTERICA, "library.source_file_heading", "")
     write(roots[0], "notes.toml", ANNOTATES + FOOL, identifier="me/notes")
     page = EsotericaPage(EsotericaManager(roots))
     qtbot.addWidget(page)
@@ -553,7 +553,7 @@ def test_the_pane_lists_the_groups_a_source_writes_under(qtbot, roots):
 
 
 def test_an_empty_form_label_hides_its_row(qtbot, roots, monkeypatch):
-    monkeypatch.setitem(esoterica_text.ESOTERICA_TEXT, "library.form.copyright", "")
+    monkeypatch.setitem(strings.ESOTERICA, "library.form.copyright", "")
     write(roots[0], "notes.toml", ANNOTATES + FOOL, identifier="me/notes")
     page = EsotericaPage(EsotericaManager(roots))
     qtbot.addWidget(page)

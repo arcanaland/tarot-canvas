@@ -24,7 +24,7 @@ from tarot_canvas.models.esoterica_registry import (
     role_of,
 )
 from tarot_canvas.settings import set_esoterica_disabled, set_esoterica_expanded
-from tarot_canvas.ui import esoterica_text, typography
+from tarot_canvas.ui import strings, typography
 from tarot_canvas.ui.palette import muted_text
 from tarot_canvas.ui.tabs.card_view import esoterica_tab
 from tarot_canvas.ui.tabs.card_view.esoterica_tab import (
@@ -52,9 +52,9 @@ FORMATS = ("joiner", "count")
 def blank_labels(monkeypatch):
     """Every test starts with every label empty and fills the ones it needs, so none depends
     on what the edition ships"""
-    for key in esoterica_text.ESOTERICA_TEXT:
+    for key in strings.ESOTERICA:
         if key not in FORMATS:
-            monkeypatch.setitem(esoterica_text.ESOTERICA_TEXT, key, "")
+            monkeypatch.setitem(strings.ESOTERICA, key, "")
 
 
 @pytest.fixture
@@ -155,7 +155,7 @@ def test_a_card_with_nothing_written_about_it_says_so(qtbot, stub_manager):
     assert tab.stack.currentIndex() == PASSAGES_PAGE
     assert tab.passage_widgets == []
     assert not tab.no_content.isHidden()
-    assert tab.no_content.heading.text() == esoterica_tab.NO_CONTENT_TEXT
+    assert tab.no_content.heading.text() == strings.CARD_VIEW["esoterica_no_content"]
 
 
 def test_with_no_sources_at_all_the_placeholder_shows(qtbot, stub_manager):
@@ -170,7 +170,7 @@ def test_with_no_sources_at_all_the_placeholder_shows(qtbot, stub_manager):
 
 def test_the_faq_token_becomes_a_link_to_the_esoterica_section(qtbot, stub_manager, monkeypatch):
     stub_manager([], has_sources=False)
-    monkeypatch.setattr(esoterica_tab, "PLACEHOLDER_EXPLANATION", '<a href="{faq}">x</a>')
+    monkeypatch.setitem(strings.CARD_VIEW, "esoterica_explanation", '<a href="{faq}">x</a>')
 
     tab = make_tab(qtbot)
 
@@ -201,7 +201,7 @@ def test_the_header_names_the_tab_as_the_empty_page_does(qtbot, stub_manager):
 
     tab = make_tab(qtbot)
 
-    assert tab.header_label.text() == esoterica_tab.PLACEHOLDER_HEADING
+    assert tab.header_label.text() == strings.CARD_VIEW["esoterica_heading"]
 
 
 @pytest.fixture
@@ -356,14 +356,14 @@ def label(monkeypatch):
     """Fill one label for the test, as the edition one day will"""
 
     def _apply(key, text):
-        monkeypatch.setitem(esoterica_text.ESOTERICA_TEXT, key, text)
+        monkeypatch.setitem(strings.ESOTERICA, key, text)
 
     return _apply
 
 
 @pytest.fixture
 def every_label(label):
-    for key in esoterica_text.ESOTERICA_TEXT:
+    for key in strings.ESOTERICA:
         if key not in FORMATS:
             label(key, f"[{key}]")
 
@@ -1112,7 +1112,7 @@ def test_the_help_button_opens_the_placeholders_explanation_and_faq_link(
     popup = open_help(qtbot, tab)
 
     url = esoterica_tab.esoterica_faq_url()
-    assert popup.label.text() == esoterica_tab.PLACEHOLDER_EXPLANATION.replace("{faq}", url)
+    assert popup.label.text() == strings.CARD_VIEW["esoterica_explanation"].replace("{faq}", url)
     assert f'href="{url}"' in popup.label.text()
     assert popup.label.openExternalLinks()
     assert popup.label.textFormat() == Qt.TextFormat.RichText
@@ -1179,7 +1179,7 @@ def test_the_help_button_is_not_on_the_placeholder(qtbot, stub_manager, help_ico
 
 def test_without_a_theme_icon_the_help_button_shows_its_tooltip(qtbot, stub_manager, monkeypatch):
     monkeypatch.setattr(contextual_help, "_help_icon", lambda: QIcon())
-    monkeypatch.setattr(esoterica_tab, "HELP_BUTTON_TOOLTIP", "Help")
+    monkeypatch.setitem(strings.CARD_VIEW, "esoterica_help_tooltip", "Help")
     stub_manager([essay("A", None, "One.")])
 
     tab = make_tab(qtbot)
@@ -1191,7 +1191,7 @@ def test_without_a_theme_icon_the_help_button_shows_its_tooltip(qtbot, stub_mana
 
 def test_with_no_icon_and_no_tooltip_there_is_no_help_button(qtbot, stub_manager, monkeypatch):
     monkeypatch.setattr(contextual_help, "_help_icon", lambda: QIcon())
-    monkeypatch.setattr(esoterica_tab, "HELP_BUTTON_TOOLTIP", "")
+    monkeypatch.setitem(strings.CARD_VIEW, "esoterica_help_tooltip", "")
     stub_manager([essay("A", None, "One.")])
 
     assert make_tab(qtbot).help_button.isHidden()
@@ -1202,8 +1202,8 @@ def test_the_help_button_is_named_and_tipped_by_its_constants(qtbot, stub_manage
 
     tab = make_tab(qtbot)
 
-    assert tab.help_button.toolTip() == esoterica_tab.HELP_BUTTON_TOOLTIP
-    assert tab.help_button.accessibleName() == esoterica_tab.HELP_BUTTON_ACCESSIBLE_NAME
+    assert tab.help_button.toolTip() == strings.CARD_VIEW["esoterica_help_tooltip"]
+    assert tab.help_button.accessibleName() == strings.CARD_VIEW["esoterica_help_name"]
     assert tab.help_button.text() == ""
     assert not tab.help_button.icon().isNull()
 
@@ -1235,7 +1235,7 @@ def reseat_labels(monkeypatch):
         "pattern.land.arcana/pattern/rider-waite-smith": "RWS",
         "pattern.land.arcana/pattern/tarot-de-marseille": "TdM",
     }.items():
-        monkeypatch.setitem(esoterica_text.ESOTERICA_TEXT, key, value)
+        monkeypatch.setitem(strings.ESOTERICA, key, value)
 
 
 def test_a_reseated_reading_has_an_info_icon_beside_the_byline_tipped_with_where(

@@ -21,6 +21,7 @@ from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.models.reference_deck import ReferenceDeck
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.main_window import MainWindow
+from tarot_canvas.ui.strings import MAIN_WINDOW, SETUP
 from tarot_canvas.utils.bundle_name import set_bundle_name
 from tarot_canvas.utils.logger import logger
 from tarot_canvas.utils.theme_manager import ThemeManager
@@ -47,7 +48,7 @@ class SetupDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("First-time Setup")
+        self.setWindowTitle(SETUP["title"])
         self.setMinimumSize(400, 200)
 
         # Try to set the app icon
@@ -61,15 +62,13 @@ class SetupDialog(QDialog):
         layout = QVBoxLayout(self)
 
         # Add welcome message
-        welcome_label = QLabel("Welcome to Tarot Canvas!")
+        welcome_label = QLabel(SETUP["welcome"])
         typography.apply(welcome_label, typography.Role.HEADING_1)
         welcome_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(welcome_label)
 
         # Add description
-        desc_label = QLabel(
-            "Before we start, we need to download the Rider-Waite-Smith tarot deck."
-        )
+        desc_label = QLabel(SETUP["description"])
         desc_label.setWordWrap(True)
         desc_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(desc_label)
@@ -81,12 +80,12 @@ class SetupDialog(QDialog):
         layout.addWidget(self.progress_bar)
 
         # Add status label
-        self.status_label = QLabel("Preparing to download...")
+        self.status_label = QLabel(SETUP["preparing"])
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.status_label)
 
         # Add retry button (hidden initially)
-        self.retry_button = QPushButton("Retry Download")
+        self.retry_button = QPushButton(SETUP["retry"])
         self.retry_button.setIcon(QIcon.fromTheme("view-refresh"))
         self.retry_button.clicked.connect(self.start_download)
         self.retry_button.hide()
@@ -105,7 +104,7 @@ class SetupDialog(QDialog):
 
         # Reset progress
         self.progress_bar.setValue(0)
-        self.status_label.setText("Starting download...")
+        self.status_label.setText(SETUP["starting"])
 
         # Create and start download thread
         self.download_thread = DeckDownloadThread()
@@ -120,7 +119,7 @@ class SetupDialog(QDialog):
     def handle_download_completion(self, success, error):
         if success:
             self.download_success = True
-            self.status_label.setText("Download complete! Starting application...")
+            self.status_label.setText(SETUP["complete"])
             self.progress_bar.setValue(100)
 
             # Close the dialog after a short delay
@@ -128,7 +127,7 @@ class SetupDialog(QDialog):
             self.accept()
         else:
             self.download_success = False
-            self.status_label.setText(f"Download failed: {error}")
+            self.status_label.setText(SETUP["failed"].format(error=error))
             self.retry_button.show()
 
 
@@ -137,12 +136,12 @@ def main():
     os.environ["QT_LOGGING_RULES"] = "qt.qpa.wayland=false"
 
     # for macOS
-    set_bundle_name("Tarot Canvas")
+    set_bundle_name(MAIN_WINDOW["app_name"])
 
     # Initialize the application
     app = QApplication(sys.argv)
     app.setApplicationName("tarot-canvas")
-    app.setApplicationDisplayName("Tarot Canvas")
+    app.setApplicationDisplayName(MAIN_WINDOW["app_name"])
     app.setDesktopFileName(os.environ.get("FLATPAK_ID", "land.arcana.TarotCanvas"))
     app.setWindowIcon(QIcon(str(files("tarot_canvas.resources.icons").joinpath("icon.png"))))
     typography.install(app)
@@ -171,15 +170,13 @@ def main():
                 logger.error("Failed to load reference deck after download")
                 QMessageBox.critical(
                     None,
-                    "Error",
-                    "Failed to load the reference deck after downloading. The application will now exit.",
+                    SETUP["error"],
+                    SETUP["load_failed"],
                 )
                 return 1
         except Exception as e:
             logger.error(f"Error loading reference deck: {e}")
-            QMessageBox.critical(
-                None, "Error", f"Error loading reference deck: {e}\nThe application will now exit."
-            )
+            QMessageBox.critical(None, SETUP["error"], SETUP["load_error"].format(error=e))
             return 1
 
     # Now that we have the reference deck, create and show main window
@@ -202,8 +199,8 @@ def main():
 def process_uri_argument(args, main_window):
     """Process URI argument for opening specific cards"""
     # Create argument parser
-    parser = argparse.ArgumentParser(description="Tarot Canvas")
-    parser.add_argument("uri", nargs="?", help="Open a specific card by URI")
+    parser = argparse.ArgumentParser(description=MAIN_WINDOW["app_name"])
+    parser.add_argument("uri", nargs="?", help=SETUP["uri_help"])
 
     # Parse just the known args, ignoring Qt's own args
     known_args, _ = parser.parse_known_args(args)

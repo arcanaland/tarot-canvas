@@ -20,10 +20,9 @@ from tarot_canvas.ui import typography
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.cover_cache import CoverCache
 from tarot_canvas.ui.library.deck_downloads import DeckState
-from tarot_canvas.ui.library.download_text import failure_text
 from tarot_canvas.ui.library.ghost_paint import paint_placeholder_well
 from tarot_canvas.ui.library.pane_text import pane_form, pane_text
-from tarot_canvas.ui.license_names import license_name
+from tarot_canvas.ui.strings import LIBRARY, failure_text, license_name
 from tarot_canvas.ui.widgets.cover_banner import (
     BANNER_PADDING,
     BANNER_SUBTEXT,
@@ -32,10 +31,6 @@ from tarot_canvas.ui.widgets.cover_banner import (
     is_readable_cover,
     set_banner_text,
 )
-
-# Form labels the esoterica view's pane shares
-VERSION_LABEL = "Version:"
-LICENSE_LABEL = "License:"
 
 
 class DeckDetailsPane(QWidget):
@@ -60,10 +55,10 @@ class DeckDetailsPane(QWidget):
         self.license_label = pane_text()
         self.card_count_label = pane_text()
         self.form = pane_form()
-        self.form.addRow(VERSION_LABEL, self.version_label)
-        self.form.addRow("Size:", self.size_label)
-        self.form.addRow(LICENSE_LABEL, self.license_label)
-        self.form.addRow("Cards:", self.card_count_label)
+        self.form.addRow(LIBRARY["form_version"], self.version_label)
+        self.form.addRow(LIBRARY["form_size"], self.size_label)
+        self.form.addRow(LIBRARY["form_license"], self.license_label)
+        self.form.addRow(LIBRARY["form_cards"], self.card_count_label)
 
         self.description_label = pane_text()
         self.attribution_label = typography.apply(pane_text(), typography.Role.SMALL)
@@ -175,13 +170,13 @@ class DeckDetailsPane(QWidget):
     # Open, Download and Try Again sit at the leading edge and Cancel at the trailing one
 
     def _build_installed(self, _details):
-        self.action_button = _button("Open", "document-open", self._on_open)
+        self.action_button = _button(LIBRARY["open"], "document-open", self._on_open)
         row = _row(self._actions)
         row.addWidget(self.action_button)
         row.addStretch(1)
 
     def _build_available(self, _details):
-        self.action_button = _button("Download", "download", self._on_download)
+        self.action_button = _button(LIBRARY["download"], "download", self._on_download)
         row = _row(self._actions)
         row.addWidget(self.action_button)
         row.addStretch(1)
@@ -190,7 +185,7 @@ class DeckDetailsPane(QWidget):
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(_percent(details.progress))
-        self.action_button = _button("Cancel", "dialog-cancel", self._on_cancel)
+        self.action_button = _button(LIBRARY["cancel"], "dialog-cancel", self._on_cancel)
         row = _row(self._actions)
         row.addWidget(self.progress_bar, 1)
         row.addWidget(self.action_button)
@@ -208,7 +203,7 @@ class DeckDetailsPane(QWidget):
         inner.addWidget(icon_label)
         inner.addWidget(self.failure_label, 1)
 
-        self.action_button = _button("Try Again", "view-refresh", self._on_download)
+        self.action_button = _button(LIBRARY["try_again"], "view-refresh", self._on_download)
         buttons = _row()
         buttons.addWidget(self.action_button)
         buttons.addStretch(1)

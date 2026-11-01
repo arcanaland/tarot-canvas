@@ -1,5 +1,7 @@
 from PyQt6.QtCore import QDate, QDateTime, QLocale, Qt
 
+from tarot_canvas.ui.strings import DATES
+
 RELATIVE_DATE_DAYS = 30
 
 WEEKDAY_PATTERNS = ("dddd, ", ", dddd", "dddd ", " dddd", "dddd")
@@ -33,14 +35,14 @@ def relative_date(date, today=None):
     if days < 0 or days >= RELATIVE_DATE_DAYS:
         return format_qdate(date)
     if days == 0:
-        return "Today"
+        return DATES["today"]
     if days == 1:
-        return "Yesterday"
+        return DATES["yesterday"]
     if days < 7:
-        return f"{days} days ago"
+        return DATES["days_ago"].format(days=days)
 
     weeks = days // 7
-    return "1 week ago" if weeks == 1 else f"{weeks} weeks ago"
+    return DATES["week_ago"] if weeks == 1 else DATES["weeks_ago"].format(weeks=weeks)
 
 
 def relative_date_from_iso(iso, today=None):

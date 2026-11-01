@@ -4,7 +4,7 @@ from PyQt6.QtCore import Qt
 
 from tarot_canvas.models.deck import TarotDeck
 from tarot_canvas.models.note_events import note_events
-from tarot_canvas.ui import notes_text
+from tarot_canvas.ui import strings
 from tarot_canvas.ui.library.notes_model import PreviewRole
 from tarot_canvas.ui.tabs.card_view.notes_section import MAX_ROWS
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
@@ -91,7 +91,7 @@ def test_a_stub_is_listed_but_shows_no_preview_line(qtbot, notes_base):
     row = rows(tab)[0]
 
     assert title(row) == "Stub"
-    assert preview(row) == notes_text.text("stub_note")
+    assert preview(row) == strings.notes_text("stub_note")
 
 
 def test_five_notes_are_capped_at_three_newest_first(qtbot, notes_base):

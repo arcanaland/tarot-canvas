@@ -21,7 +21,6 @@ from tarot_canvas.models.card_ids import CANONICAL_CARD_IDS, SUITS
 from tarot_canvas.models.coverage import CellState
 from tarot_canvas.models.esoterica import NotReadReason, group_keys
 from tarot_canvas.ui import typography
-from tarot_canvas.ui.esoterica_text import label_for
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.coverage_strip import (
     grid_cell_rects,
@@ -29,7 +28,6 @@ from tarot_canvas.ui.library.coverage_strip import (
     grid_label_width,
     paint_coverage_grid,
 )
-from tarot_canvas.ui.library.deck_details_pane import LICENSE_LABEL, VERSION_LABEL
 from tarot_canvas.ui.library.esoterica_list_model import (
     IdentifierRole,
     KindRole,
@@ -38,7 +36,7 @@ from tarot_canvas.ui.library.esoterica_list_model import (
     meta_text,
 )
 from tarot_canvas.ui.library.pane_text import pane_form, pane_text
-from tarot_canvas.ui.license_names import license_name
+from tarot_canvas.ui.strings import LIBRARY, label_for, license_name
 from tarot_canvas.ui.widgets.deck_header import is_link, link_html
 
 # ESOTERICA §4.1.4's registry; any other relation heads the work group as no relation does
@@ -277,7 +275,7 @@ class SourceDetailsPane(QWidget):
         self.form = pane_form()
         self.pattern_label = self._add_row(self.form, label_for("library.form.pattern"))
         self.about_label = self._add_row(self.form, label_for("library.form.about"))
-        self.license_label = self._add_row(self.form, LICENSE_LABEL)
+        self.license_label = self._add_row(self.form, LIBRARY["form_license"])
         self.copyright_label = self._add_row(self.form, label_for("library.form.copyright"))
         self.file_label = self._add_row(self.form, label_for("library.form.file"))
 
@@ -296,7 +294,7 @@ class SourceDetailsPane(QWidget):
         self.identifier_label = self._add_row(
             self.source_file_form, label_for("library.form.identifier")
         )
-        self.version_label = self._add_row(self.source_file_form, VERSION_LABEL)
+        self.version_label = self._add_row(self.source_file_form, LIBRARY["form_version"])
         self.groups_label = self._add_row(self.source_file_form, label_for("library.form.groups"))
         self.shadows_label = self._add_row(self.source_file_form, label_for("library.form.shadows"))
 

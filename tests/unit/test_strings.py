@@ -1,5 +1,5 @@
 from tarot_canvas.models import esoterica_registry
-from tarot_canvas.ui.esoterica_text import ESOTERICA_TEXT, label_for
+from tarot_canvas.ui.strings import ESOTERICA, label_for
 
 # These render as the source wrote them, with no label above. A symbol's heading, if it
 # has one, is the source's own.
@@ -15,7 +15,7 @@ def test_every_key_the_registry_knows_has_a_label_entry():
         if slot != esoterica_registry.SYMBOLS and spelling not in UNLABELLED
     }
 
-    assert registered - ESOTERICA_TEXT.keys() == set()
+    assert registered - ESOTERICA.keys() == set()
 
 
 def test_an_unknown_key_has_no_label():
@@ -23,7 +23,7 @@ def test_an_unknown_key_has_no_label():
 
 
 def test_the_two_spellings_share_a_label(monkeypatch):
-    monkeypatch.setitem(ESOTERICA_TEXT, "numerology", "N")
-    monkeypatch.setitem(ESOTERICA_TEXT, "x_numerology", "")
+    monkeypatch.setitem(ESOTERICA, "numerology", "N")
+    monkeypatch.setitem(ESOTERICA, "x_numerology", "")
 
     assert label_for("x_numerology") == label_for("numerology") == "N"

@@ -21,6 +21,7 @@ from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.card_transfer import CARD_MIME, card_mime_data, copy_card_to_clipboard
 from tarot_canvas.ui.commands import set_tooltip_with_keys
+from tarot_canvas.ui.strings import EXPLORER
 
 
 def card_row(index):
@@ -107,7 +108,7 @@ class CardExplorerPanel(QWidget):
         header_layout.setContentsMargins(0, 0, 0, 0)
         header_layout.setSpacing(0)
 
-        header = QLabel("Card Explorer")
+        header = QLabel(EXPLORER["title"])
         header.setMargin(5)
         typography.apply(header, typography.Role.BODY, primary=True)
         header_layout.addWidget(header, 1)
@@ -119,8 +120,8 @@ class CardExplorerPanel(QWidget):
             self.close_button.setText("\N{MULTIPLICATION SIGN}")
         else:
             self.close_button.setIcon(close_icon)
-        set_tooltip_with_keys(self.close_button, "Hide Card Explorer", "window.card_explorer")
-        self.close_button.setAccessibleName("Hide Card Explorer")
+        set_tooltip_with_keys(self.close_button, EXPLORER["hide"], "window.card_explorer")
+        self.close_button.setAccessibleName(EXPLORER["hide"])
         self.close_button.clicked.connect(self.close_requested)
         header_layout.addWidget(self.close_button)
         if platform == "darwin":
@@ -212,13 +213,13 @@ class CardExplorerPanel(QWidget):
     def populate_tree(self):
         """Populate the tree with cards from the selected deck"""
         self.model.clear()
-        self.model.setHorizontalHeaderLabels(["Cards"])
+        self.model.setHorizontalHeaderLabels([EXPLORER["header"]])
 
         if not self.current_deck:
             return
 
         # Create Major Arcana group
-        major_group = QStandardItem("Major Arcana")
+        major_group = QStandardItem(EXPLORER["major_arcana"])
         major_group.setData(
             {"type": "group", "group": "major_arcana", "deck": self.current_deck},
             Qt.ItemDataRole.UserRole,
@@ -294,11 +295,11 @@ class CardExplorerPanel(QWidget):
         card, deck = row["card"], row["deck"]
 
         menu = QMenu(self)
-        open_action = menu.addAction(QIcon.fromTheme("document-open"), "&Open Card")
+        open_action = menu.addAction(QIcon.fromTheme("document-open"), EXPLORER["open_card"])
         open_action.triggered.connect(
             lambda: self.card_action_requested.emit("view_card", card, deck)
         )
-        copy_action = menu.addAction(QIcon.fromTheme("edit-copy"), "&Copy Card")
+        copy_action = menu.addAction(QIcon.fromTheme("edit-copy"), EXPLORER["copy_card"])
         copy_action.triggered.connect(lambda: copy_card_to_clipboard(card, deck))
         return menu
 

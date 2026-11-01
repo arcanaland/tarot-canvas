@@ -6,7 +6,6 @@ from PyQt6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPalette
 from PyQt6.QtWidgets import QStyle, QStyledItemDelegate, QStyleOptionViewItem, QToolTip
 
 from tarot_canvas.ui import typography
-from tarot_canvas.ui.esoterica_text import label_for
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.coverage_strip import minimum_width, paint_coverage_strip
 from tarot_canvas.ui.library.deck_delegate import SELECTED_SUBTITLE_ALPHA
@@ -18,6 +17,7 @@ from tarot_canvas.ui.library.esoterica_list_model import (
     RowKind,
     TypeRole,
 )
+from tarot_canvas.ui.strings import label_for
 from tarot_canvas.ui.widgets.placeholder_message import tinted_icon
 
 GENERIC_ICON = files("tarot_canvas.resources.icons").joinpath("esoterica.svg")

@@ -1,5 +1,7 @@
 from PyQt6.QtGui import QUndoCommand
 
+from tarot_canvas.ui.strings import CANVAS
+
 
 class CardMoveCommand(QUndoCommand):
     """Undo command for card movements"""
@@ -9,7 +11,9 @@ class CardMoveCommand(QUndoCommand):
         self.item = item
         self.old_pos = old_pos
         self.new_pos = new_pos
-        self.setText(f"Move {item.card_data.get('name', 'Card')}")
+        self.setText(
+            CANVAS["move_card"].format(name=item.card_data.get("name", CANVAS["card_fallback"]))
+        )
 
     def undo(self):
         self.item.setPos(self.old_pos)

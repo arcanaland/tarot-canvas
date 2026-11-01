@@ -30,9 +30,9 @@ from tarot_canvas.settings import (
     set_esoterica_hidden,
 )
 from tarot_canvas.ui import typography
-from tarot_canvas.ui.esoterica_text import label_for
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.palette import muted_text, subtle_fill, with_text_colour
+from tarot_canvas.ui.strings import CARD_VIEW, label_for
 from tarot_canvas.ui.tabs.card_view.fold import Fold
 from tarot_canvas.ui.tabs.card_view.ghost_passages import GhostPassages
 from tarot_canvas.ui.tabs.card_view.passage_metrics import (
@@ -58,13 +58,6 @@ from tarot_canvas.ui.widgets.placeholder_message import (
 from tarot_canvas.utils.logger import logger
 
 PLACEHOLDER_ICON = files("tarot_canvas.resources.icons").joinpath("esoterica.svg")
-
-PLACEHOLDER_HEADING = "Esoterica"
-PLACEHOLDER_EXPLANATION = 'Per-card meanings, associations and symbolism will show up here. See the <a href="{faq}">Frequently Asked Questions</a> for how to add your own.'
-NO_CONTENT_TEXT = "No esoteric content available for this card."
-
-HELP_BUTTON_TOOLTIP = "About Esoterica"
-HELP_BUTTON_ACCESSIBLE_NAME = "About Esoterica"
 
 HEADER_ICON = PLACEHOLDER_ICON
 HEADER_ICON_SIZE = 22
@@ -311,7 +304,7 @@ def byline_row(byline, icon_label):
 class PassageWidget(QFrame):
     """Everything one source says about one card, in one frame.
 
-    Its labels are the edition's words, from `esoterica_text`; a row whose label is empty is
+    Its labels are the edition's words, from `strings.ESOTERICA`; a row whose label is empty is
     not drawn at all. Nothing from two sources ever shares a frame. Each family and group is a
     fold, open if its id is in `expanded`; a family in `hidden` is not drawn.
     """
@@ -579,20 +572,24 @@ class EsotericaTab(QWidget):
             )
             header_layout.addWidget(self.header_icon)
 
-        self.header_label = typography.apply(QLabel(PLACEHOLDER_HEADING), typography.Role.HEADING_2)
+        self.header_label = typography.apply(
+            QLabel(CARD_VIEW["esoterica_heading"]), typography.Role.HEADING_2
+        )
         header_layout.addWidget(self.header_label)
         header_layout.addStretch()
         self.help_button = ContextualHelpButton(
-            _with_faq_link(PLACEHOLDER_EXPLANATION),
-            HELP_BUTTON_TOOLTIP,
-            HELP_BUTTON_ACCESSIBLE_NAME,
+            _with_faq_link(CARD_VIEW["esoterica_explanation"]),
+            CARD_VIEW["esoterica_help_tooltip"],
+            CARD_VIEW["esoterica_help_name"],
         )
         header_layout.addWidget(self.help_button)
         header_layout.addWidget(self._show_menu_button())
         self.content_layout.addLayout(header_layout)
 
         # Sources are loaded, but none has anything for this card
-        self.no_content = PlaceholderMessage(QIcon(str(PLACEHOLDER_ICON)), NO_CONTENT_TEXT)
+        self.no_content = PlaceholderMessage(
+            QIcon(str(PLACEHOLDER_ICON)), CARD_VIEW["esoterica_no_content"]
+        )
         self.no_content.setContentsMargins(0, ICON_SIZE // 2, 0, 0)
         self.content_layout.addWidget(self.no_content)
 
@@ -694,8 +691,8 @@ class EsotericaTab(QWidget):
         # Above the ghosts, never over them
         self.placeholder = PlaceholderMessage(
             QIcon(str(PLACEHOLDER_ICON)),
-            PLACEHOLDER_HEADING,
-            _with_faq_link(PLACEHOLDER_EXPLANATION),
+            CARD_VIEW["esoterica_heading"],
+            _with_faq_link(CARD_VIEW["esoterica_explanation"]),
         )
         page_layout.addWidget(self.placeholder)
         self.ghost_passages = typography.apply(GhostPassages(), typography.Role.BODY, reading=True)

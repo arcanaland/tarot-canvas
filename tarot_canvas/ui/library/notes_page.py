@@ -11,7 +11,7 @@ from tarot_canvas.ui.library.notes_model import (
     NotesListModel,
     card_name,
 )
-from tarot_canvas.ui.notes_text import text as notes_text
+from tarot_canvas.ui.strings import notes_text
 
 
 class NotesPage(LibraryListPage):

@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
 )
 
 from tarot_canvas.ui.library import units
-from tarot_canvas.ui.notes_text import text
+from tarot_canvas.ui.strings import notes_text
 from tarot_canvas.ui.widgets.placeholder_message import PlaceholderMessage
 
 EMPTY_ICON = "story-editor"
@@ -22,7 +22,7 @@ class NotesEmptyPage(QWidget):
     def __init__(self, helpful_action, parent=None):
         super().__init__(parent)
         self.placeholder = PlaceholderMessage(
-            EMPTY_ICON, text("empty_heading"), helpful_action=helpful_action
+            EMPTY_ICON, notes_text("empty_heading"), helpful_action=helpful_action
         )
 
         layout = QVBoxLayout(self)

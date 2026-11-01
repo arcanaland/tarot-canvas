@@ -41,11 +41,10 @@ from tarot_canvas.settings import (
 from tarot_canvas.ui import commands, focused_text, typography
 from tarot_canvas.ui.command_palette import CommandPalette
 from tarot_canvas.ui.commands import Scope, set_tooltip_with_keys
-from tarot_canvas.ui.commands_text import COMMANDS_TEXT
 from tarot_canvas.ui.components.card_explorer import CardExplorerPanel
 from tarot_canvas.ui.library.catalog_client import deck_catalog
 from tarot_canvas.ui.library.deck_downloads import deck_downloads
-from tarot_canvas.ui.library.download_text import DOWNLOAD_TEXT
+from tarot_canvas.ui.strings import COMMANDS, DOWNLOAD, LIBRARY, MAIN_WINDOW
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
@@ -129,7 +128,7 @@ class MainWindow(QMainWindow):
         if hasattr(self.windowHandle(), "setWindowClass"):
             self.windowHandle().setWindowClass("tarot-canvas", "tarot-canvas")
 
-        self.setWindowTitle("Tarot Canvas")
+        self.setWindowTitle(MAIN_WINDOW["app_name"])
         self.setWindowIcon(QIcon(str(ICON_PATH)))
         self.setGeometry(100, 100, 950, 600)
         geometry = get_settings().value(MAIN_WINDOW_GEOMETRY_KEY)
@@ -205,7 +204,7 @@ class MainWindow(QMainWindow):
         )
 
         # File menu
-        file_menu = menu_bar.addMenu("&File")
+        file_menu = menu_bar.addMenu(MAIN_WINDOW["menu_file"])
 
         self.new_canvas_action = actions["window.new_canvas"]
         self.new_library_action = actions["window.new_library"]
@@ -221,7 +220,7 @@ class MainWindow(QMainWindow):
         file_menu.addAction(actions["window.quit"])
 
         # Edit menu
-        edit_menu = menu_bar.addMenu("&Edit")
+        edit_menu = menu_bar.addMenu(MAIN_WINDOW["menu_edit"])
         edit_menu.aboutToShow.connect(self.update_edit_actions)
 
         # On the window as well, so they work with the menu bar hidden in fullscreen
@@ -242,7 +241,7 @@ class MainWindow(QMainWindow):
         edit_menu.addAction(actions["window.find"])
 
         # View menu
-        view_menu = menu_bar.addMenu("&View")
+        view_menu = menu_bar.addMenu(MAIN_WINDOW["menu_view"])
 
         self.explorer_action = actions["window.card_explorer"]
         self.explorer_action.setCheckable(True)
@@ -268,7 +267,7 @@ class MainWindow(QMainWindow):
 
         # ------------- Go menu -----------
 
-        go_menu = menu_bar.addMenu("&Go")
+        go_menu = menu_bar.addMenu(MAIN_WINDOW["menu_go"])
         go_menu.aboutToShow.connect(self.update_go_actions)
         self.go_actions = {where: actions[f"window.go_{where}"] for where in GO_PLACES}
         for group in GO_GROUPS:
@@ -282,17 +281,17 @@ class MainWindow(QMainWindow):
         self.add_tab_number_shortcuts()
 
         # Tools menu
-        tools_menu = menu_bar.addMenu("&Tools")
+        tools_menu = menu_bar.addMenu(MAIN_WINDOW["menu_tools"])
 
         # Add Log Viewer action
-        log_viewer_action = QAction("&Log Viewer", self)
+        log_viewer_action = QAction(MAIN_WINDOW["log_viewer"], self)
         log_viewer_action.setIcon(QIcon.fromTheme("view-list-text"))
         log_viewer_action.triggered.connect(self.show_log_viewer)
         tools_menu.addAction(log_viewer_action)
 
-        settings_menu = menu_bar.addMenu("&Settings")
+        settings_menu = menu_bar.addMenu(MAIN_WINDOW["menu_settings"])
 
-        theme_menu = QMenu("&Theme", self)
+        theme_menu = QMenu(MAIN_WINDOW["menu_theme"], self)
         theme_menu.setIcon(QIcon.fromTheme("games-config-theme"))
         settings_menu.addMenu(theme_menu)
 
@@ -301,21 +300,21 @@ class MainWindow(QMainWindow):
         theme_group.setExclusive(True)
 
         # System theme action
-        system_theme_action = QAction("&System Default", self)
+        system_theme_action = QAction(MAIN_WINDOW["theme_system"], self)
         system_theme_action.setCheckable(True)
         system_theme_action.triggered.connect(lambda: self.change_theme(ThemeType.SYSTEM))
         theme_group.addAction(system_theme_action)
         theme_menu.addAction(system_theme_action)
 
         # Light theme action
-        light_theme_action = QAction("&Light", self)
+        light_theme_action = QAction(MAIN_WINDOW["theme_light"], self)
         light_theme_action.setCheckable(True)
         light_theme_action.triggered.connect(lambda: self.change_theme(ThemeType.LIGHT))
         theme_group.addAction(light_theme_action)
         theme_menu.addAction(light_theme_action)
 
         # Dark theme action
-        dark_theme_action = QAction("&Dark", self)
+        dark_theme_action = QAction(MAIN_WINDOW["theme_dark"], self)
         dark_theme_action.setCheckable(True)
         dark_theme_action.triggered.connect(lambda: self.change_theme(ThemeType.DARK))
         theme_group.addAction(dark_theme_action)
@@ -345,21 +344,21 @@ class MainWindow(QMainWindow):
         settings_menu.addAction(self.preferences_action)
 
         # Help menu
-        help_menu = menu_bar.addMenu("&Help")
+        help_menu = menu_bar.addMenu(MAIN_WINDOW["menu_help"])
 
-        faq_action = QAction("&Frequently Asked Questions", self)
+        faq_action = QAction(MAIN_WINDOW["faq"], self)
         faq_action.setIcon(QIcon.fromTheme("help-contents"))
         faq_action.triggered.connect(self.show_faqs)
         help_menu.addAction(faq_action)
 
-        report_bug_action = QAction("&Report Bug", self)
+        report_bug_action = QAction(MAIN_WINDOW["report_bug"], self)
         report_bug_action.setIcon(QIcon.fromTheme("tools-report-bug"))
         report_bug_action.triggered.connect(self.report_bug)
         help_menu.addAction(report_bug_action)
 
         help_menu.addSeparator()
 
-        about_action = QAction("&About Tarot Canvas", self)
+        about_action = QAction(MAIN_WINDOW["about"], self)
         about_action.setIcon(app_icon(load_about_data().app_id))
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
@@ -418,7 +417,9 @@ class MainWindow(QMainWindow):
             new_tab_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
         else:
             new_tab_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
-        set_tooltip_with_keys(new_tab_button, "New tab", self.new_canvas_action)
+        set_tooltip_with_keys(
+            new_tab_button, MAIN_WINDOW["new_tab_tooltip"], self.new_canvas_action
+        )
 
         new_tab_menu = QMenu(new_tab_button)
         new_tab_menu.addAction(self.new_canvas_action)
@@ -429,7 +430,7 @@ class MainWindow(QMainWindow):
         # Create search button and put it in the tab corner
         search_button = QToolButton()
         search_button.setIcon(QIcon.fromTheme("search", QIcon.fromTheme("edit-find")))
-        set_tooltip_with_keys(search_button, "Search Cards", self.find_card_action)
+        set_tooltip_with_keys(search_button, MAIN_WINDOW["search_tooltip"], self.find_card_action)
         search_button.clicked.connect(self.show_command_palette)
 
         # Style the button to show only the icon without borders or background
@@ -483,7 +484,7 @@ class MainWindow(QMainWindow):
         welcome_tab.setObjectName(WELCOME_TAB_NAME)
         layout = QVBoxLayout()
 
-        label = QLabel("Welcome to Tarot Canvas!")
+        label = QLabel(MAIN_WINDOW["welcome_heading"])
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # Add app icon in the center
@@ -494,7 +495,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(icon_label)
 
         # Change label text
-        welcome_label = QLabel("Select a card on the left or choose an option below:")
+        welcome_label = QLabel(MAIN_WINDOW["welcome_prompt"])
         welcome_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(welcome_label)
 
@@ -502,26 +503,32 @@ class MainWindow(QMainWindow):
         button_layout = QHBoxLayout()
 
         # Buttons for different tab types
-        canvas_btn = QPushButton(QIcon.fromTheme("draw-rectangle"), "New Canvas")
+        canvas_btn = QPushButton(
+            QIcon.fromTheme("draw-rectangle"), MAIN_WINDOW["welcome_new_canvas"]
+        )
         canvas_btn.clicked.connect(self.new_canvas_tab)
         button_layout.addWidget(canvas_btn)
 
-        deck_btn = QPushButton(QIcon.fromTheme("view-grid"), "Open Standard Deck")
+        deck_btn = QPushButton(QIcon.fromTheme("view-grid"), MAIN_WINDOW["welcome_open_deck"])
         deck_btn.clicked.connect(self.open_reference_deck)
         button_layout.addWidget(deck_btn)
 
-        library_btn = QPushButton(QIcon.fromTheme("view-list-icons"), "Deck Library")
+        library_btn = QPushButton(
+            QIcon.fromTheme("view-list-icons"), MAIN_WINDOW["welcome_library"]
+        )
         library_btn.clicked.connect(self.new_library_tab)
         button_layout.addWidget(library_btn)
 
-        card_btn = QPushButton(QIcon.fromTheme("roll"), "Pick Random Card")
+        card_btn = QPushButton(QIcon.fromTheme("roll"), MAIN_WINDOW["welcome_random_card"])
         card_btn.clicked.connect(self.new_card_view_tab)
         button_layout.addWidget(card_btn)
 
         layout.addLayout(button_layout)
         welcome_tab.setLayout(layout)
 
-        self.tab_widget.addTab(welcome_tab, tinted_icon(WELCOME_TAB_ICON), "Welcome")
+        self.tab_widget.addTab(
+            welcome_tab, tinted_icon(WELCOME_TAB_ICON), MAIN_WINDOW["welcome_tab"]
+        )
 
     def close_welcome_tab(self):
         """Close the welcome tab if it exists"""
@@ -547,10 +554,10 @@ class MainWindow(QMainWindow):
     def next_canvas_name(self):
         """Canvas, then Canvas (2), Canvas (3)..., reusing the lowest name no tab holds"""
         taken = {self.tab_widget.tabText(i) for i in range(self.tab_widget.count())}
-        name, n = "Canvas", 1
+        name, n = MAIN_WINDOW["canvas_tab"], 1
         while name in taken:
             n += 1
-            name = f"Canvas ({n})"
+            name = MAIN_WINDOW["canvas_tab_numbered"].format(n=n)
         return name
 
     def show_tab_context_menu(self, pos):
@@ -567,14 +574,14 @@ class MainWindow(QMainWindow):
         menu = QMenu(self)
         rename = menu.addAction(
             QIcon.fromTheme("edit-rename"),
-            COMMANDS_TEXT["rename_tab"],
+            COMMANDS["rename_tab"],
             partial(self.show_tab_rename_dialog, tab_index),
         )
         tab = self.tab_widget.widget(tab_index)
         rename.setEnabled(self.is_renamable_tab(tab))
         close = menu.addAction(
             QIcon.fromTheme("tab-close"),
-            COMMANDS_TEXT["close_this_tab"],
+            COMMANDS["close_this_tab"],
             partial(self.close_tab, tab_index),
         )
         close.setEnabled(not self.is_welcome_tab(tab))  # closing it would only reopen it
@@ -596,7 +603,10 @@ class MainWindow(QMainWindow):
 
         current_name = self.tab_widget.tabText(tab_index)
         new_name, ok = QInputDialog.getText(
-            self, "Rename Canvas", "Enter a new name for this canvas:", text=current_name
+            self,
+            MAIN_WINDOW["rename_canvas"],
+            MAIN_WINDOW["rename_canvas_prompt"],
+            text=current_name,
         )
 
         if ok and new_name:
@@ -700,7 +710,7 @@ class MainWindow(QMainWindow):
         if library_tab is None:
             library_tab = LibraryTab()
             self.close_welcome_tab()
-            self.tab_widget.addTab(library_tab, "Library")
+            self.tab_widget.addTab(library_tab, LIBRARY["tab_title"])
 
         if view:
             library_tab.show_view(view)
@@ -758,7 +768,7 @@ class MainWindow(QMainWindow):
         # Change to directory selection instead of file selection
         file_dialog.setFileMode(QFileDialog.FileMode.Directory)
         file_dialog.setOption(QFileDialog.Option.ShowDirsOnly, True)
-        file_dialog.setWindowTitle("Select Tarot Deck Directory")
+        file_dialog.setWindowTitle(MAIN_WINDOW["select_deck"])
 
         if file_dialog.exec():
             selected_dirs = file_dialog.selectedFiles()
@@ -772,9 +782,8 @@ class MainWindow(QMainWindow):
             if not os.path.exists(deck_toml_path):
                 QMessageBox.warning(
                     self,
-                    "Invalid Deck Directory",
-                    "The selected directory does not contain a deck.toml file.\n"
-                    "Please select a valid tarot deck directory.",
+                    MAIN_WINDOW["invalid_deck"],
+                    MAIN_WINDOW["invalid_deck_detail"],
                 )
                 return
 
@@ -814,7 +823,7 @@ class MainWindow(QMainWindow):
 
     @pyqtSlot(object)
     def on_deck_installed(self, entry):
-        self.toast.show_message(DOWNLOAD_TEXT["installed_toast"].format(name=entry.name))
+        self.toast.show_message(DOWNLOAD["installed_toast"].format(name=entry.name))
 
     def on_tab_changed(self, _index):
         # The tab being left keeps whatever it was holding. currentChanged says only
@@ -1131,7 +1140,9 @@ class MainWindow(QMainWindow):
         reference_deck = deck_manager.get_reference_deck()
 
         if not reference_deck:
-            QMessageBox.warning(self, "Deck Not Found", "The reference deck could not be loaded.")
+            QMessageBox.warning(
+                self, MAIN_WINDOW["deck_not_found"], MAIN_WINDOW["deck_not_found_detail"]
+            )
             return
 
         # Create a deck view tab with the reference deck path

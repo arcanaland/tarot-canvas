@@ -8,14 +8,13 @@ from dataclasses import dataclass, field
 from importlib.resources import files
 
 from tarot_canvas._version import __version__
+from tarot_canvas.ui.strings import ABOUT
 from tarot_canvas.utils.logger import logger
 
 APP_ID = "land.arcana.TarotCanvas"
 METAINFO_RESOURCE = f"{APP_ID}.appdata.xml"
 
 COPYRIGHT = "© 2025-2026 Adam Fidel"
-
-MAINTAINER_ROLE = "Maintainer"
 
 FALLBACK_NAME = "Tarot Canvas"
 FALLBACK_SUMMARY = "Explore and arrange tarot decks"
@@ -65,7 +64,7 @@ class AboutData:
 
     @property
     def authors(self) -> list[Person]:
-        return [Person(self.developer, MAINTAINER_ROLE, self.contact)]
+        return [Person(self.developer, ABOUT["maintainer"], self.contact)]
 
     @property
     def homepage(self) -> str | None:

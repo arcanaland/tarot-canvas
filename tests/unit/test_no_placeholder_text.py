@@ -10,7 +10,7 @@ TAG = "clankertext"
 ROOT = Path(tarot_canvas.__file__).parent.parent
 
 
-def tagged_files():
+def tagged_lines():
     """Tracked files only: build output under packaging/ is not ours."""
     tracked = (
         subprocess.run(
@@ -22,8 +22,16 @@ def tagged_files():
         .stdout.decode()
         .split("\0")
     )
-    return sorted(name for name in tracked if name and TAG.encode() in (ROOT / name).read_bytes())
+    return [
+        f"{name}:{number}: {line.strip()}"
+        for name in sorted(filter(None, tracked))
+        if TAG.encode() in (ROOT / name).read_bytes()
+        for number, line in enumerate(
+            (ROOT / name).read_text(errors="replace").splitlines(), start=1
+        )
+        if TAG in line
+    ]
 
 
 def test_no_shipped_file_holds_a_placeholder():
-    assert tagged_files() == []
+    assert tagged_lines() == []

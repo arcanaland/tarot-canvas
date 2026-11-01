@@ -10,9 +10,7 @@ from PyQt6.QtGui import QAction, QIcon, QKeySequence
 from PyQt6.QtWidgets import QApplication
 
 from tarot_canvas.settings import get_shortcut_keys, set_shortcut_keys
-from tarot_canvas.ui.commands_text import COMMANDS_TEXT
-from tarot_canvas.ui.notes_text import NOTES_TEXT
-from tarot_canvas.ui.windows.preferences_text import PREFERENCES_TEXT
+from tarot_canvas.ui.strings import COMMANDS, NOTES, PREFERENCES
 
 StandardKey = QKeySequence.StandardKey
 
@@ -71,7 +69,7 @@ W, CV, C, CI, N, L = (
     Scope.NOTES,
     Scope.LIBRARY,
 )
-T = COMMANDS_TEXT
+T = COMMANDS
 
 COMMANDS = (
     # File
@@ -94,10 +92,10 @@ COMMANDS = (
     _command("window.fullscreen", T["fullscreen"], "view-fullscreen", ["Ctrl+Shift+F", "F11"], W),
     # + shares a key with = on many layouts, so the unshifted press zooms too
     _command(
-        "window.zoom_in", PREFERENCES_TEXT["zoom_in"], "zoom-in", [StandardKey.ZoomIn, "Ctrl+="], W
+        "window.zoom_in", PREFERENCES["zoom_in"], "zoom-in", [StandardKey.ZoomIn, "Ctrl+="], W
     ),
-    _command("window.zoom_out", PREFERENCES_TEXT["zoom_out"], "zoom-out", [StandardKey.ZoomOut], W),
-    _command("window.reset_zoom", PREFERENCES_TEXT["reset_zoom"], "zoom-original", ["Ctrl+0"], W),
+    _command("window.zoom_out", PREFERENCES["zoom_out"], "zoom-out", [StandardKey.ZoomOut], W),
+    _command("window.reset_zoom", PREFERENCES["reset_zoom"], "zoom-original", ["Ctrl+0"], W),
     # Go: the keys are the art's, so these only show them
     _command(
         "window.go_previous",
@@ -131,7 +129,7 @@ COMMANDS = (
     # Settings
     _command(
         "window.preferences",
-        PREFERENCES_TEXT["configure"],
+        PREFERENCES["configure"],
         "configure",
         [StandardKey.Preferences],
         W,
@@ -177,8 +175,8 @@ COMMANDS = (
     _command("card_image.previous_or_pan", T["go_previous"], None, ["Left"], CI, fixed=True),
     _command("card_image.next_or_pan", T["go_next"], None, ["Right"], CI, fixed=True),
     # Notes
-    _command("notes.rename", NOTES_TEXT["rename"], "edit-rename", ["F2"], N),
-    _command("notes.delete", NOTES_TEXT["delete"], "edit-delete", [], N, shows="window.delete"),
+    _command("notes.rename", NOTES["rename"], "edit-rename", ["F2"], N),
+    _command("notes.delete", NOTES["delete"], "edit-delete", [], N, shows="window.delete"),
     # Library
     _command("library.toggle_details", T["library_toggle_details"], None, ["Ctrl+I"], L),
 )

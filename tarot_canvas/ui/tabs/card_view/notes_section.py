@@ -18,8 +18,8 @@ from tarot_canvas.ui.activate_on_return import activate_on_return
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.note_row_delegate import NoteRowDelegate
 from tarot_canvas.ui.library.notes_model import NoteRole, NotesListModel
-from tarot_canvas.ui.notes_text import text
 from tarot_canvas.ui.palette import ghost_bar, muted_text, subtle_fill, with_text_colour
+from tarot_canvas.ui.strings import notes_text
 from tarot_canvas.ui.tabs.card_view.passage_metrics import CORNER_RADIUS
 
 MAX_ROWS = 3
@@ -63,7 +63,7 @@ class NoteRowsView(QListView):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.list_model = NotesListModel(
-            parent=self, card_in_subtitle=False, stub_preview=text("stub_note")
+            parent=self, card_in_subtitle=False, stub_preview=notes_text("stub_note")
         )
         self.row_delegate = NoteRowDelegate(self, thumbnail=False, reading=True)
         typography.apply(self, typography.Role.BODY, reading=True)
@@ -144,17 +144,17 @@ class NotesSection(QWidget):
         header = QHBoxLayout()
         header.setContentsMargins(0, 0, 0, 0)
 
-        self.heading = QLabel(text("section_heading"))
+        self.heading = QLabel(notes_text("section_heading"))
         self.heading.setObjectName("notes_section_heading")
         typography.apply(self.heading, typography.Role.BODY, primary=True)
-        self.heading.setVisible(bool(text("section_heading")))
+        self.heading.setVisible(bool(notes_text("section_heading")))
         header.addWidget(self.heading)
         header.addStretch()
 
         self.new_button = QToolButton()
         self.new_button.setObjectName("notes_section_new")
         self.new_button.setText("+")
-        self.new_button.setToolTip(text("new_note_tooltip"))
+        self.new_button.setToolTip(notes_text("new_note_tooltip"))
         self.new_button.clicked.connect(self.createRequested.emit)
         header.addWidget(self.new_button)
 

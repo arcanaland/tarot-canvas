@@ -6,7 +6,7 @@ from tarot_canvas.models.catalog import available_entries
 from tarot_canvas.settings import get_recent_decks
 from tarot_canvas.ui.library.catalog_client import deck_catalog
 from tarot_canvas.ui.library.deck_downloads import DeckState, deck_downloads
-from tarot_canvas.ui.library.download_text import failure_text
+from tarot_canvas.ui.strings import LIBRARY, failure_text
 
 DeckRole = Qt.ItemDataRole.UserRole + 1
 SubtitleRole = Qt.ItemDataRole.UserRole + 2
@@ -24,8 +24,6 @@ SORT_AUTHOR = "author"
 SORT_COUNT = "count"
 SORT_RECENT = "recent"
 
-UNKNOWN_AUTHOR = "Unknown"
-
 
 def deck_cover_path(deck):
     """The Fool if the deck has one, else any major arcana card with art."""
@@ -41,7 +39,7 @@ def deck_cover_path(deck):
 
 def deck_author(deck):
     fields = deck._metadata.get("deck", {})
-    return fields.get("artist") or fields.get("author") or UNKNOWN_AUTHOR
+    return fields.get("artist") or fields.get("author") or LIBRARY["unknown_author"]
 
 
 def is_majors_only(deck):
@@ -53,7 +51,7 @@ def is_majors_only(deck):
 def deck_subtitle(deck, abbreviated=False):
     parts = [deck_author(deck)]
     if is_majors_only(deck):
-        parts.append("majors" if abbreviated else "majors only")
+        parts.append(LIBRARY["majors_short"] if abbreviated else LIBRARY["majors_only"])
 
     return " • ".join(parts)
 

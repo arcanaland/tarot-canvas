@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
 )
 
 from tarot_canvas.ui import typography
+from tarot_canvas.ui.strings import LOG_VIEWER
 from tarot_canvas.utils.logger import TarotLogger
 
 
@@ -40,16 +41,16 @@ class LogViewerDialog(QDialog):
     }
 
     LOG_LEVELS: ClassVar[dict] = {
-        "Debug": logging.DEBUG,
-        "Info": logging.INFO,
-        "Warning": logging.WARNING,
-        "Error": logging.ERROR,
-        "Critical": logging.CRITICAL,
+        LOG_VIEWER["level_debug"]: logging.DEBUG,
+        LOG_VIEWER["level_info"]: logging.INFO,
+        LOG_VIEWER["level_warning"]: logging.WARNING,
+        LOG_VIEWER["level_error"]: logging.ERROR,
+        LOG_VIEWER["level_critical"]: logging.CRITICAL,
     }
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Log Viewer")
+        self.setWindowTitle(LOG_VIEWER["title"])
         self.resize(800, 600)
 
         self.update_colors_for_theme()
@@ -94,25 +95,25 @@ class LogViewerDialog(QDialog):
         controls_layout = QHBoxLayout()
 
         # Log level filter
-        level_label = QLabel("Minimum Level:")
+        level_label = QLabel(LOG_VIEWER["minimum_level"])
         controls_layout.addWidget(level_label)
 
         self.level_selector = QComboBox()
         for level_name in self.LOG_LEVELS:
             self.level_selector.addItem(level_name)
-        self.level_selector.setCurrentText("Info")  # Default to Info level
+        self.level_selector.setCurrentText(LOG_VIEWER["level_info"])  # Default to Info level
         self.level_selector.currentTextChanged.connect(self.filter_log)
         controls_layout.addWidget(self.level_selector)
 
         # Auto-scroll checkbox
-        self.auto_scroll = QCheckBox("Auto-scroll")
+        self.auto_scroll = QCheckBox(LOG_VIEWER["auto_scroll"])
         self.auto_scroll.setChecked(True)
         controls_layout.addWidget(self.auto_scroll)
 
         controls_layout.addStretch()
 
         # Search box - adding a new feature
-        self.search_label = QLabel("Search:")
+        self.search_label = QLabel(LOG_VIEWER["search"])
         controls_layout.addWidget(self.search_label)
 
         self.search_box = QComboBox()
@@ -122,7 +123,7 @@ class LogViewerDialog(QDialog):
         controls_layout.addWidget(self.search_box)
 
         # Refresh button
-        refresh_button = QPushButton("Refresh")
+        refresh_button = QPushButton(LOG_VIEWER["refresh"])
         refresh_button.setIcon(QIcon.fromTheme("view-refresh"))
         refresh_button.clicked.connect(self.load_log_file)
         controls_layout.addWidget(refresh_button)
@@ -145,7 +146,7 @@ class LogViewerDialog(QDialog):
                 for line in f:
                     self.process_log_line(line)
         except Exception as e:
-            self.log_display.append(f"Error loading log file: {e}")
+            self.log_display.append(LOG_VIEWER["load_error"].format(error=e))
 
     def process_log_line(self, line):
         """Process a line from the log file and display it if it matches the filter"""
@@ -172,7 +173,7 @@ class LogViewerDialog(QDialog):
                 # Format and append
                 self.append_colored_text(line.strip(), level)
         except Exception as e:
-            self.log_display.append(f"Error processing log line: {e}")
+            self.log_display.append(LOG_VIEWER["line_error"].format(error=e))
 
     @pyqtSlot(int, str, str)
     def on_log_message(self, level, timestamp, message):

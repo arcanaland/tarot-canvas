@@ -4,13 +4,14 @@ from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QApplication
 
 from tarot_canvas.settings import DECK_HEADER_EXPANDED_KEY, get_settings
+from tarot_canvas.ui.strings import DECK_VIEW
 from tarot_canvas.ui.widgets import deck_header
 from tarot_canvas.ui.widgets.cover_banner import (
     BANNER_SCRIM_ALPHA,
     BANNER_SUBTEXT,
     BANNER_TEXT,
 )
-from tarot_canvas.ui.widgets.deck_header import BUY_TEXT, DeckHeader, wrapped_height
+from tarot_canvas.ui.widgets.deck_header import DeckHeader, wrapped_height
 from tarot_canvas.ui.widgets.tag_chips import TagChips
 
 FULL_METADATA = {
@@ -157,7 +158,7 @@ def test_a_buy_link_is_a_button_even_when_collapsed(qtbot, monkeypatch):
     widget = shown(qtbot, make_deck(links=links))
     widget.set_expanded(False)
     assert widget.buy_button.isVisibleTo(widget)
-    assert widget.buy_button.text() == BUY_TEXT
+    assert widget.buy_button.text() == DECK_VIEW["buy"]
 
     qtbot.mouseClick(widget.buy_button, Qt.MouseButton.LeftButton)
     assert opened == ["https://kathrynisabelle.com/shop"]

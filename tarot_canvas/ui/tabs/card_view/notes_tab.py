@@ -28,7 +28,7 @@ from tarot_canvas.ui.commands import Scope
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.note_row_delegate import NoteRowDelegate
 from tarot_canvas.ui.library.notes_model import NoteRole, NotesListModel
-from tarot_canvas.ui.notes_text import text
+from tarot_canvas.ui.strings import NOTES, notes_text
 from tarot_canvas.ui.tabs.card_view.markdown_editor import MarkdownEditor
 from tarot_canvas.ui.tabs.card_view.notes_list import NotesEmptyPage, NotesListPage
 from tarot_canvas.ui.widgets.inline_message import InlineMessage
@@ -86,7 +86,7 @@ class NotesTab(QWidget):
 
     def setup_actions(self):
         """One set of actions, shown on the row, in its context menu and in the editor."""
-        self.open_action = QAction(QIcon.fromTheme("document-open"), text("open"), self)
+        self.open_action = QAction(QIcon.fromTheme("document-open"), notes_text("open"), self)
         self.open_action.triggered.connect(self.open_target)
 
         actions = commands.bind(
@@ -98,7 +98,7 @@ class NotesTab(QWidget):
         )
         self.rename_action = actions["notes.rename"]
 
-        self.export_action = QAction(QIcon.fromTheme("document-export"), text("export"), self)
+        self.export_action = QAction(QIcon.fromTheme("document-export"), notes_text("export"), self)
         self.export_action.triggered.connect(self.export_target)
 
         self.delete_action = actions["notes.delete"]
@@ -118,11 +118,13 @@ class NotesTab(QWidget):
             # forgotten only once that action has run
             menu.aboutToHide.connect(lambda: QTimer.singleShot(0, self.forget_menu_target))
 
-        self.new_note_action = QAction(QIcon.fromTheme("document-new"), text("create_note"), self)
-        self.new_note_action.setToolTip(text("new_note_tooltip"))
+        self.new_note_action = QAction(
+            QIcon.fromTheme("document-new"), notes_text("create_note"), self
+        )
+        self.new_note_action.setToolTip(notes_text("new_note_tooltip"))
         self.new_note_action.triggered.connect(self.create_new_note)
 
-        self.undo_action = QAction(QIcon.fromTheme("edit-undo"), text("undo"), self)
+        self.undo_action = QAction(QIcon.fromTheme("edit-undo"), notes_text("undo"), self)
         self.undo_action.triggered.connect(self.undo_delete)
 
     def setup_ui(self):
@@ -135,7 +137,7 @@ class NotesTab(QWidget):
         message_row = QVBoxLayout()
         margin = units.LARGE_SPACING
         message_row.setContentsMargins(margin, margin, margin, 0)
-        self.message = InlineMessage(close_text=text("dismiss"))
+        self.message = InlineMessage(close_text=notes_text("dismiss"))
         self.message.dismissed.connect(self.commit_pending_delete)
         message_row.addWidget(self.message)
         layout.addLayout(message_row)
@@ -146,7 +148,7 @@ class NotesTab(QWidget):
         self.empty_page = NotesEmptyPage(self.new_note_action)
 
         self.list_model = NotesListModel(
-            parent=self, card_in_subtitle=False, editable=True, stub_preview=text("stub_note")
+            parent=self, card_in_subtitle=False, editable=True, stub_preview=notes_text("stub_note")
         )
         # Queued: the rename rescans and resets the model the editor is committing to
         self.list_model.renameRequested.connect(
@@ -156,7 +158,7 @@ class NotesTab(QWidget):
             self,
             thumbnail=False,
             menu_button=True,
-            menu_tooltip=text("note_menu_tooltip"),
+            menu_tooltip=notes_text("note_menu_tooltip"),
             reading=True,
         )
         self.row_delegate.menuRequested.connect(
@@ -184,7 +186,7 @@ class NotesTab(QWidget):
         # Back button to return to list
         back_button = QPushButton()
         back_button.setIcon(QIcon.fromTheme("go-previous"))
-        back_button.setToolTip("Back to note list")
+        back_button.setToolTip(NOTES["back_tooltip"])
         back_button.setMaximumSize(32, 32)
         back_button.clicked.connect(self.show_note_list)
         header_layout.addWidget(back_button)
@@ -192,7 +194,7 @@ class NotesTab(QWidget):
         # The note's name (editable)
         self.note_title = QLineEdit()
         self.note_title.setFrame(False)
-        self.note_title.setPlaceholderText(text("name_placeholder"))
+        self.note_title.setPlaceholderText(notes_text("name_placeholder"))
         typography.apply(self.note_title, typography.Role.HEADING_2)
         self.note_title.editingFinished.connect(self.apply_title_edit)
         header_layout.addWidget(self.note_title)
@@ -200,14 +202,14 @@ class NotesTab(QWidget):
         # Save button
         self.save_button = QPushButton()
         self.save_button.setIcon(QIcon.fromTheme("document-save"))
-        self.save_button.setToolTip("Save note (Ctrl+S)")
+        self.save_button.setToolTip(NOTES["save_tooltip"])
         self.save_button.setMaximumSize(32, 32)
         self.save_button.clicked.connect(self.save_current_note)
         header_layout.addWidget(self.save_button)
 
         self.editor_menu_button = QToolButton()
         self.editor_menu_button.setIcon(QIcon.fromTheme("overflow-menu"))
-        self.editor_menu_button.setToolTip(text("note_menu_tooltip"))
+        self.editor_menu_button.setToolTip(notes_text("note_menu_tooltip"))
         self.editor_menu_button.setAutoRaise(True)
         self.editor_menu_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.editor_menu_button.setMenu(self.editor_menu)
@@ -378,7 +380,7 @@ class NotesTab(QWidget):
             # Focus the editor
             self.note_editor.setFocus()
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Could not load note: {e}")
+            QMessageBox.critical(self, NOTES["error"], NOTES["load_failed"].format(error=e))
 
     def apply_title_edit(self):
         """Rename the open note to whatever the header now says."""
@@ -407,7 +409,7 @@ class NotesTab(QWidget):
         try:
             os.rename(file_path, new_file_path)
         except OSError as error:
-            QMessageBox.critical(self, "Error", f"Could not rename note: {error}")
+            QMessageBox.critical(self, NOTES["error"], NOTES["rename_failed"].format(error=error))
             return None
 
         if self.current_file_path == file_path:
@@ -474,9 +476,9 @@ class NotesTab(QWidget):
         try:
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
         except OSError as error:
-            error_msg = f"Failed to create notes directory: {error}"
+            error_msg = NOTES["mkdir_failed"].format(error=error)
             logger.error(error_msg)
-            QMessageBox.critical(self, "Error", error_msg)
+            QMessageBox.critical(self, NOTES["error"], error_msg)
             return
 
         self.pending_path = None
@@ -503,13 +505,13 @@ class NotesTab(QWidget):
         try:
             os.rename(file_path, staged_path)
         except OSError as error:
-            QMessageBox.critical(self, "Error", f"Could not delete note: {error}")
+            QMessageBox.critical(self, NOTES["error"], NOTES["delete_failed"].format(error=error))
             return
 
         self.staged_delete = (file_path, staged_path)
         self.show_note_list()
         note_events().notes_changed.emit()
-        self.message.show_message(text("deleted_message"), [self.undo_action])
+        self.message.show_message(notes_text("deleted_message"), [self.undo_action])
 
     def undo_delete(self):
         if not self.staged_delete:
@@ -522,7 +524,7 @@ class NotesTab(QWidget):
         try:
             os.rename(staged_path, file_path)
         except OSError as error:
-            QMessageBox.critical(self, "Error", f"Could not restore note: {error}")
+            QMessageBox.critical(self, NOTES["error"], NOTES["restore_failed"].format(error=error))
             return
 
         self.refresh_list()
@@ -552,9 +554,9 @@ class NotesTab(QWidget):
         # Ask for export location
         export_path, _ = QFileDialog.getSaveFileName(
             self,
-            "Export Note",
+            NOTES["export"],
             os.path.expanduser(f"~/Documents/{name}.md"),
-            "Markdown Files (*.md);;All Files (*)",
+            NOTES["export_filter"],
         )
 
         if not export_path:
@@ -564,7 +566,7 @@ class NotesTab(QWidget):
         try:
             shutil.copy2(file_path, export_path)
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Could not export note: {e}")
+            QMessageBox.critical(self, NOTES["error"], NOTES["export_failed"].format(error=e))
 
     # Helper methods
 
@@ -656,13 +658,13 @@ class NotesTab(QWidget):
             note_events().notes_changed.emit()
 
         except Exception as e:
-            error_msg = f"Could not save note: {e}"
+            error_msg = NOTES["save_failed"].format(error=e)
             logger.error(error_msg)
             # Add exception details and traceback
             import traceback
 
             logger.error(traceback.format_exc())
-            QMessageBox.critical(self, "Error", error_msg)
+            QMessageBox.critical(self, NOTES["error"], error_msg)
 
     # Link handling
 

@@ -4,6 +4,7 @@ from PyQt6.QtCore import QAbstractListModel, QSortFilterProxyModel, Qt
 
 from tarot_canvas.models.card_ids import COURTS, PIPS
 from tarot_canvas.models.card_search import CardTerms, Query
+from tarot_canvas.ui.strings import DECK_VIEW
 
 KindRole = Qt.ItemDataRole.UserRole + 1
 CardRole = Qt.ItemDataRole.UserRole + 2
@@ -13,8 +14,6 @@ ImageRole = Qt.ItemDataRole.UserRole + 4
 KIND_HEADING = "heading"
 KIND_NOTE = "note"
 KIND_CARD = "card"
-
-MAJOR_ARCANA_HEADING = "Major Arcana"
 
 RANK_ORDER = {rank: position for position, rank in enumerate(PIPS + COURTS)}
 
@@ -33,14 +32,14 @@ def display_rows(deck):
     rows = []
     majors = sorted(deck.get_cards_by_type("major_arcana"), key=_major_key)
     if majors:
-        rows.append((KIND_HEADING, MAJOR_ARCANA_HEADING, None))
+        rows.append((KIND_HEADING, DECK_VIEW["major_arcana"], None))
         rows.extend((KIND_CARD, card.get("name", "Unknown"), card) for card in majors)
 
     suits = deck.get_suits()
     if not suits:
         reason = deck.get_exclusion_reason()
         if reason:
-            rows.append((KIND_NOTE, f"Note: {reason}", None))
+            rows.append((KIND_NOTE, DECK_VIEW["note"].format(reason=reason), None))
 
     for suit in suits:
         cards = sorted(deck.get_cards_by_suit(suit), key=_rank_key)
