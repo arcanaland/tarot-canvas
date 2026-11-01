@@ -42,6 +42,7 @@ from tarot_canvas.ui.canvas.motion import (
     shadow_geometry,
 )
 from tarot_canvas.ui.canvas.selection import GILT_ON_DARK, SelectionMarks
+from tarot_canvas.ui.card_colours import card_colour
 
 # Degrees of Z rotation on hover
 HOVER_PUNCH_DEG = 2.0
@@ -123,6 +124,10 @@ class DraggableCardItem(QGraphicsPixmapItem):
 
     def is_reversed(self):
         return self.reversed
+
+    def mark_colour(self):
+        """This item's colour on the tab icon"""
+        return card_colour(self.card_data)
 
     def set_orient(self, degrees):
         """Turn the card."""

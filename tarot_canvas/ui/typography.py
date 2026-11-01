@@ -91,6 +91,13 @@ def font(role, *, primary=False, fixed=False, reading=False):
     return result
 
 
+def in_pixels(base, px):
+    """A copy of `base` `px` pixels tall, for text that scales with what it is painted on"""
+    result = QFont(base)
+    result.setPixelSize(max(1, round(px)))
+    return result
+
+
 def _encode(role, primary, fixed, reading):
     options = ["primary"] * primary + ["fixed"] * fixed + ["reading"] * reading
     return ",".join([role.value, *options])

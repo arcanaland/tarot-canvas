@@ -16,10 +16,9 @@ from PyQt6.QtGui import (
 )
 
 from tarot_canvas.ui.canvas.ground import GRADIENT_STOPS
-from tarot_canvas.ui.card_colours import CARD_COLOURS, card_colour_key
 
 # Unit-square coordinates: x, y is the mark's centre
-Mark = namedtuple("Mark", "x y w h angle colour_key z")
+Mark = namedtuple("Mark", "x y w h angle colour z")
 
 SNAP = 32
 
@@ -48,7 +47,7 @@ MINIMAP = IconStyle(
 
 
 def card_marks(cards):
-    """Each card's untransformed rect in scene units as (x, y, w, h, angle, colour_key, z)"""
+    """Each card's untransformed rect in scene units as (x, y, w, h, angle, colour, z)"""
     raw = []
     for card in cards:
         rect = card.boundingRect()
@@ -60,7 +59,7 @@ def card_marks(cards):
                 rect.width(),
                 rect.height(),
                 card.motion.orient,
-                card_colour_key(card.card_data),
+                card.mark_colour(),
                 card.zValue(),
             )
         )
@@ -86,10 +85,10 @@ def layout_marks(raw, max_fill=1.0):
             w * scale,
             h * scale,
             angle,
-            colour_key,
+            colour,
             z,
         )
-        for (cx, cy), (_, _, w, h, angle, colour_key, z) in zip(centres, raw, strict=True)
+        for (cx, cy), (_, _, w, h, angle, colour, z) in zip(centres, raw, strict=True)
     ]
     return tuple(sorted(marks, key=lambda mark: mark.z))
 
@@ -103,7 +102,7 @@ def snapped(marks):
             round(m.w * SNAP) / SNAP,
             round(m.h * SNAP) / SNAP,
             round(m.angle) % 360,
-            m.colour_key,
+            m.colour,
             i,
         )
         for i, m in enumerate(marks)
@@ -131,7 +130,7 @@ def render_spread(marks, style, side):
         painter.save()
         painter.translate(inset + mark.x * area, inset + mark.y * area)
         painter.rotate(mark.angle)
-        painter.setBrush(QColor(CARD_COLOURS[mark.colour_key]))
+        painter.setBrush(QColor(mark.colour))
         painter.setPen(QPen(rim, 1.0) if style.mark_rim else Qt.PenStyle.NoPen)
         painter.drawRoundedRect(QRectF(-w / 2, -h / 2, w, h), radius, radius)
         painter.restore()

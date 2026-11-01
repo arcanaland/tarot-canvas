@@ -8,11 +8,13 @@ from tarot_canvas.ui.canvas.alignment import (
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
 from tarot_canvas.ui.canvas.commands import CardMoveCommand
 from tarot_canvas.ui.canvas.icons import CanvasIcon
+from tarot_canvas.ui.canvas.slot_item import SlotItem
 from tarot_canvas.ui.canvas.view import PannableGraphicsView
 
 __all__ = [
     "DraggableCardItem",
     "PannableGraphicsView",
+    "SlotItem",
     "align_items_horizontally",
     "align_items_vertically",
     "distribute_items_horizontally",

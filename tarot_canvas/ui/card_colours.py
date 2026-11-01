@@ -11,6 +11,8 @@ CARD_COLOURS = {
     "default": "#9e9e9e",  # Gray, for a card of no known type or suit
 }
 
+SLOT_COLOUR = "#7f7f7f"
+
 # In canonical order, as coverage's runs are
 ARCANA_KEYS = (MAJOR_ARCANA, *SUITS)
 
