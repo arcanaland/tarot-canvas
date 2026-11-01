@@ -383,7 +383,7 @@ SPREADS = {
     "section_slots": "Slots",
     "add_slot_tooltip": "Add card slot",
     "save_tooltip": "Save this spread",
-    "pane_tooltip": "Show or hide the spread's details",
+    "pane_tooltip": "Toggle details",
     # The title band
     "details_show": "Show Details",
     "details_hide": "Hide Details",

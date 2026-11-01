@@ -2,7 +2,7 @@ from contextlib import suppress
 
 from PyQt6.QtCore import QPointF, QSignalBlocker, Qt, QTimer, pyqtSlot
 from PyQt6.QtGui import QAction, QIcon
-from PyQt6.QtWidgets import QApplication, QMenu, QSplitter
+from PyQt6.QtWidgets import QMenu, QSplitter
 
 from tarot_canvas.models import spreads
 from tarot_canvas.models.spread_events import spread_events
@@ -13,7 +13,6 @@ from tarot_canvas.ui.strings import CANVAS, COMMANDS, SPREADS
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.utils.logger import logger
 
-AUTOSAVE_MS = 1000
 PLACES = 3
 
 
@@ -51,26 +50,18 @@ class SpreadTab(CanvasTab):
         self.pane.set_document(spread.name, spread.usage)
         self._lay_out(spread.positions)
 
-        self.autosave_timer = QTimer(self)
-        self.autosave_timer.setSingleShot(True)
-        self.autosave_timer.setInterval(AUTOSAVE_MS)
-        self.autosave_timer.timeout.connect(self._write_autosave)
-
         self._fit_timer = QTimer(self)
         self._fit_timer.setSingleShot(True)
         self._fit_timer.setInterval(0)
         self._fit_timer.timeout.connect(self.on_fit_view)
         self._fit_on_show = bool(spread.positions)
 
-        self.layout_changed.connect(self.schedule_save)
+        self.layout_changed.connect(self.mark_modified)
         self.positions.moved.connect(self.layout_changed)
-        self.pane.edited.connect(self.schedule_save)
+        self.pane.edited.connect(self.mark_modified)
         self.pane.name_edit.textChanged.connect(self._on_name_edited)
         self.pane.slot_chosen.connect(self._select_slot)
         self.scene.selectionChanged.connect(self.show_selection)
-
-        # Closing the window closes no tab
-        QApplication.instance().aboutToQuit.connect(self.flush_pending_edits)
 
         self.spread_path = path
         if path is not None:
@@ -192,7 +183,7 @@ class SpreadTab(CanvasTab):
     def _on_name_edited(self, text):
         self._name = text.strip()
         self.tab_label_changed.emit()
-        self.schedule_save()
+        self.mark_modified()
 
     # -- keeping it --------------------------------------------------------
 
@@ -239,45 +230,32 @@ class SpreadTab(CanvasTab):
         return True
 
     def can_save(self):
-        return self.spread_path is None
+        return self.spread_path is None or self._modified
 
     def has_unsaved_changes(self):
-        return self.spread_path is None and self._modified
+        return self._modified
 
     def save(self):
-        """The first save makes the folder. Autosave keeps it after that"""
-        if self.spread_path is not None:
-            return True
-        try:
-            path = spreads.new_spread_dir()
-        except OSError as error:
-            logger.error(f"Could not make a folder for a spread: {error}")
-            return False
+        """Write the spread, making its folder the first time"""
+        path = self.spread_path
+        if path is None:
+            try:
+                path = spreads.new_spread_dir()
+            except OSError as error:
+                logger.error(f"Could not make a folder for a spread: {error}")
+                return False
         if not self._write(path):
-            with suppress(OSError):
-                path.rmdir()
+            if self.spread_path is None:
+                with suppress(OSError):
+                    path.rmdir()
             return False
         self.spread_path = path
+        self._modified = False
         self.tab_label_changed.emit()
         return True
 
     @pyqtSlot()
-    def schedule_save(self):
-        if self.spread_path is not None:
-            self.autosave_timer.start()
-        elif not self._modified:
+    def mark_modified(self):
+        if not self._modified:
             self._modified = True
             self.tab_label_changed.emit()
-
-    @pyqtSlot()
-    def _write_autosave(self):
-        self._write(self.spread_path)
-
-    @pyqtSlot()
-    def flush_pending_edits(self):
-        if self.autosave_timer.isActive():
-            self.autosave_timer.stop()
-            self._write(self.spread_path)
-
-    def about_to_close(self):
-        self.flush_pending_edits()

@@ -219,9 +219,9 @@ class MainWindow(QMainWindow):
         file_menu.addActions(
             [
                 self.new_canvas_action,
-                self.new_spread_action,
                 self.new_library_action,
                 self.new_card_view_action,
+                self.new_spread_action,
             ]
         )
         file_menu.addSeparator()
@@ -437,9 +437,9 @@ class MainWindow(QMainWindow):
 
         new_tab_menu = QMenu(new_tab_button)
         new_tab_menu.addAction(self.new_canvas_action)
-        new_tab_menu.addAction(self.new_spread_action)
         new_tab_menu.addAction(self.new_library_action)
         new_tab_menu.addAction(self.new_card_view_action)
+        new_tab_menu.addAction(self.new_spread_action)
         new_tab_button.setMenu(new_tab_menu)
 
         # Create search button and put it in the tab corner

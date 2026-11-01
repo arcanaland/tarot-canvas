@@ -755,9 +755,9 @@ def test_opening_a_tab_takes_no_drill_down(qtbot):
     labels = [action.text() for action in actions if not action.isSeparator()]
     assert labels[:4] == [
         "New &Canvas",
-        COMMANDS["new_spread"],
         "New &Library View",
         "New C&ard View",
+        COMMANDS["new_spread"],
     ]
 
 
@@ -784,9 +784,9 @@ def test_the_tab_bar_has_a_new_tab_button(qtbot):
     assert new_tab.popupMode() == QToolButton.ToolButtonPopupMode.MenuButtonPopup
     assert new_tab.menu().actions() == [
         window.new_canvas_action,
-        window.new_spread_action,
         window.new_library_action,
         window.new_card_view_action,
+        window.new_spread_action,
     ]
 
 

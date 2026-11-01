@@ -1,7 +1,7 @@
 import pytest
 from PyQt6.QtCore import QModelIndex, QPoint, QPointF, QRect, QSize, Qt
 from PyQt6.QtGui import QKeySequence
-from PyQt6.QtWidgets import QApplication, QMessageBox, QStyleOptionViewItem, QToolButton
+from PyQt6.QtWidgets import QMessageBox, QStyleOptionViewItem, QToolButton
 
 from tarot_canvas.models import spreads
 from tarot_canvas.models.spreads import Position, Spread
@@ -12,10 +12,9 @@ from tarot_canvas.ui.card_transfer import card_mime_data, copy_card_to_clipboard
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.strings import COMMANDS, SPREADS
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
-from tarot_canvas.ui.tabs.spread_tab import AUTOSAVE_MS, SpreadTab
+from tarot_canvas.ui.tabs.spread_tab import SpreadTab
 from tarot_canvas.ui.widgets.reorder_list import GRIP_WIDTH
 
-PAST_THE_TIMER = AUTOSAVE_MS + 200
 Answer = QMessageBox.StandardButton
 UNIT = 200
 
@@ -339,11 +338,10 @@ def test_reselecting_the_slot_keeps_the_editor(qtbot):
     assert tab.pane.editor is editor
 
 
-def test_a_drop_renumbers_keeps_ids_and_arms_the_timer(qtbot, spreads_base):
+def test_a_drop_renumbers_keeps_ids_and_modifies_the_spread(qtbot, spreads_base):
     tab = make_tab(qtbot)
     first, second, third = add_slots(tab, 3)
     tab.save()
-    tab.autosave_timer.stop()
     select(tab, first)
     view = tab.pane.list_view
     changes = []
@@ -355,8 +353,7 @@ def test_a_drop_renumbers_keeps_ids_and_arms_the_timer(qtbot, spreads_base):
     assert [slot.number for slot in tab.slots()] == [1, 2, 3]
     assert [slot.position_id for slot in tab.slots()] == ["p2", "p3", "p1"]
     assert len(changes) == 1
-    assert tab.autosave_timer.isActive()
-    tab.autosave_timer.stop()
+    assert tab.has_unsaved_changes()
 
 
 def test_a_moved_slot_keeps_its_open_row(qtbot):
@@ -598,10 +595,10 @@ def test_renaming_the_tab_sets_the_name(window, qtbot, monkeypatch):
 # -- ways in
 
 
-def test_new_spread_is_in_the_file_and_new_tab_menus_after_new_canvas(window):
+def test_new_spread_is_in_the_file_and_new_tab_menus_after_new_card_view(window):
     file_menu = window.menuBar().actions()[0].menu()
     actions = file_menu.actions()
-    assert actions[actions.index(window.new_canvas_action) + 1] is window.new_spread_action
+    assert actions[actions.index(window.new_card_view_action) + 1] is window.new_spread_action
 
     new_tab_menu = next(
         button.menu()
@@ -609,7 +606,7 @@ def test_new_spread_is_in_the_file_and_new_tab_menus_after_new_canvas(window):
         if button.menu() is not None and window.new_canvas_action in button.menu().actions()
     )
     actions = new_tab_menu.actions()
-    assert actions[actions.index(window.new_canvas_action) + 1] is window.new_spread_action
+    assert actions[actions.index(window.new_card_view_action) + 1] is window.new_spread_action
 
 
 def test_new_spread_opens_a_spread_tab(window):
@@ -634,7 +631,7 @@ def test_save_starts_disabled(window):
     assert not window.save_action.isEnabled()
 
 
-def test_save_is_enabled_only_on_a_spread_not_yet_saved(window, spreads_base):
+def test_save_is_enabled_only_when_there_is_something_to_save(window, spreads_base):
     window.new_canvas_tab()
     assert not window.save_action.isEnabled()
 
@@ -644,6 +641,9 @@ def test_save_is_enabled_only_on_a_spread_not_yet_saved(window, spreads_base):
     window.save_action.trigger()
     assert tab.spread_path is not None
     assert not window.save_action.isEnabled()
+
+    tab.rename("Changed")
+    assert window.save_action.isEnabled()
 
 
 def test_the_toolbar_has_no_save(qtbot):
@@ -674,13 +674,17 @@ def test_ctrl_s_writes_card_widths_about_the_layout_centre(qtbot, spreads_base):
     assert first.z < second.z
 
 
-def test_save_is_disabled_after_the_first(qtbot, spreads_base):
+def test_save_is_disabled_until_the_next_change(qtbot, spreads_base):
     tab = make_tab(qtbot)
     tab.save()
     folder = tab.spread_path
-
     assert not tab.can_save()
+
+    tab.rename("Again")
+    assert tab.can_save()
+
     tab.save()
+    assert not tab.can_save()
     assert tab.spread_path == folder
     assert len(list(spreads_base.iterdir())) == 1
 
@@ -690,18 +694,18 @@ def test_nothing_is_written_before_the_first_save(qtbot, spreads_base):
     add_slots(tab, 1)
     tab.rename("Nope")
 
-    assert not tab.autosave_timer.isActive()
     assert not spreads_base.exists()
 
 
-def test_an_edit_after_the_first_save_lands_after_the_timer(qtbot, spreads_base):
+def test_an_edit_reaches_the_file_only_when_saved(qtbot, spreads_base):
     tab = make_tab(qtbot)
     tab.save()
 
     tab.rename("The Horseshoe")
+    qtbot.wait(50)
     assert spreads.load(tab.spread_path).name == ""
 
-    qtbot.wait(PAST_THE_TIMER)
+    tab.save()
     assert spreads.load(tab.spread_path).name == "The Horseshoe"
 
 
@@ -720,43 +724,53 @@ def test_an_edit_after_the_first_save_lands_after_the_timer(qtbot, spreads_base)
         lambda tab: tab.rename("Named"),
     ],
 )
-def test_every_kind_of_change_arms_the_timer(qtbot, spreads_base, change):
+def test_every_kind_of_change_modifies_the_spread(qtbot, spreads_base, change):
     tab = make_tab(qtbot)
     first, _ = add_slots(tab, 2)
     select(tab, first)
     tab.save()
-    assert not tab.autosave_timer.isActive()
+    assert not tab.has_unsaved_changes()
 
     change(tab)
 
-    assert tab.autosave_timer.isActive()
-    tab.autosave_timer.stop()
+    assert tab.has_unsaved_changes()
 
 
-def test_a_drag_arms_the_timer_when_it_ends(qtbot, spreads_base):
+def test_a_drag_modifies_the_spread_when_it_ends(qtbot, spreads_base):
     tab = make_tab(qtbot)
     (slot,) = add_slots(tab, 1)
     tab.save()
-    tab.autosave_timer.stop()
 
     slot.begin_drag()
+    assert not tab.has_unsaved_changes()
+
     slot.end_drag()
-
-    assert tab.autosave_timer.isActive()
-    tab.autosave_timer.stop()
+    assert tab.has_unsaved_changes()
 
 
-def test_a_press_with_no_drag_arms_nothing(qtbot, spreads_base):
+def test_a_press_with_no_drag_changes_nothing(qtbot, spreads_base):
     tab = make_tab(qtbot)
     (slot,) = add_slots(tab, 1)
     tab.save()
 
     slot.end_drag()
 
-    assert not tab.autosave_timer.isActive()
+    assert not tab.has_unsaved_changes()
 
 
-def test_an_arrangement_from_the_align_menu_arms_the_timer(qtbot, spreads_base, monkeypatch):
+def test_selecting_a_slot_changes_nothing(qtbot, spreads_base):
+    tab = make_tab(qtbot)
+    first, second = add_slots(tab, 2)
+    tab.save()
+
+    select(tab, first)
+    select(tab, second)
+    tab.pane.list_view.setCurrentIndex(tab.positions.index(0))
+
+    assert not tab.has_unsaved_changes()
+
+
+def test_an_arrangement_from_the_align_menu_modifies_the_spread(qtbot, spreads_base, monkeypatch):
     tab = make_tab(qtbot)
     first, second = add_slots(tab, 2)
     first.setSelected(True)
@@ -769,29 +783,7 @@ def test_an_arrangement_from_the_align_menu_arms_the_timer(qtbot, spreads_base, 
     )
     tab.on_align_cards()
 
-    assert tab.autosave_timer.isActive()
-    tab.autosave_timer.stop()
-
-
-def test_closing_the_tab_writes_what_is_pending(window, spreads_base):
-    tab = window.new_spread_tab()
-    tab.save()
-    tab.rename("Kept")
-
-    window.close_tab(window.tab_widget.indexOf(tab))
-
-    assert not tab.autosave_timer.isActive()
-    assert spreads.load(tab.spread_path).name == "Kept"
-
-
-def test_quitting_writes_what_is_pending(qtbot, spreads_base):
-    tab = make_tab(qtbot)
-    tab.save()
-    tab.rename("Kept")
-
-    QApplication.instance().aboutToQuit.emit()
-
-    assert spreads.load(tab.spread_path).name == "Kept"
+    assert tab.has_unsaved_changes()
 
 
 def test_a_failed_write_keeps_the_tab_unsaved_and_leaves_no_folder(
@@ -810,11 +802,28 @@ def test_a_failed_write_keeps_the_tab_unsaved_and_leaves_no_folder(
     assert list(spreads_base.iterdir()) == []
 
 
-def test_a_stored_sources_list_survives_a_save(window, spreads_base, qtbot):
+def test_a_failed_later_save_keeps_the_changes_and_the_folder(qtbot, spreads_base, monkeypatch):
+    def fail(*_):
+        raise OSError("disk full")
+
+    tab = make_tab(qtbot)
+    tab.save()
+    folder = tab.spread_path
+    tab.rename("Unkept")
+    monkeypatch.setattr(spreads, "save", fail)
+
+    assert not tab.save()
+
+    assert tab.has_unsaved_changes()
+    assert tab.spread_path == folder
+    assert folder.is_dir()
+
+
+def test_a_stored_sources_list_survives_a_save(window, spreads_base):
     tab = window.open_spread(stored(spreads_base))
 
     tab.rename("Renamed")
-    qtbot.wait(PAST_THE_TIMER)
+    tab.save()
 
     assert spreads.load(tab.spread_path).sources == ({"author": "Someone"},)
 
@@ -826,8 +835,8 @@ def test_every_write_announces_itself(qtbot, spreads_base):
     with qtbot.waitSignal(spread_events().spreads_changed, timeout=500):
         tab.save()
     tab.rename("Again")
-    with qtbot.waitSignal(spread_events().spreads_changed, timeout=PAST_THE_TIMER):
-        pass
+    with qtbot.waitSignal(spread_events().spreads_changed, timeout=500):
+        tab.save()
 
 
 # -- unsaved changes
@@ -855,7 +864,7 @@ def test_a_change_stars_the_tab(window, change):
     assert window.tab_widget.tabText(index).endswith("*")
 
 
-def test_saving_takes_the_star_off_and_autosave_keeps_it_off(window, spreads_base):
+def test_saving_takes_the_star_off_until_the_next_change(window, spreads_base):
     tab = window.new_spread_tab()
     tab.add_next_slot()
     index = window.tab_widget.indexOf(tab)
@@ -865,14 +874,17 @@ def test_saving_takes_the_star_off_and_autosave_keeps_it_off(window, spreads_bas
     assert window.tab_widget.tabText(index) == SPREADS["untitled"]
 
     tab.add_next_slot()
-    assert window.tab_widget.tabText(index) == SPREADS["untitled"]
-    assert not tab.has_unsaved_changes()
+    assert window.tab_widget.tabText(index) == starred(SPREADS["untitled"])
+    assert tab.has_unsaved_changes()
 
 
-def test_an_opened_spread_has_no_star(window, spreads_base):
+def test_an_opened_spread_has_no_star_until_it_changes(window, spreads_base):
     tab = window.open_spread(stored(spreads_base))
+    index = window.tab_widget.indexOf(tab)
+    assert window.tab_widget.tabText(index) == "The Horseshoe"
 
-    assert window.tab_widget.tabText(window.tab_widget.indexOf(tab)) == "The Horseshoe"
+    tab.add_next_slot()
+    assert window.tab_widget.tabText(index) == starred("The Horseshoe")
 
 
 def answer_with(monkeypatch, button):
@@ -952,11 +964,32 @@ def test_closing_a_saved_spread_asks_nothing(window, spreads_base, monkeypatch):
     asked = answer_with(monkeypatch, Answer.Cancel)
     tab = unsaved_tab(window)
     tab.save()
-    tab.add_next_slot()
 
     window.close_tab(window.tab_widget.indexOf(tab))
 
     assert asked == []
+
+
+def test_closing_a_spread_changed_since_its_save_asks(window, spreads_base, monkeypatch):
+    asked = answer_with(monkeypatch, Answer.Cancel)
+    tab = unsaved_tab(window)
+    tab.save()
+    tab.add_next_slot()
+
+    window.close_tab(window.tab_widget.indexOf(tab))
+
+    assert len(asked) == 1
+    assert window.tab_widget.indexOf(tab) >= 0
+
+
+def test_discarding_a_changed_spread_leaves_the_file_alone(window, spreads_base, monkeypatch):
+    answer_with(monkeypatch, Answer.Discard)
+    tab = window.open_spread(stored(spreads_base))
+    tab.rename("Unkept")
+
+    window.close_tab(window.tab_widget.indexOf(tab))
+
+    assert spreads.load(tab.spread_path).name == "The Horseshoe"
 
 
 def test_cancel_stops_the_window_closing_and_raises_the_tab(window, monkeypatch):
@@ -1036,16 +1069,16 @@ def test_a_reopened_slot_does_not_animate_in(window, spreads_base):
         assert slot.motion.at_rest()
 
 
-def test_opening_writes_nothing_and_arms_nothing(window, spreads_base, qtbot):
+def test_opening_writes_nothing_and_modifies_nothing(window, spreads_base, qtbot):
     path = stored(spreads_base)
     file = path / "spread.toml"
     before = file.stat().st_mtime_ns
 
     tab = window.open_spread(path)
 
-    assert not tab.autosave_timer.isActive()
-    qtbot.wait(PAST_THE_TIMER)
+    qtbot.wait(50)
     assert file.stat().st_mtime_ns == before
+    assert not tab.has_unsaved_changes()
     assert not tab.can_save()
 
 
@@ -1070,11 +1103,11 @@ def test_an_unreadable_spread_opens_nothing(window, spreads_base):
     assert window.tab_widget.count() == count
 
 
-def test_saving_a_reopened_spread_keeps_its_unknown_keys_and_order(window, spreads_base, qtbot):
+def test_saving_a_reopened_spread_keeps_its_unknown_keys_and_order(window, spreads_base):
     tab = window.open_spread(stored(spreads_base))
 
     tab.rename("Renamed")
-    qtbot.wait(PAST_THE_TIMER)
+    tab.save()
 
     loaded = spreads.load(tab.spread_path)
     assert loaded.name == "Renamed"
