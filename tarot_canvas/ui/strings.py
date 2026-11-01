@@ -4,6 +4,7 @@
 COMMANDS = {
     # File
     "new_canvas": "New &Canvas",
+    "new_spread": "New Spread",
     "new_library": "New &Library View",
     "new_card_view": "New C&ard View",
     "open_deck": "&Open Deck…",
@@ -36,6 +37,8 @@ COMMANDS = {
     "tab_n": "Switch to Tab {n}",
     # Canvas
     "summon_card": "Summon Card",
+    "add_slot": "Add Card Slot",
+    "save_spread": "Save Spread",
     "flip_card": "Flip Card (Reversed)",
     "rotate_card": "Rotate Card",
     "delete_card": "Delete Card",
@@ -371,6 +374,62 @@ CANVAS = {
     "card_fallback": "Card",
 }
 
+
+SPREADS = {
+    "untitled": "Untitled spread",
+    # The toolbar
+    "section_slots": "Slots",
+    "add_slot_tooltip": "Add card slot",
+    "save_tooltip": "Save this spread",
+    "pane_tooltip": "Toggle details",
+    # The title band
+    "details_show": "Show Details",
+    "details_hide": "Hide Details",
+    "name_title": "Name",
+    "name_hint": "Name this spread…",
+    "description_title": "Description",
+    "description_hint": "Optional: how to read this spread",
+    "description_expand": "Expand description",
+    "description_collapse": "Hide description",
+    "sources_title": "Sources",
+    "source_url_hint": "Webpage for this spread",
+    "source_author_hint": "Who created this spread",
+    "source_note_hint": "Free-form notes",
+    "source_url_title": "URL",
+    "source_author_title": "Author",
+    "source_note_title": "Note",
+    "add_source": "Add Source",
+    "remove_source": "Remove Source",
+    "slots_title": "Card Slots",
+    "slots_empty": "No cards yet",
+    # The pane
+    "label_hint": "Label",
+    "meaning_hint": "Optional: what does a card in this slot mean?",
+    "slot_row": "{number}. {label}",
+    # The pane's menu
+    "menu_tooltip": "Spread options",
+    "duplicate": "Duplicate Spread",
+    "revert": "Revert to Saved",
+    "open_folder": "Open Spread Folder",
+    "revert_title": "Revert Spread",
+    "revert_text": 'Discard your changes to "{name}" and revert back to the saved version?',
+    # A slot's menu
+    "edit_label": "Edit Label…",
+    "edit_meaning": "Edit Meaning…",
+    "number": "Number",
+    "move_earlier": "Move up",
+    "move_later": "Move down",
+    # The tab
+    "unsaved_tab": "{title} *",
+    "rename_title": "Rename Spread",
+    "rename_prompt": "Enter name:",
+    "close_unsaved_title": "Close Spread",
+    "close_unsaved_text": 'The spread "{name}" has been modified. Do you want to save your changes or discard them?',
+    # Failures
+    "save_failed": "Failed to save spread",
+    "open_failed": "Cannot open spread",
+    "open_folder_failed": "Cannot open folder",
+}
 
 # The first-run dialog, and the command line
 SETUP = {
