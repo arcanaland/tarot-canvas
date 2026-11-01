@@ -102,6 +102,14 @@ class TarotLogger:
         cls._notify_subscribers(logging.ERROR, message)
 
     @classmethod
+    def exception(cls, message):
+        """Log an error message with the traceback of the exception being handled"""
+        if cls._logger is None:
+            cls.get_instance()
+        cls._logger.exception(message)
+        cls._notify_subscribers(logging.ERROR, message)
+
+    @classmethod
     def critical(cls, message):
         """Log a critical message"""
         if cls._logger is None:

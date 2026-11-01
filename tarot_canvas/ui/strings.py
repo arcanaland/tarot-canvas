@@ -431,6 +431,7 @@ MAIN_WINDOW = {
         "The selected directory does not contain a deck.toml file.\n"
         "Please select a valid tarot deck directory."
     ),
+    "deck_load_failed": "Could not open deck: {error}",
     "deck_not_found": "Deck Not Found",
     "deck_not_found_detail": "The reference deck could not be loaded.",
 }

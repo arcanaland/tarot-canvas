@@ -700,8 +700,13 @@ class MainWindow(QMainWindow):
             self.tab_widget.setCurrentWidget(deck_tab)
 
             return deck_tab
-        except Exception:
+        except Exception as e:
             logger.exception("Error creating deck view tab")
+            QMessageBox.warning(
+                self,
+                MAIN_WINDOW["invalid_deck"],
+                MAIN_WINDOW["deck_load_failed"].format(error=e),
+            )
             return None
 
     def new_library_tab(self, view=None):
