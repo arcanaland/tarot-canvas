@@ -63,7 +63,6 @@ class NotesTab(QWidget):
 
         # A note the user asked for but hasn't written yet
         self.pending_path = None
-        self.pending_card_id = None
         self.pending_name = ""
 
         # (original path, staged path) of a delete that can still be undone
@@ -449,7 +448,6 @@ class NotesTab(QWidget):
         self.save_if_modified()
 
         self.current_file_path = None
-        self.pending_card_id = card_id
         self.pending_name = ""
         self.pending_path = str(notes_model.notes_base() / card_id / f"{int(time.time())}.md")
 
@@ -464,7 +462,6 @@ class NotesTab(QWidget):
     def discard_pending_note(self):
         """Forget a note that was asked for but never written."""
         self.pending_path = None
-        self.pending_card_id = None
 
     def write_pending_note(self):
         """Give a pending note a file."""
@@ -482,7 +479,6 @@ class NotesTab(QWidget):
             return
 
         self.pending_path = None
-        self.pending_card_id = None
         self.current_file_path = file_path
 
         # This both writes the file and re-reads the index that now includes it
@@ -762,12 +758,6 @@ class NotesTab(QWidget):
 
             # If it's a note for the current card, just open it
             self.open_note_path(str(note_info.path))
-
-    # Add this method to ensure saving when the tab is closed
-    def closeEvent(self, event):
-        """Save notes when tab is closed"""
-        self.save_if_modified()
-        super().closeEvent(event)
 
     def auto_save(self):
         """Automatically save the current note if modified"""

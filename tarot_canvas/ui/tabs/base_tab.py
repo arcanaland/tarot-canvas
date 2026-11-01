@@ -1,6 +1,6 @@
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QIcon
-from PyQt6.QtWidgets import QLabel, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QVBoxLayout, QWidget
 
 
 class BaseTab(QWidget):
@@ -25,12 +25,6 @@ class BaseTab(QWidget):
 
     def about_to_close(self):
         """The tab is leaving the window for good; finish anything it left pending."""
-
-    def set_placeholder(self, text):
-        """Helper to show placeholder text in empty tabs"""
-        placeholder = QLabel(text)
-        placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.layout.addWidget(placeholder)
 
     # -- fullscreen ------------------------------------------------------
 

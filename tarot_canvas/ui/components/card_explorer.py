@@ -143,7 +143,6 @@ class CardExplorerPanel(QWidget):
         self.tree_view.setDragDropMode(QAbstractItemView.DragDropMode.DragOnly)
 
         # Connect signals
-        self.tree_view.clicked.connect(self.on_item_clicked)
         self.tree_view.doubleClicked.connect(self.on_item_double_clicked)
         self.tree_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree_view.customContextMenuRequested.connect(self.show_card_menu)
@@ -272,11 +271,6 @@ class CardExplorerPanel(QWidget):
         for i in range(self.model.rowCount()):
             index = self.model.index(i, 0)
             self.tree_view.expand(index)
-
-    def on_item_clicked(self, index):
-        """Handle single clicks - just select the item without taking action"""
-        # Don't emit any signal - just let the tree view handle selection
-        pass
 
     def on_item_double_clicked(self, index):
         """Handle double clicks with context-sensitive actions"""

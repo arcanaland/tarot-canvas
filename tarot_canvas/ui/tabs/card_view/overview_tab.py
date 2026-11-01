@@ -221,18 +221,12 @@ class OverviewTab(QWidget):
                 not deck_path or deck_path == "None" or not os.path.exists(deck_path)
             ) and self._is_same_deck(reference_deck):
                 self.parent_tab.navigation_requested.emit(
-                    "open_deck_view",
-                    {
-                        "deck_path": reference_deck.deck_path,
-                        "source_tab_id": self.parent_tab.id,
-                    },
+                    "open_deck_view", {"deck_path": reference_deck.deck_path}
                 )
                 return
 
             # Emit signal to open the deck view
-            self.parent_tab.navigation_requested.emit(
-                "open_deck_view", {"deck_path": deck_path, "source_tab_id": self.parent_tab.id}
-            )
+            self.parent_tab.navigation_requested.emit("open_deck_view", {"deck_path": deck_path})
 
     def _is_same_deck(self, other):
         """By path, not identity: installing a deck rebuilds every deck object"""

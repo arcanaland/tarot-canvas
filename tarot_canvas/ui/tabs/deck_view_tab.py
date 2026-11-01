@@ -1,5 +1,3 @@
-import os
-
 from PyQt6.QtCore import QItemSelection, QItemSelectionModel, QModelIndex, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
@@ -56,7 +54,7 @@ class DeckViewTab(BaseTab):
     )  # Signal for card actions (action, card, deck)
     new_canvas_requested = pyqtSignal(list, object)  # cards, deck
 
-    def __init__(self, deck_path=None, parent=None):
+    def __init__(self, deck_path, parent=None):
         super().__init__(parent)
         self.deck_path = deck_path
         self.deck = None
@@ -65,15 +63,9 @@ class DeckViewTab(BaseTab):
         self.setup_ui()
 
     def setup_ui(self):
-        if self.deck_path:
-            # Load deck from deck_path
-            self.load_deck(self.deck_path)
-        else:
-            self.set_placeholder(DECK_VIEW["no_deck"])
+        self.load_deck(self.deck_path)
 
     def load_deck(self, deck_path):
-        self.clear_layout()
-
         # Load the deck
         self.deck = TarotDeck(deck_path)
 
@@ -392,19 +384,8 @@ class DeckViewTab(BaseTab):
         if cards:
             copy_cards_to_clipboard(cards, self.deck)
 
-    def clear_layout(self):
-        """Clear the current layout"""
-        while self.layout.count():
-            item = self.layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-
     def tab_title(self):
-        if self.deck:
-            return self.deck.get_name()
-        if self.deck_path:
-            return os.path.basename(self.deck_path)
-        return DECK_VIEW["tab_fallback"]
+        return self.deck.get_name()
 
     def tab_icon(self):
         return QIcon.fromTheme("view-grid")

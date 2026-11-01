@@ -22,7 +22,6 @@ from PyQt6.QtWidgets import (
     QMenu,
     QSizePolicy,
     QToolBar,
-    QVBoxLayout,
     QWidget,
 )
 
@@ -124,8 +123,6 @@ class CanvasTab(BaseTab):
         self.setup_ui()
         self.deck = deck_manager.get_reference_deck()
 
-        self.source_tab = None  # From where we came
-
         # Add multiple staggered calls to ensure window bounds
         # This creates a sequence of enforcement that is harder to override
         # TODO: another stinky code smell
@@ -177,23 +174,9 @@ class CanvasTab(BaseTab):
         self.create_toolbar(main_layout)
 
         # Set up the base layout
-        if hasattr(self, "layout"):
-            # Clear any existing layout contents
-            while self.layout.count():
-                item = self.layout.takeAt(0)
-                if item.widget():
-                    item.widget().setParent(None)
-
-            # Reset margins to zero
-            self.layout.setContentsMargins(0, 0, 0, 0)
-            self.layout.setSpacing(0)
-            self.layout.addWidget(container)
-        else:
-            # If BaseTab doesn't have a layout, create one
-            layout = QVBoxLayout(self)
-            layout.setContentsMargins(0, 0, 0, 0)
-            layout.setSpacing(0)
-            layout.addWidget(container)
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.setSpacing(0)
+        self.layout.addWidget(container)
 
     def apply_background_settings(self):
         """Apply background settings from preferences"""
@@ -785,7 +768,7 @@ class CanvasTab(BaseTab):
         if isinstance(item, SlotItem):
             return
         self.navigation_requested.emit(
-            "open_card_view", {"card": item.card_data, "deck": item.deck, "source_tab_id": self.id}
+            "open_card_view", {"card": item.card_data, "deck": item.deck}
         )
 
     # -- context menu ------------------------------------------------------
