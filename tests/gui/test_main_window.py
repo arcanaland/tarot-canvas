@@ -5,6 +5,7 @@ from PyQt6.QtWidgets import (
     QWIDGETSIZE_MAX,
     QApplication,
     QInputDialog,
+    QMessageBox,
     QTabWidget,
     QToolButton,
 )
@@ -547,6 +548,20 @@ def test_the_same_deck_reached_by_a_path_object_reuses_its_tab(qtbot):
     second = window.new_deck_view_tab(deck_path=MINIMAL_DECK_PATH)
 
     assert second is first
+
+
+def test_a_deck_that_wont_parse_warns_and_opens_no_tab(qtbot, tmp_path, monkeypatch):
+    warnings = []
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args: warnings.append(args))
+    (tmp_path / "deck.toml").write_text("[deck\n")
+    window = MainWindow()
+    qtbot.addWidget(window)
+    count = window.tab_widget.count()
+
+    assert window.new_deck_view_tab(deck_path=str(tmp_path)) is None
+
+    assert len(warnings) == 1
+    assert window.tab_widget.count() == count
 
 
 def test_a_deck_views_selection_opens_on_a_new_canvas(qtbot):
