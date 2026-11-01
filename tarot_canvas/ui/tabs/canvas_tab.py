@@ -84,7 +84,7 @@ from tarot_canvas.ui.card_transfer import (
     has_card,
 )
 from tarot_canvas.ui.commands import Scope, set_tooltip_with_keys
-from tarot_canvas.ui.strings import CANVAS
+from tarot_canvas.ui.strings import CANVAS, MAIN_WINDOW
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.utils.logger import logger
 
@@ -92,6 +92,11 @@ from tarot_canvas.utils.logger import logger
 class CanvasTab(BaseTab):
     # Signal to notify the main window that we want to navigate
     navigation_requested = pyqtSignal(str, object)
+    # A card or its place on the canvas changed
+    layout_changed = pyqtSignal()
+
+    # The heading over the toolbar's first group
+    TOOLS_TITLE = CANVAS["section_cards"]
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -131,7 +136,7 @@ class CanvasTab(BaseTab):
         QTimer.singleShot(1000, self.ensure_window_bounds)
 
     def setup_ui(self):
-        container = QWidget()
+        self.canvas_area = container = QWidget()
         main_layout = QHBoxLayout(container)
 
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -392,21 +397,30 @@ class CanvasTab(BaseTab):
                 window.setMaximumHeight(screen.height() - 100)
 
     def bind_commands(self):
-        self.commands = commands.bind(
-            self,
-            Scope.CANVAS,
-            {
-                "canvas.summon": self.on_draw_card,
-                "canvas.flip": self.on_flip_card,
-                "canvas.rotate": self.on_rotate_card,
-                "canvas.delete": self.on_delete_card,
-                "canvas.bring_to_front": self.on_bring_to_front,
-                "canvas.send_to_back": self.on_send_to_back,
-                "canvas.align": self.on_align_cards,
-                "canvas.fit": self.on_fit_view,
-                "canvas.fullscreen": self.on_toggle_fullscreen,
-                "canvas.cancel": self.on_escape_pressed,
-            },
+        self.commands = commands.bind(self, Scope.CANVAS, self.command_handlers())
+
+    def command_handlers(self):
+        return {
+            "canvas.summon": self.on_draw_card,
+            "canvas.flip": self.on_flip_card,
+            "canvas.rotate": self.on_rotate_card,
+            "canvas.delete": self.on_delete_card,
+            "canvas.bring_to_front": self.on_bring_to_front,
+            "canvas.send_to_back": self.on_send_to_back,
+            "canvas.align": self.on_align_cards,
+            "canvas.fit": self.on_fit_view,
+            "canvas.fullscreen": self.on_toggle_fullscreen,
+            "canvas.cancel": self.on_escape_pressed,
+        }
+
+    def tools(self):
+        """The toolbar's first group, as (command, tooltip, whose key the tooltip shows)"""
+        # Del is Edit > Delete's, which reaches the same handler
+        return (
+            ("canvas.summon", CANVAS["summon_tooltip"], "canvas.summon"),
+            ("canvas.flip", CANVAS["flip_tooltip"], "canvas.flip"),
+            ("canvas.rotate", CANVAS["rotate_tooltip"], "canvas.rotate"),
+            ("canvas.delete", CANVAS["delete_tooltip"], "window.delete"),
         )
 
     def on_escape_pressed(self):
@@ -449,16 +463,10 @@ class CanvasTab(BaseTab):
         self.toolbar.setFloatable(False)
 
         # Primary actions group
-        self.toolbar.addWidget(self.create_section_label(CANVAS["section_cards"]))
+        self.toolbar.addWidget(self.create_section_label(self.TOOLS_TITLE))
 
         # The toolbar's buttons are the commands', so each shows the key it has
-        # Del is Edit > Delete's, which reaches the same handler
-        for command_id, tooltip, keys in (
-            ("canvas.summon", CANVAS["summon_tooltip"], "canvas.summon"),
-            ("canvas.flip", CANVAS["flip_tooltip"], "canvas.flip"),
-            ("canvas.rotate", CANVAS["rotate_tooltip"], "canvas.rotate"),
-            ("canvas.delete", CANVAS["delete_tooltip"], "window.delete"),
-        ):
+        for command_id, tooltip, keys in self.tools():
             action = self.commands[command_id]
             set_tooltip_with_keys(action, tooltip, keys)
             self.toolbar.addAction(action)
@@ -762,6 +770,7 @@ class CanvasTab(BaseTab):
 
         self.scene.addItem(item)
         item.setSelected(True)
+        self.layout_changed.emit()
 
     def open_card_view(self, item):
         """Open a card view tab for the card on the canvas, from its own deck"""
@@ -788,7 +797,9 @@ class CanvasTab(BaseTab):
         if not item.isSelected():
             self.scene.clearSelection()
             item.setSelected(True)
+        return self.build_card_menu(item)
 
+    def build_card_menu(self, item):
         menu = QMenu(self)
         open_action = menu.addAction(QIcon.fromTheme("document-open"), CANVAS["open_card"])
         open_action.triggered.connect(lambda: self.open_card_view(item))
@@ -893,6 +904,7 @@ class CanvasTab(BaseTab):
         for item in items:
             if isinstance(item, DraggableCardItem):
                 item.set_orient(item.orient + 90)
+        self.layout_changed.emit()
 
     def on_flip_card(self):
         """Flip the selected card upside down (to indicate reversed position in Tarot)"""
@@ -900,12 +912,14 @@ class CanvasTab(BaseTab):
         for item in items:
             if isinstance(item, DraggableCardItem):
                 item.set_reversed(not item.is_reversed())
+        self.layout_changed.emit()
 
     def on_delete_card(self):
         """Remove the selected card from canvas"""
         items = self.scene.selectedItems()
         for item in items:
             self.scene.removeItem(item)
+        self.layout_changed.emit()
 
     # Arrangement Control Methods
     def update_arrange_actions(self):
@@ -917,10 +931,12 @@ class CanvasTab(BaseTab):
     def on_bring_to_front(self):
         """Bring the selected cards to the front, keeping their order among themselves."""
         self._restack(self.scene.selectedItems(), self.take_top_z)
+        self.layout_changed.emit()
 
     def on_send_to_back(self):
         """Send the selected cards to the back, keeping their order among themselves."""
         self._restack(self.scene.selectedItems(), self.take_bottom_z, deepest_first=True)
+        self.layout_changed.emit()
 
     def raise_cards(self, cards):
         """Lift cards above every other card, as picking them up would."""
@@ -952,6 +968,7 @@ class CanvasTab(BaseTab):
 
         # Create a popup menu with alignment options
         menu = QMenu(self)
+        menu.triggered.connect(self.layout_changed)
 
         # Horizontal alignment actions
         horizontal_menu = menu.addMenu(CANVAS["align_horizontal"])
@@ -1032,6 +1049,18 @@ class CanvasTab(BaseTab):
 
     def tab_title(self):
         return self.tab_name
+
+    def rename_text(self):
+        """What the rename dialog starts from"""
+        return self.tab_name
+
+    def rename_dialog_text(self):
+        """The rename dialog's title and prompt"""
+        return MAIN_WINDOW["rename_canvas"], MAIN_WINDOW["rename_canvas_prompt"]
+
+    def rename(self, name):
+        self.tab_name = name
+        self.tab_label_changed.emit()
 
     def tab_icon(self):
         return self._tab_icon
