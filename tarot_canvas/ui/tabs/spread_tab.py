@@ -1,8 +1,8 @@
 from contextlib import suppress
 
-from PyQt6.QtCore import QPointF, QSignalBlocker, Qt, QTimer, pyqtSlot
-from PyQt6.QtGui import QAction, QIcon
-from PyQt6.QtWidgets import QMenu, QSplitter
+from PyQt6.QtCore import QPointF, QSignalBlocker, Qt, QTimer, QUrl, pyqtSlot
+from PyQt6.QtGui import QAction, QDesktopServices, QIcon
+from PyQt6.QtWidgets import QMenu, QMessageBox, QSplitter
 
 from tarot_canvas.models import spreads
 from tarot_canvas.models.spread_events import spread_events
@@ -27,11 +27,7 @@ class SpreadTab(CanvasTab):
         self.spread_path = None
         self._slots = []  # in number order
         self.positions = PositionModel(self._slots, self)
-        self._name = spread.name
-        self._sources = spread.sources  # kept for the file: nothing here edits them yet
         self._modified = False
-        self._extra = spread.extra
-        self._position_extra = {position.id: position.extra for position in spread.positions}
 
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.layout.replaceWidget(self.canvas_area, self.splitter)
@@ -46,9 +42,9 @@ class SpreadTab(CanvasTab):
         self.pane.open_changed.connect(self._sync_pane_action)
         self._sync_pane_action(True)
         self.toolbar.addAction(self.pane_action)
+        self._build_menu()
 
-        self.pane.set_document(spread.name, spread.usage)
-        self._lay_out(spread.positions)
+        self._take(spread)
 
         self._fit_timer = QTimer(self)
         self._fit_timer.setSingleShot(True)
@@ -78,6 +74,23 @@ class SpreadTab(CanvasTab):
         handlers = super().command_handlers()
         del handlers["canvas.flip"]
         return handlers
+
+    def _menu_action(self, text, icon, slot):
+        action = QAction(QIcon.fromTheme(icon), text, self)
+        action.triggered.connect(slot)
+        self.pane.menu.addAction(action)
+        return action
+
+    def _build_menu(self):
+        self.duplicate_action = self._menu_action(
+            SPREADS["duplicate"], "edit-duplicate", self.duplicate
+        )
+        self.revert_action = self._menu_action(SPREADS["revert"], "document-revert", self.revert)
+        self.pane.menu.addSeparator()
+        self.open_folder_action = self._menu_action(
+            SPREADS["open_folder"], "document-open-folder", self.open_folder
+        )
+        self.pane.menu.aboutToShow.connect(self._sync_menu)
 
     def tools(self):
         return (
@@ -112,6 +125,15 @@ class SpreadTab(CanvasTab):
         """A card brought to a spread is a slot where it would have landed"""
         return self.add_next_slot(at)
 
+    def _take(self, spread):
+        """Hold spread, on a canvas with no slots"""
+        self._name = spread.name
+        self._sources = spread.sources  # kept for the file: nothing here edits them yet
+        self._extra = spread.extra
+        self._position_extra = {position.id: position.extra for position in spread.positions}
+        self.pane.set_document(spread.name, spread.usage)
+        self._lay_out(spread.positions)
+
     def _lay_out(self, positions):
         unit = card_unit_size().width()
         for number, position in enumerate(positions, start=1):
@@ -131,6 +153,12 @@ class SpreadTab(CanvasTab):
 
     def on_delete_card(self):
         super().on_delete_card()
+        self.positions.remove_unplaced()
+
+    def _remove_slots(self):
+        self.scene.clearSelection()
+        for slot in self._slots:
+            self.scene.removeItem(slot)
         self.positions.remove_unplaced()
 
     # -- the slot's menu ---------------------------------------------------
@@ -222,9 +250,7 @@ class SpreadTab(CanvasTab):
             spreads.save(path, self.current_spread())
         except OSError as error:
             logger.error(f"Could not save spread to {path}: {error}")
-            toast = getattr(self.window(), "toast", None)
-            if toast is not None:
-                toast.show_message(SPREADS["save_failed"])
+            self._toast(SPREADS["save_failed"])
             return False
         spread_events().spreads_changed.emit()
         return True
@@ -250,12 +276,63 @@ class SpreadTab(CanvasTab):
                     path.rmdir()
             return False
         self.spread_path = path
+        self._mark_saved()
+        return True
+
+    def _mark_saved(self):
         self._modified = False
         self.tab_label_changed.emit()
-        return True
 
     @pyqtSlot()
     def mark_modified(self):
         if not self._modified:
             self._modified = True
             self.tab_label_changed.emit()
+
+    def _toast(self, text):
+        toast = getattr(self.window(), "toast", None)
+        if toast is not None:
+            toast.show_message(text)
+
+    # -- the pane's menu ---------------------------------------------------
+
+    @pyqtSlot()
+    def _sync_menu(self):
+        self.revert_action.setEnabled(self.spread_path is not None and self._modified)
+        self.open_folder_action.setEnabled(self.spread_path is not None)
+
+    @pyqtSlot()
+    def duplicate(self):
+        self.navigation_requested.emit("duplicate_spread", self.current_spread())
+
+    @pyqtSlot()
+    def revert(self):
+        """Go back to the file, once asked: the canvas has no undo"""
+        Button = QMessageBox.StandardButton
+        answer = QMessageBox.warning(
+            self,
+            SPREADS["revert_title"],
+            SPREADS["revert_text"].format(name=self.display_name()),
+            Button.Discard | Button.Cancel,
+            Button.Cancel,
+        )
+        if answer != Button.Discard:
+            return
+        try:
+            spread = spreads.load(self.spread_path)
+        except (OSError, ValueError) as error:
+            logger.error(f"Could not reload spread {self.spread_path}: {error}")
+            self._toast(SPREADS["open_failed"])
+            return
+
+        self._remove_slots()
+        self._take(spread)
+        self.layout_changed.emit()
+        self._mark_saved()
+        self._fit_timer.start()
+
+    @pyqtSlot()
+    def open_folder(self):
+        if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.spread_path))):
+            logger.error(f"Could not open the folder {self.spread_path}")
+            self._toast(SPREADS["open_folder_failed"])

@@ -9,6 +9,7 @@ from PyQt6.QtGui import QIcon, QKeySequence
 from tarot_canvas.ui.canvas.icons import CanvasIcon
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
+from tarot_canvas.ui.tabs.spread_tab import SpreadTab
 
 
 @pytest.fixture(autouse=True)
@@ -128,6 +129,16 @@ def test_the_note_menu_has_icons(qtbot, minimal_deck):
     assert not any(action.icon().isNull() for action in actions)
     # Destroying user content takes the red trash can
     assert notes.delete_action.icon().name() == "edit-delete"
+
+
+def test_the_spread_pane_menu_has_icons(qtbot):
+    tab = SpreadTab()
+    qtbot.addWidget(tab)
+    actions = [action for action in tab.pane.menu.actions() if not action.isSeparator()]
+
+    assert not tab.pane.menu_button.icon().isNull()
+    assert not any(action.icon().isNull() for action in actions)
+    assert len({action.icon().name() for action in actions}) == len(actions)
 
 
 def test_a_tab_shows_the_icon_of_the_menu_item_that_opens_it(qtbot):

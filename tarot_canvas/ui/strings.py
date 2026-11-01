@@ -37,7 +37,7 @@ COMMANDS = {
     "tab_n": "Switch to Tab {n}",
     # Canvas
     "summon_card": "Summon Card",
-    "add_slot": "Add Slot",
+    "add_slot": "Add Card Slot",
     "save_spread": "Save Spread",
     "flip_card": "Flip Card (Reversed)",
     "rotate_card": "Rotate Card",
@@ -390,7 +390,7 @@ SPREADS = {
     "name_title": "Name",
     "name_hint": "Name this spread…",
     "usage_title": "Description",
-    "usage_hint": "How to read this spread",
+    "usage_hint": "Optional: how to read this spread",
     "sources_title": "Sources",
     "source_url_hint": "Webpage for this spread",
     "source_author_hint": "Who created this spread",
@@ -401,11 +401,18 @@ SPREADS = {
     "add_source": "Add Source",
     "remove_source": "Remove Source",
     "slots_title": "Card Slots",
-    "slots_empty": "No slots yet",
+    "slots_empty": "No cards yet",
     # The pane
     "label_hint": "Label",
     "meaning_hint": "Optional: what does a card in this slot mean?",
     "slot_row": "{number}. {label}",
+    # The pane's menu
+    "menu_tooltip": "Spread options",
+    "duplicate": "Duplicate Spread",
+    "revert": "Revert to Saved",
+    "open_folder": "Open Spread Folder",
+    "revert_title": "Revert Spread",
+    "revert_text": 'Discard your changes to "{name}" and revert back to the saved version?',
     # A slot's menu
     "edit_label": "Edit Label…",
     "edit_meaning": "Edit Meaning…",
@@ -421,6 +428,7 @@ SPREADS = {
     # Failures
     "save_failed": "Failed to save spread",
     "open_failed": "Cannot open spread",
+    "open_folder_failed": "Cannot open folder",
 }
 
 # The first-run dialog, and the command line

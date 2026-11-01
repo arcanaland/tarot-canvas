@@ -1145,3 +1145,195 @@ def test_the_pane_starts_beside_the_canvas(qtbot):
     assert tab.splitter.orientation() == Qt.Orientation.Horizontal
     assert tab.splitter.widget(0) is tab.canvas_area
     assert tab.splitter.widget(1) is tab.pane
+
+
+# -- the pane's menu
+
+
+def saved_tab(window, *slots):
+    """A spread saved with a slot per label, unmodified"""
+    tab = window.new_spread_tab()
+    tab.pane.name_edit.setText("Mine")
+    tab.pane.usage_edit.setPlainText("Use it")
+    for index, label in enumerate(slots):
+        tab.add_next_slot(QPointF(index * 300, 0)).set_label(label)
+    assert tab.save()
+    return tab
+
+
+def answer_warning(monkeypatch, answer):
+    asked = []
+
+    def warning(_parent, title, text, *_):
+        asked.append((title, text))
+        return answer
+
+    monkeypatch.setattr(QMessageBox, "warning", warning)
+    return asked
+
+
+def enabled(tab):
+    tab.pane.menu.aboutToShow.emit()
+    return tab.revert_action.isEnabled(), tab.open_folder_action.isEnabled()
+
+
+def test_the_menu_sits_beside_the_name_and_opens_at_once(qtbot):
+    tab = make_tab(qtbot)
+    button = tab.pane.menu_button
+
+    assert button.menu() is tab.pane.menu
+    assert button.popupMode() == QToolButton.ToolButtonPopupMode.InstantPopup
+    assert button.geometry().left() >= tab.pane.name_edit.geometry().right()
+    assert button.geometry().center().y() == tab.pane.name_edit.geometry().center().y()
+
+
+def test_the_menu_lists_its_entries(qtbot):
+    tab = make_tab(qtbot)
+    entries = [action.text() for action in tab.pane.menu.actions() if not action.isSeparator()]
+
+    assert entries == [SPREADS["duplicate"], SPREADS["revert"], SPREADS["open_folder"]]
+
+
+def test_a_spread_with_no_folder_can_be_neither_reverted_nor_shown(window):
+    tab = window.new_spread_tab()
+    tab.add_next_slot()
+
+    assert enabled(tab) == (False, False)
+
+
+def test_revert_is_offered_only_with_changes_since_the_save(window):
+    tab = saved_tab(window, "Past")
+    assert enabled(tab) == (False, True)
+
+    tab.pane.name_edit.setText("Other")
+    assert enabled(tab) == (True, True)
+
+
+def test_a_duplicate_is_a_new_unsaved_tab_of_the_current_state(window):
+    tab = saved_tab(window, "Past", "Future")
+    tab.slots()[1].set_orient(90)
+    tab.pane.usage_edit.setPlainText("Changed")
+
+    tab.duplicate_action.trigger()
+
+    copy = window.tab_widget.currentWidget()
+    assert isinstance(copy, SpreadTab)
+    assert copy is not tab
+    assert copy.spread_path is None
+    assert copy.has_unsaved_changes()
+    assert window.tab_widget.tabText(window.tab_widget.indexOf(copy)) == starred("Mine")
+    assert copy.current_spread() == tab.current_spread()
+
+
+def test_saving_a_duplicate_leaves_the_original_folder_alone(window, spreads_base):
+    tab = saved_tab(window, "Past")
+    tab.duplicate_action.trigger()
+    copy = window.tab_widget.currentWidget()
+
+    copy.pane.name_edit.setText("Copy")
+    assert copy.save()
+
+    assert copy.spread_path != tab.spread_path
+    assert spreads.load(tab.spread_path).name == "Mine"
+    assert spreads.load(copy.spread_path).name == "Copy"
+
+
+def test_a_duplicate_keeps_what_only_the_file_holds(window, spreads_base):
+    path = spreads_base / "1"
+    path.mkdir(parents=True)
+    source = {"url": "https://example.com"}
+    position = Position("p1", extra={"future": 1})
+    spreads.save(path, Spread("Mine", sources=(source,), positions=(position,), extra={"k": 2}))
+    tab = window.open_spread(path)
+
+    tab.duplicate_action.trigger()
+
+    copied = window.tab_widget.currentWidget().current_spread()
+    assert copied.sources == (source,)
+    assert copied.extra == {"k": 2}
+    assert copied.positions[0].extra == {"future": 1}
+
+
+def test_revert_restores_the_saved_spread(window, monkeypatch):
+    tab = saved_tab(window, "Past", "Future")
+    saved = tab.current_spread()
+    answer_warning(monkeypatch, Answer.Discard)
+
+    tab.pane.name_edit.setText("Other")
+    tab.pane.usage_edit.setPlainText("Changed")
+    select(tab, tab.slots()[0])
+    tab.commands["canvas.delete"].trigger()
+    tab.add_next_slot(QPointF(900, 900)).set_label("New")
+
+    tab.revert_action.trigger()
+
+    assert tab.current_spread() == saved
+    assert tab.pane.name_edit.text() == "Mine"
+    assert listed(tab) == [(1, "Past"), (2, "Future")]
+    assert len(tab.cards()) == 2
+    assert tab.pane.editor is None
+    assert not tab.has_unsaved_changes()
+    assert window.tab_widget.tabText(window.tab_widget.indexOf(tab)) == "Mine"
+
+
+def test_revert_asks_first_and_cancelling_keeps_the_changes(window, monkeypatch):
+    tab = saved_tab(window, "Past")
+    asked = answer_warning(monkeypatch, Answer.Cancel)
+    tab.pane.name_edit.setText("Other")
+
+    tab.revert_action.trigger()
+
+    assert asked == [(SPREADS["revert_title"], SPREADS["revert_text"].format(name="Other"))]
+    assert tab.pane.name_edit.text() == "Other"
+    assert tab.has_unsaved_changes()
+
+
+def test_a_folder_gone_from_disk_keeps_the_changes_on_revert(window, monkeypatch):
+    tab = saved_tab(window, "Past")
+    answer_warning(monkeypatch, Answer.Discard)
+    tab.pane.name_edit.setText("Other")
+    (tab.spread_path / spreads.SPREAD_FILE).unlink()
+
+    tab.revert_action.trigger()
+
+    assert listed(tab) == [(1, "Past")]
+    assert tab.pane.name_edit.text() == "Other"
+    assert tab.has_unsaved_changes()
+
+
+def test_a_slot_added_after_a_revert_takes_the_next_number(window, monkeypatch):
+    tab = saved_tab(window, "Past", "Future")
+    answer_warning(monkeypatch, Answer.Discard)
+    tab.add_next_slot()
+
+    tab.revert_action.trigger()
+
+    slot = tab.add_next_slot()
+    assert (slot.number, slot.position_id) == (3, "p3")
+    assert tab.has_unsaved_changes()
+
+
+def test_open_folder_opens_the_spread_folder(window, monkeypatch):
+    tab = saved_tab(window)
+    opened = []
+    monkeypatch.setattr(
+        "tarot_canvas.ui.tabs.spread_tab.QDesktopServices.openUrl",
+        lambda url: opened.append(url.toLocalFile()) or True,
+    )
+
+    tab.open_folder_action.trigger()
+
+    assert opened == [str(tab.spread_path)]
+
+
+def test_a_folder_that_will_not_open_says_so(window, monkeypatch):
+    tab = saved_tab(window)
+    shown = []
+    monkeypatch.setattr(
+        "tarot_canvas.ui.tabs.spread_tab.QDesktopServices.openUrl", lambda _url: False
+    )
+    monkeypatch.setattr(window.toast, "show_message", shown.append)
+
+    tab.open_folder_action.trigger()
+
+    assert shown == [SPREADS["open_folder_failed"]]

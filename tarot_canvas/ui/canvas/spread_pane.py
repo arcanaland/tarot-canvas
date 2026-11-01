@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLineEdit,
     QListView,
+    QMenu,
     QPlainTextEdit,
     QStackedWidget,
     QStyle,
@@ -35,8 +36,7 @@ from tarot_canvas.ui.widgets.reorder_list import GRIP_WIDTH, ReorderListView, pa
 
 MEANING_LINES = 6
 USAGE_LINES = 4
-# Room for "88"
-NUMBER_TEXT = "88"
+NUMBER_TEXT = "88"  # we should fit "88" at its widest
 
 NumberRole = Qt.ItemDataRole.UserRole + 1
 MeaningRole = Qt.ItemDataRole.UserRole + 2
@@ -51,9 +51,9 @@ def text_box(hint, lines):
 
 
 class PositionModel(QAbstractListModel):
-    """A spread's slots as rows, over the list the tab keeps them in"""
+    """A spread's slots as rows"""
 
-    # The numbering changed by a move
+    # The numbering via a move
     moved = pyqtSignal()
 
     def __init__(self, slots, parent=None):
@@ -311,10 +311,21 @@ class SpreadPane(SidePane):
 
         self.name_edit = heading_edit(SPREADS["name_hint"])
         self.name_edit.setAccessibleName(SPREADS["name_title"])
+        self.menu = QMenu(self)
+        self.menu_button = QToolButton()
+        self.menu_button.setIcon(QIcon.fromTheme("overflow-menu"))
+        self.menu_button.setToolTip(SPREADS["menu_tooltip"])
+        self.menu_button.setAccessibleName(SPREADS["menu_tooltip"])
+        self.menu_button.setAutoRaise(True)
+        self.menu_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.menu_button.setMenu(self.menu)
+
         heading = QHBoxLayout()
         margin = units.LARGE_SPACING
         heading.setContentsMargins(margin, margin, margin, margin)
-        heading.addWidget(self.name_edit)
+        heading.setSpacing(units.SMALL_SPACING)
+        heading.addWidget(self.name_edit, 1)
+        heading.addWidget(self.menu_button)
         self.body.addLayout(heading)
 
         self.list_view = self._build_list()

@@ -584,6 +584,12 @@ class MainWindow(QMainWindow):
             return None
         return self.add_canvas_tab(SpreadTab(spread, path))
 
+    def duplicate_spread(self, spread):
+        """A new tab holding spread, with no folder yet and asking to be saved"""
+        tab = SpreadTab(spread)
+        tab.mark_modified()
+        return self.add_canvas_tab(tab)
+
     def new_canvas_from_cards(self, cards, deck):
         canvas_tab = self.new_canvas_tab()
         canvas_tab.place_cards([(card, deck, False) for card in cards])
@@ -681,6 +687,9 @@ class MainWindow(QMainWindow):
         elif action == "open_deck_view":
             deck_path = data.get("deck_path")
             self.new_deck_view_tab(deck_path=deck_path)
+
+        elif action == "duplicate_spread":
+            self.duplicate_spread(data)
 
         elif action == "navigate":
             # Navigate to a specific tab by ID
