@@ -1,5 +1,6 @@
 import math
 import os
+import sys
 
 from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtGui import QAction, QFontMetricsF, QIcon, QPixmap
@@ -192,19 +193,20 @@ class DeckBar(QWidget):
 
 
 class CardBar(QToolBar):
-    """What to do with the card on screen, below it.
+    """What to do with the card on screen."""
 
-    Triggers only. The keys stay on the window and the tab; an action here with a
-    shortcut would bind its key twice, and Qt fires neither.
-    """
+    # The macOS style's toolbar size is 32
+    MAC_ICON_SIZE = QSize(16, 16)
 
-    def __init__(self, tab):
+    def __init__(self, tab, platform=sys.platform):
         super().__init__(tab)
         self.tab = tab
 
         self.setMovable(False)
         self.setFloatable(False)
         self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        if platform == "darwin":
+            self.setIconSize(self.MAC_ICON_SIZE)
 
         image_view = tab.image_view
         self.copy_action = self._add("edit-copy", "Copy", tab.copy_card)
