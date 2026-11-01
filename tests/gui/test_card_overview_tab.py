@@ -75,7 +75,6 @@ class FakeCardView(QWidget):
 
     def __init__(self, reference_deck):
         super().__init__()
-        self.id = "card_1"
         self.deck_manager = SimpleNamespace(get_reference_deck=lambda: reference_deck)
 
 
@@ -92,9 +91,7 @@ def test_a_broken_link_to_the_reference_deck_survives_a_rescan(qtbot):
 
     tab.on_deck_link_clicked("deck:None")
 
-    assert asked == [
-        ("open_deck_view", {"deck_path": reference.deck_path, "source_tab_id": "card_1"})
-    ]
+    assert asked == [("open_deck_view", {"deck_path": reference.deck_path})]
 
 
 class FakeDeck:

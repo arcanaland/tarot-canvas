@@ -1241,5 +1241,6 @@ def test_the_tab_numbers_use_cmd_on_macos(qtbot):
     window = make_shown_window(qtbot)
     window.add_tab_number_shortcuts(platform="darwin")
 
-    assert window.tab_number_actions[0].shortcut() == QKeySequence("Ctrl+1")
-    assert window.tab_number_actions[8].shortcut() == QKeySequence("Ctrl+9")
+    shortcuts = [action.shortcut() for action in window.actions()]
+    assert QKeySequence("Ctrl+1") in shortcuts
+    assert QKeySequence("Ctrl+9") in shortcuts

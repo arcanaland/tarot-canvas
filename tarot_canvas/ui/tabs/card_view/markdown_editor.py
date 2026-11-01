@@ -90,9 +90,6 @@ class MarkdownEditor(QPlainTextEdit):
         self.completer = None
         self.setup_completer()
 
-        # Track link detection
-        self.last_link_position = None
-
     def setup_completer(self):
         """Set up auto-completion for wiki links"""
         self.completer = QCompleter(self)

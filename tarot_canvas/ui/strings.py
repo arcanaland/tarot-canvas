@@ -293,13 +293,11 @@ DECK_VIEW = {
     "view_bar_name": "View",
     "find_card": "Find card…",
     "new_canvas_from_selection": "Create New Canvas From Selection",
-    "no_deck": "Open a deck to view its cards",
     "cover_size": "Cover size",
     "open_card": "&Open Card",
     "open_cards": "&Open Cards",
     "copy_card": "&Copy Card",
     "copy_cards": "&Copy Cards",
-    "tab_fallback": "Deck View",
     "major_arcana": "Major Arcana",
     "note": "Note: {reason}",
     # The header

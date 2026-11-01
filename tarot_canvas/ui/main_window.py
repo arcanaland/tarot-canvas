@@ -124,10 +124,6 @@ class MainWindow(QMainWindow):
         self.setObjectName("tarot-canvas")
         QApplication.setApplicationName("tarot-canvas")
 
-        # Try to force the window class name at a lower level
-        if hasattr(self.windowHandle(), "setWindowClass"):
-            self.windowHandle().setWindowClass("tarot-canvas", "tarot-canvas")
-
         self.setWindowTitle(MAIN_WINDOW["app_name"])
         self.setWindowIcon(QIcon(str(ICON_PATH)))
         self.setGeometry(100, 100, 950, 600)
@@ -172,7 +168,7 @@ class MainWindow(QMainWindow):
             "window.preferences",
             *(f"window.go_{where}" for where in GO_PLACES),
         }
-        self.window_actions = actions = commands.bind(
+        actions = commands.bind(
             self,
             Scope.WINDOW,
             {
@@ -627,7 +623,6 @@ class MainWindow(QMainWindow):
             # Extract the data
             card = data.get("card")
             deck = data.get("deck")
-            source_tab_id = data.get("source_tab_id")
 
             # Check if a tab for this card already exists
             for i in range(self.tab_widget.count()):
@@ -643,21 +638,12 @@ class MainWindow(QMainWindow):
                     return
 
             # Create a new card view tab
-            card_tab = CardViewTab(card=card, deck=deck, source_tab_id=source_tab_id)
+            card_tab = CardViewTab(card=card, deck=deck)
             self.add_card_tab(card_tab)
 
         elif action == "open_deck_view":
             deck_path = data.get("deck_path")
             self.new_deck_view_tab(deck_path=deck_path)
-
-        elif action == "navigate":
-            # Navigate to a specific tab by ID
-            tab_id = data
-            for i in range(self.tab_widget.count()):
-                tab = self.tab_widget.widget(i)
-                if hasattr(tab, "id") and tab.id == tab_id:
-                    self.tab_widget.setCurrentWidget(tab)
-                    break
 
     @staticmethod
     def _deck_path_key(deck_path):
@@ -748,13 +734,12 @@ class MainWindow(QMainWindow):
 
     def add_tab_number_shortcuts(self, platform=sys.platform):
         """Alt and a digit picks a tab, or Cmd on macOS"""
-        actions = commands.bind(
+        commands.bind(
             self,
             Scope.WINDOW,
             {f"window.tab_{n}": partial(self.select_tab_by_number, n) for n in range(1, 10)},
             platform=platform,
         )
-        self.tab_number_actions = list(actions.values())
 
     def select_tab_by_number(self, number):
         count = self.tab_widget.count()
@@ -795,9 +780,6 @@ class MainWindow(QMainWindow):
             # Open the deck
             logger.info(f"Selected deck directory: {deck_dir}")
             self.new_deck_view_tab(deck_path=deck_dir)
-
-    def new_reading(self):
-        self.new_canvas_tab()
 
     def show_preferences(self):
         """Show the preferences dialog"""
@@ -1016,7 +998,7 @@ class MainWindow(QMainWindow):
     def on_explorer_card_selected(self, action, card, deck):
         """Handle card selection from explorer panel (original handler)"""
         # Skip handling if it's a different action than viewing
-        if action != "view_card" and action != "use_card":
+        if action != "view_card":
             return
 
         # Check if we already have a tab open for this card
@@ -1053,18 +1035,6 @@ class MainWindow(QMainWindow):
                 # For any other tab type, open a card view
                 self.open_card_view_tab(card, deck)
                 logger.debug(f"Opening card view for: {card['name']}")
-        elif action == "use_card":
-            # Check if the current tab is a canvas tab
-            if hasattr(current_tab, "id") and "canvas_" in current_tab.id:
-                # If it's a canvas tab, add the card to it
-                if hasattr(current_tab, "add_specific_card"):
-                    current_tab.add_specific_card(card, deck)
-            else:
-                # Default to opening a card view for non-canvas tabs
-                self.on_explorer_card_selected("view_card", card, deck)
-        elif action == "view_card":
-            # Always open the card view for this action
-            self.on_explorer_card_selected(action, card, deck)
 
     def open_card_view_tab(self, card, deck, show_notes=False):
         """Open a tab to view a specific card, or raise the one already open, and return it"""
@@ -1181,7 +1151,4 @@ class MainWindow(QMainWindow):
             current_tab.add_specific_card(card, deck)
         else:
             # Otherwise, open card view tab
-            self.handle_tab_navigation(
-                "open_card_view",
-                {"card": card, "deck": deck, "source_tab_id": getattr(current_tab, "id", None)},
-            )
+            self.handle_tab_navigation("open_card_view", {"card": card, "deck": deck})

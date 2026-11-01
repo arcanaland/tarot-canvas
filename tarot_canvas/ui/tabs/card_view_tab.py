@@ -43,14 +43,13 @@ class CardViewTab(BaseTab):
     # Smallest the image pane may become.
     MIN_IMAGE_PANE_WIDTH = 120
 
-    def __init__(self, card=None, deck=None, source_tab_id=None, parent=None, show_notes=False):
+    def __init__(self, card=None, deck=None, parent=None, show_notes=False):
         super().__init__(parent)
         # The library's notes list opens a card to read what is written on it
         self._show_notes = show_notes
         self.card = card
         self.deck = deck or deck_manager.get_reference_deck()
         self.deck_manager = deck_manager
-        self.source_tab_id = source_tab_id
         self.id = f"card_{id(self)}"
         # How wide to bring the info pane back when it is toggled open
         self._info_pane_width = 0
@@ -392,11 +391,6 @@ class CardViewTab(BaseTab):
 
     def tab_icon(self):
         return ColorDot(card_colour(self.card)) if self.card else QIcon()
-
-    def navigate_back(self):
-        """Navigate back to the source tab"""
-        if self.source_tab_id:
-            self.navigation_requested.emit("navigate", self.source_tab_id)
 
     def show_card(self, card, deck=None):
         """Put card on screen in this tab from deck or the one already showing"""
