@@ -3,6 +3,7 @@ import os
 import sys
 from functools import partial
 from importlib.resources import files
+from pathlib import Path
 
 from PyQt6.QtCore import QEvent, QObject, Qt, QUrl, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import (
@@ -29,6 +30,7 @@ from PyQt6.QtWidgets import (
 )
 
 from tarot_canvas.about import load_about_data
+from tarot_canvas.models import spreads
 from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.settings import (
     EXPLORER_VISIBLE_DEFAULT,
@@ -44,12 +46,13 @@ from tarot_canvas.ui.commands import Scope, set_tooltip_with_keys
 from tarot_canvas.ui.components.card_explorer import CardExplorerPanel
 from tarot_canvas.ui.library.catalog_client import deck_catalog
 from tarot_canvas.ui.library.deck_downloads import deck_downloads
-from tarot_canvas.ui.strings import COMMANDS, DOWNLOAD, LIBRARY, MAIN_WINDOW
+from tarot_canvas.ui.strings import COMMANDS, DOWNLOAD, LIBRARY, MAIN_WINDOW, SPREADS
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tarot_canvas.ui.tabs.deck_view_tab import DeckViewTab
 from tarot_canvas.ui.tabs.library_tab import LibraryTab
+from tarot_canvas.ui.tabs.spread_tab import SpreadTab
 from tarot_canvas.ui.widgets.document_tabs import DocumentTabs
 from tarot_canvas.ui.widgets.placeholder_message import tinted_icon
 from tarot_canvas.ui.widgets.toast import Toast
@@ -159,6 +162,7 @@ class MainWindow(QMainWindow):
 
         detached = {
             "window.new_canvas",
+            "window.new_spread",
             "window.new_library",
             "window.new_card_view",
             "window.open_deck",
@@ -173,9 +177,11 @@ class MainWindow(QMainWindow):
             Scope.WINDOW,
             {
                 "window.new_canvas": self.new_canvas_tab,
+                "window.new_spread": self.new_spread_tab,
                 "window.new_library": self.new_library_tab,
                 "window.new_card_view": self.new_card_view_tab,
                 "window.open_deck": self.open_deck,
+                "window.save": self.save_current_tab,
                 "window.close_tab": self.close_current_tab,
                 "window.quit": self.close,
                 "window.cut": partial(self.edit, "cut"),
@@ -203,13 +209,21 @@ class MainWindow(QMainWindow):
         file_menu = menu_bar.addMenu(MAIN_WINDOW["menu_file"])
 
         self.new_canvas_action = actions["window.new_canvas"]
+        self.new_spread_action = actions["window.new_spread"]
         self.new_library_action = actions["window.new_library"]
         self.new_card_view_action = actions["window.new_card_view"]
         file_menu.addActions(
-            [self.new_canvas_action, self.new_library_action, self.new_card_view_action]
+            [
+                self.new_canvas_action,
+                self.new_library_action,
+                self.new_card_view_action,
+                self.new_spread_action,
+            ]
         )
         file_menu.addSeparator()
         file_menu.addAction(actions["window.open_deck"])
+        self.save_action = actions["window.save"]
+        file_menu.addAction(self.save_action)
         file_menu.addSeparator()
         file_menu.addAction(actions["window.close_tab"])
         file_menu.addSeparator()
@@ -421,6 +435,7 @@ class MainWindow(QMainWindow):
         new_tab_menu.addAction(self.new_canvas_action)
         new_tab_menu.addAction(self.new_library_action)
         new_tab_menu.addAction(self.new_card_view_action)
+        new_tab_menu.addAction(self.new_spread_action)
         new_tab_button.setMenu(new_tab_menu)
 
         # Create search button and put it in the tab corner
@@ -540,10 +555,36 @@ class MainWindow(QMainWindow):
 
     def add_canvas_tab(self, canvas_tab):
         canvas_tab.navigation_requested.connect(self.handle_tab_navigation)
+        canvas_tab.tab_label_changed.connect(self.update_save_action)
         self.close_welcome_tab()
         self.tab_widget.addTab(canvas_tab, canvas_tab.tab_title())
         self.tab_widget.setCurrentWidget(canvas_tab)
         return canvas_tab
+
+    def new_spread_tab(self):
+        return self.add_canvas_tab(SpreadTab())
+
+    def open_spread(self, path):
+        """Raise the tab holding the spread in folder path, or open one, and return it"""
+        path = Path(path)
+        for index in range(self.tab_widget.count()):
+            tab = self.tab_widget.widget(index)
+            if isinstance(tab, SpreadTab) and tab.spread_path == path:
+                self.tab_widget.setCurrentWidget(tab)
+                return tab
+        try:
+            spread = spreads.load(path)
+        except (OSError, ValueError) as error:
+            logger.error(f"Could not open spread {path}: {error}")
+            self.toast.show_message(SPREADS["open_failed"])
+            return None
+        return self.add_canvas_tab(SpreadTab(spread, path))
+
+    def duplicate_spread(self, spread):
+        """A new tab holding spread, with no folder yet and asking to be saved"""
+        tab = SpreadTab(spread)
+        tab.mark_modified()
+        return self.add_canvas_tab(tab)
 
     def new_canvas_from_cards(self, cards, deck):
         canvas_tab = self.new_canvas_tab()
@@ -642,6 +683,9 @@ class MainWindow(QMainWindow):
             deck_path = data.get("deck_path")
             self.new_deck_view_tab(deck_path=deck_path)
 
+        elif action == "duplicate_spread":
+            self.duplicate_spread(data)
+
     @staticmethod
     def _deck_path_key(deck_path):
         """Normalized form of a deck path, for comparing tabs."""
@@ -719,6 +763,8 @@ class MainWindow(QMainWindow):
     def close_tab(self, index):
         # removeTab neither deletes the page nor tells it it has gone
         tab = self.tab_widget.widget(index)
+        if not self.confirm_close(tab):
+            return
         if isinstance(tab, BaseTab):
             tab.about_to_close()
 
@@ -747,6 +793,33 @@ class MainWindow(QMainWindow):
     def close_current_tab(self):
         current_index = self.tab_widget.currentIndex()
         self.close_tab(current_index)
+
+    def confirm_close(self, tab):
+        """Ask about any unsaved work in tab, and return whether it may close"""
+        if not isinstance(tab, BaseTab) or not tab.has_unsaved_changes():
+            return True
+        self.tab_widget.setCurrentWidget(tab)
+        Button = QMessageBox.StandardButton
+        answer = QMessageBox.warning(
+            self,
+            SPREADS["close_unsaved_title"],
+            SPREADS["close_unsaved_text"].format(name=tab.display_name()),
+            Button.Save | Button.Discard | Button.Cancel,
+            Button.Save,
+        )
+        if answer == Button.Save:
+            return tab.save()
+        return answer == Button.Discard
+
+    def save_current_tab(self):
+        tab = self.current_base_tab()
+        if tab is not None and tab.can_save():
+            tab.save()
+
+    @pyqtSlot()
+    def update_save_action(self):
+        tab = self.current_base_tab()
+        self.save_action.setEnabled(tab is not None and tab.can_save())
 
     def open_deck(self):
         """Open a deck by selecting the directory containing deck.toml"""
@@ -823,6 +896,7 @@ class MainWindow(QMainWindow):
         self.update_edit_actions()
         self.update_fullscreen_action()
         self.update_zoom_actions()
+        self.update_save_action()
 
     # A real slot, so Qt drops the app-wide connection when the window is deleted
     @pyqtSlot()
@@ -960,6 +1034,10 @@ class MainWindow(QMainWindow):
         tab.on_fullscreen_changed()
 
     def closeEvent(self, event):
+        for index in range(self.tab_widget.count()):
+            if not self.confirm_close(self.tab_widget.widget(index)):
+                event.ignore()
+                return
         # Remember the window as it was before any tab took it over
         if self.fullscreen_tab is not None:
             self.exit_tab_fullscreen()
