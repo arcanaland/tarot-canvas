@@ -77,7 +77,13 @@ from tarot_canvas.ui.canvas.tab_icon import (
     spread_icon,
 )
 from tarot_canvas.ui.canvas.view import MAX_ZOOM, MIN_ZOOM
-from tarot_canvas.ui.card_transfer import cards_from_mime, copy_card_to_clipboard, has_card
+from tarot_canvas.ui.canvas_text import CANVAS_TEXT
+from tarot_canvas.ui.card_transfer import (
+    cards_from_mime,
+    copy_card_to_clipboard,
+    deck_path_key,
+    has_card,
+)
 from tarot_canvas.ui.commands import Scope, set_tooltip_with_keys
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.utils.logger import logger
@@ -142,6 +148,7 @@ class CanvasTab(BaseTab):
         self.view = PannableGraphicsView(self.scene)
         self.view.card_dropped.connect(self.on_card_dropped)
         self.view.background_double_clicked.connect(self.on_draw_card)
+        self.view.context_menu_requested.connect(self.on_context_menu_requested)
         self.view.zoom_changed.connect(self._on_zoom_changed)
 
         # Sharpen the cards on screen once the camera settles
@@ -407,6 +414,7 @@ class CanvasTab(BaseTab):
             {
                 "canvas.summon": self.on_draw_card,
                 "canvas.flip": self.on_flip_card,
+                "canvas.rotate": self.on_rotate_card,
                 "canvas.delete": self.on_delete_card,
                 "canvas.bring_to_front": self.on_bring_to_front,
                 "canvas.send_to_back": self.on_send_to_back,
@@ -464,6 +472,7 @@ class CanvasTab(BaseTab):
         for command_id, tooltip, keys in (
             ("canvas.summon", "Summon a random card", "canvas.summon"),
             ("canvas.flip", "Flip card", "canvas.flip"),
+            ("canvas.rotate", CANVAS_TEXT["rotate_tooltip"], "canvas.rotate"),
             ("canvas.delete", "Remove selected card", "window.delete"),
         ):
             action = self.commands[command_id]
@@ -701,27 +710,31 @@ class CanvasTab(BaseTab):
     def on_card_dropped(self, mime, scene_pos):
         self.place_card(mime, at=scene_pos)
 
-    def add_specific_card(self, card, card_deck=None, is_reversed=False, at=None):
-        """Add a specific card to the canvas, optionally reversed"""
-        # Load the card image
+    def make_card_item(self, card, deck, reversed):
+        """An item for card, not yet on the canvas, or None if its art won't load."""
         image_path = card.get("image")
         if not image_path or not os.path.exists(image_path):
             print(f"Card image not found: {image_path}")
-            return
+            return None
 
+        # The card is placed at a fitted size; sharper levels load as the view needs them
+        art = load_card_art(image_path)
+        if art is None:
+            print(f"Failed to load image: {image_path}")
+            return None
+        pixmap, source_size = art
+
+        card_item = DraggableCardItem(pixmap, card, self, deck=deck, reversed=reversed)
+        card_item.set_art_source(image_path, source_size)
+        return card_item
+
+    def add_specific_card(self, card, card_deck=None, is_reversed=False, at=None):
+        """Add a specific card to the canvas, optionally reversed"""
         try:
-            # The card is placed at a fitted size; sharper levels load as the view needs them
-            art = load_card_art(image_path)
-            if art is None:
-                print(f"Failed to load image: {image_path}")
-                return
-            pixmap, source_size = art
-
-            # Create a draggable card item
-            card_item = DraggableCardItem(
-                pixmap, card, self, deck=card_deck or self.deck, reversed=is_reversed
-            )
-            card_item.set_art_source(image_path, source_size)
+            card_item = self.make_card_item(card, card_deck or self.deck, is_reversed)
+            if card_item is None:
+                return None
+            pixmap = card_item.pixmap()
 
             card_item.setZValue(self.take_top_z())
 
@@ -764,6 +777,75 @@ class CanvasTab(BaseTab):
         self.navigation_requested.emit(
             "open_card_view", {"card": item.card_data, "deck": item.deck, "source_tab_id": self.id}
         )
+
+    # -- context menu ------------------------------------------------------
+
+    def card_at(self, scene_pos):
+        """The topmost card at scene_pos, if any."""
+        for item in self.scene.items(scene_pos):
+            if isinstance(item, DraggableCardItem):
+                return item
+        return None
+
+    def card_menu(self, scene_pos):
+        """The menu for the card at scene_pos, or None. It selects the card if it wasn't."""
+        item = self.card_at(scene_pos)
+        if item is None:
+            return None
+        if not item.isSelected():
+            self.scene.clearSelection()
+            item.setSelected(True)
+
+        menu = QMenu(self)
+        open_action = menu.addAction(QIcon.fromTheme("document-open"), CANVAS_TEXT["open_card"])
+        open_action.triggered.connect(lambda: self.open_card_view(item))
+        menu.addSeparator()
+        menu.addAction(self.commands["canvas.flip"])
+        menu.addAction(self.commands["canvas.rotate"])
+        if len(self.selected_cards()) == 1:
+            self._add_swap_menu(menu, item)
+        menu.addSeparator()
+        menu.addAction(self.commands["canvas.delete"])
+        return menu
+
+    def _add_swap_menu(self, menu, item):
+        swap_menu = menu.addMenu(CANVAS_TEXT["swap_deck"])
+        current = deck_path_key(item.deck.deck_path) if item.deck else None
+        card_id = item.card_data.get("id")
+        others = 0
+        for deck, card in deck_manager.decks_containing(card_id) if card_id else []:
+            action = swap_menu.addAction(deck.get_name())
+            if deck_path_key(deck.deck_path) == current:
+                action.setCheckable(True)
+                action.setChecked(True)
+                action.setEnabled(False)
+            else:
+                others += 1
+                action.triggered.connect(
+                    lambda _checked=False, deck=deck, card=card: self.swap_card(item, deck, card)
+                )
+        swap_menu.setEnabled(others > 0)
+
+    def on_context_menu_requested(self, scene_pos, global_pos):
+        pressed = self.scene.mouseGrabberItem()
+        if isinstance(pressed, DraggableCardItem):
+            pressed.abandon_press()
+        menu = self.card_menu(scene_pos)
+        if menu is not None:
+            menu.exec(global_pos)
+            menu.deleteLater()
+
+    def swap_card(self, item, deck, card):
+        """Replace item with deck's art for card, in the same place and the same turn."""
+        replacement = self.make_card_item(card, deck, item.is_reversed())
+        if replacement is None:
+            return None
+        replacement.take_place_of(item)
+        self.scene.removeItem(item)
+        self.scene.addItem(replacement)
+        replacement.setSelected(True)
+        replacement.marks.settle()
+        return replacement
 
     # -- zoom --------------------------------------------------------------
 

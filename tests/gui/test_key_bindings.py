@@ -91,6 +91,7 @@ def test_every_key_is_bound_as_it_was(qtbot):
         ("canvas", "F", WC, "CanvasTab"),
         ("canvas", "R", W, "CanvasTab"),
         ("canvas", "Shift+F", W, "CanvasTab"),
+        ("canvas", "Shift+R", W, "CanvasTab"),
         ("card", "Ctrl+I", WC, "CardViewTab"),
         ("card", "Esc", WC, "CardViewTab"),
         ("card_image", "Backspace", WC, "ZoomableImageView"),

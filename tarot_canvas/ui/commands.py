@@ -144,6 +144,7 @@ COMMANDS = (
     # Canvas
     _command("canvas.summon", T["summon_card"], "document-new", ["D"], CV),
     _command("canvas.flip", T["flip_card"], "object-flip-vertical", ["R"], CV),
+    _command("canvas.rotate", T["rotate_card"], "object-rotate-right", ["Shift+R"], CV),
     _command("canvas.delete", T["delete_card"], "edit-delete", ["Backspace"], CV),
     _command("canvas.bring_to_front", T["bring_to_front"], "go-top", ["Ctrl+]"], CV),
     _command("canvas.send_to_back", T["send_to_back"], "go-bottom", ["Ctrl+["], CV),

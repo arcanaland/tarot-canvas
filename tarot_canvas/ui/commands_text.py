@@ -34,6 +34,7 @@ COMMANDS_TEXT = {
     # Canvas
     "summon_card": "Summon Card",
     "flip_card": "Flip Card (Reversed)",
+    "rotate_card": "Rotate Card",
     "delete_card": "Delete Card",
     "bring_to_front": "Bring to Front",
     "send_to_back": "Send to Back",
