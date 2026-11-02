@@ -41,7 +41,7 @@ def _matches(spread, search):
 
 
 class SpreadsListModel(QAbstractListModel):
-    """Every spread on disk, newest first"""
+    """Every spread on disk"""
 
     def __init__(self, scanned=(), parent=None):
         super().__init__(parent)
@@ -68,6 +68,7 @@ class SpreadsListModel(QAbstractListModel):
         search = (search or "").strip()
         if search == self._search:
             return
+
         self.beginResetModel()
         self._search = search
         self._rebuild()

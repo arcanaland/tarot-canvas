@@ -411,7 +411,7 @@ SPREADS = {
     "menu_tooltip": "Spread options",
     "duplicate": "Duplicate Spread",
     "revert": "Revert to Saved",
-    "open_folder": "Open Spread Folder",
+    "open_folder": "Open in File Explorer",
     "revert_title": "Revert Spread",
     "revert_text": 'Discard your changes to "{name}" and revert back to the saved version?',
     # A slot's menu

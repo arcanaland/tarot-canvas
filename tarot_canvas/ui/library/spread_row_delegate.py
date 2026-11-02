@@ -4,7 +4,7 @@ from tarot_canvas.ui.library.note_row_delegate import NoteRowDelegate
 
 
 class SpreadRowDelegate(NoteRowDelegate):
-    """A note's row, with the spread's shape where a note has its card"""
+    """A row in the spread library"""
 
     WELL_ASPECT = 1.0
 
