@@ -6,14 +6,17 @@ from PyQt6.QtWidgets import QMenu, QMessageBox, QSplitter
 
 from tarot_canvas.models import spreads
 from tarot_canvas.models.spread_events import spread_events
-from tarot_canvas.models.spreads import Position, Spread, next_position_id
+from tarot_canvas.models.spreads import (
+    Position,
+    Spread,
+    next_position_id,
+    offsets_from_middle,
+)
 from tarot_canvas.ui.canvas.detail import card_unit_size
 from tarot_canvas.ui.canvas.spread_pane import PositionModel, SpreadPane
 from tarot_canvas.ui.strings import CANVAS, COMMANDS, SPREADS
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.utils.logger import logger
-
-PLACES = 3
 
 
 class SpreadTab(CanvasTab):
@@ -73,6 +76,7 @@ class SpreadTab(CanvasTab):
     def command_handlers(self):
         handlers = super().command_handlers()
         del handlers["canvas.flip"]
+        del handlers["canvas.save_layout_as_spread"]
         return handlers
 
     def _menu_action(self, text, icon, slot):
@@ -219,24 +223,20 @@ class SpreadTab(CanvasTab):
         """What we need to serialize"""
         unit = card_unit_size().width()
         centres = [slot.pos() + slot.boundingRect().center() for slot in self._slots]
-        middle = QPointF()
-
-        if centres:
-            xs, ys = [c.x() for c in centres], [c.y() for c in centres]
-            middle = QPointF((min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2)
+        offsets = offsets_from_middle([(c.x(), c.y()) for c in centres], unit)
 
         positions = tuple(
             Position(
                 id=slot.position_id,
                 label=slot.label,
                 meaning=slot.meaning,
-                x=round((centre.x() - middle.x()) / unit, PLACES),
-                y=round((centre.y() - middle.y()) / unit, PLACES),
+                x=x,
+                y=y,
                 rotation=slot.orient % 360,
                 z=slot.zValue(),
                 extra=self._position_extra.get(slot.position_id, {}),
             )
-            for slot, centre in zip(self._slots, centres, strict=True)
+            for slot, (x, y) in zip(self._slots, offsets, strict=True)
         )
 
         return Spread(
@@ -305,7 +305,7 @@ class SpreadTab(CanvasTab):
 
     @pyqtSlot()
     def duplicate(self):
-        self.navigation_requested.emit("duplicate_spread", self.current_spread())
+        self.navigation_requested.emit("open_unsaved_spread", self.current_spread())
 
     @pyqtSlot()
     def revert(self):

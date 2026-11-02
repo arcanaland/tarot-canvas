@@ -35,6 +35,7 @@ from tarot_canvas.settings import (
     LIBRARY_VIEW_ESOTERICA,
     LIBRARY_VIEW_KEY,
     LIBRARY_VIEW_NOTES,
+    LIBRARY_VIEW_SPREADS,
     LIBRARY_VIEWS,
     get_settings,
     record_deck_opened,
@@ -61,7 +62,8 @@ from tarot_canvas.ui.library.deck_model import (
 from tarot_canvas.ui.library.deselect import deselect_on_empty_click_or_escape
 from tarot_canvas.ui.library.esoterica_page import EsotericaPage
 from tarot_canvas.ui.library.notes_page import NotesPage
-from tarot_canvas.ui.strings import LIBRARY, label_for, notes_text
+from tarot_canvas.ui.library.spreads_page import SpreadsPage
+from tarot_canvas.ui.strings import LIBRARY, SPREADS, label_for, notes_text
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.ui.widgets.placeholder_message import tinted_icon
 from tarot_canvas.ui.widgets.places_sidebar import PlacesSidebar
@@ -142,10 +144,16 @@ class LibraryTab(BaseTab):
         self.esoterica_page.details_changed.connect(self._sync_details_toggle)
         self.esoterica_page.details_requested.connect(self._open_esoterica_details)
 
+        self.spreads_page = SpreadsPage()
+        self.spreads_page.spread_activated.connect(self.on_spread_activated)
+        self.spreads_page.delete_requested.connect(self.on_spread_delete_requested)
+        self.spreads_page.details_changed.connect(self._on_spread_details_changed)
+
         # Every view but the deck grid is a list, with its pane below it
         self.list_pages = {
             LIBRARY_VIEW_NOTES: self.notes_page,
             LIBRARY_VIEW_ESOTERICA: self.esoterica_page,
+            LIBRARY_VIEW_SPREADS: self.spreads_page,
         }
 
         # One page per sidebar row, in LIBRARY_VIEWS order
@@ -253,6 +261,7 @@ class LibraryTab(BaseTab):
                 label_for("library.view_name"),
                 LIBRARY_VIEW_ESOTERICA,
             ),
+            (QIcon.fromTheme("view-grid"), SPREADS["view_name"], LIBRARY_VIEW_SPREADS),
         ]
 
     def _build_sidebar(self):
@@ -450,6 +459,30 @@ class LibraryTab(BaseTab):
         card_tab = self.on_card_activated(card_id)
         if card_tab is not None:
             card_tab.open_note(path)
+
+    def on_spread_activated(self, path):
+        main_window = self.window()
+        if hasattr(main_window, "open_spread"):
+            main_window.open_spread(path)
+
+    def on_spread_delete_requested(self, path):
+        """Delete a spread once any tab holding it has closed, which may ask the user"""
+        main_window = self.window()
+        if hasattr(main_window, "close_spread"):
+            if not main_window.close_spread(path):
+                return
+            # Where the Undo is
+            main_window.tab_widget.setCurrentWidget(self)
+        self.spreads_page.delete(path)
+
+    def _on_spread_details_changed(self):
+        if self.current_details_pane().details() is None:
+            self._set_details_open(False)
+        self._sync_details_toggle()
+
+    def about_to_close(self):
+        # Its Undo goes with the tab
+        self.spreads_page.commit_pending_delete()
 
     def on_sort_changed(self):
         key = self.sort_combo.currentData()

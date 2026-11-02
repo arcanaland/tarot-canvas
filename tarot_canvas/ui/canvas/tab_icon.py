@@ -16,6 +16,7 @@ from PyQt6.QtGui import (
 )
 
 from tarot_canvas.ui.canvas.ground import GRADIENT_STOPS
+from tarot_canvas.ui.card_colours import SLOT_COLOUR
 
 # Unit-square coordinates: x, y is the mark's centre
 Mark = namedtuple("Mark", "x y w h angle colour z")
@@ -64,6 +65,23 @@ def card_marks(cards):
             )
         )
     return tuple(raw)
+
+
+def spread_marks(spread, unit):
+    """As card_marks, for a spread's positions, in card widths. unit is the slot's QSize"""
+    height = unit.height() / unit.width()
+    return tuple(
+        (
+            position.x - 0.5,
+            position.y - height / 2,
+            1.0,
+            height,
+            position.rotation,
+            SLOT_COLOUR,
+            position.z,
+        )
+        for position in spread.positions
+    )
 
 
 def layout_marks(raw, max_fill=1.0):

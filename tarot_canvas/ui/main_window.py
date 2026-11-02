@@ -567,11 +567,10 @@ class MainWindow(QMainWindow):
     def open_spread(self, path):
         """Raise the tab holding the spread in folder path, or open one, and return it"""
         path = Path(path)
-        for index in range(self.tab_widget.count()):
-            tab = self.tab_widget.widget(index)
-            if isinstance(tab, SpreadTab) and tab.spread_path == path:
-                self.tab_widget.setCurrentWidget(tab)
-                return tab
+        tab = self.spread_tab_holding(path)
+        if tab is not None:
+            self.tab_widget.setCurrentWidget(tab)
+            return tab
         try:
             spread = spreads.load(path)
         except (OSError, ValueError) as error:
@@ -580,7 +579,19 @@ class MainWindow(QMainWindow):
             return None
         return self.add_canvas_tab(SpreadTab(spread, path))
 
-    def duplicate_spread(self, spread):
+    def spread_tab_holding(self, path):
+        for index in range(self.tab_widget.count()):
+            tab = self.tab_widget.widget(index)
+            if isinstance(tab, SpreadTab) and tab.spread_path == path:
+                return tab
+        return None
+
+    def close_spread(self, path):
+        """Close the tab holding the spread in folder path, and return whether none is left"""
+        tab = self.spread_tab_holding(Path(path))
+        return tab is None or self.close_tab(self.tab_widget.indexOf(tab))
+
+    def open_unsaved_spread(self, spread):
         """A new tab holding spread, with no folder yet and asking to be saved"""
         tab = SpreadTab(spread)
         tab.mark_modified()
@@ -683,8 +694,8 @@ class MainWindow(QMainWindow):
             deck_path = data.get("deck_path")
             self.new_deck_view_tab(deck_path=deck_path)
 
-        elif action == "duplicate_spread":
-            self.duplicate_spread(data)
+        elif action == "open_unsaved_spread":
+            self.open_unsaved_spread(data)
 
     @staticmethod
     def _deck_path_key(deck_path):
@@ -764,7 +775,7 @@ class MainWindow(QMainWindow):
         # removeTab neither deletes the page nor tells it it has gone
         tab = self.tab_widget.widget(index)
         if not self.confirm_close(tab):
-            return
+            return False
         if isinstance(tab, BaseTab):
             tab.about_to_close()
 
@@ -774,6 +785,7 @@ class MainWindow(QMainWindow):
             # If it's the last tab, replace it with welcome
             self.tab_widget.removeTab(index)
             self.add_welcome_tab()
+        return True
 
     def add_tab_number_shortcuts(self, platform=sys.platform):
         """Alt and a digit picks a tab, or Cmd on macOS"""

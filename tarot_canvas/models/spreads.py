@@ -8,6 +8,7 @@ from pathlib import Path
 
 import tomli_w
 
+from tarot_canvas.models.staged_delete import is_staged
 from tarot_canvas.utils.logger import logger
 from tarot_canvas.utils.path_helper import get_data_directory
 
@@ -62,6 +63,18 @@ def new_spread_dir(base=None):
 def next_position_id(positions):
     numbers = [int(match[1]) for id in positions if (match := _POSITION_ID.fullmatch(id))]
     return f"p{max(numbers, default=0) + 1}"
+
+
+def offsets_from_middle(centres, unit, places=3):
+    """(x, y) of each centre, in units, from the middle of the centres' bounding box"""
+    if not centres:
+        return []
+    xs, ys = zip(*centres, strict=True)
+    middle_x, middle_y = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
+    return [
+        (round((x - middle_x) / unit, places), round((y - middle_y) / unit, places))
+        for x, y in centres
+    ]
 
 
 def _position(table):
@@ -141,7 +154,9 @@ def scan(base=None):
     """(folder, Spread) for each readable spread (oldest first)"""
     base = Path(base) if base is not None else spreads_base()
     try:
-        folders = sorted(entry for entry in base.iterdir() if entry.is_dir())
+        folders = sorted(
+            entry for entry in base.iterdir() if entry.is_dir() and not is_staged(entry)
+        )
     except OSError:
         return []
 

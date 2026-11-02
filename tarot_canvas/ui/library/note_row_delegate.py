@@ -28,6 +28,8 @@ class NoteRowLayout:
 
 
 class NoteRowDelegate(QStyledItemDelegate):
+    WELL_ASPECT = THUMBNAIL_ASPECT
+
     # the row, and where on screen its menu should open
     menuRequested = pyqtSignal(QModelIndex, QPoint)
 
@@ -62,7 +64,7 @@ class NoteRowDelegate(QStyledItemDelegate):
         text_height = title_height + 2 * small_height
 
         top = option.rect.top() + units.LARGE_SPACING
-        well_width = max(1, round(text_height * THUMBNAIL_ASPECT)) if self._thumbnail else 0
+        well_width = max(1, round(text_height * self.WELL_ASPECT)) if self._thumbnail else 0
         well = QRect(option.rect.left() + units.LARGE_SPACING, top, well_width, text_height)
 
         left = well.left() + (well_width + units.LARGE_SPACING if self._thumbnail else 0)
@@ -98,7 +100,7 @@ class NoteRowDelegate(QStyledItemDelegate):
 
         layout = self._layout(option)
         if self._thumbnail:
-            self._paint_thumbnail(painter, layout.well, palette, index.data(CoverPathRole))
+            self._paint_well(painter, layout.well, palette, index)
 
         title_font, small_font = self._fonts(option, selected)
         title_colour = palette.highlightedText().color() if selected else palette.text().color()
@@ -179,6 +181,9 @@ class NoteRowDelegate(QStyledItemDelegate):
         title = self._layout(option).title
         height = max(title.height(), editor.sizeHint().height())
         editor.setGeometry(title.left(), title.center().y() - height // 2, title.width(), height)
+
+    def _paint_well(self, painter, well, palette, index):
+        self._paint_thumbnail(painter, well, palette, index.data(CoverPathRole))
 
     def _paint_thumbnail(self, painter, well, palette, path):
         pixmap = None

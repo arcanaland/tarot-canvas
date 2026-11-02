@@ -36,7 +36,6 @@ from tarot_canvas.ui.strings import CARD_VIEW, label_for
 from tarot_canvas.ui.tabs.card_view.fold import Fold
 from tarot_canvas.ui.tabs.card_view.ghost_passages import GhostPassages
 from tarot_canvas.ui.tabs.card_view.passage_metrics import (
-    BODY_LINE_HEIGHT,
     FOLD_INDENT,
     HEADER_TO_ROWS,
     HEADING_TO_BODY,
@@ -47,7 +46,9 @@ from tarot_canvas.ui.tabs.card_view.passage_metrics import (
     SIDE_MARGIN,
     TITLE_TO_AUTHOR,
     TOP_MARGIN,
+    body_html,
     column_width,
+    line_height_css,
 )
 from tarot_canvas.ui.widgets.contextual_help import ContextualHelpButton
 from tarot_canvas.ui.widgets.placeholder_message import (
@@ -82,23 +83,6 @@ def esoterica_faq_url():
 
 def _with_faq_link(text):
     return text.replace("{faq}", esoterica_faq_url()) if "{faq}" in text else text
-
-
-def _line_height():
-    return f"line-height: {round(BODY_LINE_HEIGHT * 100)}%"
-
-
-def _body_html(text):
-    """A passage's text as rich text: paragraphs at blank lines, line breaks at newlines.
-
-    Escaped first: this is a file the user dropped in a directory.
-    """
-    return "".join(
-        f'<p style="margin: {PARAGRAPH_GAP if i else 0}px 0 0 0; {_line_height()}">'
-        + paragraph.replace("\n", "<br>")
-        + "</p>"
-        for i, paragraph in enumerate(html.escape(text).split("\n\n"))
-    )
 
 
 def _show_menu_icon():
@@ -139,7 +123,7 @@ def _row_label(text, text_format):
 
 def prose_row(value):
     """Paragraphs of the source's prose"""
-    return _row_label(_body_html(_spelled(value)), Qt.TextFormat.RichText)
+    return _row_label(body_html(_spelled(value)), Qt.TextFormat.RichText)
 
 
 def printed_heading(text):
@@ -183,7 +167,7 @@ def list_row(value):
     """Each string a bullet, such as a source's questions"""
     items = value if isinstance(value, tuple) else (value,)
     bullets = "".join(
-        f'<li style="margin-top: {LIST_ITEM_GAP if i else 0}px; {_line_height()}">'
+        f'<li style="margin-top: {LIST_ITEM_GAP if i else 0}px; {line_height_css()}">'
         f"{html.escape(_spelled(item))}</li>"
         for i, item in enumerate(items)
     )

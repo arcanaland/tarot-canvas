@@ -45,6 +45,7 @@ COMMANDS = {
     "bring_to_front": "Bring to Front",
     "send_to_back": "Send to Back",
     "align_cards": "Align Cards",
+    "save_layout_as_spread": "Save Layout as Spread",
     "fit_all": "Fit All in View",
     "fullscreen_canvas": "Fullscreen Canvas",
     "cancel_selection": "Cancel Selection",
@@ -429,6 +430,21 @@ SPREADS = {
     "save_failed": "Failed to save spread",
     "open_failed": "Cannot open spread",
     "open_folder_failed": "Cannot open folder",
+    "delete_failed": "Cannot delete spread",
+    "restore_failed": "Cannot restore spread",
+    # The canvas's toolbar
+    "save_layout_tooltip": "Save this layout as a new spread",
+    # The Library's view
+    "view_name": "Spreads",
+    "search_placeholder": "Search spreads…",
+    "empty": "No spreads yet",
+    "empty_no_match": "Nothing found",
+    "details_toggle_show": "Show details",
+    "details_toggle_hide": "Hide details",
+    "slot_count": "{count} cards",
+    "slot_count_one": "single card",
+    "delete": "Delete Spread",
+    "deleted_message": "Spread deleted",
 }
 
 # The first-run dialog, and the command line

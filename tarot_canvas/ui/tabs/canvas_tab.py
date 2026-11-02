@@ -26,6 +26,7 @@ from PyQt6.QtWidgets import (
 )
 
 from tarot_canvas.models.deck_manager import deck_manager
+from tarot_canvas.models.spreads import Position, Spread, offsets_from_middle
 from tarot_canvas.settings import (
     BACKGROUND_COLOR_DEFAULT,
     BACKGROUND_COLOR_KEY,
@@ -55,6 +56,7 @@ from tarot_canvas.ui.canvas import (
 from tarot_canvas.ui.canvas.detail import (
     DETAIL_SETTLE_MS,
     DETAIL_VISIBLE_MARGIN,
+    card_unit_size,
     load_card_art,
 )
 from tarot_canvas.ui.canvas.ground import (
@@ -84,7 +86,7 @@ from tarot_canvas.ui.card_transfer import (
     has_card,
 )
 from tarot_canvas.ui.commands import Scope, set_tooltip_with_keys
-from tarot_canvas.ui.strings import CANVAS, MAIN_WINDOW
+from tarot_canvas.ui.strings import CANVAS, MAIN_WINDOW, SPREADS
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.utils.logger import logger
 
@@ -271,12 +273,14 @@ class CanvasTab(BaseTab):
             self._cards.append(card)
             self.schedule_detail()
             self.schedule_tab_icon()
+            self.update_save_layout_action()
 
     def unregister_card(self, card):
         """Called by a card when it leaves this tab's scene."""
         if card in self._cards:
             self._cards.remove(card)
             self.schedule_tab_icon()
+            self.update_save_layout_action()
 
     def _advance_motion(self, t, dt):
         """Step every card on this canvas one frame"""
@@ -408,6 +412,7 @@ class CanvasTab(BaseTab):
             "canvas.bring_to_front": self.on_bring_to_front,
             "canvas.send_to_back": self.on_send_to_back,
             "canvas.align": self.on_align_cards,
+            "canvas.save_layout_as_spread": self.on_save_layout_as_spread,
             "canvas.fit": self.on_fit_view,
             "canvas.fullscreen": self.on_toggle_fullscreen,
             "canvas.cancel": self.on_escape_pressed,
@@ -493,6 +498,12 @@ class CanvasTab(BaseTab):
             set_tooltip_with_keys(action, tooltip, action)
             self.toolbar.addAction(action)
             self.arrange_actions[slot] = action
+
+        save_layout = self.commands.get("canvas.save_layout_as_spread")
+        if save_layout is not None:
+            set_tooltip_with_keys(save_layout, SPREADS["save_layout_tooltip"], save_layout)
+            self.toolbar.addAction(save_layout)
+            self.update_save_layout_action()
 
         # Grey out the arrangement buttons unless you select multiple cards
         self.scene.selectionChanged.connect(self.update_arrange_actions)
@@ -904,7 +915,8 @@ class CanvasTab(BaseTab):
         for item in items:
             if isinstance(item, DraggableCardItem):
                 item.set_orient(item.orient + 90)
-        self.layout_changed.emit()
+        if items:
+            self.layout_changed.emit()
 
     def on_flip_card(self):
         """Flip the selected card upside down (to indicate reversed position in Tarot)"""
@@ -912,14 +924,16 @@ class CanvasTab(BaseTab):
         for item in items:
             if isinstance(item, DraggableCardItem):
                 item.set_reversed(not item.is_reversed())
-        self.layout_changed.emit()
+        if items:
+            self.layout_changed.emit()
 
     def on_delete_card(self):
         """Remove the selected card from canvas"""
         items = self.scene.selectedItems()
         for item in items:
             self.scene.removeItem(item)
-        self.layout_changed.emit()
+        if items:
+            self.layout_changed.emit()
 
     # Arrangement Control Methods
     def update_arrange_actions(self):
@@ -930,13 +944,17 @@ class CanvasTab(BaseTab):
 
     def on_bring_to_front(self):
         """Bring the selected cards to the front, keeping their order among themselves."""
-        self._restack(self.scene.selectedItems(), self.take_top_z)
-        self.layout_changed.emit()
+        items = self.scene.selectedItems()
+        self._restack(items, self.take_top_z)
+        if items:
+            self.layout_changed.emit()
 
     def on_send_to_back(self):
         """Send the selected cards to the back, keeping their order among themselves."""
-        self._restack(self.scene.selectedItems(), self.take_bottom_z, deepest_first=True)
-        self.layout_changed.emit()
+        items = self.scene.selectedItems()
+        self._restack(items, self.take_bottom_z, deepest_first=True)
+        if items:
+            self.layout_changed.emit()
 
     def raise_cards(self, cards):
         """Lift cards above every other card, as picking them up would."""
@@ -958,6 +976,26 @@ class CanvasTab(BaseTab):
 
         for card in cards:
             card.setZValue(allocate())
+
+    def update_save_layout_action(self):
+        action = self.commands.get("canvas.save_layout_as_spread")
+        if action is not None:
+            action.setEnabled(bool(self._cards))
+
+    def layout_as_spread(self):
+        """The cards as a spread of empty positions, numbered by z"""
+        cards = sorted(self._cards, key=lambda card: card.zValue())
+        centres = [card.pos() + card.boundingRect().center() for card in cards]
+        offsets = offsets_from_middle([(c.x(), c.y()) for c in centres], card_unit_size().width())
+        return Spread(
+            positions=tuple(
+                Position(id=f"p{number}", x=x, y=y, rotation=card.orient % 360, z=card.zValue())
+                for number, (card, (x, y)) in enumerate(zip(cards, offsets, strict=True), start=1)
+            )
+        )
+
+    def on_save_layout_as_spread(self):
+        self.navigation_requested.emit("open_unsaved_spread", self.layout_as_spread())
 
     def on_align_cards(self):
         """Show alignment options for selected cards"""

@@ -924,8 +924,9 @@ def test_the_pane_below_grows_with_the_window_and_the_pane_beside_does_not(
     shown_library.show_view(LIBRARY_VIEW_DECKS)
     select(shown_library, 0)
     width = shown_library.splitter.sizes()[1]
+    total = sum(shown_library.splitter.sizes())
     shown_library.resize(1400, 1000)
-    qtbot.waitUntil(lambda: sum(shown_library.splitter.sizes()) > 1250)
+    qtbot.waitUntil(lambda: sum(shown_library.splitter.sizes()) > total)
     assert shown_library.splitter.sizes()[1] == width
 
 
