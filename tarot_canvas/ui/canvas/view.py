@@ -8,6 +8,8 @@ from tarot_canvas.ui.card_transfer import has_card
 
 MIN_ZOOM = 0.1
 MAX_ZOOM = 8.0
+# How far out a layout too large for MIN_ZOOM can go, of the zoom that fits it
+FIT_HEADROOM = 0.5
 
 
 class PannableGraphicsView(QGraphicsView):
@@ -65,10 +67,19 @@ class PannableGraphicsView(QGraphicsView):
         finally:
             self.setTransformationAnchor(previous)
 
+    def min_zoom(self):
+        """MIN_ZOOM, or lower if the cards would not otherwise fit in the viewport."""
+        rect = self.scene().itemsBoundingRect()
+        if rect.isEmpty():
+            return MIN_ZOOM
+        viewport = self.viewport().size()
+        fit = min(viewport.width() / rect.width(), viewport.height() / rect.height())
+        return min(MIN_ZOOM, fit * FIT_HEADROOM)
+
     def _scale_to(self, target):
-        """Scale so the view ends at target, clamped to [MIN_ZOOM, MAX_ZOOM]."""
+        """Scale so the view ends at target, clamped to [min_zoom(), MAX_ZOOM]."""
         current = self.transform().m11()
-        target = max(MIN_ZOOM, min(MAX_ZOOM, target))
+        target = max(self.min_zoom(), min(MAX_ZOOM, target))
         if target != current:
             self.scale(target / current, target / current)
             self.grow_scene_rect()

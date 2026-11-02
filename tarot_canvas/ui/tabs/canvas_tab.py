@@ -78,7 +78,7 @@ from tarot_canvas.ui.canvas.tab_icon import (
     snapped,
     spread_icon,
 )
-from tarot_canvas.ui.canvas.view import MAX_ZOOM, MIN_ZOOM
+from tarot_canvas.ui.canvas.view import MAX_ZOOM
 from tarot_canvas.ui.card_transfer import (
     cards_from_mime,
     copy_card_to_clipboard,
@@ -869,7 +869,7 @@ class CanvasTab(BaseTab):
         if how == "in":
             return scale < MAX_ZOOM
         if how == "out":
-            return scale > MIN_ZOOM
+            return scale > self.view.min_zoom()
         # It also recentres on the cards, so there is always something to do
         return how == "reset"
 
