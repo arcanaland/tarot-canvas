@@ -31,6 +31,7 @@ from tarot_canvas.ui.deck_view.card_model import CardFilter, CardModel, CardRole
 from tarot_canvas.ui.deck_view.sections_view import SectionsView
 from tarot_canvas.ui.deck_view.tableau_model import TableauModel
 from tarot_canvas.ui.deck_view.tableau_view import TableauView
+from tarot_canvas.ui.icons import deck_icon
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.strings import DECK_VIEW
 from tarot_canvas.ui.tabs.base_tab import BaseTab
@@ -388,4 +389,4 @@ class DeckViewTab(BaseTab):
         return self.deck.get_name()
 
     def tab_icon(self):
-        return QIcon.fromTheme("view-grid")
+        return deck_icon()

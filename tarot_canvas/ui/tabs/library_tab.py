@@ -43,6 +43,7 @@ from tarot_canvas.settings import (
 from tarot_canvas.ui import commands
 from tarot_canvas.ui.activate_on_return import activate_on_return
 from tarot_canvas.ui.commands import Scope, set_tooltip_with_keys
+from tarot_canvas.ui.icons import LIBRARY_ICON, SPREAD_ICON, deck_icon
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.catalog_client import deck_catalog
 from tarot_canvas.ui.library.deck_delegate import DeckDelegate
@@ -259,7 +260,7 @@ class LibraryTab(BaseTab):
     def _view_rows(self):
         """(icon, name, view) per sidebar row, in LIBRARY_VIEWS order"""
         return [
-            (QIcon.fromTheme("view-list-icons"), LIBRARY["decks_view"], LIBRARY_VIEW_DECKS),
+            (deck_icon(), LIBRARY["decks_view"], LIBRARY_VIEW_DECKS),
             (QIcon.fromTheme("story-editor"), notes_text("view_name"), LIBRARY_VIEW_NOTES),
             # The app's own file, not a theme name
             (
@@ -267,7 +268,7 @@ class LibraryTab(BaseTab):
                 label_for("library.view_name"),
                 LIBRARY_VIEW_ESOTERICA,
             ),
-            (QIcon.fromTheme("view-grid"), SPREADS["view_name"], LIBRARY_VIEW_SPREADS),
+            (QIcon.fromTheme(SPREAD_ICON), SPREADS["view_name"], LIBRARY_VIEW_SPREADS),
         ]
 
     def _build_sidebar(self):
@@ -805,7 +806,7 @@ class LibraryTab(BaseTab):
         return LIBRARY["tab_title"]
 
     def tab_icon(self):
-        return QIcon.fromTheme("view-list-icons")
+        return QIcon.fromTheme(LIBRARY_ICON)
 
 
 def _is_deck_at(deck_path):

@@ -121,7 +121,7 @@ class CanvasTab(BaseTab):
         self.gilt = QColor(GILT_ON_DARK)
 
         self._tab_marks = ()
-        self._tab_icon = CanvasIcon()
+        self._tab_icon = self.empty_tab_icon()
         self._tab_icon_timer = QTimer(self)
         self._tab_icon_timer.setSingleShot(True)
         self._tab_icon_timer.setInterval(0)
@@ -1074,6 +1074,10 @@ class CanvasTab(BaseTab):
     def schedule_tab_icon(self):
         self._tab_icon_timer.start()
 
+    def empty_tab_icon(self):
+        """The tab icon when there are no marks to draw"""
+        return CanvasIcon()
+
     def refresh_tab_icon(self):
         """Redraw the tab icon if the spread's snapped marks have changed"""
         marks = ()
@@ -1082,7 +1086,7 @@ class CanvasTab(BaseTab):
         if marks == self._tab_marks:
             return
         self._tab_marks = marks
-        self._tab_icon = spread_icon(marks) if marks else CanvasIcon()
+        self._tab_icon = spread_icon(marks) if marks else self.empty_tab_icon()
         self.tab_label_changed.emit()
 
     def tab_title(self):

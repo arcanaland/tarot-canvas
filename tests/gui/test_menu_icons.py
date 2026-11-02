@@ -5,11 +5,16 @@ import os
 import pytest
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon, QKeySequence
+from PyQt6.QtWidgets import QPushButton
 
+from tarot_canvas.settings import LIBRARY_VIEW_DECKS, LIBRARY_VIEW_SPREADS, LIBRARY_VIEWS
 from tarot_canvas.ui.canvas.icons import CanvasIcon
+from tarot_canvas.ui.icons import LIBRARY_ICON, SPREAD_ICON, deck_icon
 from tarot_canvas.ui.main_window import MainWindow
+from tarot_canvas.ui.strings import MAIN_WINDOW, PREFERENCES
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tarot_canvas.ui.tabs.spread_tab import SpreadTab
+from tarot_canvas.ui.windows.preferences_dialog import PreferencesDialog
 
 
 @pytest.fixture(autouse=True)
@@ -26,6 +31,12 @@ def breeze(qapp):
     finally:
         QIcon.setThemeName(previous_name)
         QIcon.setThemeSearchPaths(previous_paths)
+
+
+def drawn(icon):
+    """Compares by pixels, because an icon from a file has no theme name"""
+    assert not icon.isNull()
+    return icon.pixmap(22, 22).toImage()
 
 
 def make_window(qtbot):
@@ -146,8 +157,8 @@ def test_a_tab_shows_the_icon_of_the_menu_item_that_opens_it(qtbot):
     window.new_library_tab()
     tabs = window.tab_widget
 
-    qtbot.waitUntil(lambda: tabs.tabIcon(tabs.currentIndex()).name() == "view-list-icons")
-    assert window.new_library_action.icon().name() == "view-list-icons"
+    qtbot.waitUntil(lambda: tabs.tabIcon(tabs.currentIndex()).name() == LIBRARY_ICON)
+    assert window.new_library_action.icon().name() == LIBRARY_ICON
     assert window.new_canvas_action.icon().name() == CanvasIcon().name()
 
 
@@ -159,4 +170,55 @@ def test_a_new_deck_view_is_labelled_as_it_is_added(qtbot, full_deck):
 
     index = tabs.indexOf(tab)
     assert tabs.tabText(index) == full_deck.get_name()
-    assert tabs.tabIcon(index).name() == "view-grid"
+    assert drawn(tabs.tabIcon(index)) == drawn(deck_icon())
+
+
+def welcome_button(window, text):
+    buttons = window.findChildren(QPushButton)
+    return next(button for button in buttons if button.text() == text)
+
+
+def library_of(window):
+    window.new_library_tab()
+    return window.tab_widget.currentWidget()
+
+
+def sidebar_row(library, view):
+    return library.sidebar.item(LIBRARY_VIEWS.index(view))
+
+
+def test_the_library_has_one_icon(qtbot):
+    window = make_window(qtbot)
+    expected = drawn(QIcon.fromTheme(LIBRARY_ICON))
+
+    assert drawn(window.new_library_action.icon()) == expected
+    assert drawn(welcome_button(window, MAIN_WINDOW["welcome_library"]).icon()) == expected
+    assert drawn(library_of(window).tab_icon()) == expected
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+    rows = [dialog.page_list.item(row) for row in range(dialog.page_list.count())]
+    library_row = next(row for row in rows if row.text() == PREFERENCES["library"])
+    assert drawn(library_row.icon()) == expected
+
+
+def test_a_deck_has_one_icon_and_it_is_not_a_neighbours(qtbot, full_deck):
+    window = make_window(qtbot)
+    expected = drawn(deck_icon())
+
+    assert drawn(welcome_button(window, MAIN_WINDOW["welcome_open_deck"]).icon()) == expected
+    tab = window.new_deck_view_tab(deck_path=full_deck.deck_path)
+    assert drawn(tab.tab_icon()) == expected
+    assert drawn(sidebar_row(library_of(window), LIBRARY_VIEW_DECKS).icon()) == expected
+    assert expected != drawn(QIcon.fromTheme(SPREAD_ICON))
+    assert expected != drawn(QIcon.fromTheme(LIBRARY_ICON))
+
+
+def test_a_spread_has_one_icon(qtbot):
+    window = make_window(qtbot)
+    expected = drawn(QIcon.fromTheme(SPREAD_ICON))
+
+    assert drawn(window.new_spread_action.icon()) == expected
+    canvas = window.new_canvas_tab()
+    assert drawn(canvas.commands["canvas.save_layout_as_spread"].icon()) == expected
+    assert drawn(sidebar_row(library_of(window), LIBRARY_VIEW_SPREADS).icon()) == expected
+    assert drawn(SpreadTab().tab_icon()) == expected
