@@ -1217,10 +1217,20 @@ def test_opening_twice_raises_the_tab(window, spreads_base):
     assert window.tab_widget.currentWidget() is tab
 
 
-def test_an_unreadable_spread_opens_nothing(window, spreads_base):
+@pytest.mark.parametrize(
+    "text",
+    [
+        "name = [",
+        '[[positions]]\nid = "p1"\nx = nan\n',
+        f'[[positions]]\nid = "p1"\nx = {"9" * 400}\n',
+        f"k = {'[' * 5000}{']' * 5000}\n",
+    ],
+    ids=["not toml", "nan", "too large", "too deep"],
+)
+def test_an_unreadable_spread_opens_nothing(window, spreads_base, text):
     path = spreads_base / "1000"
     path.mkdir(parents=True)
-    (path / "spread.toml").write_text("name = [")
+    (path / "spread.toml").write_text(text)
     count = window.tab_widget.count()
 
     assert window.open_spread(path) is None
