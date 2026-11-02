@@ -6,14 +6,33 @@ from PyQt6.QtWidgets import QApplication, QMenu, QVBoxLayout
 
 from tarot_canvas.models import spreads, staged_delete
 from tarot_canvas.models.spread_events import spread_events
+from tarot_canvas.settings import (
+    LIBRARY_SPREADS_SORT_DEFAULT,
+    LIBRARY_SPREADS_SORT_KEY,
+    get_settings,
+)
 from tarot_canvas.ui.library import units
+from tarot_canvas.ui.library.deck_model import SORT_COUNT, SORT_NAME
 from tarot_canvas.ui.library.list_page import LibraryListPage
 from tarot_canvas.ui.library.spread_details_pane import SpreadDetails, SpreadDetailsPane
 from tarot_canvas.ui.library.spread_row_delegate import SpreadRowDelegate
-from tarot_canvas.ui.library.spreads_model import SpreadPathRole, SpreadRole, SpreadsListModel
-from tarot_canvas.ui.strings import SPREADS, notes_text
+from tarot_canvas.ui.library.spreads_model import (
+    SORT_EDITED,
+    SORT_NEWEST,
+    SpreadPathRole,
+    SpreadRole,
+    SpreadsListModel,
+)
+from tarot_canvas.ui.strings import LIBRARY, SPREADS, notes_text
 from tarot_canvas.ui.widgets.inline_message import InlineMessage
 from tarot_canvas.utils.logger import logger
+
+SORT_CHOICES = [
+    (SPREADS["sort_newest"], SORT_NEWEST),
+    (LIBRARY["sort_name"], SORT_NAME),
+    (LIBRARY["sort_count"], SORT_COUNT),
+    (SPREADS["sort_edited"], SORT_EDITED),
+]
 
 
 class SpreadsPage(LibraryListPage):
@@ -27,6 +46,9 @@ class SpreadsPage(LibraryListPage):
             SpreadsListModel(spreads.scan(base)), SpreadRowDelegate, SpreadDetailsPane(), parent
         )
         self._base = base  # tests point the index somewhere else
+        self.list_model.set_sort(
+            get_settings().value(LIBRARY_SPREADS_SORT_KEY, LIBRARY_SPREADS_SORT_DEFAULT, type=str)
+        )
         self.list_view.setUniformItemSizes(True)
         self.list_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.list_view.customContextMenuRequested.connect(self._on_context_menu)
@@ -62,6 +84,22 @@ class SpreadsPage(LibraryListPage):
 
     def details_toggle_tooltip(self, is_open):
         return SPREADS["details_toggle_hide" if is_open else "details_toggle_show"]
+
+    def sort_choices(self):
+        return SORT_CHOICES
+
+    def sort_tooltip(self):
+        return SPREADS["sort_tooltip"]
+
+    def sort_key(self):
+        return self.list_model.sort()
+
+    def set_sort_key(self, key):
+        selected = self._selected_path()
+        self.list_model.set_sort(key)
+        if selected is not None:
+            self.select(selected)
+        get_settings().setValue(LIBRARY_SPREADS_SORT_KEY, self.sort_key())
 
     @pyqtSlot()
     def refresh(self):

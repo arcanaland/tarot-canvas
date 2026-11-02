@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 from importlib.resources import files
 
-from PyQt6.QtCore import QItemSelectionModel, QSize, Qt, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QItemSelectionModel, QSignalBlocker, QSize, Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
     QAbstractItemView,
@@ -221,10 +221,7 @@ class LibraryTab(BaseTab):
         self.search_field.textChanged.connect(self.on_search_changed)
         row.addWidget(self.search_field, 1)
 
-        self.sort_combo = QComboBox()
-        for label, key in SORT_CHOICES:
-            self.sort_combo.addItem(label, key)
-        self.sort_combo.setToolTip(LIBRARY["sort_tooltip"])
+        self.sort_combo = QComboBox()  # the current view's sorts, filled by _sync_sort_combo
         self.sort_combo.currentIndexChanged.connect(self.on_sort_changed)
         row.addWidget(self.sort_combo)
 
@@ -348,6 +345,11 @@ class LibraryTab(BaseTab):
     # -- settings ---------------------------------------------------------
 
     def _restore_settings(self):
+        # First, because the view applied next fills the sort combo from this
+        self.proxy_model.set_sort_key(
+            self.settings.value(LIBRARY_SORT_KEY, LIBRARY_SORT_DEFAULT, type=str)
+        )
+
         view = self.settings.value(LIBRARY_VIEW_KEY, LIBRARY_VIEW_DEFAULT, type=str)
         if view not in LIBRARY_VIEWS:
             view = LIBRARY_VIEW_DEFAULT
@@ -358,14 +360,8 @@ class LibraryTab(BaseTab):
         density = self.settings.value(LIBRARY_DENSITY_KEY, LIBRARY_DENSITY_DEFAULT, type=str)
         self.zoom_slider.set_key(density if density in units.DENSITIES else units.DENSITY_MEDIUM)
 
-        sort_key = self.settings.value(LIBRARY_SORT_KEY, LIBRARY_SORT_DEFAULT, type=str)
-        index = self.sort_combo.findData(sort_key)
-        self.sort_combo.setCurrentIndex(index if index >= 0 else 0)
-
-        # setCurrentIndex only emits when the index actually moves, so apply
-        # both explicitly rather than relying on the signals above.
+        # set_key only emits when the density actually moves, so apply it explicitly
         self._apply_density(self.zoom_slider.key())
-        self.proxy_model.set_sort_key(self.sort_combo.currentData())
 
     def _apply_density(self, density):
         if self.delegate.set_density(density):
@@ -405,7 +401,7 @@ class LibraryTab(BaseTab):
         if was_open and has_details:
             self._set_details_open(True)
 
-        self.sort_combo.setVisible(decks)
+        self._sync_sort_combo(page)
         self.zoom_slider.setVisible(decks)
         self.open_deck_button.setVisible(decks)
         self.search_field.setPlaceholderText(
@@ -415,6 +411,25 @@ class LibraryTab(BaseTab):
         # Each view searches its own content, so the field starts clean on a switch
         self.search_field.clear()
         self._sync_details_toggle()
+
+    def _sync_sort_combo(self, page):
+        if page is None:
+            choices = SORT_CHOICES
+            tooltip = LIBRARY["sort_tooltip"]
+            current = self.proxy_model.sort_key()
+        else:
+            choices = page.sort_choices()
+            tooltip = page.sort_tooltip() if choices else ""
+            current = page.sort_key() if choices else None
+
+        # Refilling is no change of sort
+        with QSignalBlocker(self.sort_combo):
+            self.sort_combo.clear()
+            for label, key in choices:
+                self.sort_combo.addItem(label, key)
+            self.sort_combo.setCurrentIndex(self.sort_combo.findData(current))
+        self.sort_combo.setToolTip(tooltip)
+        self.sort_combo.setVisible(bool(choices))
 
     # -- slots ------------------------------------------------------------
 
@@ -486,6 +501,10 @@ class LibraryTab(BaseTab):
 
     def on_sort_changed(self):
         key = self.sort_combo.currentData()
+        page = self.current_list_page()
+        if page is not None:
+            page.set_sort_key(key)
+            return
         self.proxy_model.set_sort_key(key)
         self.settings.setValue(LIBRARY_SORT_KEY, key)
 

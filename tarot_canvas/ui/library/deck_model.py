@@ -175,6 +175,9 @@ class DeckFilterProxyModel(QSortFilterProxyModel):
         self.invalidate()
         self.sort(0, self.sort_order())
 
+    def sort_key(self):
+        return self._sort_key
+
     def sort_order(self):
         if self._sort_key == SORT_RECENT:
             return Qt.SortOrder.DescendingOrder

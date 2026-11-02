@@ -177,6 +177,14 @@ def save(path, spread):
         raise
 
 
+def edited_at(path):
+    """When the spread in folder path was last saved, or 0 if that can't be read"""
+    try:
+        return (Path(path) / SPREAD_FILE).stat().st_mtime
+    except OSError:
+        return 0.0
+
+
 def scan(base=None):
     """(folder, Spread) for each readable spread (oldest first)"""
     base = Path(base) if base is not None else spreads_base()

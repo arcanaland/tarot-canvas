@@ -1,3 +1,5 @@
+import os
+
 import pytest
 from PyQt6.QtCore import QPointF, QSize
 from PyQt6.QtGui import QColor, QImage, QPainter, QPixmap
@@ -6,7 +8,16 @@ from PyQt6.QtWidgets import QMessageBox
 from tarot_canvas.models import spreads, staged_delete
 from tarot_canvas.models.spread_events import spread_events
 from tarot_canvas.models.spreads import Position, Spread
-from tarot_canvas.settings import LIBRARY_VIEW_SPREADS, LIBRARY_VIEWS
+from tarot_canvas.settings import (
+    LIBRARY_SORT_KEY,
+    LIBRARY_SPREADS_SORT_KEY,
+    LIBRARY_VIEW_DECKS,
+    LIBRARY_VIEW_KEY,
+    LIBRARY_VIEW_NOTES,
+    LIBRARY_VIEW_SPREADS,
+    LIBRARY_VIEWS,
+    get_settings,
+)
 from tarot_canvas.ui import commands
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
 from tarot_canvas.ui.canvas.tab_icon import (
@@ -16,10 +27,10 @@ from tarot_canvas.ui.canvas.tab_icon import (
     spread_marks,
 )
 from tarot_canvas.ui.card_colours import SLOT_COLOUR
-from tarot_canvas.ui.library.deck_model import SubtitleRole
+from tarot_canvas.ui.library.deck_model import SORT_AUTHOR, SORT_COUNT, SORT_NAME, SubtitleRole
 from tarot_canvas.ui.library.notes_model import PreviewRole
 from tarot_canvas.ui.library.spread_row_delegate import SpreadRowDelegate
-from tarot_canvas.ui.library.spreads_model import SpreadPathRole
+from tarot_canvas.ui.library.spreads_model import SORT_EDITED, SORT_NEWEST, SpreadPathRole
 from tarot_canvas.ui.library.spreads_page import SpreadsPage
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.strings import SPREADS
@@ -212,6 +223,160 @@ def test_the_list_follows_saving(page, spreads_base):
     spread_events().spreads_changed.emit()
 
     assert names(page)[0] == "Newest"
+
+
+# -- sorting
+
+
+def slots(count):
+    return tuple(Position(id=f"p{number}") for number in range(1, count + 1))
+
+
+@pytest.fixture
+def sorted_page(qtbot, spreads_base):
+    """Oldest to newest: Banana has 3 slots, apple 1 and Cherry 2. Banana was edited last"""
+    paths = [
+        store(spreads_base, 1000, Spread(name="Banana", positions=slots(3))),
+        store(spreads_base, 2000, Spread(name="apple", positions=slots(1))),
+        store(spreads_base, 3000, Spread(name="Cherry", positions=slots(2))),
+    ]
+    for edited, path in zip((300, 100, 200), paths, strict=True):
+        os.utime(path / spreads.SPREAD_FILE, (edited, edited))
+    page = SpreadsPage()
+    qtbot.addWidget(page)
+    return page
+
+
+@pytest.mark.parametrize(
+    ("sort", "expected"),
+    [
+        (SORT_NEWEST, ["Cherry", "apple", "Banana"]),
+        (SORT_NAME, ["apple", "Banana", "Cherry"]),
+        (SORT_COUNT, ["apple", "Cherry", "Banana"]),
+        (SORT_EDITED, ["Banana", "Cherry", "apple"]),
+    ],
+)
+def test_each_sort_orders_the_rows(sorted_page, sort, expected):
+    sorted_page.set_sort_key(sort)
+
+    assert names(sorted_page) == expected
+
+
+def test_a_tie_goes_by_name(qtbot, spreads_base):
+    store(spreads_base, 1000, Spread(name="Zebra", positions=slots(2)))
+    store(spreads_base, 2000, Spread(name="Ant", positions=slots(2)))
+    page = SpreadsPage()
+    qtbot.addWidget(page)
+
+    page.set_sort_key(SORT_COUNT)
+
+    assert names(page) == ["Ant", "Zebra"]
+
+
+def test_an_untitled_spread_sorts_by_the_name_it_shows(qtbot, spreads_base):
+    store(spreads_base, 1000, Spread())
+    store(spreads_base, 2000, Spread(name="Zebra"))
+    store(spreads_base, 3000, Spread(name="Ant"))
+    page = SpreadsPage()
+    qtbot.addWidget(page)
+
+    page.set_sort_key(SORT_NAME)
+
+    assert names(page) == ["Ant", SPREADS["untitled"], "Zebra"]
+
+
+def test_a_sort_change_keeps_the_selection(sorted_page):
+    sorted_page.select(index_of(sorted_page, "apple").data(SpreadPathRole))
+
+    sorted_page.set_sort_key(SORT_NAME)
+
+    assert sorted_page._selected_path() == index_of(sorted_page, "apple").data(SpreadPathRole)
+
+
+def test_a_search_keeps_the_sort(sorted_page):
+    sorted_page.set_sort_key(SORT_NAME)
+
+    sorted_page.set_search("an")
+
+    assert names(sorted_page) == ["Banana"]
+    sorted_page.set_search("")
+    assert names(sorted_page) == ["apple", "Banana", "Cherry"]
+
+
+def test_saving_moves_a_spread_to_the_top_of_recently_edited(sorted_page):
+    sorted_page.set_sort_key(SORT_EDITED)
+    path = index_of(sorted_page, "apple").data(SpreadPathRole)
+
+    spreads.save(path, Spread(name="apple", positions=slots(1)))
+    spread_events().spreads_changed.emit()
+
+    assert names(sorted_page)[0] == "apple"
+
+
+def test_a_page_opens_on_the_saved_sort(qtbot, sorted_page):
+    sorted_page.set_sort_key(SORT_NAME)
+
+    again = SpreadsPage()
+    qtbot.addWidget(again)
+
+    assert names(again) == ["apple", "Banana", "Cherry"]
+
+
+def test_an_unknown_saved_sort_is_newest(qtbot, sorted_page):
+    get_settings().setValue(LIBRARY_SPREADS_SORT_KEY, "nonsense")
+
+    again = SpreadsPage()
+    qtbot.addWidget(again)
+
+    assert again.sort_key() == SORT_NEWEST
+
+
+def sort_keys(library):
+    combo = library.sort_combo
+    return [combo.itemData(row) for row in range(combo.count())]
+
+
+def test_the_combo_offers_each_views_own_sorts(window, spreads_base):
+    library = open_library(window)
+
+    assert not library.sort_combo.isHidden()
+    assert sort_keys(library) == [SORT_NEWEST, SORT_NAME, SORT_COUNT, SORT_EDITED]
+    assert library.sort_combo.toolTip() == SPREADS["sort_tooltip"]
+
+    library.show_view(LIBRARY_VIEW_DECKS)
+    assert SORT_AUTHOR in sort_keys(library)
+    assert SORT_EDITED not in sort_keys(library)
+
+    library.show_view(LIBRARY_VIEW_NOTES)
+    assert library.sort_combo.isHidden()
+
+
+def test_each_view_keeps_its_own_sort(window, spreads_base):
+    library = open_library(window)
+    combo = library.sort_combo
+    combo.setCurrentIndex(combo.findData(SORT_EDITED))
+
+    library.show_view(LIBRARY_VIEW_DECKS)
+    combo.setCurrentIndex(combo.findData(SORT_AUTHOR))
+    library.show_view(LIBRARY_VIEW_SPREADS)
+
+    assert combo.currentData() == SORT_EDITED
+    assert library.spreads_page.sort_key() == SORT_EDITED
+    assert library.proxy_model.sort_key() == SORT_AUTHOR
+    settings = get_settings()
+    assert settings.value(LIBRARY_SPREADS_SORT_KEY, type=str) == SORT_EDITED
+    assert settings.value(LIBRARY_SORT_KEY, type=str) == SORT_AUTHOR
+
+
+def test_opening_on_spreads_keeps_the_decks_saved_sort(window, spreads_base):
+    get_settings().setValue(LIBRARY_VIEW_KEY, LIBRARY_VIEW_SPREADS)
+    get_settings().setValue(LIBRARY_SORT_KEY, SORT_AUTHOR)
+
+    library = LibraryTab()
+    window.tab_widget.addTab(library, "Library")
+
+    assert library.proxy_model.sort_key() == SORT_AUTHOR
+    assert library.sort_combo.currentData() == SORT_NEWEST
 
 
 def test_a_row_paints_the_spreads_shape(page):

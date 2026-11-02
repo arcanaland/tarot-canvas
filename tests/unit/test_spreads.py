@@ -160,3 +160,7 @@ def test_load_accepts_the_largest_numbers_it_allows(tmp_path):
     (position,) = spreads.load(folder).positions
 
     assert (position.x, position.y, position.z) == (limit, -limit, limit)
+
+
+def test_a_spread_with_no_file_was_never_edited(tmp_path):
+    assert spreads.edited_at(tmp_path) == 0.0
