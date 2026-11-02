@@ -240,6 +240,15 @@ class LibraryTab(BaseTab):
         self.open_deck_button.clicked.connect(self.browse_for_deck)
         row.addWidget(self.open_deck_button)
 
+        new_spread = commands.by_id("window.new_spread")
+        self.new_spread_button = QToolButton()
+        self.new_spread_button.setText(new_spread.text)
+        self.new_spread_button.setIcon(QIcon.fromTheme(new_spread.icon))
+        self.new_spread_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        set_tooltip_with_keys(self.new_spread_button, new_spread.text, new_spread.id)
+        self.new_spread_button.clicked.connect(self.on_new_spread)
+        row.addWidget(self.new_spread_button)
+
         self.details_toggle = QToolButton()
         self.details_toggle.setCheckable(True)
         self.details_toggle.clicked.connect(self.toggle_details_pane)
@@ -404,6 +413,7 @@ class LibraryTab(BaseTab):
         self._sync_sort_combo(page)
         self.zoom_slider.setVisible(decks)
         self.open_deck_button.setVisible(decks)
+        self.new_spread_button.setVisible(view == LIBRARY_VIEW_SPREADS)
         self.search_field.setPlaceholderText(
             LIBRARY["search_decks"] if decks else page.search_placeholder()
         )
@@ -479,6 +489,11 @@ class LibraryTab(BaseTab):
         main_window = self.window()
         if hasattr(main_window, "open_spread"):
             main_window.open_spread(path)
+
+    def on_new_spread(self):
+        main_window = self.window()
+        if hasattr(main_window, "new_spread_tab"):
+            main_window.new_spread_tab()
 
     def on_spread_delete_requested(self, path):
         """Delete a spread once any tab holding it has closed, which may ask the user"""

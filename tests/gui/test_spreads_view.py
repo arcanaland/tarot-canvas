@@ -379,6 +379,31 @@ def test_opening_on_spreads_keeps_the_decks_saved_sort(window, spreads_base):
     assert library.sort_combo.currentData() == SORT_NEWEST
 
 
+# -- new spread
+
+
+def test_the_new_spread_button_is_the_spread_views_alone(window, spreads_base):
+    library = open_library(window)
+    button = library.new_spread_button
+
+    assert not button.isHidden()
+    assert button.text() == commands.by_id("window.new_spread").text
+
+    for view in LIBRARY_VIEWS:
+        library.show_view(view)
+        assert button.isHidden() == (view != LIBRARY_VIEW_SPREADS)
+
+
+def test_the_new_spread_button_opens_an_unsaved_spread(window, spreads_base):
+    library = open_library(window)
+
+    library.new_spread_button.click()
+
+    tab = window.tab_widget.currentWidget()
+    assert isinstance(tab, SpreadTab)
+    assert tab.spread_path is None
+
+
 def test_a_row_paints_the_spreads_shape(page):
     delegate = SpreadRowDelegate(page.list_view)
     side = 120
