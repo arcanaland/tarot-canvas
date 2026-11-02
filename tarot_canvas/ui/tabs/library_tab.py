@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 from importlib.resources import files
 
-from PyQt6.QtCore import QItemSelectionModel, QSize, Qt, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QItemSelectionModel, QSignalBlocker, QSize, Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
     QAbstractItemView,
@@ -35,6 +35,7 @@ from tarot_canvas.settings import (
     LIBRARY_VIEW_ESOTERICA,
     LIBRARY_VIEW_KEY,
     LIBRARY_VIEW_NOTES,
+    LIBRARY_VIEW_SPREADS,
     LIBRARY_VIEWS,
     get_settings,
     record_deck_opened,
@@ -61,7 +62,8 @@ from tarot_canvas.ui.library.deck_model import (
 from tarot_canvas.ui.library.deselect import deselect_on_empty_click_or_escape
 from tarot_canvas.ui.library.esoterica_page import EsotericaPage
 from tarot_canvas.ui.library.notes_page import NotesPage
-from tarot_canvas.ui.strings import LIBRARY, label_for, notes_text
+from tarot_canvas.ui.library.spreads_page import SpreadsPage
+from tarot_canvas.ui.strings import LIBRARY, SPREADS, label_for, notes_text
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.ui.widgets.placeholder_message import tinted_icon
 from tarot_canvas.ui.widgets.places_sidebar import PlacesSidebar
@@ -142,10 +144,16 @@ class LibraryTab(BaseTab):
         self.esoterica_page.details_changed.connect(self._sync_details_toggle)
         self.esoterica_page.details_requested.connect(self._open_esoterica_details)
 
+        self.spreads_page = SpreadsPage()
+        self.spreads_page.spread_activated.connect(self.on_spread_activated)
+        self.spreads_page.delete_requested.connect(self.on_spread_delete_requested)
+        self.spreads_page.details_changed.connect(self._on_spread_details_changed)
+
         # Every view but the deck grid is a list, with its pane below it
         self.list_pages = {
             LIBRARY_VIEW_NOTES: self.notes_page,
             LIBRARY_VIEW_ESOTERICA: self.esoterica_page,
+            LIBRARY_VIEW_SPREADS: self.spreads_page,
         }
 
         # One page per sidebar row, in LIBRARY_VIEWS order
@@ -213,10 +221,7 @@ class LibraryTab(BaseTab):
         self.search_field.textChanged.connect(self.on_search_changed)
         row.addWidget(self.search_field, 1)
 
-        self.sort_combo = QComboBox()
-        for label, key in SORT_CHOICES:
-            self.sort_combo.addItem(label, key)
-        self.sort_combo.setToolTip(LIBRARY["sort_tooltip"])
+        self.sort_combo = QComboBox()  # the current view's sorts, filled by _sync_sort_combo
         self.sort_combo.currentIndexChanged.connect(self.on_sort_changed)
         row.addWidget(self.sort_combo)
 
@@ -234,6 +239,15 @@ class LibraryTab(BaseTab):
         self.open_deck_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.open_deck_button.clicked.connect(self.browse_for_deck)
         row.addWidget(self.open_deck_button)
+
+        new_spread = commands.by_id("window.new_spread")
+        self.new_spread_button = QToolButton()
+        self.new_spread_button.setText(new_spread.text)
+        self.new_spread_button.setIcon(QIcon.fromTheme(new_spread.icon))
+        self.new_spread_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        set_tooltip_with_keys(self.new_spread_button, new_spread.text, new_spread.id)
+        self.new_spread_button.clicked.connect(self.on_new_spread)
+        row.addWidget(self.new_spread_button)
 
         self.details_toggle = QToolButton()
         self.details_toggle.setCheckable(True)
@@ -253,6 +267,7 @@ class LibraryTab(BaseTab):
                 label_for("library.view_name"),
                 LIBRARY_VIEW_ESOTERICA,
             ),
+            (QIcon.fromTheme("view-grid"), SPREADS["view_name"], LIBRARY_VIEW_SPREADS),
         ]
 
     def _build_sidebar(self):
@@ -339,6 +354,11 @@ class LibraryTab(BaseTab):
     # -- settings ---------------------------------------------------------
 
     def _restore_settings(self):
+        # First, because the view applied next fills the sort combo from this
+        self.proxy_model.set_sort_key(
+            self.settings.value(LIBRARY_SORT_KEY, LIBRARY_SORT_DEFAULT, type=str)
+        )
+
         view = self.settings.value(LIBRARY_VIEW_KEY, LIBRARY_VIEW_DEFAULT, type=str)
         if view not in LIBRARY_VIEWS:
             view = LIBRARY_VIEW_DEFAULT
@@ -349,14 +369,8 @@ class LibraryTab(BaseTab):
         density = self.settings.value(LIBRARY_DENSITY_KEY, LIBRARY_DENSITY_DEFAULT, type=str)
         self.zoom_slider.set_key(density if density in units.DENSITIES else units.DENSITY_MEDIUM)
 
-        sort_key = self.settings.value(LIBRARY_SORT_KEY, LIBRARY_SORT_DEFAULT, type=str)
-        index = self.sort_combo.findData(sort_key)
-        self.sort_combo.setCurrentIndex(index if index >= 0 else 0)
-
-        # setCurrentIndex only emits when the index actually moves, so apply
-        # both explicitly rather than relying on the signals above.
+        # set_key only emits when the density actually moves, so apply it explicitly
         self._apply_density(self.zoom_slider.key())
-        self.proxy_model.set_sort_key(self.sort_combo.currentData())
 
     def _apply_density(self, density):
         if self.delegate.set_density(density):
@@ -396,9 +410,10 @@ class LibraryTab(BaseTab):
         if was_open and has_details:
             self._set_details_open(True)
 
-        self.sort_combo.setVisible(decks)
+        self._sync_sort_combo(page)
         self.zoom_slider.setVisible(decks)
         self.open_deck_button.setVisible(decks)
+        self.new_spread_button.setVisible(view == LIBRARY_VIEW_SPREADS)
         self.search_field.setPlaceholderText(
             LIBRARY["search_decks"] if decks else page.search_placeholder()
         )
@@ -406,6 +421,25 @@ class LibraryTab(BaseTab):
         # Each view searches its own content, so the field starts clean on a switch
         self.search_field.clear()
         self._sync_details_toggle()
+
+    def _sync_sort_combo(self, page):
+        if page is None:
+            choices = SORT_CHOICES
+            tooltip = LIBRARY["sort_tooltip"]
+            current = self.proxy_model.sort_key()
+        else:
+            choices = page.sort_choices()
+            tooltip = page.sort_tooltip() if choices else ""
+            current = page.sort_key() if choices else None
+
+        # Refilling is no change of sort
+        with QSignalBlocker(self.sort_combo):
+            self.sort_combo.clear()
+            for label, key in choices:
+                self.sort_combo.addItem(label, key)
+            self.sort_combo.setCurrentIndex(self.sort_combo.findData(current))
+        self.sort_combo.setToolTip(tooltip)
+        self.sort_combo.setVisible(bool(choices))
 
     # -- slots ------------------------------------------------------------
 
@@ -451,8 +485,41 @@ class LibraryTab(BaseTab):
         if card_tab is not None:
             card_tab.open_note(path)
 
+    def on_spread_activated(self, path):
+        main_window = self.window()
+        if hasattr(main_window, "open_spread"):
+            main_window.open_spread(path)
+
+    def on_new_spread(self):
+        main_window = self.window()
+        if hasattr(main_window, "new_spread_tab"):
+            main_window.new_spread_tab()
+
+    def on_spread_delete_requested(self, path):
+        """Delete a spread once any tab holding it has closed, which may ask the user"""
+        main_window = self.window()
+        if hasattr(main_window, "close_spread"):
+            if not main_window.close_spread(path):
+                return
+            # Where the Undo is
+            main_window.tab_widget.setCurrentWidget(self)
+        self.spreads_page.delete(path)
+
+    def _on_spread_details_changed(self):
+        if self.current_details_pane().details() is None:
+            self._set_details_open(False)
+        self._sync_details_toggle()
+
+    def about_to_close(self):
+        # Its Undo goes with the tab
+        self.spreads_page.commit_pending_delete()
+
     def on_sort_changed(self):
         key = self.sort_combo.currentData()
+        page = self.current_list_page()
+        if page is not None:
+            page.set_sort_key(key)
+            return
         self.proxy_model.set_sort_key(key)
         self.settings.setValue(LIBRARY_SORT_KEY, key)
 

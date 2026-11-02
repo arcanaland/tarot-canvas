@@ -149,6 +149,7 @@ COMMANDS = (
     _command("canvas.bring_to_front", T["bring_to_front"], "go-top", ["Ctrl+]"], CV),
     _command("canvas.send_to_back", T["send_to_back"], "go-bottom", ["Ctrl+["], CV),
     _command("canvas.align", T["align_cards"], "align-horizontal-center", ["Ctrl+Alt+A"], CV),
+    _command("canvas.save_layout_as_spread", T["save_layout_as_spread"], "view-grid", [], CV),
     _command("canvas.fit", T["fit_all"], "zoom-fit-best", ["Shift+F"], CV),
     # A bare F
     _command(

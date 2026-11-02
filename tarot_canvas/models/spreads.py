@@ -8,6 +8,7 @@ from pathlib import Path
 
 import tomli_w
 
+from tarot_canvas.models.staged_delete import is_staged
 from tarot_canvas.utils.logger import logger
 from tarot_canvas.utils.path_helper import get_data_directory
 
@@ -17,6 +18,10 @@ SPREAD_FILE = "spread.toml"
 _POSITION_ID = re.compile(r"p(\d+)")
 _SPREAD_KEYS = {"name", "description", "sources", "positions"}
 _POSITION_KEYS = {"id", "label", "meaning", "x", "y", "rotation", "z"}
+# Far past any layout, and well inside what the canvas and z's arithmetic can hold
+MAX_NUMBER = 1e9
+# Far past any spread, and shallow enough that a file that loads can be saved again
+MAX_NESTING = 32
 
 
 @dataclass(frozen=True)
@@ -64,25 +69,60 @@ def next_position_id(positions):
     return f"p{max(numbers, default=0) + 1}"
 
 
+def offsets_from_middle(centres, unit, places=3):
+    """(x, y) of each centre, in units, from the middle of the centres' bounding box"""
+    if not centres:
+        return []
+    xs, ys = zip(*centres, strict=True)
+    middle_x, middle_y = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
+    return [
+        (round((x - middle_x) / unit, places), round((y - middle_y) / unit, places))
+        for x, y in centres
+    ]
+
+
+def _nesting(value):
+    if isinstance(value, dict):
+        children = value.values()
+    elif isinstance(value, list):
+        children = value
+    else:
+        return 0
+    return 1 + max(map(_nesting, children), default=0)
+
+
+def _number(table, key):
+    value = float(table.get(key, 0.0))
+    if not abs(value) <= MAX_NUMBER:  # nan compares false
+        raise ValueError(f"{key} is out of range: {value}")
+    return value
+
+
 def _position(table):
     try:
         return Position(
             id=str(table["id"]),
             label=str(table.get("label", "")),
             meaning=str(table.get("meaning", "")),
-            x=float(table.get("x", 0.0)),
-            y=float(table.get("y", 0.0)),
-            rotation=float(table.get("rotation", 0.0)),
-            z=float(table.get("z", 0.0)),
+            x=_number(table, "x"),
+            y=_number(table, "y"),
+            rotation=_number(table, "rotation"),
+            z=_number(table, "z"),
             extra={key: value for key, value in table.items() if key not in _POSITION_KEYS},
         )
-    except (KeyError, TypeError, AttributeError) as error:
+    except (KeyError, TypeError, AttributeError, OverflowError) as error:
         raise ValueError(f"bad position: {error!r}") from error
 
 
 def load(path):
     with open(Path(path) / SPREAD_FILE, "rb") as handle:
-        table = tomllib.load(handle)
+        try:
+            table = tomllib.load(handle)
+            too_deep = _nesting(table) > MAX_NESTING
+        except RecursionError:
+            too_deep = True
+    if too_deep:
+        raise ValueError("nested too deeply")
 
     sources = table.get("sources", [])
     positions = table.get("positions", [])
@@ -137,11 +177,21 @@ def save(path, spread):
         raise
 
 
+def edited_at(path):
+    """When the spread in folder path was last saved, or 0 if that can't be read"""
+    try:
+        return (Path(path) / SPREAD_FILE).stat().st_mtime
+    except OSError:
+        return 0.0
+
+
 def scan(base=None):
     """(folder, Spread) for each readable spread (oldest first)"""
     base = Path(base) if base is not None else spreads_base()
     try:
-        folders = sorted(entry for entry in base.iterdir() if entry.is_dir())
+        folders = sorted(
+            entry for entry in base.iterdir() if entry.is_dir() and not is_staged(entry)
+        )
     except OSError:
         return []
 

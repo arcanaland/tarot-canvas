@@ -1,3 +1,5 @@
+import math
+
 import pytest
 from PyQt6.QtCore import QModelIndex, QPoint, QPointF, QRect, QSize, Qt
 from PyQt6.QtGui import QKeySequence
@@ -8,6 +10,7 @@ from tarot_canvas.models.spreads import Position, Spread
 from tarot_canvas.ui import commands
 from tarot_canvas.ui.canvas.slot_item import SlotItem
 from tarot_canvas.ui.canvas.spread_pane import MeaningRole, NumberRole
+from tarot_canvas.ui.canvas.view import MIN_ZOOM
 from tarot_canvas.ui.card_transfer import card_mime_data, copy_card_to_clipboard
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.strings import COMMANDS, SPREADS
@@ -1214,10 +1217,20 @@ def test_opening_twice_raises_the_tab(window, spreads_base):
     assert window.tab_widget.currentWidget() is tab
 
 
-def test_an_unreadable_spread_opens_nothing(window, spreads_base):
+@pytest.mark.parametrize(
+    "text",
+    [
+        "name = [",
+        '[[positions]]\nid = "p1"\nx = nan\n',
+        f'[[positions]]\nid = "p1"\nx = {"9" * 400}\n',
+        f"k = {'[' * 5000}{']' * 5000}\n",
+    ],
+    ids=["not toml", "nan", "too large", "too deep"],
+)
+def test_an_unreadable_spread_opens_nothing(window, spreads_base, text):
     path = spreads_base / "1000"
     path.mkdir(parents=True)
-    (path / "spread.toml").write_text("name = [")
+    (path / "spread.toml").write_text(text)
     count = window.tab_widget.count()
 
     assert window.open_spread(path) is None
@@ -1458,3 +1471,56 @@ def test_a_folder_that_will_not_open_says_so(window, monkeypatch):
     tab.open_folder_action.trigger()
 
     assert shown == [SPREADS["open_folder_failed"]]
+
+
+def ring_of_slots(count, radius):
+    """A spread of count positions on a circle, radius in card widths"""
+    return Spread(
+        positions=tuple(
+            Position(
+                id=f"p{index + 1}",
+                x=radius * math.cos(2 * math.pi * index / count),
+                y=radius * math.sin(2 * math.pi * index / count),
+            )
+            for index in range(count)
+        )
+    )
+
+
+def in_view(tab):
+    visible = tab.view.mapToScene(tab.view.viewport().rect()).boundingRect()
+    return [slot for slot in tab.slots() if visible.contains(slot.sceneBoundingRect())]
+
+
+def test_a_ring_too_wide_for_min_zoom_opens_with_every_slot_in_view(qtbot, tmp_path):
+    tab = make_tab(qtbot, ring_of_slots(78, 27.5), tmp_path)
+
+    qtbot.waitUntil(lambda: tab.view.transform().m11() < 1.0)
+
+    assert len(in_view(tab)) == 78
+
+
+def test_a_layout_past_min_zoom_can_be_zoomed_out_by_hand_until_it_fits(qtbot):
+    tab = make_tab(qtbot, ring_of_slots(78, 27.5))
+    tab.on_reset_view()
+
+    for _ in range(40):
+        before = tab.view.transform().m11()
+        if not tab.can_zoom("out"):
+            break
+        tab.zoom("out")
+        assert tab.view.transform().m11() < before
+
+    assert not tab.can_zoom("out")
+    tab.on_reset_view()
+    tab.view.zoom_by_from_center(0.001)
+    assert len(in_view(tab)) == 78
+
+
+def test_a_small_layout_stops_at_min_zoom(qtbot):
+    tab = make_tab(qtbot, ring_of_slots(4, 1))
+
+    tab.view.zoom_by_from_center(0.001)
+
+    assert tab.view.transform().m11() == pytest.approx(MIN_ZOOM)
+    assert not tab.can_zoom("out")

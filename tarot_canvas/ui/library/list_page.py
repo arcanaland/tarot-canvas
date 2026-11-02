@@ -65,6 +65,10 @@ class LibraryListPage(QWidget):
     def details_toggle_tooltip(self, is_open):
         raise NotImplementedError
 
+    def sort_choices(self):
+        """(label, key) of each sort the view offers; with any, it also has the other sort_*"""
+        return ()
+
     def set_search(self, text):
         self.list_model.set_search(text)
         self._update_empty_state()

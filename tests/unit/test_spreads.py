@@ -106,3 +106,61 @@ def test_the_next_id_is_past_the_largest_of_the_shape():
     assert spreads.next_position_id(["p1", "p3", "x"]) == "p4"
     assert spreads.next_position_id(["x", "p"]) == "p1"
     assert spreads.next_position_id([]) == "p1"
+
+
+def write_spread(folder, text):
+    folder.mkdir(exist_ok=True)
+    (folder / spreads.SPREAD_FILE).write_text(text, encoding="utf-8")
+    return folder
+
+
+UNREADABLE = {
+    "x is nan": '[[positions]]\nid = "p1"\nx = nan\n',
+    "y is inf": '[[positions]]\nid = "p1"\ny = -inf\n',
+    "rotation is nan": '[[positions]]\nid = "p1"\nrotation = nan\n',
+    "z is inf": '[[positions]]\nid = "p1"\nz = inf\n',
+    "nan as a string": '[[positions]]\nid = "p1"\nx = "nan"\n',
+    "finite but past the limit": '[[positions]]\nid = "p1"\nx = 1e308\n',
+    "too large for a float": f'[[positions]]\nid = "p1"\nx = {"9" * 400}\n',
+    "nested past the parser": f"k = {'[' * 5000}{']' * 5000}\n",
+    "nested past the writer": f"k = {'[' * 400}{']' * 400}\n",
+}
+
+
+@pytest.mark.parametrize("text", UNREADABLE.values(), ids=UNREADABLE.keys())
+def test_load_refuses_a_file_the_canvas_could_not_hold(tmp_path, text):
+    with pytest.raises(ValueError):
+        spreads.load(write_spread(tmp_path, text))
+
+
+@pytest.mark.parametrize("text", UNREADABLE.values(), ids=UNREADABLE.keys())
+def test_scan_skips_a_file_the_canvas_could_not_hold(tmp_path, text):
+    good = write_spread(tmp_path / "1", 'name = "good"\n')
+    write_spread(tmp_path / "2", text)
+
+    assert [folder for folder, _ in spreads.scan(tmp_path)] == [good]
+
+
+def test_a_file_with_nesting_it_may_keep_survives_a_save(tmp_path):
+    folder = write_spread(tmp_path / "in", "extra = { a = { b = [[1, 2], [3]] } }\n")
+    out = tmp_path / "out"
+    out.mkdir()
+
+    spreads.save(out, spreads.load(folder))
+
+    assert spreads.load(out).extra == {"extra": {"a": {"b": [[1, 2], [3]]}}}
+
+
+def test_load_accepts_the_largest_numbers_it_allows(tmp_path):
+    limit = spreads.MAX_NUMBER
+    folder = write_spread(
+        tmp_path, f'[[positions]]\nid = "p1"\nx = {limit}\ny = {-limit}\nz = {limit}\n'
+    )
+
+    (position,) = spreads.load(folder).positions
+
+    assert (position.x, position.y, position.z) == (limit, -limit, limit)
+
+
+def test_a_spread_with_no_file_was_never_edited(tmp_path):
+    assert spreads.edited_at(tmp_path) == 0.0

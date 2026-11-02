@@ -37,6 +37,7 @@ from tarot_canvas.ui.tabs.card_view.passage_metrics import (
     HEADER_TO_ROWS,
     PADDING,
     TITLE_TO_AUTHOR,
+    body_html,
     column_width,
 )
 from tarot_canvas.ui.widgets import contextual_help
@@ -375,8 +376,8 @@ def all_text(widget):
 def test_a_prose_only_source_looks_as_it_always_has(qtbot):
     widget = make_widget(qtbot, essay("Example", "Jane Done", "Body."))
 
-    assert labels(widget) == ["Example · Jane Done", esoterica_tab._body_html("Body.")]
-    assert widget.body.text() == esoterica_tab._body_html("Body.")
+    assert labels(widget) == ["Example · Jane Done", body_html("Body.")]
+    assert widget.body.text() == body_html("Body.")
     assert widget.lead is None
 
 
@@ -590,8 +591,8 @@ def test_a_symbol_without_a_printed_heading_is_its_paragraph_alone(qtbot, label)
     texts = [found.text() for found in symbols_fold(widget).content.findChildren(QLabel)]
     assert texts == [
         "The Cup",
-        esoterica_tab._body_html("The cup prose."),
-        esoterica_tab._body_html("The sea prose."),
+        body_html("The cup prose."),
+        body_html("The sea prose."),
     ]
     assert symbols_fold(widget).header.text() == "Symbols 2"
 
@@ -626,9 +627,9 @@ def test_a_labelled_marseille_image_is_the_last_row_in_the_symbols_fold(qtbot, l
 
     fold = symbols_fold(widget)
     texts = [found.text() for found in fold.content.findChildren(QLabel)]
-    assert texts[:2] == ["The Sun", esoterica_tab._body_html("The sun prose.")]
+    assert texts[:2] == ["The Sun", body_html("The sun prose.")]
     assert texts[-2] == "The Marseille card"
-    assert texts[-1] == esoterica_tab._body_html("Two batons.")
+    assert texts[-1] == body_html("Two batons.")
     assert fold.header.text() == "Symbols 3"
 
 

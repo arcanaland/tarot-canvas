@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (
 )
 
 from tarot_canvas.models import notes as notes_model
+from tarot_canvas.models import staged_delete
 from tarot_canvas.models.note_events import note_events
 from tarot_canvas.ui import commands, typography
 from tarot_canvas.ui.activate_on_return import activate_on_return
@@ -33,9 +34,6 @@ from tarot_canvas.ui.tabs.card_view.notes_list import NotesEmptyPage, NotesListP
 from tarot_canvas.ui.widgets.heading_edit import heading_edit
 from tarot_canvas.ui.widgets.inline_message import InlineMessage
 from tarot_canvas.utils.logger import logger
-
-# A deleted note is renamed under this suffix until the delete is committed.
-STAGED_DELETE_SUFFIX = ".deleted"
 
 
 def renamed_path(file_path, new_name):
@@ -494,9 +492,8 @@ class NotesTab(QWidget):
             self.save_if_modified()
             self.current_file_path = None
 
-        staged_path = file_path + STAGED_DELETE_SUFFIX
         try:
-            os.rename(file_path, staged_path)
+            staged_path = staged_delete.stage(file_path)
         except OSError as error:
             QMessageBox.critical(self, NOTES["error"], NOTES["delete_failed"].format(error=error))
             return
@@ -515,7 +512,7 @@ class NotesTab(QWidget):
         self.message.hide()
 
         try:
-            os.rename(staged_path, file_path)
+            staged_delete.restore(staged_path, file_path)
         except OSError as error:
             QMessageBox.critical(self, NOTES["error"], NOTES["restore_failed"].format(error=error))
             return
@@ -534,7 +531,7 @@ class NotesTab(QWidget):
         self.message.hide()
 
         try:
-            os.remove(staged_path)
+            staged_delete.commit(staged_path)
         except OSError as error:
             # Left where it is, the file can still be recovered by hand
             logger.error(f"Could not remove deleted note {staged_path}: {error}")

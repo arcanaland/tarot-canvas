@@ -1,3 +1,5 @@
+import html
+
 from PyQt6.QtGui import QFontMetricsF
 
 SIDE_MARGIN = 10  # the page's edge to a passage
@@ -18,6 +20,23 @@ FOLD_INDENT = 16  # a fold inside a fold, such as one group among the groups. Tu
 
 MEASURE_CHARS = 85
 _PROSE_SAMPLE = "the quick brown fox jumps over the lazy dog "
+
+
+def line_height_css():
+    return f"line-height: {round(BODY_LINE_HEIGHT * 100)}%"
+
+
+def body_html(text):
+    """Plain text as rich text: paragraphs at blank lines, line breaks at newlines.
+
+    Escaped first: it came from a file the app doesn't control.
+    """
+    return "".join(
+        f'<p style="margin: {PARAGRAPH_GAP if i else 0}px 0 0 0; {line_height_css()}">'
+        + paragraph.replace("\n", "<br>")
+        + "</p>"
+        for i, paragraph in enumerate(html.escape(text).split("\n\n"))
+    )
 
 
 def measure(font):
