@@ -31,6 +31,7 @@ from PyQt6.QtWidgets import (
 
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.canvas.side_pane import SidePane
+from tarot_canvas.ui.icons import SPREAD_ICON
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.palette import subtle_fill
 from tarot_canvas.ui.strings import SPREADS
@@ -375,7 +376,7 @@ class SpreadPane(SidePane):
 
         self.list_view = self._build_list()
         self.placeholder = PlaceholderMessage(
-            "view-grid", SPREADS["slots_empty"], helpful_action=add_slot_action
+            SPREAD_ICON, SPREADS["slots_empty"], helpful_action=add_slot_action
         )
         empty_page = QWidget()
         empty_column = QVBoxLayout(empty_page)

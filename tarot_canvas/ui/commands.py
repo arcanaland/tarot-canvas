@@ -10,6 +10,7 @@ from PyQt6.QtGui import QAction, QIcon, QKeySequence
 from PyQt6.QtWidgets import QApplication
 
 from tarot_canvas.settings import get_shortcut_keys, set_shortcut_keys
+from tarot_canvas.ui.icons import LIBRARY_ICON, SPREAD_ICON
 from tarot_canvas.ui.strings import COMMANDS, NOTES, PREFERENCES
 
 StandardKey = QKeySequence.StandardKey
@@ -74,9 +75,9 @@ T = COMMANDS
 COMMANDS = (
     # File
     _command("window.new_canvas", T["new_canvas"], "draw-rectangle", ["Ctrl+N"], W),
-    _command("window.new_library", T["new_library"], "view-list-icons", ["Ctrl+L"], W),
+    _command("window.new_library", T["new_library"], LIBRARY_ICON, ["Ctrl+L"], W),
     _command("window.new_card_view", T["new_card_view"], "view-pages-single", ["Ctrl+T"], W),
-    _command("window.new_spread", T["new_spread"], "view-grid", ["Ctrl+Shift+N"], W),
+    _command("window.new_spread", T["new_spread"], SPREAD_ICON, ["Ctrl+Shift+N"], W),
     _command("window.open_deck", T["open_deck"], "document-open-folder", ["Ctrl+O"], W),
     _command("window.save", T["save_spread"], "document-save", ["Ctrl+S"], W),
     _command("window.close_tab", T["close_tab"], "tab-close", ["Ctrl+W"], W),
@@ -149,7 +150,7 @@ COMMANDS = (
     _command("canvas.bring_to_front", T["bring_to_front"], "go-top", ["Ctrl+]"], CV),
     _command("canvas.send_to_back", T["send_to_back"], "go-bottom", ["Ctrl+["], CV),
     _command("canvas.align", T["align_cards"], "align-horizontal-center", ["Ctrl+Alt+A"], CV),
-    _command("canvas.save_layout_as_spread", T["save_layout_as_spread"], "view-grid", [], CV),
+    _command("canvas.save_layout_as_spread", T["save_layout_as_spread"], SPREAD_ICON, [], CV),
     _command("canvas.fit", T["fit_all"], "zoom-fit-best", ["Shift+F"], CV),
     # A bare F
     _command(

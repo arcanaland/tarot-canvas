@@ -14,6 +14,7 @@ from tarot_canvas.models.spreads import (
 )
 from tarot_canvas.ui.canvas.detail import card_unit_size
 from tarot_canvas.ui.canvas.spread_pane import PositionModel, SpreadPane
+from tarot_canvas.ui.icons import SPREAD_ICON
 from tarot_canvas.ui.strings import CANVAS, COMMANDS, SPREADS
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.utils.logger import logger
@@ -197,6 +198,9 @@ class SpreadTab(CanvasTab):
 
     def display_name(self):
         return self._name or SPREADS["untitled"]
+
+    def empty_tab_icon(self):
+        return QIcon.fromTheme(SPREAD_ICON)
 
     def tab_title(self):
         if self.has_unsaved_changes():

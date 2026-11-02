@@ -37,6 +37,7 @@ from tarot_canvas.settings import (
     get_settings,
 )
 from tarot_canvas.ui import typography
+from tarot_canvas.ui.icons import LIBRARY_ICON
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.pane_text import pane_form
 from tarot_canvas.ui.strings import PREFERENCES
@@ -180,7 +181,7 @@ class PreferencesDialog(QDialog):
         return [
             ("appearance", "games-config-theme", self.build_appearance_page),
             ("canvas", "draw-rectangle", self.build_canvas_page),
-            ("library", "view-list-icons", self.build_library_page),
+            ("library", LIBRARY_ICON, self.build_library_page),
             ("shortcuts", "configure-shortcuts", self.build_shortcuts_page),
         ]
 

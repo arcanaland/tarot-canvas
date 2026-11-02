@@ -44,6 +44,7 @@ from tarot_canvas.ui import commands, focused_text, typography
 from tarot_canvas.ui.command_palette import CommandPalette
 from tarot_canvas.ui.commands import Scope, set_tooltip_with_keys
 from tarot_canvas.ui.components.card_explorer import CardExplorerPanel
+from tarot_canvas.ui.icons import LIBRARY_ICON, deck_icon
 from tarot_canvas.ui.library.catalog_client import deck_catalog
 from tarot_canvas.ui.library.deck_downloads import deck_downloads
 from tarot_canvas.ui.strings import COMMANDS, DOWNLOAD, LIBRARY, MAIN_WINDOW, SPREADS
@@ -520,13 +521,11 @@ class MainWindow(QMainWindow):
         canvas_btn.clicked.connect(self.new_canvas_tab)
         button_layout.addWidget(canvas_btn)
 
-        deck_btn = QPushButton(QIcon.fromTheme("view-grid"), MAIN_WINDOW["welcome_open_deck"])
+        deck_btn = QPushButton(deck_icon(), MAIN_WINDOW["welcome_open_deck"])
         deck_btn.clicked.connect(self.open_reference_deck)
         button_layout.addWidget(deck_btn)
 
-        library_btn = QPushButton(
-            QIcon.fromTheme("view-list-icons"), MAIN_WINDOW["welcome_library"]
-        )
+        library_btn = QPushButton(QIcon.fromTheme(LIBRARY_ICON), MAIN_WINDOW["welcome_library"])
         library_btn.clicked.connect(self.new_library_tab)
         button_layout.addWidget(library_btn)
 
