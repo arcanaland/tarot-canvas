@@ -142,6 +142,11 @@ class CanvasTab(BaseTab):
         # Arrange on Arc starts from the last one this tab made
         self.arc_settings = dict(ARC_DEFAULTS)
         self.arc_popover = None
+        # While the arc panel is open, nothing but it changes or selects a card
+        self.arranging = False
+        self._locked_actions = {}
+        # Whether the view still follows the arc's preview, until it is moved by hand
+        self._arc_following = False
 
         self._tab_marks = ()
         self._tab_icon = self.empty_tab_icon()
@@ -179,6 +184,7 @@ class CanvasTab(BaseTab):
         self.view.context_menu_requested.connect(self.on_context_menu_requested)
         self.view.card_turn_requested.connect(self.on_turn_card_by_wheel)
         self.view.zoom_changed.connect(self._on_zoom_changed)
+        self.view.camera_taken.connect(self._on_camera_taken)
 
         # Sharpen the cards on screen once the camera settles
         self._detail_timer = QTimer(self)
@@ -333,6 +339,9 @@ class CanvasTab(BaseTab):
 
     def hideEvent(self, event):
         super().hideEvent(event)
+        # Switched away from or closed, not minimised: the arc is abandoned
+        if not event.spontaneous() and self.arc_is_open():
+            self.arc_popover.cancel()
         self.motion_clock.unsubscribe(self._advance_motion)
         self.settle_motion()
 
@@ -454,6 +463,9 @@ class CanvasTab(BaseTab):
 
     def on_escape_pressed(self):
         """Handle Escape key - leave fullscreen if in it, otherwise cancel selection"""
+        if self.arc_is_open():
+            self.arc_popover.cancel()
+            return
         if self.is_fullscreen():
             self.request_fullscreen_toggle()
             return
@@ -644,7 +656,7 @@ class CanvasTab(BaseTab):
 
     def can_paste_card(self, mime):
         # Once per copy
-        return has_card(mime) and not self._clipboard_pasted
+        return not self.arranging and has_card(mime) and not self._clipboard_pasted
 
     def paste_card(self, mime):
         item = self.place_card(mime)
@@ -696,20 +708,22 @@ class CanvasTab(BaseTab):
         copy_card_to_clipboard(item.card_data, item.deck, item.is_reversed())
 
     def can_cut_card(self):
-        return self.can_copy_card()
+        return not self.arranging and self.can_copy_card()
 
     def cut_card(self):
         self.copy_card()
         self.on_delete_card()
 
     def can_delete(self):
-        return bool(self.scene.selectedItems())
+        return not self.arranging and bool(self.scene.selectedItems())
 
     def delete(self):
         self.on_delete_card()
 
     def can_select_all(self):
-        return any(isinstance(item, DraggableCardItem) for item in self.scene.items())
+        return not self.arranging and any(
+            isinstance(item, DraggableCardItem) for item in self.scene.items()
+        )
 
     def select_all(self):
         for item in self.scene.items():
@@ -717,7 +731,7 @@ class CanvasTab(BaseTab):
                 item.setSelected(True)
 
     def can_deselect(self):
-        return bool(self.scene.selectedItems())
+        return not self.arranging and bool(self.scene.selectedItems())
 
     def deselect(self):
         self.scene.clearSelection()
@@ -734,6 +748,8 @@ class CanvasTab(BaseTab):
         self.update_paste_action()
 
     def update_paste_action(self):
+        if self.arranging:
+            return
         self.paste_action.setEnabled(self.can_paste_card(QGuiApplication.clipboard().mimeData()))
 
     def on_card_dropped(self, mime, scene_pos):
@@ -900,14 +916,17 @@ class CanvasTab(BaseTab):
     # Canvas Control Methods
     def on_zoom_in(self):
         """Zoom into the canvas"""
+        self._on_camera_taken()
         self.view.zoom_by_from_center(1.2)
 
     def on_zoom_out(self):
         """Zoom out of the canvas"""
+        self._on_camera_taken()
         self.view.zoom_by_from_center(0.8)
 
     def on_fit_view(self):
         """Fit all items in view"""
+        self._on_camera_taken()
         # Get bounding rect of all items
         items = self.scene.items()
         if not items:
@@ -923,6 +942,7 @@ class CanvasTab(BaseTab):
 
     def on_reset_view(self):
         """Reset view to default position and zoom"""
+        self._on_camera_taken()
         self.view.reset_zoom()
         # The scene rect moves with the camera now, so centre on the cards instead.
         items_rect = self.scene.itemsBoundingRect()
@@ -965,6 +985,8 @@ class CanvasTab(BaseTab):
     # Arrangement Control Methods
     def update_arrange_actions(self):
         """Enable the arrangement actions only when they have something to act on."""
+        if self.arranging:
+            return
         count = len(self.scene.selectedItems())
         for slot, action in self.arrange_actions.items():
             action.setEnabled(count >= (2 if slot == self.on_align_cards else 1))
@@ -1006,7 +1028,7 @@ class CanvasTab(BaseTab):
 
     def update_save_layout_action(self):
         action = self.commands.get("canvas.save_layout_as_spread")
-        if action is not None:
+        if action is not None and not self.arranging:
             action.setEnabled(bool(self._cards))
 
     def layout_as_spread(self):
@@ -1097,19 +1119,81 @@ class CanvasTab(BaseTab):
     def open_arc_popover(self):
         """Arrange on Arc: the selected cards, previewed until Apply"""
         items = self.arrange_order(self.selected_cards())
-        if len(items) < 2:
+        if len(items) < 2 or self.arc_is_open():
             return None
         if self.arc_popover is not None:
             self.arc_popover.deleteLater()
-        button = self.toolbar.widgetForAction(self.arrange_actions[self.on_align_cards])
-        self.arc_popover = ArcPopover(items, self.arc_settings, button, self)
-        self.arc_popover.closed.connect(self._remember_arc)
-        self.arc_popover.applied.connect(self.layout_changed)
-        self.arc_popover.open_at(self.align_menu_anchor())
-        return self.arc_popover
+        self.arc_popover = popover = ArcPopover(
+            items, self.arc_settings, self.view, self.canvas_area
+        )
+        popover.closed.connect(self._on_arc_closed)
+        popover.applied.connect(self.layout_changed)
+        popover.previewed.connect(self._follow_arc)
+        self._arc_following = True
+        self.set_arranging(True)
+        popover.open()
+        return popover
 
-    def _remember_arc(self, settings):
+    def arc_is_open(self):
+        return self.arc_popover is not None and not self.arc_popover.finished
+
+    def _on_arc_closed(self, settings):
         self.arc_settings = settings
+        self._arc_following = False
+        self.set_arranging(False)
+
+    def _on_camera_taken(self):
+        self._arc_following = False
+
+    def _follow_arc(self):
+        if self._arc_following:
+            popover = self.arc_popover
+            self.keep_in_sight(popover.cards_rect(), popover.free_region())
+
+    def keep_in_sight(self, rect, free):
+        """Bring scene `rect` into `free`, a part of the viewport, moving the view as little as
+        it can: nothing if it is there, a pan if it fits, else a zoom out. Never a zoom in."""
+        rect = rect.adjusted(-50, -50, 50, 50)  # on_fit_view's margin
+        if free.isEmpty():
+            return
+        shown = self.view.mapFromScene(rect).boundingRect()
+        if free.contains(shown):
+            return
+        shrink = min(free.width() / shown.width(), free.height() / shown.height())
+        if shrink < 1:
+            self.view.zoom_by_from_center(shrink)
+        # Put rect's centre at free's: move the viewport's centre by the difference
+        scale = self.view.transform().m11()
+        viewport_centre = QPointF(self.view.viewport().rect().center())
+        offset = (viewport_centre - QPointF(free.center())) / scale
+        self.view.grow_scene_rect()
+        self.view.centerOn(rect.center() + offset)
+        self.view.grow_scene_rect()
+
+    def lockable_actions(self):
+        """What can change or select a card, and so is off while the arc panel is open"""
+        keep = {"canvas.fit", "canvas.fullscreen", "canvas.cancel"}
+        actions = [action for name, action in self.commands.items() if name not in keep]
+        return [*actions, self.paste_action]
+
+    def set_arranging(self, arranging):
+        """Lock the selection and the cards while the arc panel is open, and unlock them after"""
+        if arranging == self.arranging:
+            return
+        self.arranging = arranging
+        self.view.locked = arranging
+        if arranging:
+            self._locked_actions = {a: a.isEnabled() for a in self.lockable_actions()}
+            for action in self._locked_actions:
+                action.setEnabled(False)
+        else:
+            for action, enabled in self._locked_actions.items():
+                action.setEnabled(enabled)
+            self._locked_actions = {}
+            self.update_arrange_actions()
+            self.update_paste_action()
+            self.update_save_layout_action()
+        self.edit_state_changed()
 
     def align_menu_anchor(self):
         """Global position for the align menu: just below its toolbar button."""

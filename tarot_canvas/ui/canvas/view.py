@@ -24,6 +24,8 @@ class PannableGraphicsView(QGraphicsView):
     zoom_changed = pyqtSignal(float)
     # What the view shows, or how sharply, may have changed: a scroll, resize or new dpr
     camera_moved = pyqtSignal()
+    # The person moved the camera themselves (wheel, pan or scrollbar), not the code
+    camera_taken = pyqtSignal()
     # A context menu was asked for, at this scene position and this screen position
     context_menu_requested = pyqtSignal(QPointF, QPoint)
     # Ctrl+wheel over a card: the card, whole notches (positive is clockwise), and Alt held
@@ -41,6 +43,10 @@ class PannableGraphicsView(QGraphicsView):
         self._pointer_pos = None
         # (card, fine, angleDelta not yet a whole notch) of the turn the wheel is making
         self._turn_wheel = None
+        # While locked, no card can be picked, turned or dropped: every drag pans
+        self.locked = False
+        for bar in (self.horizontalScrollBar(), self.verticalScrollBar()):
+            bar.actionTriggered.connect(self.camera_taken)
 
     def card_at(self, scene_pos):
         """The topmost card at scene_pos, if any."""
@@ -143,6 +149,8 @@ class PannableGraphicsView(QGraphicsView):
     def _starts_pan(self, event):
         if event.button() == Qt.MouseButton.MiddleButton:
             return True
+        if self.locked:
+            return event.button() == Qt.MouseButton.LeftButton
         return bool(
             event.button() == Qt.MouseButton.LeftButton
             and event.modifiers() & Qt.KeyboardModifier.ShiftModifier
@@ -176,6 +184,8 @@ class PannableGraphicsView(QGraphicsView):
             # Pan the view
             self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - delta.x())
             self.verticalScrollBar().setValue(self.verticalScrollBar().value() - delta.y())
+            if not delta.isNull():
+                self.camera_taken.emit()
 
             event.accept()
         else:
@@ -200,6 +210,10 @@ class PannableGraphicsView(QGraphicsView):
         )
 
     def mouseDoubleClickEvent(self, event):
+        if self.locked:
+            # Only a pan: no card opens and none is summoned
+            self.mousePressEvent(event)
+            return
         if (
             event.button() == Qt.MouseButton.LeftButton
             and event.modifiers() == Qt.KeyboardModifier.NoModifier
@@ -211,24 +225,36 @@ class PannableGraphicsView(QGraphicsView):
             super().mouseDoubleClickEvent(event)
 
     def contextMenuEvent(self, event):
+        if self.locked:
+            event.accept()
+            return
         self.context_menu_requested.emit(self.mapToScene(event.pos()), event.globalPos())
         event.accept()
 
     # -- drop -------------------------------------------------------------
 
     def dragEnterEvent(self, event):
+        if self.locked:
+            event.ignore()
+            return
         if has_card(event.mimeData()):
             event.acceptProposedAction()
         else:
             super().dragEnterEvent(event)
 
     def dragMoveEvent(self, event):
+        if self.locked:
+            event.ignore()
+            return
         if has_card(event.mimeData()):
             event.acceptProposedAction()
         else:
             super().dragMoveEvent(event)
 
     def dropEvent(self, event):
+        if self.locked:
+            event.ignore()
+            return
         if has_card(event.mimeData()):
             scene_pos = self.mapToScene(event.position().toPoint())
             self.card_dropped.emit(event.mimeData(), scene_pos)
@@ -239,7 +265,7 @@ class PannableGraphicsView(QGraphicsView):
     def wheelEvent(self, event):
         """Zoom about the pointer, or with Ctrl held over a card, turn it."""
         modifiers = event.modifiers()
-        if modifiers & Qt.KeyboardModifier.ControlModifier:
+        if modifiers & Qt.KeyboardModifier.ControlModifier and not self.locked:
             card = self.card_at(self.mapToScene(event.position().toPoint()))
             if card is not None:
                 self._turn_by_wheel(card, bool(modifiers & Qt.KeyboardModifier.AltModifier), event)
@@ -253,6 +279,7 @@ class PannableGraphicsView(QGraphicsView):
             self.zoom_by(zoom_factor)
         else:
             self.zoom_by(1.0 / zoom_factor)
+        self.camera_taken.emit()
 
     def _turn_by_wheel(self, card, fine, event):
         """Ask for a turn of card once the wheel has gone a whole notch."""

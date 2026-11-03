@@ -267,7 +267,8 @@ class SpreadTab(CanvasTab):
         return True
 
     def can_save(self):
-        return self.spread_path is None or self._modified
+        # Not mid-arc: the cards stand where the preview put them
+        return not self.arranging and (self.spread_path is None or self._modified)
 
     def has_unsaved_changes(self):
         return self._modified
@@ -308,8 +309,19 @@ class SpreadTab(CanvasTab):
     # -- the pane's menu ---------------------------------------------------
 
     @pyqtSlot()
+    def set_arranging(self, arranging):
+        """The pane's list neither selects nor reorders while the arc panel is open"""
+        super().set_arranging(arranging)
+        self.pane.list_view.setEnabled(not arranging)
+        self.duplicate_action.setEnabled(not arranging)
+        window = self.window()
+        if hasattr(window, "update_save_action"):
+            window.update_save_action()
+
     def _sync_menu(self):
-        self.revert_action.setEnabled(self.spread_path is not None and self._modified)
+        self.revert_action.setEnabled(
+            not self.arranging and self.spread_path is not None and self._modified
+        )
         self.open_folder_action.setEnabled(self.spread_path is not None)
 
     @pyqtSlot()

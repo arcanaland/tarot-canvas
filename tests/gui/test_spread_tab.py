@@ -1008,6 +1008,28 @@ def test_applying_an_arc_modifies_the_spread(qtbot, spreads_base):
     assert tab.has_unsaved_changes()
 
 
+def test_the_pane_and_the_file_are_locked_while_an_arc_is_open(qtbot, spreads_base):
+    tab = make_tab(qtbot)
+    for slot in add_slots(tab, 3):
+        slot.setSelected(True)
+    tab.save()
+    tab.mark_modified()
+
+    popover = tab.open_arc_popover()
+    tab._sync_menu()
+    assert not tab.pane.list_view.isEnabled()
+    assert not tab.duplicate_action.isEnabled()
+    assert not tab.revert_action.isEnabled()
+    assert not tab.can_save(), "the cards stand where the preview put them"
+
+    popover.cancel()
+    tab._sync_menu()
+    assert tab.pane.list_view.isEnabled()
+    assert tab.duplicate_action.isEnabled()
+    assert tab.revert_action.isEnabled()
+    assert tab.can_save()
+
+
 def test_a_failed_write_keeps_the_tab_unsaved_and_leaves_no_folder(
     qtbot, spreads_base, monkeypatch
 ):
