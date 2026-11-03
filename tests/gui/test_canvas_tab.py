@@ -9,6 +9,7 @@ from PyQt6.QtGui import (
     QEnterEvent,
     QMouseEvent,
     QPixmap,
+    QWheelEvent,
 )
 from PyQt6.QtWidgets import QApplication
 
@@ -32,7 +33,7 @@ from tarot_canvas.ui.canvas.motion import LIFT_REST, LIFT_SELECTED
 from tarot_canvas.ui.canvas.selection import GILT_ON_DARK, GILT_ON_LIGHT
 from tarot_canvas.ui.card_colours import CARD_COLOURS, SLOT_COLOUR
 from tarot_canvas.ui.card_transfer import card_mime_data, cards_mime_data, copy_card_to_clipboard
-from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
+from tarot_canvas.ui.tabs.canvas_tab import CanvasTab, wheel_turn
 from tarot_canvas.ui.widgets.document_tabs import DocumentTabs
 
 
@@ -1275,3 +1276,154 @@ def test_the_tab_icon_paints_a_slot_in_its_colour(qtbot):
     assert card.colour == CARD_COLOURS["default"]
     assert slot.colour == SLOT_COLOUR
     qtbot.wait(1100)
+
+
+# -- turning by the wheel
+
+CTRL = Qt.KeyboardModifier.ControlModifier
+CTRL_ALT = CTRL | Qt.KeyboardModifier.AltModifier
+
+
+def wheel(tab, viewport_pos, delta, modifiers=CTRL):
+    """Turn the wheel over viewport_pos; delta is (x, y) angleDelta."""
+    viewport = tab.view.viewport()
+    event = QWheelEvent(
+        QPointF(viewport_pos),
+        QPointF(viewport.mapToGlobal(viewport_pos)),
+        QPoint(),
+        QPoint(*delta),
+        Qt.MouseButton.NoButton,
+        modifiers,
+        Qt.ScrollPhase.NoScrollPhase,
+        False,
+    )
+    QApplication.sendEvent(viewport, event)
+
+
+def over(tab, item):
+    return tab.view.mapFromScene(item.sceneBoundingRect().center())
+
+
+def cards(tab):
+    return sorted(
+        (item for item in tab.scene.items() if isinstance(item, DraggableCardItem)),
+        key=lambda item: item.pos().x(),
+    )
+
+
+def zoom(tab):
+    return tab.view.transform().m11()
+
+
+def test_ctrl_wheel_over_a_selected_card_turns_the_whole_selection(qtbot):
+    tab = make_tab(qtbot)
+    add_cards(tab, 3)
+    first, second, third = cards(tab)
+    third.setSelected(False)
+    before = zoom(tab)
+
+    with qtbot.waitSignal(tab.layout_changed):
+        wheel(tab, over(tab, first), (0, 120))
+
+    assert [card.orient for card in (first, second, third)] == [15, 15, 0]
+    assert zoom(tab) == before
+
+
+def test_ctrl_wheel_over_an_unselected_card_turns_only_that_card(qtbot):
+    tab = make_tab(qtbot)
+    add_cards(tab, 3)
+    first, second, third = cards(tab)
+    third.setSelected(False)
+
+    wheel(tab, over(tab, third), (0, 120))
+
+    assert [card.orient for card in (first, second, third)] == [0, 0, 15]
+
+
+def test_wheel_towards_the_user_turns_anticlockwise(qtbot):
+    tab = make_tab(qtbot)
+    add_cards(tab, 1)
+    (card,) = cards(tab)
+
+    wheel(tab, over(tab, card), (0, -120))
+
+    assert card.orient == 345
+
+
+def test_a_coarse_notch_lands_on_a_multiple_of_15(qtbot):
+    tab = make_tab(qtbot)
+    add_cards(tab, 1)
+    (card,) = cards(tab)
+    card.set_orient(7)
+
+    wheel(tab, over(tab, card), (0, 120))
+
+    assert card.orient == 15
+
+
+@pytest.mark.parametrize(
+    "orient,notches,turned",
+    [(7, 1, 15), (7, -1, 0), (15, 1, 30), (15, -1, 0), (0, -1, -15), (7, 2, 30), (44.9, 1, 45)],
+)
+def test_coarse_turns_snap_to_15(orient, notches, turned):
+    assert wheel_turn(orient, notches, fine=False) == turned
+
+
+def test_ctrl_alt_turns_by_one_degree_from_a_sideways_delta(qtbot):
+    """Qt delivers an Alt-held wheel as angleDelta().x()"""
+    tab = make_tab(qtbot)
+    add_cards(tab, 1)
+    (card,) = cards(tab)
+    card.set_orient(7)
+
+    wheel(tab, over(tab, card), (120, 0), CTRL_ALT)
+
+    assert card.orient == 8
+
+
+def test_a_fine_wheel_turns_one_step_per_notch(qtbot):
+    tab = make_tab(qtbot)
+    add_cards(tab, 1)
+    (card,) = cards(tab)
+    pos = over(tab, card)
+
+    for _ in range(3):
+        wheel(tab, pos, (0, 30))
+    assert card.orient == 0
+    wheel(tab, pos, (0, 30))
+    assert card.orient == 15
+
+
+def test_a_plain_wheel_over_a_card_still_zooms(qtbot):
+    tab = make_tab(qtbot)
+    add_cards(tab, 1)
+    (card,) = cards(tab)
+    before = zoom(tab)
+
+    wheel(tab, over(tab, card), (0, 120), Qt.KeyboardModifier.NoModifier)
+
+    assert zoom(tab) > before
+    assert card.orient == 0
+
+
+def test_ctrl_wheel_over_empty_canvas_zooms(qtbot):
+    tab = make_tab(qtbot)
+    add_cards(tab, 1)
+    (card,) = cards(tab)
+    before = zoom(tab)
+
+    wheel(tab, QPoint(5, 5), (0, 120))
+
+    assert zoom(tab) > before
+    assert card.orient == 0
+
+
+def test_a_turn_keeps_a_reversed_card_reversed(qtbot):
+    tab = make_tab(qtbot)
+    add_cards(tab, 1)
+    (card,) = cards(tab)
+    card.set_reversed(True)
+
+    wheel(tab, over(tab, card), (0, 120))
+
+    assert (card.orient, card.reversed) == (15, True)

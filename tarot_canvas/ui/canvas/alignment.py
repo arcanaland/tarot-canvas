@@ -16,12 +16,12 @@ def _turn(item):
 
 
 def logical_rect(item):
+    """The item's footprint in scene coordinates: the box around it turned by its true angle."""
     rect = item.boundingRect()
     degrees, origin = _turn(item)
-    quarter_turns = round(degrees / 90) % 4
-    if quarter_turns:
+    if degrees % 360:
         turn = QTransform().translate(origin.x(), origin.y())
-        turn.rotate(quarter_turns * 90)
+        turn.rotate(degrees)
         turn.translate(-origin.x(), -origin.y())
         rect = turn.mapRect(rect)
     return rect.translated(item.pos())

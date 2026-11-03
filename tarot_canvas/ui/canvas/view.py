@@ -4,12 +4,15 @@ from PyQt6.QtCore import QEvent, QMimeData, QPoint, QPointF, Qt, pyqtSignal
 from PyQt6.QtGui import QPainter
 from PyQt6.QtWidgets import QApplication, QGraphicsView
 
+from tarot_canvas.ui.canvas.card_item import DraggableCardItem
 from tarot_canvas.ui.card_transfer import has_card
 
 MIN_ZOOM = 0.1
 MAX_ZOOM = 8.0
 # How far out a layout too large for MIN_ZOOM can go, of the zoom that fits it
 FIT_HEADROOM = 0.5
+# angleDelta of one wheel notch; finer wheels and touchpads send less, more often
+WHEEL_NOTCH = 120
 
 
 class PannableGraphicsView(QGraphicsView):
@@ -23,6 +26,8 @@ class PannableGraphicsView(QGraphicsView):
     camera_moved = pyqtSignal()
     # A context menu was asked for, at this scene position and this screen position
     context_menu_requested = pyqtSignal(QPointF, QPoint)
+    # Ctrl+wheel over a card: the card, whole notches (positive is clockwise), and Alt held
+    card_turn_requested = pyqtSignal(object, int, bool)
 
     def __init__(self, scene, parent=None):
         super().__init__(scene, parent)
@@ -34,6 +39,15 @@ class PannableGraphicsView(QGraphicsView):
         self._pan_button = None
         self._last_mouse_pos = None
         self._pointer_pos = None
+        # (card, fine, angleDelta not yet a whole notch) of the turn the wheel is making
+        self._turn_wheel = None
+
+    def card_at(self, scene_pos):
+        """The topmost card at scene_pos, if any."""
+        for item in self.scene().items(scene_pos):
+            if isinstance(item, DraggableCardItem):
+                return item
+        return None
 
     def pointer_scene_pos(self):
         """Scene position of the pointer or None when it is not over the canvas."""
@@ -223,10 +237,36 @@ class PannableGraphicsView(QGraphicsView):
             super().dropEvent(event)
 
     def wheelEvent(self, event):
-        """Handle zooming with mouse wheel anchored under the pointer"""
+        """Zoom about the pointer, or with Ctrl held over a card, turn it."""
+        modifiers = event.modifiers()
+        if modifiers & Qt.KeyboardModifier.ControlModifier:
+            card = self.card_at(self.mapToScene(event.position().toPoint()))
+            if card is not None:
+                self._turn_by_wheel(card, bool(modifiers & Qt.KeyboardModifier.AltModifier), event)
+                event.accept()
+                return
+        self._turn_wheel = None
+
         zoom_factor = 1.15
 
         if event.angleDelta().y() > 0:
             self.zoom_by(zoom_factor)
         else:
             self.zoom_by(1.0 / zoom_factor)
+
+    def _turn_by_wheel(self, card, fine, event):
+        """Ask for a turn of card once the wheel has gone a whole notch."""
+        delta = event.angleDelta()
+        # Qt hands an Alt-held wheel over as a horizontal one
+        units = delta.y() or delta.x()
+        owed = 0
+        if self._turn_wheel is not None:
+            last_card, last_fine, last_owed = self._turn_wheel
+            if last_card is card and last_fine == fine:
+                owed = last_owed
+        owed += units
+        notches = int(owed / WHEEL_NOTCH)
+        owed -= notches * WHEEL_NOTCH
+        self._turn_wheel = (card, fine, owed)
+        if notches:
+            self.card_turn_requested.emit(card, notches, fine)

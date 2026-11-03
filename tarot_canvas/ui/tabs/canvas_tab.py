@@ -1,3 +1,4 @@
+import math
 import os
 import random
 
@@ -90,6 +91,25 @@ from tarot_canvas.ui.strings import CANVAS, MAIN_WINDOW, SPREADS
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.utils.logger import logger
 
+# Degrees a wheel notch turns a card, and with Alt held
+WHEEL_TURN_STEP = 15
+WHEEL_TURN_FINE_STEP = 1
+
+
+def wheel_turn(orient, notches, fine):
+    """Where notches of the wheel leave a card at orient.
+
+    A fine notch turns 1°. A coarse one lands on a multiple of 15°, so from 7° one notch
+    clockwise is 15°, not 22°.
+    """
+    if fine:
+        return orient + notches * WHEEL_TURN_FINE_STEP
+    steps = orient / WHEEL_TURN_STEP
+    if math.isclose(steps, round(steps), abs_tol=1e-9):
+        steps = round(steps)
+    start = math.floor(steps) if notches > 0 else math.ceil(steps)
+    return (start + notches) * WHEEL_TURN_STEP
+
 
 class CanvasTab(BaseTab):
     # Signal to notify the main window that we want to navigate
@@ -154,6 +174,7 @@ class CanvasTab(BaseTab):
         self.view.card_dropped.connect(self.on_card_dropped)
         self.view.background_double_clicked.connect(self.on_draw_card)
         self.view.context_menu_requested.connect(self.on_context_menu_requested)
+        self.view.card_turn_requested.connect(self.on_turn_card_by_wheel)
         self.view.zoom_changed.connect(self._on_zoom_changed)
 
         # Sharpen the cards on screen once the camera settles
@@ -795,10 +816,7 @@ class CanvasTab(BaseTab):
 
     def card_at(self, scene_pos):
         """The topmost card at scene_pos, if any."""
-        for item in self.scene.items(scene_pos):
-            if isinstance(item, DraggableCardItem):
-                return item
-        return None
+        return self.view.card_at(scene_pos)
 
     def card_menu(self, scene_pos):
         """The menu for the card at scene_pos, or None. It selects the card if it wasn't."""
@@ -917,6 +935,12 @@ class CanvasTab(BaseTab):
                 item.set_orient(item.orient + 90)
         if items:
             self.layout_changed.emit()
+
+    def on_turn_card_by_wheel(self, card, notches, fine):
+        """Turn the cards a drag of card would move, each about its own centre."""
+        for item in card.moving_cards():
+            item.set_orient(wheel_turn(item.orient, notches, fine))
+        self.layout_changed.emit()
 
     def on_flip_card(self):
         """Flip the selected card upside down (to indicate reversed position in Tarot)"""

@@ -495,7 +495,7 @@ class DraggableCardItem(QGraphicsPixmapItem):
         super().mouseMoveEvent(event)
 
     def begin_drag(self):
-        moving = self._moving_cards()
+        moving = self.moving_cards()
         if len(moving) > 1:
             self._group_dragging = True
         else:
@@ -504,8 +504,8 @@ class DraggableCardItem(QGraphicsPixmapItem):
         if tab is not None and hasattr(tab, "raise_cards"):
             tab.raise_cards(moving)
 
-    def _moving_cards(self):
-        """The cards a drag of this one moves: the whole selection if this card is in it."""
+    def moving_cards(self):
+        """The cards a drag or turn of this one moves: the whole selection if this card is in it."""
         scene = self.scene()
         if scene is None or not self.isSelected():
             return [self]
