@@ -1,3 +1,9 @@
+import sys
+
+import pytest
+import sys
+
+import pytest
 from PyQt6.QtGui import QKeySequence
 
 from tarot_canvas.settings import SHORTCUTS_PREFIX, get_settings
@@ -8,11 +14,14 @@ from tarot_canvas.ui.commands import (
     conflicts,
     default_keys,
     is_bare_letter_or_digit,
+    key_text,
     keys_for,
     menu_text,
     store_keys,
     tooltip_with_keys,
+    wheel_text,
 )
+from tarot_canvas.ui.strings import COMMANDS as COMMANDS_TEXT
 
 
 def test_every_id_is_unique():
@@ -82,3 +91,27 @@ def test_storing_the_defaults_forgets_them(qapp):
     store_keys("canvas.summon", default_keys("canvas.summon"))
     assert not get_settings().contains(SHORTCUTS_PREFIX + "canvas.summon")
     assert keys_for("canvas.summon") == [QKeySequence("D")]
+
+
+@pytest.mark.skipif(sys.platform == "darwin", reason="the Mac names modifiers by symbol")
+@pytest.mark.skipif(sys.platform == "darwin", reason="the Mac names modifiers by symbol")
+def test_a_wheel_command_shows_its_modifiers_before_the_wheel(qapp):
+    assert wheel_text("canvas.turn") == "Ctrl+" + COMMANDS_TEXT["wheel"]
+    assert wheel_text("canvas.turn_fine") == "Ctrl+Alt+" + COMMANDS_TEXT["wheel"]
+
+
+def test_rotate_s_tooltip_names_the_wheel_after_its_key(qapp):
+    lines = tooltip_with_keys("Rotate", "canvas.rotate").split("\n")
+
+    assert lines == [
+        f"Rotate ({key_text('canvas.rotate')})",
+        f"{by_id('canvas.turn').text} ({wheel_text('canvas.turn')})",
+        f"{by_id('canvas.turn_fine').text} ({wheel_text('canvas.turn_fine')})",
+    ]
+
+
+def test_a_wheel_command_is_fixed_and_holds_no_key(qapp):
+    for command in COMMANDS:
+        if command.wheel is not None:
+            assert command.fixed
+            assert keys_for(command.id) == []

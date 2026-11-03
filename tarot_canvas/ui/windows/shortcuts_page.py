@@ -193,6 +193,9 @@ class ShortcutsPage(QWidget):
         self.changed.emit()
 
     def _show(self, command_id):
+        if commands.by_id(command_id).wheel is not None:
+            self.cells[command_id][0].setText(commands.wheel_text(command_id))
+            return
         for item, key in zip(self.cells[command_id], key_cells(self.keys[command_id]), strict=True):
             item.setData(key, KEY_ROLE)
             item.setText(

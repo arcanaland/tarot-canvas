@@ -5,7 +5,7 @@ import sys
 from dataclasses import dataclass
 from enum import Enum
 
-from PyQt6.QtCore import QObject, Qt
+from PyQt6.QtCore import QKeyCombination, QObject, Qt
 from PyQt6.QtGui import QAction, QIcon, QKeySequence
 from PyQt6.QtWidgets import QApplication
 
@@ -56,6 +56,10 @@ class Command:
     context: Qt.ShortcutContext | None = None
     # Another command whose key a menu entry displays after its label, binding none itself
     shows: str | None = None
+    # A wheel over a card with these modifiers, which the view handles, so it is fixed
+    wheel: Qt.KeyboardModifier | None = None
+    # Wheel commands its tooltip names after its own key
+    hints: tuple[str, ...] = ()
 
 
 def _command(id, text, icon, defaults, scope, **kwargs):
@@ -145,7 +149,33 @@ COMMANDS = (
     # Canvas
     _command("canvas.summon", T["summon_card"], "document-new", ["D"], CV),
     _command("canvas.flip", T["flip_card"], "object-flip-vertical", ["R"], CV),
-    _command("canvas.rotate", T["rotate_card"], "object-rotate-right", ["Shift+R"], CV),
+    _command(
+        "canvas.rotate",
+        T["rotate_card"],
+        "object-rotate-right",
+        ["Shift+R"],
+        CV,
+        hints=("canvas.turn", "canvas.turn_fine"),
+    ),
+    # PannableGraphicsView.wheelEvent handles these
+    _command(
+        "canvas.turn",
+        T["turn_card"],
+        None,
+        [],
+        CV,
+        fixed=True,
+        wheel=Qt.KeyboardModifier.ControlModifier,
+    ),
+    _command(
+        "canvas.turn_fine",
+        T["turn_card_fine"],
+        None,
+        [],
+        CV,
+        fixed=True,
+        wheel=Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier,
+    ),
     _command("canvas.delete", T["delete_card"], "edit-delete", ["Backspace"], CV),
     _command("canvas.bring_to_front", T["bring_to_front"], "go-top", ["Ctrl+]"], CV),
     _command("canvas.send_to_back", T["send_to_back"], "go-bottom", ["Ctrl+["], CV),
@@ -279,9 +309,23 @@ def key_text(command):
     return keys[0].toString(QKeySequence.SequenceFormat.NativeText) if keys else ""
 
 
+def wheel_text(command_id):
+    """A wheel command's modifiers and the wheel, as a key would show: Ctrl+Wheel"""
+    modifiers = by_id(command_id).wheel
+    # Qt names modifiers only as part of a key, so name them with one and drop it
+    native = QKeySequence(QKeyCombination(modifiers, Qt.Key.Key_A)).toString(
+        QKeySequence.SequenceFormat.NativeText
+    )
+    return native[:-1] + T["wheel"]
+
+
 def tooltip_with_keys(words, command):
     key = key_text(command)
-    return f"{words} ({key})" if words and key else words
+    text = f"{words} ({key})" if words and key else words
+    shown = _BY_ID.get(_id_of(command))
+    for hint in shown.hints if shown else ():
+        text += f"\n{by_id(hint).text} ({wheel_text(hint)})"
+    return text
 
 
 def menu_text(words, command):

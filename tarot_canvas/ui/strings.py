@@ -41,6 +41,9 @@ COMMANDS = {
     "save_spread": "Save Spread",
     "flip_card": "Flip Card (Reversed)",
     "rotate_card": "Rotate Card",
+    "turn_card": "Rotate Card by 15°",
+    "turn_card_fine": "Rotate Card by 1°",
+    "wheel": "Wheel",
     "delete_card": "Delete Card",
     "bring_to_front": "Bring to Front",
     "send_to_back": "Send to Back",
@@ -372,7 +375,7 @@ CANVAS = {
     "arrange_arc": "Arrange in Circle",
     # The arc popover
     "arc_bend": "Bend:",
-    "arc_turn": "Turn:",
+    "arc_turn": "Rotation:",
     "arc_direction": "Direction:",
     "arc_cards": "Orientation:",
     "arc_spacing": "Gap:",
