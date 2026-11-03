@@ -267,7 +267,6 @@ class SpreadTab(CanvasTab):
         return True
 
     def can_save(self):
-        # Not mid-arc: the cards stand where the preview put them
         return not self.arranging and (self.spread_path is None or self._modified)
 
     def has_unsaved_changes(self):

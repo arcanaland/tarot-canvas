@@ -24,7 +24,7 @@ class PannableGraphicsView(QGraphicsView):
     zoom_changed = pyqtSignal(float)
     # What the view shows, or how sharply, may have changed: a scroll, resize or new dpr
     camera_moved = pyqtSignal()
-    # The person moved the camera themselves (wheel, pan or scrollbar), not the code
+    # The user moved the camera themselves (wheel, pan or scrollbar)
     camera_taken = pyqtSignal()
     # A context menu was asked for, at this scene position and this screen position
     context_menu_requested = pyqtSignal(QPointF, QPoint)

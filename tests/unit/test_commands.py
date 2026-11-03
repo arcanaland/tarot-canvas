@@ -1,9 +1,6 @@
 import sys
 
 import pytest
-import sys
-
-import pytest
 from PyQt6.QtGui import QKeySequence
 
 from tarot_canvas.settings import SHORTCUTS_PREFIX, get_settings

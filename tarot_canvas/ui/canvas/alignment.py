@@ -151,11 +151,6 @@ def middle_angle(bend=180, turn=0):
 def arc_angles(count, bend=180, turn=0, clockwise=True):
     """Where each of `count` cards sits on its circle, in scene degrees (from 3 o'clock,
     clockwise on screen), the middle card at `middle_angle`.
-
-    Each card takes an equal share of the bend, so the cards keep their spacing as it
-    changes and close into an even ring at 360. `clockwise` numbers them along the row in
-    the turned frame's reading order: left to right at no turn, whether the row bows up,
-    lies straight or bows down, so the numbers never swap ends as the bend crosses 0.
     """
     if count < 1:
         return []

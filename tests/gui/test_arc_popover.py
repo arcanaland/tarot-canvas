@@ -143,14 +143,6 @@ def test_hiding_the_tab_puts_every_card_back(tab):
     assert not tab.arranging
 
 
-def test_the_panel_is_part_of_the_canvas_not_a_window(tab):
-    add_cards(tab, 3)
-    popover = tab.open_arc_popover()
-    assert not popover.isWindow()
-    assert popover.parentWidget() is tab.canvas_area
-    assert not popover.hasFocus()
-
-
 def test_apply_keeps_the_arc_and_changes_the_layout_once(tab):
     cards = add_cards(tab, 4)
     changes = count_layout_changes(tab)

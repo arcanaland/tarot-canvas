@@ -1152,16 +1152,19 @@ class CanvasTab(BaseTab):
 
     def keep_in_sight(self, rect, free):
         """Bring scene `rect` into `free`, a part of the viewport, moving the view as little as
-        it can: nothing if it is there, a pan if it fits, else a zoom out. Never a zoom in."""
+        it can. Never a zoom in."""
         rect = rect.adjusted(-50, -50, 50, 50)  # on_fit_view's margin
         if free.isEmpty():
             return
         shown = self.view.mapFromScene(rect).boundingRect()
+
         if free.contains(shown):
             return
+
         shrink = min(free.width() / shown.width(), free.height() / shown.height())
         if shrink < 1:
             self.view.zoom_by_from_center(shrink)
+
         # Put rect's centre at free's: move the viewport's centre by the difference
         scale = self.view.transform().m11()
         viewport_centre = QPointF(self.view.viewport().rect().center())
