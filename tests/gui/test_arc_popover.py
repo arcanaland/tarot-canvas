@@ -1,9 +1,11 @@
+from itertools import pairwise
+
 import pytest
 from PyQt6.QtCore import QEvent, QPoint, QPointF, Qt
 from PyQt6.QtGui import QColor, QMouseEvent, QPalette, QPixmap, QWheelEvent
 from PyQt6.QtWidgets import QApplication, QDialogButtonBox
 
-from tarot_canvas.ui.canvas.arc_popover import ARC_DEFAULTS, clock
+from tarot_canvas.ui.canvas.arc_popover import ARC_DEFAULTS, signed
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
 from tarot_canvas.ui.strings import CANVAS
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
@@ -59,21 +61,24 @@ def test_opening_previews_the_arc(tab):
     assert places(cards) != before
 
 
-def test_moving_the_sweep_moves_the_cards(tab):
+@pytest.mark.parametrize("slider,notch", [("bend", 6), ("turn", 3)])
+def test_moving_the_bend_or_turn_moves_the_cards(tab, slider, notch):
     cards = add_cards(tab, 4)
     popover = tab.open_arc_popover()
-    full = places(cards)
-    popover.sweep.setValue(6)  # 90 degrees
-    assert places(cards) != full
+    first = places(cards)
+    getattr(popover, slider).setValue(notch)
+    assert places(cards) != first
 
 
 def test_the_preview_never_drifts(tab):
     cards = add_cards(tab, 5)
     popover = tab.open_arc_popover()
     first = places(cards)
-    popover.sweep.setValue(4)
+    popover.bend.setValue(-4)
+    popover.turn.setValue(5)
     popover.follow.setChecked(True)
-    popover.sweep.setValue(24)
+    popover.bend.setValue(12)
+    popover.turn.setValue(0)
     popover.upright.setChecked(True)
     assert places(cards) == first
 
@@ -99,8 +104,8 @@ def test_esc_puts_every_card_back(tab, qtbot):
     changes = count_layout_changes(tab)
 
     popover = tab.open_arc_popover()
-    popover.sweep.setValue(10)
-    qtbot.keyClick(popover.sweep, Qt.Key.Key_Escape)
+    popover.bend.setValue(10)
+    qtbot.keyClick(popover.bend, Qt.Key.Key_Escape)
 
     assert not popover.isVisible()
     assert places(cards) == before
@@ -122,7 +127,7 @@ def test_return_applies(tab, qtbot):
     changes = count_layout_changes(tab)
     popover = tab.open_arc_popover()
     arranged = places(cards)
-    qtbot.keyClick(popover.sweep, Qt.Key.Key_Return)
+    qtbot.keyClick(popover.bend, Qt.Key.Key_Return)
     assert popover.finished
     assert places(cards) == arranged
     assert changes == [1]
@@ -150,7 +155,7 @@ def test_apply_keeps_the_arc_and_changes_the_layout_once(tab):
     cards = add_cards(tab, 4)
     changes = count_layout_changes(tab)
     popover = tab.open_arc_popover()
-    popover.sweep.setValue(12)
+    popover.bend.setValue(6)
     arranged = places(cards)
 
     popover.buttons.button(QDialogButtonBox.StandardButton.Apply).click()
@@ -169,8 +174,8 @@ def test_reopening_keeps_the_last_choices_and_measures_the_spacing_again(tab):
     cards = add_cards(tab, 3, apart=40)
     popover = tab.open_arc_popover()
     assert popover.gap() == pytest.approx(0.4, abs=0.015)  # a smooth pixmap is 1px wider
-    popover.sweep.setValue(12)
-    popover.start.setValue(18)
+    popover.bend.setValue(6)
+    popover.turn.setValue(3)
     popover.anticlockwise.setChecked(True)
     popover.follow.setChecked(True)
     popover.spacing.setValue(90)
@@ -179,7 +184,7 @@ def test_reopening_keeps_the_last_choices_and_measures_the_spacing_again(tab):
     for i, card in enumerate(cards):
         card.setPos(i * 120, 0)
     again = tab.open_arc_popover()
-    assert again.settings() == {"sweep": 180, "start": 270, "clockwise": False, "follow": True}
+    assert again.settings() == {"bend": 90, "turn": 45, "clockwise": False, "follow": True}
     assert again.gap() == pytest.approx(0.2, abs=0.015)
 
 
@@ -188,11 +193,17 @@ def test_a_wide_spacing_is_clamped_to_one_width(tab):
     assert tab.open_arc_popover().gap() == 1.0
 
 
-@pytest.mark.parametrize(
-    "degrees,hour,minute", [(0, 12, 0), (15, 12, 30), (90, 3, 0), (105, 3, 30), (345, 11, 30)]
-)
-def test_start_reads_as_a_clock(degrees, hour, minute):
-    assert clock(degrees) == (hour, minute)
+@pytest.mark.parametrize("degrees,text", [(180, "+180"), (0, "0"), (-45, "-45")])
+def test_a_bend_or_turn_shows_which_way_it_goes(degrees, text):
+    assert signed(degrees) == text
+
+
+def test_the_first_arc_is_a_rainbow(tab):
+    cards = add_cards(tab, 5)
+    tab.open_arc_popover()
+    middles = [card.pos() + card.boundingRect().center() for card in cards]
+    assert [m.x() for m in middles] == sorted(m.x() for m in middles)
+    assert min(range(5), key=lambda i: middles[i].y()) == 2
 
 
 def test_choosing_the_arc_from_the_menu_changes_nothing_yet(tab, monkeypatch):
@@ -404,7 +415,7 @@ def test_the_view_never_zooms_in(tab):
     tab.view.zoom_by_from_center(0.2)
     before = tab.view.transform().m11()
     popover = tab.open_arc_popover()
-    popover.sweep.setValue(3)
+    popover.bend.setValue(3)
     assert tab.view.transform().m11() <= before
 
 
@@ -416,7 +427,7 @@ def test_a_zoom_by_hand_stops_the_view_following(tab):
         wheel(tab.view, point, 1)  # well in, so the arc no longer fits
     held = camera(tab.view)
     popover.spacing.setValue(100)
-    popover.sweep.setValue(24)
+    popover.bend.setValue(24)
     assert camera(tab.view) == held
 
 
@@ -459,7 +470,7 @@ def test_the_panel_is_titled_by_its_menu_entry(tab):
 def test_the_sliders_line_up(tab):
     add_cards(tab, 3)
     popover = tab.open_arc_popover()
-    sliders = (popover.sweep, popover.start, popover.spacing)
+    sliders = (popover.bend, popover.turn, popover.spacing)
     assert len({slider.x() for slider in sliders}) == 1
     assert len({slider.width() for slider in sliders}) == 1
 
@@ -482,3 +493,29 @@ def test_the_gap_spin_box_shows_the_gap_s_own_words(tab):
     box = tab.open_arc_popover().spacing_box
     prefix, _, suffix = CANVAS["arc_gap"].partition("{gap}")
     assert (box.prefix(), box.suffix()) == (prefix, suffix)
+
+
+def test_the_rows_read_orientation_bend_turn_direction_gap(tab):
+    add_cards(tab, 3)
+    popover = tab.open_arc_popover()
+    rows = (popover.upright, popover.bend, popover.turn, popover.clockwise, popover.spacing)
+    tops = [control.mapTo(popover, QPoint(0, control.height() // 2)).y() for control in rows]
+    assert tops == sorted(tops)
+    assert len(set(tops)) == len(tops)
+
+
+def test_tab_goes_down_the_rows(tab):
+    add_cards(tab, 3)
+    popover = tab.open_arc_popover()
+    order = [popover.upright, popover.follow, popover.bend, popover.turn]
+    order += [popover.clockwise, popover.anticlockwise, popover.spacing]
+    for first, second in pairwise(order):
+        assert next_tab_stop(first) is second
+
+
+def next_tab_stop(widget):
+    """Where Tab goes from widget: the next in the chain that Tab can focus"""
+    following = widget.nextInFocusChain()
+    while not following.focusPolicy() & Qt.FocusPolicy.TabFocus:
+        following = following.nextInFocusChain()
+    return following

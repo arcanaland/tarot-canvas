@@ -371,8 +371,8 @@ CANVAS = {
     "distribute_vertical": "Distribute Vertically",
     "arrange_arc": "Arrange in Circle",
     # The arc popover
-    "arc_sweep": "Sweep angle:",
-    "arc_start": "Clock start:",
+    "arc_bend": "Bend:",
+    "arc_turn": "Turn:",
     "arc_direction": "Direction:",
     "arc_cards": "Orientation:",
     "arc_spacing": "Gap:",
@@ -381,7 +381,6 @@ CANVAS = {
     "arc_upright": "Upright",
     "arc_follow": "Turned",
     "arc_degrees": "{degrees} degrees",
-    "arc_clock": "{hour}:{minute}",
     "arc_gap": "{gap} card-widths",
     # A move's undo text
     "move_card": "Move {name}",

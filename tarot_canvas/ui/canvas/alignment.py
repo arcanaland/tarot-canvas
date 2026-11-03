@@ -139,28 +139,46 @@ def distribute_items_vertically(items):
         item.setPos(item.pos().x(), item.pos().y() + offset_y)
 
 
-def arc_angles(count, sweep=360, start=90, clockwise=True):
-    """Where each of `count` cards sits, in scene degrees (from 3 o'clock, clockwise on screen).
+def middle_angle(bend=180, turn=0):
+    """The scene angle of the arc's middle seen from its circle's centre, in degrees.
 
-    `start` is in degrees clockwise from 12 o'clock. A full sweep spaces the cards evenly
-    round the ring; anything less puts the first and last cards at its two ends.
+    A bend up (positive) puts the middle at the top of its circle, a rainbow; a bend down
+    puts it at the bottom, a bowl. `turn` rotates the whole formation clockwise.
+    """
+    return (-90.0 if bend >= 0 else 90.0) + turn
+
+
+def arc_angles(count, bend=180, turn=0, clockwise=True):
+    """Where each of `count` cards sits on its circle, in scene degrees (from 3 o'clock,
+    clockwise on screen), the middle card at `middle_angle`.
+
+    Each card takes an equal share of the bend, so the cards keep their spacing as it
+    changes and close into an even ring at 360. `clockwise` numbers them along the row in
+    the turned frame's reading order: left to right at no turn, whether the row bows up,
+    lies straight or bows down, so the numbers never swap ends as the bend crosses 0.
     """
     if count < 1:
         return []
-    if count == 1:
-        step = 0.0
-    elif sweep >= 360:
-        step = 360.0 / count
-    else:
-        step = sweep / (count - 1)
+    step = bend / count
     if not clockwise:
         step = -step
-    return [start - 90.0 + i * step for i in range(count)]
+    middle = middle_angle(bend, turn)
+    return [middle + (i - (count - 1) / 2) * step for i in range(count)]
 
 
 def fold_follow(degrees):
     """A turn folded into (-90, 90], so a card following the arc never stands on its head."""
     return 90.0 - (90.0 - degrees) % 180.0
+
+
+def _chord_needed(width, height, bisector, gap, follow):
+    """How far apart two neighbours' centres must be, the line between them square to
+    `bisector` (radians): a width and the gap along a following arc; for upright cards,
+    a width and the gap across or a height and the gap down, whichever is reached first."""
+    if follow:
+        return width + gap
+    reach = max(abs(math.sin(bisector)) / (width + gap), abs(math.cos(bisector)) / (height + gap))
+    return 1.0 / reach
 
 
 def _pair_radius(width, height, a, b, gap, follow):
@@ -169,23 +187,16 @@ def _pair_radius(width, height, a, b, gap, follow):
     half_chord = abs(math.sin(half))
     if half_chord < 1e-12:
         return math.inf
-    if follow:
-        # The chord at the cards' inner edges must clear a width and the gap
-        return (width + gap) / (2 * half_chord) + height / 2
-    bisector = math.radians(a) + half
-    reach = max(abs(math.sin(bisector)) / (width + gap), abs(math.cos(bisector)) / (height + gap))
-    return 1.0 / (2 * half_chord * reach)
+    chord = _chord_needed(width, height, math.radians(a) + half, gap, follow)
+    # A following card's inner edge is half a height nearer the centre than its middle
+    return chord / (2 * half_chord) + (height / 2 if follow else 0.0)
 
 
 def solve_arc_radius(width, height, angles, gap, follow=False):
-    """Smallest radius at which width x height cards at `angles` (degrees) do not overlap.
-
-    Upright cards clear a neighbour by `gap` on at least one axis; following cards clear it
-    along their inner edges. Adjacent cards are checked, and so are the first and last,
-    which a full ring makes neighbours and a nearly full one brings close.
-    """
+    """Smallest radius at which width x height cards at `angles` (degrees) do not overlap."""
     if len(angles) < 2:
         return 0.0
+
     pairs = list(pairwise(angles))
     if len(angles) > 2:
         pairs.append((angles[-1], angles[0]))
@@ -234,31 +245,44 @@ def set_turn(item, degrees):
 def arrange_items_on_arc(
     items,
     *,
-    sweep=360,
-    start=90,
+    bend=180,
+    turn=0,
     clockwise=True,
     follow=False,
     gap=DEFAULT_CIRCLE_GAP_RATIO,
     centroid=None,
 ):
-    """Put `items`, in the order given, round an arc whose cards are centred on `centroid`.
+    """Put `items`, in the order given, on an arc bent by `bend` degrees (0 is a straight
+    row, 180 a rainbow, -180 a bowl, 360 a ring) and turned by `turn`, the cards' centroid at
+    `centroid`.
 
     `gap` is in card widths. Upright cards are turned to 0; following cards turn their tops
-    outward. A card's reversal is left alone. With no `centroid`, the items' own is kept.
+    outward.
     """
     if not items:
         return
+
     if centroid is None:
         centroid = centre_of(items)
 
     width = max(item.boundingRect().width() for item in items)
     height = max(item.boundingRect().height() for item in items)
-    angles = arc_angles(len(items), sweep, start, clockwise)
-    radius = solve_arc_radius(width, height, angles, gap * width, follow)
+    angles = arc_angles(len(items), bend, turn, clockwise)
 
-    points = [
-        (radius * math.cos(math.radians(a)), radius * math.sin(math.radians(a))) for a in angles
-    ]
+    if bend == 0:
+        # A straight row along the tangent at the middle, spaced as an arc would be in the limit
+        middle = math.radians(middle_angle(bend, turn))
+        spacing = _chord_needed(width, height, middle, gap * width, follow)
+        sign = 1.0 if clockwise else -1.0
+        along = (-math.sin(middle) * sign, math.cos(middle) * sign)
+        offsets = [i - (len(items) - 1) / 2 for i in range(len(items))]
+        points = [(k * spacing * along[0], k * spacing * along[1]) for k in offsets]
+    else:
+        radius = solve_arc_radius(width, height, angles, gap * width, follow)
+        points = [
+            (radius * math.cos(math.radians(a)), radius * math.sin(math.radians(a))) for a in angles
+        ]
+
     # Offset the circle so the cards' own centroid stays where the selection's was
     mean_x = sum(x for x, _ in points) / len(points)
     mean_y = sum(y for _, y in points) / len(points)

@@ -110,12 +110,9 @@ def test_an_arc_goes_round_in_z_order_whatever_the_selection_order(qtbot):
     popover = tab.open_arc_popover()
     popover.apply()
 
-    # The defaults go clockwise from 3 o'clock: right, bottom, left, top
+    # The default is a rainbow, numbered left to right
     centres = [card.pos() + card.boundingRect().center() for card in cards]
-    assert centres[0].x() == max(c.x() for c in centres)
-    assert centres[1].y() == max(c.y() for c in centres)
-    assert centres[2].x() == min(c.x() for c in centres)
-    assert centres[3].y() == min(c.y() for c in centres)
+    assert [c.x() for c in centres] == sorted(c.x() for c in centres)
     qtbot.wait(1100)
 
 

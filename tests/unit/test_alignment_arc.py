@@ -1,4 +1,5 @@
 import math
+from itertools import pairwise
 
 import pytest
 from PyQt6.QtCore import QPointF, QRectF, Qt
@@ -55,24 +56,35 @@ def centre(item):
     return item.pos() + item.boundingRect().center()
 
 
-# -- the old circle, now a 360 degree arc -------------------------------------
+# -- never overlapping, at any bend --------------------------------------------
+
+BENDS = [360, 180, 90, 15, 0, -90, -180, -360]
 
 
+def assert_no_overlap(items):
+    outlines = [footprint(item) for item in items]
+    for i, a in enumerate(outlines):
+        for b in outlines[i + 1 :]:
+            assert not a.intersects(b)
+
+
+@pytest.mark.parametrize("bend", BENDS)
 @pytest.mark.parametrize("width,height", CARD_SIZES)
 @pytest.mark.parametrize("count", COUNTS)
-def test_arrangement_never_overlaps(qapp, count, width, height):
+def test_arrangement_never_overlaps(qapp, count, width, height, bend):
     items = make_items(count, width, height)
-    arrange_items_on_arc(items)
+    arrange_items_on_arc(items, bend=bend)
     assert worst_overlap_fraction(items) == 0.0
 
 
+@pytest.mark.parametrize("bend", [360, 180, 0, -180])
 @pytest.mark.parametrize("width,height", CARD_SIZES)
 @pytest.mark.parametrize("count", COUNTS)
-def test_arrangement_leaves_the_requested_gap(qapp, count, width, height):
-    """Cards clear each other by `gap` on at least one axis, not merely by touching."""
+def test_arrangement_leaves_the_requested_gap(qapp, count, width, height, bend):
+    """Upright cards clear each other by `gap` on at least one axis, not merely by touching."""
     gap = 40.0
     items = make_items(count, width, height)
-    arrange_items_on_arc(items, gap=gap / width)
+    arrange_items_on_arc(items, bend=bend, gap=gap / width)
 
     for i, a in enumerate(items):
         for b in items[i + 1 :]:
@@ -82,33 +94,51 @@ def test_arrangement_leaves_the_requested_gap(qapp, count, width, height):
             assert dx >= width + gap - 1e-6 or dy >= height + gap - 1e-6
 
 
+@pytest.mark.parametrize("count", [3, 7, 22, 78])
+@pytest.mark.parametrize("bend", BENDS)
+def test_following_cards_never_overlap(qapp, count, bend):
+    items = make_items(count, 100, 171)
+    arrange_items_on_arc(items, bend=bend, follow=True)
+    assert_no_overlap(items)
+
+
+@pytest.mark.parametrize("turn", [0, 45, 90, -135])
+@pytest.mark.parametrize("follow", [False, True])
+@pytest.mark.parametrize("bend", [180, 0, -90])
+def test_a_turned_arc_never_overlaps(qapp, turn, follow, bend):
+    items = make_items(7, 100, 171)
+    arrange_items_on_arc(items, bend=bend, turn=turn, follow=follow)
+    assert_no_overlap(items)
+
+
 @pytest.mark.parametrize("width,height", CARD_SIZES)
 @pytest.mark.parametrize("count", COUNTS)
-def test_adjacent_pairs_are_the_binding_constraint(count, width, height):
+def test_on_a_ring_adjacent_pairs_are_the_binding_constraint(count, width, height):
+    """At 360 no pair of cards needs more room than some pair of neighbours."""
     if count < 2:
         pytest.skip("no pairs")
     gap = 0.15 * min(width, height)
-    step = 2 * math.pi / count
+    angles = [math.radians(a) for a in arc_angles(count, 360)]
     all_pairs = max(
         1.0
         / (
             2
-            * math.sin(k * math.pi / count)
+            * abs(math.sin((b - a) / 2))
             * max(
-                abs(math.sin((i + k / 2) * step)) / (width + gap),
-                abs(math.cos((i + k / 2) * step)) / (height + gap),
+                abs(math.sin((a + b) / 2)) / (width + gap),
+                abs(math.cos((a + b) / 2)) / (height + gap),
             )
         )
-        for k in range(1, count // 2 + 1)
-        for i in range(count)
+        for i, a in enumerate(angles)
+        for b in angles[i + 1 :]
     )
-    assert solve_arc_radius(width, height, arc_angles(count), gap) == pytest.approx(
+    assert solve_arc_radius(width, height, arc_angles(count, 360), gap) == pytest.approx(
         all_pairs, rel=1e-12
     )
 
 
 def test_radius_scales_with_card_size():
-    angles = arc_angles(10)
+    angles = arc_angles(10, 360)
     big = solve_arc_radius(300, 450, angles, 0.15 * 300)
     small = solve_arc_radius(20, 32, angles, 0.15 * 20)
     assert small < 100
@@ -144,46 +174,93 @@ def test_measurement_ignores_item_transforms(qapp):
         assert item.pos().y() == pytest.approx(py)
 
 
-def test_the_defaults_start_at_three_oclock_and_go_clockwise(qapp):
-    items = make_items(4, 300, 450)
-    middle = centre_of(items)
-    arrange_items_on_arc(items)
-    first, second, third, fourth = (centre(item) - middle for item in items)
-    assert first.x() > 0 and first.y() == pytest.approx(0, abs=1e-9)
-    assert second.y() > 0 and second.x() == pytest.approx(0, abs=1e-9)
-    assert third.x() < 0
-    assert fourth.y() < 0
+# -- the shape the bend gives ---------------------------------------------------
 
 
-# -- the arc ------------------------------------------------------------------
+def test_each_card_takes_an_equal_share_of_the_bend():
+    assert arc_angles(4, 360) == [-225, -135, -45, 45]
+    assert arc_angles(5, 180) == [-162, -126, -90, -54, -18]
 
 
-def test_a_full_sweep_never_puts_a_card_on_the_first():
-    assert arc_angles(4, 360, 90) == [0, 90, 180, 270]
+def test_a_bend_down_puts_the_middle_at_the_bottom():
+    assert arc_angles(3, -180) == [150, 90, 30]
 
 
-def test_a_partial_sweep_puts_the_ends_at_its_ends():
-    assert arc_angles(5, 180, 90) == [0, 45, 90, 135, 180]
+def test_the_other_direction_numbers_the_other_way():
+    assert arc_angles(3, 180, clockwise=False) == [-30, -90, -150]
 
 
-def test_anticlockwise_turns_the_other_way():
-    assert arc_angles(3, 180, 90, clockwise=False) == [0, -90, -180]
+def test_turn_rotates_the_whole_arc():
+    assert arc_angles(3, 180, turn=90) == [-60, 0, 60]
 
 
-def test_start_is_measured_clockwise_from_twelve():
-    assert arc_angles(1, 360, 0) == [-90]
-    assert arc_angles(1, 360, 90) == [0]
+def test_the_bend_changes_smoothly_down_to_a_ring():
+    """No step in the angles as the bend nears 360: 345 is nearly the ring"""
+    ring = arc_angles(6, 360)
+    nearly = arc_angles(6, 345)
+    assert max(abs(a - b) for a, b in zip(ring, nearly, strict=True)) < 10
 
 
-def test_starting_at_nine_puts_card_one_on_the_left(qapp):
+def test_the_radius_changes_smoothly_down_to_a_ring():
+    width, height, gap = 100, 171, 15
+    ring = solve_arc_radius(width, height, arc_angles(6, 360), gap, follow=True)
+    nearly = solve_arc_radius(width, height, arc_angles(6, 345), gap, follow=True)
+    assert nearly == pytest.approx(ring, rel=0.1)
+
+
+def centres(items):
+    return [centre(item) for item in items]
+
+
+@pytest.mark.parametrize("bend", [180, 90, 15, 0, -15, -90, -180])
+def test_cards_read_left_to_right_however_it_bends(qapp, bend):
     items = make_items(5, 300, 450)
-    middle = centre_of(items)
-    arrange_items_on_arc(items, sweep=180, start=270)
-    xs = [centre(item).x() for item in items]
-    ys = [centre(item).y() for item in items]
-    assert xs == sorted(xs), "left to right"
-    assert ys[2] < middle.y(), "over the top"
-    assert min(range(5), key=lambda i: ys[i]) == 2
+    arrange_items_on_arc(items, bend=bend)
+    xs = [c.x() for c in centres(items)]
+    assert xs == sorted(xs)
+
+
+def test_a_bend_up_is_a_rainbow(qapp):
+    items = make_items(5, 300, 450)
+    arrange_items_on_arc(items, bend=180)
+    ys = [c.y() for c in centres(items)]
+    assert min(range(5), key=lambda i: ys[i]) == 2, "the middle card is highest"
+
+
+def test_a_bend_down_is_a_bowl(qapp):
+    items = make_items(5, 300, 450)
+    arrange_items_on_arc(items, bend=-180)
+    ys = [c.y() for c in centres(items)]
+    assert max(range(5), key=lambda i: ys[i]) == 2, "the middle card is lowest"
+
+
+@pytest.mark.parametrize("follow", [False, True])
+def test_no_bend_is_a_straight_row_a_width_and_gap_apart(qapp, follow):
+    items = make_items(4, 100, 171)
+    arrange_items_on_arc(items, bend=0, follow=follow, gap=0.25)
+    points = centres(items)
+    assert len({round(p.y(), 9) for p in points}) == 1
+    steps = [b.x() - a.x() for a, b in pairwise(points)]
+    assert steps == pytest.approx([125, 125, 125])
+    assert [item.rotation() for item in items] == [0, 0, 0, 0]
+
+
+def test_a_turned_straight_row_runs_along_the_turn(qapp):
+    items = make_items(3, 100, 171)
+    arrange_items_on_arc(items, bend=0, turn=90, follow=True)
+    points = centres(items)
+    assert len({round(p.x(), 9) for p in points}) == 1
+    assert points[0].y() < points[1].y() < points[2].y(), "down the screen"
+    assert [item.rotation() % 360 for item in items] == [90, 90, 90]
+
+
+def test_a_slight_bend_is_nearly_the_straight_row(qapp):
+    straight = make_items(5, 100, 171)
+    arrange_items_on_arc(straight, bend=0)
+    slight = make_items(5, 100, 171)
+    arrange_items_on_arc(slight, bend=15)
+    for a, b in zip(centres(straight), centres(slight), strict=True):
+        assert (a - b).manhattanLength() < 0.2 * 100
 
 
 @pytest.mark.parametrize(
@@ -194,22 +271,11 @@ def test_fold_follow_keeps_a_card_off_its_head(degrees, folded):
     assert fold_follow(degrees) == pytest.approx(folded)
 
 
-@pytest.mark.parametrize("count", [3, 7, 22, 78])
-@pytest.mark.parametrize("sweep", [360, 180, 90])
-def test_following_cards_never_overlap(qapp, count, sweep):
-    items = make_items(count, 100, 171)
-    arrange_items_on_arc(items, sweep=sweep, follow=True)
-    outlines = [footprint(item) for item in items]
-    for i, a in enumerate(outlines):
-        for b in outlines[i + 1 :]:
-            assert not a.intersects(b)
-
-
 def test_following_cards_turn_their_tops_outward(qapp):
     items = make_items(4, 100, 171)
-    arrange_items_on_arc(items, follow=True, start=0)
-    # 12, 3, 6 and 9 o'clock
-    assert [item.rotation() % 360 for item in items] == [0, 90, 0, 90]
+    arrange_items_on_arc(items, bend=360, follow=True, turn=45)
+    # 9, 12, 3 and 6 o'clock
+    assert [item.rotation() % 360 for item in items] == pytest.approx([90, 0, 90, 0])
 
 
 def test_upright_turns_a_card_back(qapp):
@@ -223,7 +289,7 @@ def test_upright_turns_a_card_back(qapp):
 
 def test_a_following_ring_of_the_whole_deck_is_far_smaller():
     width, height = 100, 171
-    angles = arc_angles(78)
+    angles = arc_angles(78, 360)
     gap = DEFAULT_CIRCLE_GAP_RATIO * width
     upright = solve_arc_radius(width, height, angles, gap)
     follow = solve_arc_radius(width, height, angles, gap, follow=True)
@@ -232,23 +298,12 @@ def test_a_following_ring_of_the_whole_deck_is_far_smaller():
     assert upright / width == pytest.approx(27, abs=1)
 
 
+@pytest.mark.parametrize("bend", [360, 90, 0, -180])
 @pytest.mark.parametrize("follow", [False, True])
-@pytest.mark.parametrize("count", [2, 3, 5])
-def test_a_nearly_closed_arc_does_not_overlap_its_ends(qapp, count, follow):
-    items = make_items(count, 100, 171)
-    arrange_items_on_arc(items, sweep=345, follow=follow)
-    outlines = [footprint(item) for item in items]
-    for i, a in enumerate(outlines):
-        for b in outlines[i + 1 :]:
-            assert not a.intersects(b)
-
-
-@pytest.mark.parametrize("sweep", [360, 90])
-@pytest.mark.parametrize("follow", [False, True])
-def test_the_cards_centroid_is_the_one_given(qapp, sweep, follow):
+def test_the_cards_centroid_is_the_one_given(qapp, bend, follow):
     items = make_items(6, 300, 450)
     target = QPointF(-123.5, 456.25)
-    arrange_items_on_arc(items, sweep=sweep, follow=follow, centroid=target)
+    arrange_items_on_arc(items, bend=bend, follow=follow, centroid=target)
     after = centre_of(items)
     assert after.x() == pytest.approx(target.x(), abs=1e-6)
     assert after.y() == pytest.approx(target.y(), abs=1e-6)
@@ -257,7 +312,7 @@ def test_the_cards_centroid_is_the_one_given(qapp, sweep, follow):
 def test_without_a_centroid_the_selection_stays_centred(qapp):
     items = make_items(6, 300, 450)
     before = centre_of(items)
-    arrange_items_on_arc(items, sweep=90)
+    arrange_items_on_arc(items, bend=90)
     after = centre_of(items)
     assert after.x() == pytest.approx(before.x(), abs=1e-6)
     assert after.y() == pytest.approx(before.y(), abs=1e-6)

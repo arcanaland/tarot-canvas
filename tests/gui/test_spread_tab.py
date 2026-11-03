@@ -941,10 +941,8 @@ def test_an_arrangement_from_the_align_menu_modifies_the_spread(qtbot, spreads_b
 
 
 def arc_over_the_top(tab, follow=False):
-    """Arrange on Arc: a half circle from 9 o'clock, applied"""
+    """Arrange on Arc: a rainbow, the default bend of 180, applied"""
     popover = tab.open_arc_popover()
-    popover.sweep.setValue(12)
-    popover.start.setValue(18)
     popover.follow.setChecked(follow)
     popover.apply()
 
@@ -975,7 +973,7 @@ def test_a_following_arc_saves_and_reopens_its_turns(qtbot, spreads_base):
     tab.save()
 
     # Folded into (-90, 90], stored in [0, 360)
-    expected = [90.0, 315.0, 0.0, 45.0, 90.0]
+    expected = [288.0, 324.0, 0.0, 36.0, 72.0]
     rotations = [position.rotation for position in spreads.load(tab.spread_path).positions]
     assert rotations == pytest.approx(expected)
     window = MainWindow()

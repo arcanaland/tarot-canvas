@@ -1,5 +1,7 @@
 """Arrange on Arc: a panel over a corner of the canvas that previews its arc as it changes."""
 
+from itertools import pairwise
+
 from PyQt6.QtCore import QEvent, QPoint, QPointF, QRect, QRectF, Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QPainter, QPalette
 from PyQt6.QtWidgets import (
@@ -15,6 +17,7 @@ from PyQt6.QtWidgets import (
     QStyle,
     QStyleOption,
     QVBoxLayout,
+    QWidget,
 )
 
 from tarot_canvas.ui import typography
@@ -26,11 +29,13 @@ from tarot_canvas.ui.canvas.alignment import (
 )
 from tarot_canvas.ui.strings import CANVAS
 
-STEP = 15  # degrees per notch of the sweep and start sliders
+STEP = 15  # degrees per notch of the bend and turn sliders
+BEND_LIMIT = 360  # either way: a ring bowed up or down
+TURN_LIMIT = 180
 GAP_STEPS = 100  # notches of the spacing slider, 0.00 to 1.00 card widths
 
 # What a tab's first arc starts from; later ones start from the last
-ARC_DEFAULTS = {"sweep": 360, "start": 90, "clockwise": True, "follow": False}
+ARC_DEFAULTS = {"bend": 180, "turn": 0, "clockwise": True, "follow": False}
 
 
 # Kirigami's cornerRadius, which Breeze's frames share
@@ -42,10 +47,9 @@ OUTLINE_MIX = 0.2
 CORNERS = ("top_right", "top_left", "bottom_right", "bottom_left")
 
 
-def clock(degrees):
-    """`degrees` clockwise from 12 o'clock as an (hour, minute) on a clock face"""
-    minutes = round(degrees * 2) % 720
-    return minutes // 60 or 12, minutes % 60
+def signed(degrees):
+    """`degrees` with its sign, since which way a bend or turn goes matters: +15, 0, -15"""
+    return f"{degrees:+d}" if degrees else "0"
 
 
 def window_margin(style):
@@ -74,13 +78,6 @@ def _plain_label(text):
 
 
 class ArcPopover(QFrame):
-    """Sweep, start, direction, upright or follow, and spacing, previewed as they change.
-
-    It lies over a corner of the view, a child of the canvas area and not a window, so the
-    view under it can still be panned and zoomed. Apply keeps the preview; Cancel and Esc put
-    every card back.
-    """
-
     applied = pyqtSignal()
     closed = pyqtSignal(dict)  # the settings to start from next time
     previewed = pyqtSignal()  # the cards have moved
@@ -99,8 +96,8 @@ class ArcPopover(QFrame):
         settings = {**ARC_DEFAULTS, **settings}
         gap = min(max(round(measured_gap(self.items), 2), 0.0), 1.0)
 
-        self.sweep = self._slider(1, 360 // STEP, settings["sweep"] // STEP)
-        self.start = self._slider(0, 360 // STEP - 1, settings["start"] // STEP)
+        self.bend = self._slider(-BEND_LIMIT // STEP, BEND_LIMIT // STEP, settings["bend"] // STEP)
+        self.turn = self._slider(-TURN_LIMIT // STEP, TURN_LIMIT // STEP, settings["turn"] // STEP)
         self.spacing = self._slider(0, GAP_STEPS, round(gap * GAP_STEPS))
         self.spacing_box = self._spin_box(self.spacing)
 
@@ -124,10 +121,10 @@ class ArcPopover(QFrame):
         # Label, control, value: the sliders share a column, so they line up
         grid = QGridLayout()
         rows = (
-            (CANVAS["arc_sweep"], self.sweep, self._value_label(self.sweep, self._sweep_text)),
-            (CANVAS["arc_start"], self.start, self._value_label(self.start, self._start_text)),
-            (CANVAS["arc_direction"], self._row(self.clockwise, self.anticlockwise), None),
             (CANVAS["arc_cards"], self._row(self.upright, self.follow), None),
+            (CANVAS["arc_bend"], self.bend, self._value_label(self.bend, self._degrees_text)),
+            (CANVAS["arc_turn"], self.turn, self._value_label(self.turn, self._degrees_text)),
+            (CANVAS["arc_direction"], self._row(self.clockwise, self.anticlockwise), None),
             # Gross by the slider, fine by the spin box (the HIG's pairing)
             (CANVAS["arc_spacing"], self.spacing, self.spacing_box),
         )
@@ -150,7 +147,22 @@ class ArcPopover(QFrame):
         layout.addSpacing(layout.spacing())
         layout.addWidget(self.buttons)
 
-        for slider in (self.sweep, self.start, self.spacing):
+        # Tab goes top to bottom, as the rows read, not in the order they were made
+        chain = (
+            self.upright,
+            self.follow,
+            self.bend,
+            self.turn,
+            self.clockwise,
+            self.anticlockwise,
+            self.spacing,
+            self.spacing_box,
+            *self.buttons.buttons(),
+        )
+        for first, second in pairwise(chain):
+            QWidget.setTabOrder(first, second)
+
+        for slider in (self.bend, self.turn, self.spacing):
             slider.valueChanged.connect(self.preview)
         for group in (self.direction, self.cards):
             group.idToggled.connect(lambda _id, checked: checked and self.preview())
@@ -193,12 +205,8 @@ class ArcPopover(QFrame):
         slider.valueChanged.connect(lambda n: value.setText(text(n)))
         return value
 
-    def _sweep_text(self, notch):
-        return CANVAS["arc_degrees"].format(degrees=notch * STEP)
-
-    def _start_text(self, notch):
-        hour, minute = clock(notch * STEP)
-        return CANVAS["arc_clock"].format(hour=hour, minute=f"{minute:02d}")
+    def _degrees_text(self, notch):
+        return CANVAS["arc_degrees"].format(degrees=signed(notch * STEP))
 
     def _spin_box(self, slider):
         """A spin box over the slider's range in card widths, each following the other"""
@@ -207,12 +215,10 @@ class ArcPopover(QFrame):
         box.setRange(slider.minimum() / GAP_STEPS, slider.maximum() / GAP_STEPS)
         box.setSingleStep(1 / GAP_STEPS)
         box.setValue(slider.value() / GAP_STEPS)
-        # The gap's own words either side of the number
         prefix, _, suffix = CANVAS["arc_gap"].partition("{gap}")
         box.setPrefix(prefix)
         box.setSuffix(suffix)
         slider.valueChanged.connect(lambda notch: box.setValue(notch / GAP_STEPS))
-        # The slider previews; setting it to the value it has emits nothing, so no loop
         box.valueChanged.connect(lambda value: slider.setValue(round(value * GAP_STEPS)))
         return box
 
@@ -220,8 +226,8 @@ class ArcPopover(QFrame):
 
     def settings(self):
         return {
-            "sweep": self.sweep.value() * STEP,
-            "start": self.start.value() * STEP,
+            "bend": self.bend.value() * STEP,
+            "turn": self.turn.value() * STEP,
             "clockwise": self.clockwise.isChecked(),
             "follow": self.follow.isChecked(),
         }
