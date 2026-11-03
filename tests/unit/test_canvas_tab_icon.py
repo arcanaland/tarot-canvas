@@ -10,6 +10,21 @@ def card(x, y, angle=0.0, colour=CARD_COLOURS["cups"], z=0.0, w=100.0, h=160.0):
     return (x, y, w, h, angle, colour, z)
 
 
+def test_a_mark_keeps_its_number_when_z_reorders_it():
+    raw = (
+        (*card(0, 0, z=2), 1),
+        (*card(150, 0, z=0), 2),
+        (*card(300, 0, z=1), 3),
+    )
+
+    assert [mark.number for mark in layout_marks(raw)] == [2, 3, 1]
+    assert [mark.number for mark in snapped(layout_marks(raw))] == [2, 3, 1]
+
+
+def test_a_card_mark_has_no_number():
+    assert layout_marks((card(0, 0),))[0].number is None
+
+
 def test_an_empty_canvas_has_no_marks():
     assert layout_marks(()) == ()
 

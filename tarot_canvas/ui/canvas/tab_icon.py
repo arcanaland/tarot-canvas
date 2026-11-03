@@ -16,10 +16,11 @@ from PyQt6.QtGui import (
 )
 
 from tarot_canvas.ui.canvas.ground import GRADIENT_STOPS
+from tarot_canvas.ui.canvas.slot_item import NUMBER_HEIGHT, paint_number, slot_ink
 from tarot_canvas.ui.card_colours import SLOT_COLOUR
 
 # Unit-square coordinates: x, y is the mark's centre
-Mark = namedtuple("Mark", "x y w h angle colour z")
+Mark = namedtuple("Mark", "x y w h angle colour z number", defaults=(None,))
 
 SNAP = 32
 
@@ -34,6 +35,7 @@ class IconStyle:
     ground_rim: float  # alpha, 0 for none
     mark_rim: float  # alpha, 0 for none
     ground: bool = True
+    min_number: float = 0.0  # of the icon, the smallest number's height worth drawing
 
 
 MINIMAP = IconStyle(
@@ -44,6 +46,18 @@ MINIMAP = IconStyle(
     ground_radius=0.22,
     ground_rim=0.0,
     mark_rim=0.6,
+)
+
+DIAGRAM = IconStyle(
+    rounding=0.06,
+    inset=0.02,
+    max_fill=0.6,
+    min_mark_px=2.0,
+    ground_radius=0.0,
+    ground_rim=0.0,
+    mark_rim=0.6,
+    ground=False,
+    min_number=0.03,
 )
 
 
@@ -67,7 +81,7 @@ def card_marks(cards):
     return tuple(raw)
 
 
-def spread_marks(spread, unit):
+def spread_marks(spread, unit, numbered=False):
     """As card_marks, for a spread's positions, in card widths. unit is the slot's QSize"""
     height = unit.height() / unit.width()
     return tuple(
@@ -79,8 +93,9 @@ def spread_marks(spread, unit):
             position.rotation,
             SLOT_COLOUR,
             position.z,
+            number if numbered else None,
         )
-        for position in spread.positions
+        for number, position in enumerate(spread.positions, start=1)
     )
 
 
@@ -105,8 +120,9 @@ def layout_marks(raw, max_fill=1.0):
             angle,
             colour,
             z,
+            *number,
         )
-        for (cx, cy), (_, _, w, h, angle, colour, z) in zip(centres, raw, strict=True)
+        for (cx, cy), (_, _, w, h, angle, colour, z, *number) in zip(centres, raw, strict=True)
     ]
     return tuple(sorted(marks, key=lambda mark: mark.z))
 
@@ -122,6 +138,7 @@ def snapped(marks):
             round(m.angle) % 360,
             m.colour,
             i,
+            m.number,
         )
         for i, m in enumerate(marks)
     )
@@ -151,6 +168,19 @@ def render_spread(marks, style, side):
         painter.setBrush(QColor(mark.colour))
         painter.setPen(QPen(rim, 1.0) if style.mark_rim else Qt.PenStyle.NoPen)
         painter.drawRoundedRect(QRectF(-w / 2, -h / 2, w, h), radius, radius)
+        painter.restore()
+
+    # After every mark, or a crossing slot would cover the number beneath it
+    for mark in marks:
+        h = mark.h * area
+        if mark.number is None or h * NUMBER_HEIGHT < side * style.min_number:
+            continue
+        w = mark.w * area
+        painter.save()
+        painter.translate(inset + mark.x * area, inset + mark.y * area)
+        painter.rotate(mark.angle)
+        painter.setPen(slot_ink(mark.colour))
+        paint_number(painter, mark.number, QRectF(-w / 2, -h / 2, w, h))
         painter.restore()
 
     painter.end()

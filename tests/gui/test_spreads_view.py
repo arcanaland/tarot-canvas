@@ -1,4 +1,6 @@
 import os
+from dataclasses import replace
+from pathlib import Path
 
 import pytest
 from PyQt6.QtCore import QPointF, QSize
@@ -21,6 +23,7 @@ from tarot_canvas.settings import (
 from tarot_canvas.ui import commands
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
 from tarot_canvas.ui.canvas.tab_icon import (
+    DIAGRAM,
     MINIMAP,
     layout_marks,
     render_spread,
@@ -29,6 +32,7 @@ from tarot_canvas.ui.canvas.tab_icon import (
 from tarot_canvas.ui.card_colours import SLOT_COLOUR
 from tarot_canvas.ui.library.deck_model import SORT_AUTHOR, SORT_COUNT, SORT_NAME, SubtitleRole
 from tarot_canvas.ui.library.notes_model import PreviewRole
+from tarot_canvas.ui.library.spread_details_pane import SpreadDetails
 from tarot_canvas.ui.library.spread_row_delegate import SpreadRowDelegate
 from tarot_canvas.ui.library.spreads_model import SORT_EDITED, SORT_NEWEST, SpreadPathRole
 from tarot_canvas.ui.library.spreads_page import SpreadsPage
@@ -50,6 +54,7 @@ def card_unit(monkeypatch):
         "tabs.spread_tab",
         "tabs.canvas_tab",
         "library.spreads_model",
+        "library.spread_details_pane",
     ):
         monkeypatch.setattr(f"tarot_canvas.ui.{module}.card_unit_size", lambda: UNIT)
 
@@ -417,6 +422,47 @@ def test_a_row_paints_the_spreads_shape(page):
     assert image.pixelColor(side // 2, 4) != QColor("white")
 
 
+def numbered_cross():
+    """Two same-centred slots, the second across the first and above it"""
+    return Spread(
+        positions=(
+            Position(id="a", x=0, y=0, z=0),
+            Position(id="b", x=0, y=0, rotation=90, z=1),
+        )
+    )
+
+
+def test_a_numberless_spread_has_no_numbers_in_its_marks():
+    assert all(mark.number is None for mark in layout_marks(spread_marks(numbered_cross(), UNIT)))
+
+
+def test_numbers_are_drawn_when_a_mark_has_one():
+    spread = numbered_cross()
+    plain = layout_marks(spread_marks(spread, UNIT), DIAGRAM.max_fill)
+    numbered = layout_marks(spread_marks(spread, UNIT, numbered=True), DIAGRAM.max_fill)
+
+    assert render_spread(numbered, DIAGRAM, 200) != render_spread(plain, DIAGRAM, 200)
+
+
+def test_a_number_too_small_to_read_is_left_out():
+    spread = numbered_cross()
+    plain = layout_marks(spread_marks(spread, UNIT), DIAGRAM.max_fill)
+    numbered = layout_marks(spread_marks(spread, UNIT, numbered=True), DIAGRAM.max_fill)
+    style = replace(DIAGRAM, min_number=1.0)
+
+    assert render_spread(numbered, style, 200) == render_spread(plain, style, 200)
+
+
+def test_a_covered_slot_keeps_its_number():
+    spread = numbered_cross()
+    marks = layout_marks(spread_marks(spread, UNIT, numbered=True), DIAGRAM.max_fill)
+    bottom, top = marks
+
+    only_top = render_spread((bottom._replace(number=None), top), DIAGRAM, 200)
+
+    assert render_spread(marks, DIAGRAM, 200) != only_top
+
+
 # -- the details pane
 
 
@@ -441,6 +487,33 @@ def test_the_pane_shows_the_spread_with_its_slots_in_number_order(page):
         "2. Future",
         "Whither",
     ]
+
+
+def test_the_pane_draws_a_spread_beside_its_text(page):
+    page._select_index(index_of(page, "Older"))
+
+    pane = page.details_pane
+    assert pane.diagram.isVisibleTo(pane)
+    assert shown_text(page)
+
+
+def test_a_spread_with_no_positions_has_no_diagram(page):
+    page._select_index(index_of(page, "Older"))
+
+    pane = page.details_pane
+    pane.show_details(SpreadDetails(Path("empty"), Spread(name="Empty", description="Words")))
+
+    assert not pane.diagram.isVisibleTo(pane)
+    assert shown_text(page)
+
+
+def test_clearing_the_pane_clears_the_diagram(page):
+    page._select_index(index_of(page, "Older"))
+
+    pane = page.details_pane
+    pane.show_details(None)
+
+    assert not pane.diagram.isVisibleTo(pane)
 
 
 def test_showing_another_spread_leaves_none_of_the_last_on_screen(page):

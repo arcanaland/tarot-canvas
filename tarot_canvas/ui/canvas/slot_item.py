@@ -42,14 +42,29 @@ def _label_lines(label, font, width):
     return lines
 
 
+def slot_ink(fill):
+    """Black or white, whichever reads on fill"""
+    on_light = ground_luminance(fill) > LIGHT_GROUND_LUMINANCE
+    return QColor(Qt.GlobalColor.black if on_light else Qt.GlobalColor.white)
+
+
+def paint_number(painter, number, rect):
+    """number in the top half of a slot filling rect, in the painter's pen"""
+    font = typography.in_pixels(
+        typography.font(typography.Role.BODY), rect.height() * NUMBER_HEIGHT
+    )
+    font.setBold(True)
+    painter.setFont(font)
+    top_half = QRectF(rect.x(), rect.y(), rect.width(), rect.height() / 2)
+    painter.drawText(top_half, Qt.AlignmentFlag.AlignCenter, str(number))
+
+
 def render_slot(number, label, colour, size, scale):
     """A slot's face, size * scale device px"""
     pixmap = QPixmap(size * scale)
     pixmap.fill(Qt.GlobalColor.transparent)
     width, height = size.width(), size.height()
     fill = QColor(colour)
-    on_light = ground_luminance(fill) > LIGHT_GROUND_LUMINANCE
-    ink = QColor(Qt.GlobalColor.black if on_light else Qt.GlobalColor.white)
 
     painter = QPainter(pixmap)
     painter.setRenderHints(QPainter.RenderHint.Antialiasing | QPainter.RenderHint.TextAntialiasing)
@@ -63,13 +78,8 @@ def render_slot(number, label, colour, size, scale):
         QRectF(inset, inset, width - OUTLINE_PX, height - OUTLINE_PX), radius, radius
     )
 
-    painter.setPen(ink)
-    number_font = typography.in_pixels(
-        typography.font(typography.Role.BODY), height * NUMBER_HEIGHT
-    )
-    number_font.setBold(True)
-    painter.setFont(number_font)
-    painter.drawText(QRectF(0, 0, width, height / 2), Qt.AlignmentFlag.AlignCenter, str(number))
+    painter.setPen(slot_ink(fill))
+    paint_number(painter, number, QRectF(0, 0, width, height))
 
     label_font = typography.in_pixels(typography.font(typography.Role.BODY), height * LABEL_HEIGHT)
     painter.setFont(label_font)
