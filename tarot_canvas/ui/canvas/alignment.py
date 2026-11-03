@@ -1,4 +1,6 @@
 import math
+from itertools import pairwise
+from statistics import median
 
 from PyQt6.QtCore import QPointF
 from PyQt6.QtGui import QTransform
@@ -137,47 +139,150 @@ def distribute_items_vertically(items):
         item.setPos(item.pos().x(), item.pos().y() + offset_y)
 
 
-def solve_circle_radius(width, height, count, gap=None):
-    """Smallest radius at which `count` upright width x height cards do not overlap."""
-    if count < 2:
+def middle_angle(bend=180, turn=0):
+    """The scene angle of the arc's middle seen from its circle's centre, in degrees.
+
+    A bend up (positive) puts the middle at the top of its circle, a rainbow; a bend down
+    puts it at the bottom, a bowl. `turn` rotates the whole formation clockwise.
+    """
+    return (-90.0 if bend >= 0 else 90.0) + turn
+
+
+def arc_angles(count, bend=180, turn=0, clockwise=True):
+    """Where each of `count` cards sits on its circle, in scene degrees (from 3 o'clock,
+    clockwise on screen), the middle card at `middle_angle`.
+    """
+    if count < 1:
+        return []
+    step = bend / count
+    if not clockwise:
+        step = -step
+    middle = middle_angle(bend, turn)
+    return [middle + (i - (count - 1) / 2) * step for i in range(count)]
+
+
+def fold_follow(degrees):
+    """A turn folded into (-90, 90], so a card following the arc never stands on its head."""
+    return 90.0 - (90.0 - degrees) % 180.0
+
+
+def _chord_needed(width, height, bisector, gap, follow):
+    """How far apart two neighbours' centres must be, the line between them square to
+    `bisector` (radians): a width and the gap along a following arc; for upright cards,
+    a width and the gap across or a height and the gap down, whichever is reached first."""
+    if follow:
+        return width + gap
+    reach = max(abs(math.sin(bisector)) / (width + gap), abs(math.cos(bisector)) / (height + gap))
+    return 1.0 / reach
+
+
+def _pair_radius(width, height, a, b, gap, follow):
+    """Smallest radius at which the cards at scene angles `a` and `b` (degrees) clear each other."""
+    half = math.radians(b - a) / 2
+    half_chord = abs(math.sin(half))
+    if half_chord < 1e-12:
+        return math.inf
+    chord = _chord_needed(width, height, math.radians(a) + half, gap, follow)
+    # A following card's inner edge is half a height nearer the centre than its middle
+    return chord / (2 * half_chord) + (height / 2 if follow else 0.0)
+
+
+def solve_arc_radius(width, height, angles, gap, follow=False):
+    """Smallest radius at which width x height cards at `angles` (degrees) do not overlap."""
+    if len(angles) < 2:
         return 0.0
 
-    if gap is None:
-        gap = DEFAULT_CIRCLE_GAP_RATIO * min(width, height)
-
-    need_x = width + gap
-    need_y = height + gap
-    step = 2 * math.pi / count
-    half_chord = math.sin(step / 2)
-
-    radius = 0.0
-    for i in range(count):
-        phi = i * step + step / 2  # bisector of the pair (i, i + 1)
-        reach = max(abs(math.sin(phi)) / need_x, abs(math.cos(phi)) / need_y)
-        radius = max(radius, 1.0 / (2 * half_chord * reach))
-    return radius
+    pairs = list(pairwise(angles))
+    if len(angles) > 2:
+        pairs.append((angles[-1], angles[0]))
+    return max(_pair_radius(width, height, a, b, gap, follow) for a, b in pairs)
 
 
-def arrange_items_in_circle(items, gap=None):
-    """Arrange items in a circle while preserving their upright/reversed orientation"""
+def _edge_distance(a, b):
+    dx = max(0.0, a.left() - b.right(), b.left() - a.right())
+    dy = max(0.0, a.top() - b.bottom(), b.top() - a.bottom())
+    return math.hypot(dx, dy)
+
+
+def measured_gap(items):
+    """The selection's own spacing, in card widths: the median distance to the nearest card."""
+    if len(items) < 2:
+        return DEFAULT_CIRCLE_GAP_RATIO
+    width = max(item.boundingRect().width() for item in items)
+    rects = [logical_rect(item) for item in items]
+    typical = median(
+        min(_edge_distance(rect, other) for j, other in enumerate(rects) if j != i)
+        for i, rect in enumerate(rects)
+    )
+    if typical <= 0 or width <= 0:
+        return DEFAULT_CIRCLE_GAP_RATIO
+    return typical / width
+
+
+def centre_of(items):
+    """The mean of the items' centres in the scene"""
+    centres = [item.pos() + item.boundingRect().center() for item in items]
+    return QPointF(
+        sum(p.x() for p in centres) / len(centres),
+        sum(p.y() for p in centres) / len(centres),
+    )
+
+
+def set_turn(item, degrees):
+    """Turn an item to `degrees`: a card through its orient, anything else about its centre"""
+    if hasattr(item, "set_orient"):
+        item.set_orient(degrees)
+    else:
+        item.setTransformOriginPoint(item.boundingRect().center())
+        item.setRotation(degrees)
+
+
+def arrange_items_on_arc(
+    items,
+    *,
+    bend=180,
+    turn=0,
+    clockwise=True,
+    follow=False,
+    gap=DEFAULT_CIRCLE_GAP_RATIO,
+    centroid=None,
+):
+    """Put `items`, in the order given, on an arc bent by `bend` degrees (0 is a straight
+    row, 180 a rainbow, -180 a bowl, 360 a ring) and turned by `turn`, the cards' centroid at
+    `centroid`.
+
+    `gap` is in card widths. Upright cards are turned to 0; following cards turn their tops
+    outward.
+    """
     if not items:
         return
 
-    card_width = max(item.boundingRect().width() for item in items)
-    card_height = max(item.boundingRect().height() for item in items)
+    if centroid is None:
+        centroid = centre_of(items)
 
-    centers = [item.pos() + item.boundingRect().center() for item in items]
-    center = QPointF(
-        sum(p.x() for p in centers) / len(centers),
-        sum(p.y() for p in centers) / len(centers),
-    )
+    width = max(item.boundingRect().width() for item in items)
+    height = max(item.boundingRect().height() for item in items)
+    angles = arc_angles(len(items), bend, turn, clockwise)
 
-    radius = solve_circle_radius(card_width, card_height, len(items), gap)
+    if bend == 0:
+        # A straight row along the tangent at the middle, spaced as an arc would be in the limit
+        middle = math.radians(middle_angle(bend, turn))
+        spacing = _chord_needed(width, height, middle, gap * width, follow)
+        sign = 1.0 if clockwise else -1.0
+        along = (-math.sin(middle) * sign, math.cos(middle) * sign)
+        offsets = [i - (len(items) - 1) / 2 for i in range(len(items))]
+        points = [(k * spacing * along[0], k * spacing * along[1]) for k in offsets]
+    else:
+        radius = solve_arc_radius(width, height, angles, gap * width, follow)
+        points = [
+            (radius * math.cos(math.radians(a)), radius * math.sin(math.radians(a))) for a in angles
+        ]
 
-    for i, item in enumerate(items):
-        angle = (i / len(items)) * 2 * math.pi
-        target = QPointF(
-            center.x() + radius * math.cos(angle),
-            center.y() + radius * math.sin(angle),
-        )
-        item.setPos(target - item.boundingRect().center())
+    # Offset the circle so the cards' own centroid stays where the selection's was
+    mean_x = sum(x for x, _ in points) / len(points)
+    mean_y = sum(y for _, y in points) / len(points)
+    origin = QPointF(centroid.x() - mean_x, centroid.y() - mean_y)
+
+    for item, angle, (x, y) in zip(items, angles, points, strict=True):
+        item.setPos(origin + QPointF(x, y) - item.boundingRect().center())
+        set_turn(item, fold_follow(angle + 90.0) if follow else 0.0)

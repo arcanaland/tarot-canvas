@@ -24,6 +24,7 @@ from tarot_canvas.settings import (
 from tarot_canvas.ui.canvas import (
     align_items_horizontally,
     align_items_vertically,
+    arrange_items_on_arc,
     distribute_items_horizontally,
 )
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
@@ -95,6 +96,24 @@ def test_align_menu_anchors_to_its_toolbar_button(qtbot):
     # which carries no meaning on Wayland.
     assert abs(anchor.x() - expected.x()) <= 1
     assert abs(anchor.y() - expected.y()) <= 1
+
+
+def test_an_arc_goes_round_in_z_order_whatever_the_selection_order(qtbot):
+    tab = make_tab(qtbot)
+    add_cards(tab, 4)
+    cards = list(tab.cards())
+    for z, card in enumerate(cards):
+        card.setZValue(z)
+    select_only(tab, reversed(cards))
+
+    assert tab.arrange_order(tab.selected_cards()) == cards
+    popover = tab.open_arc_popover()
+    popover.apply()
+
+    # The default is a rainbow, numbered left to right
+    centres = [card.pos() + card.boundingRect().center() for card in cards]
+    assert [c.x() for c in centres] == sorted(c.x() for c in centres)
+    qtbot.wait(1100)
 
 
 def hover_canvas(tab, viewport_pos):
@@ -1178,6 +1197,7 @@ def test_a_slot_given_a_place_does_not_pop_in(qtbot):
         lambda tab, items: distribute_items_horizontally(items),
         lambda tab, items: tab.on_bring_to_front(),
         lambda tab, items: tab.on_rotate_card(),
+        lambda tab, items: arrange_items_on_arc(tab.arrange_order(items)),
     ],
 )
 def test_a_slot_arranges_exactly_as_a_card_does(qtbot, arrange):

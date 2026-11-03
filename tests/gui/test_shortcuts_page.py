@@ -91,6 +91,17 @@ def test_a_fixed_command_is_listed_greyed_and_not_editable(qtbot):
     assert not flags & Qt.ItemFlag.ItemIsEnabled
 
 
+def test_a_wheel_command_is_listed_greyed_with_its_modifiers_and_the_wheel(qtbot):
+    _dialog, page = make_dialog(qtbot)
+
+    for command_id in ("canvas.turn", "canvas.turn_fine"):
+        flags = cell(page, command_id).flags()
+        assert cell(page, command_id).data() == commands.wheel_text(command_id)
+        assert cell(page, command_id, column=2).data() in (None, "")
+        assert not flags & Qt.ItemFlag.ItemIsEditable
+        assert not flags & Qt.ItemFlag.ItemIsEnabled
+
+
 def test_a_key_another_command_holds_is_refused_naming_it(qtbot):
     dialog, page = make_dialog(qtbot)
     dialog.show()
