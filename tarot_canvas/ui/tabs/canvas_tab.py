@@ -50,10 +50,10 @@ from tarot_canvas.ui.canvas import (
     SlotItem,
     align_items_horizontally,
     align_items_vertically,
-    arrange_items_in_circle,
     distribute_items_horizontally,
     distribute_items_vertically,
 )
+from tarot_canvas.ui.canvas.arc_popover import ARC_DEFAULTS, ArcPopover
 from tarot_canvas.ui.canvas.detail import (
     DETAIL_SETTLE_MS,
     DETAIL_VISIBLE_MARGIN,
@@ -139,6 +139,9 @@ class CanvasTab(BaseTab):
         self.tab_minimap = CANVAS_TAB_MINIMAP_DEFAULT
         self.desktop_wants_animation = True
         self.gilt = QColor(GILT_ON_DARK)
+        # Arrange on Arc starts from the last one this tab made
+        self.arc_settings = dict(ARC_DEFAULTS)
+        self.arc_popover = None
 
         self._tab_marks = ()
         self._tab_icon = self.empty_tab_icon()
@@ -1021,6 +1024,10 @@ class CanvasTab(BaseTab):
     def on_save_layout_as_spread(self):
         self.navigation_requested.emit("open_unsaved_spread", self.layout_as_spread())
 
+    def arrange_order(self, items):
+        """The order cards go round an arc: by z, as a layout numbers them"""
+        return sorted(items, key=lambda item: item.zValue())
+
     def on_align_cards(self):
         """Show alignment options for selected cards"""
         items = self.scene.selectedItems()
@@ -1030,7 +1037,8 @@ class CanvasTab(BaseTab):
 
         # Create a popup menu with alignment options
         menu = QMenu(self)
-        menu.triggered.connect(self.layout_changed)
+        # The arc changes nothing until its popover's Apply
+        menu.triggered.connect(lambda action: action is arc or self.layout_changed.emit())
 
         # Horizontal alignment actions
         horizontal_menu = menu.addMenu(CANVAS["align_horizontal"])
@@ -1067,10 +1075,9 @@ class CanvasTab(BaseTab):
         distribute_v = menu.addAction(CANVAS["distribute_vertical"])
         distribute_v.setIcon(QIcon.fromTheme("distribute-vertical-center"))
 
-        # Circle arrangement (useful for tarot spread)
         menu.addSeparator()
-        circle_arrange = menu.addAction(CANVAS["arrange_circle"])
-        circle_arrange.setIcon(QIcon.fromTheme("object-rotate-right"))
+        arc = menu.addAction(CANVAS["arrange_arc"])
+        arc.setIcon(QIcon.fromTheme("object-rotate-right"))
 
         # Connect actions to alignment functions
         h_left.triggered.connect(lambda: align_items_horizontally(items, "left"))
@@ -1084,9 +1091,25 @@ class CanvasTab(BaseTab):
         distribute_h.triggered.connect(lambda: distribute_items_horizontally(items))
         distribute_v.triggered.connect(lambda: distribute_items_vertically(items))
 
-        circle_arrange.triggered.connect(lambda: arrange_items_in_circle(items))
+        if menu.exec(self.align_menu_anchor()) is arc:
+            self.open_arc_popover()
 
-        menu.exec(self.align_menu_anchor())
+    def open_arc_popover(self):
+        """Arrange on Arc: the selected cards, previewed until Apply"""
+        items = self.arrange_order(self.selected_cards())
+        if len(items) < 2:
+            return None
+        if self.arc_popover is not None:
+            self.arc_popover.deleteLater()
+        button = self.toolbar.widgetForAction(self.arrange_actions[self.on_align_cards])
+        self.arc_popover = ArcPopover(items, self.arc_settings, button, self)
+        self.arc_popover.closed.connect(self._remember_arc)
+        self.arc_popover.applied.connect(self.layout_changed)
+        self.arc_popover.open_at(self.align_menu_anchor())
+        return self.arc_popover
+
+    def _remember_arc(self, settings):
+        self.arc_settings = settings
 
     def align_menu_anchor(self):
         """Global position for the align menu: just below its toolbar button."""

@@ -1,7 +1,7 @@
 from tarot_canvas.ui.canvas.alignment import (
     align_items_horizontally,
     align_items_vertically,
-    arrange_items_in_circle,
+    arrange_items_on_arc,
     distribute_items_horizontally,
     distribute_items_vertically,
 )
@@ -19,7 +19,7 @@ __all__ = [
     "align_items_vertically",
     "distribute_items_horizontally",
     "distribute_items_vertically",
-    "arrange_items_in_circle",
+    "arrange_items_on_arc",
     "CardMoveCommand",
     "CanvasIcon",
 ]

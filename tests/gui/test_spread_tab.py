@@ -940,6 +940,74 @@ def test_an_arrangement_from_the_align_menu_modifies_the_spread(qtbot, spreads_b
     assert tab.has_unsaved_changes()
 
 
+def arc_over_the_top(tab, follow=False):
+    """Arrange on Arc: a half circle from 9 o'clock, applied"""
+    popover = tab.open_arc_popover()
+    popover.sweep.setValue(12)
+    popover.start.setValue(18)
+    popover.follow.setChecked(follow)
+    popover.apply()
+
+
+def test_slots_go_round_an_arc_in_number_order(qtbot):
+    tab = make_tab(qtbot)
+    slots = add_slots(tab, 5)
+    for index, slot in enumerate(slots):
+        slot.setZValue(10 - index)  # so z order is the reverse of number order
+    tab.scene.clearSelection()
+    for index in (3, 0, 4, 2, 1):
+        slots[index].setSelected(True)
+
+    arc_over_the_top(tab)
+
+    centres = [slot.pos() + slot.boundingRect().center() for slot in slots]
+    xs = [centre.x() for centre in centres]
+    assert xs == sorted(xs), "1 to 5, left to right"
+    assert min(centres, key=lambda centre: centre.y()) == centres[2], "over the top"
+
+
+def test_a_following_arc_saves_and_reopens_its_turns(qtbot, spreads_base):
+    tab = make_tab(qtbot)
+    for slot in add_slots(tab, 5):
+        slot.setSelected(True)
+
+    arc_over_the_top(tab, follow=True)
+    tab.save()
+
+    # Folded into (-90, 90], stored in [0, 360)
+    expected = [90.0, 315.0, 0.0, 45.0, 90.0]
+    rotations = [position.rotation for position in spreads.load(tab.spread_path).positions]
+    assert rotations == pytest.approx(expected)
+    window = MainWindow()
+    qtbot.addWidget(window)
+    reopened = window.open_spread(tab.spread_path).slots()
+    assert [slot.orient for slot in reopened] == pytest.approx(expected)
+
+
+def test_cancelling_an_arc_leaves_a_saved_spread_unmodified(qtbot, spreads_base):
+    tab = make_tab(qtbot)
+    for slot in add_slots(tab, 3):
+        slot.setSelected(True)
+    tab.save()
+
+    popover = tab.open_arc_popover()
+    popover.follow.setChecked(True)
+    popover.close()
+
+    assert not tab.has_unsaved_changes()
+
+
+def test_applying_an_arc_modifies_the_spread(qtbot, spreads_base):
+    tab = make_tab(qtbot)
+    for slot in add_slots(tab, 3):
+        slot.setSelected(True)
+    tab.save()
+
+    tab.open_arc_popover().apply()
+
+    assert tab.has_unsaved_changes()
+
+
 def test_a_failed_write_keeps_the_tab_unsaved_and_leaves_no_folder(
     qtbot, spreads_base, monkeypatch
 ):

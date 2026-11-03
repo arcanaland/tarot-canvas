@@ -116,6 +116,11 @@ class SpreadTab(CanvasTab):
         """Every slot, in number order"""
         return tuple(self._slots)
 
+    def arrange_order(self, items):
+        """Slots go round an arc in number order"""
+        number = {id(slot): index for index, slot in enumerate(self._slots)}
+        return sorted(items, key=lambda item: number.get(id(item), len(number)))
+
     def add_next_slot(self, at=None):
         ids = [slot.position_id for slot in self._slots]
         slot = self.add_slot(len(self._slots) + 1, next_position_id(ids), at=at)
