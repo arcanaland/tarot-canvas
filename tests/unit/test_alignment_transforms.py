@@ -1,5 +1,7 @@
+import math
+
 import pytest
-from PyQt6.QtCore import QRectF
+from PyQt6.QtCore import QPointF, QRectF
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import QGraphicsRectItem
 
@@ -8,6 +10,7 @@ from tarot_canvas.ui.canvas.alignment import (
     align_items_vertically,
     distribute_items_horizontally,
     distribute_items_vertically,
+    logical_rect,
 )
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
 from tarot_canvas.ui.canvas.motion import MotionChannels
@@ -121,3 +124,65 @@ def test_edge_alignment_sees_a_card_oriented_sideways(qapp, arrangement, argumen
     assert edge(sideways.sceneBoundingRect()) == pytest.approx(
         edge(upright.sceneBoundingRect()), abs=1e-6
     )
+
+
+def card(orient=0, pos=None):
+    pixmap = QPixmap(300, 450)
+    pixmap.fill()
+    item = DraggableCardItem(pixmap, {"id": f"card-{orient}"})
+    item.setPos(pos or QPointF(0, 0))
+    item.set_orient(orient)
+    return item
+
+
+def box_turned(item, degrees):
+    """The scene box around item's bounding rect turned by degrees about the point _turn gives."""
+    rect = item.boundingRect()
+    cx, cy = rect.width() / 2, rect.height() / 2
+    cos, sin = math.cos(math.radians(degrees)), math.sin(math.radians(degrees))
+    corners = [
+        (cx + (x - cx) * cos - (y - cy) * sin, cy + (x - cx) * sin + (y - cy) * cos)
+        for x in (rect.left(), rect.right())
+        for y in (rect.top(), rect.bottom())
+    ]
+    xs, ys = [x for x, _ in corners], [y for _, y in corners]
+    return QRectF(min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys)).translated(item.pos())
+
+
+@pytest.mark.parametrize("orient", [0, 90, 180, 270])
+def test_a_quarter_turn_footprint_is_exact(qapp, orient):
+    """QTransform.rotate is exact at quarter turns, so a sideways card has no float dust"""
+    item = card(orient, QPointF(40, 600))
+    expected = box_turned(item, orient)
+    bounds = item.boundingRect()
+    sideways = orient % 180 == 90
+
+    rect = logical_rect(item)
+
+    for edge in (QRectF.left, QRectF.top, QRectF.right, QRectF.bottom):
+        assert edge(rect) == pytest.approx(edge(expected), abs=1e-9)
+    assert (rect.width(), rect.height()) == (
+        (bounds.height(), bounds.width()) if sideways else (bounds.width(), bounds.height())
+    )
+
+
+@pytest.mark.parametrize("orient", [30, 45])
+def test_a_card_at_any_angle_is_measured_by_the_box_around_it(qapp, orient):
+    item = card(orient, QPointF(40, 600))
+    expected = box_turned(item, orient)
+
+    rect = logical_rect(item)
+
+    for edge in (QRectF.left, QRectF.top, QRectF.right, QRectF.bottom):
+        assert edge(rect) == pytest.approx(edge(expected), abs=1e-9)
+    assert rect.width() > item.boundingRect().width()
+
+
+def test_align_left_lines_up_a_tilted_card_by_its_box(qapp):
+    upright = card(0)
+    tilted = card(30, QPointF(400, 600))
+
+    align_items_horizontally([upright, tilted], "left")
+
+    assert logical_rect(tilted).left() == pytest.approx(logical_rect(upright).left(), abs=1e-9)
+    assert logical_rect(tilted).left() < tilted.pos().x()

@@ -2,8 +2,8 @@ import math
 
 import pytest
 from PyQt6.QtCore import QModelIndex, QPoint, QPointF, QRect, QSize, Qt
-from PyQt6.QtGui import QKeySequence
-from PyQt6.QtWidgets import QMessageBox, QStyleOptionViewItem, QToolButton
+from PyQt6.QtGui import QKeySequence, QWheelEvent
+from PyQt6.QtWidgets import QApplication, QMessageBox, QStyleOptionViewItem, QToolButton
 
 from tarot_canvas.models import spreads
 from tarot_canvas.models.spreads import Position, Spread
@@ -798,6 +798,35 @@ def test_ctrl_s_writes_card_widths_about_the_layout_centre(qtbot, spreads_base):
     assert first.z < second.z
 
 
+def test_a_slot_turned_by_the_wheel_saves_and_reopens_at_its_angle(qtbot, spreads_base):
+    tab = make_tab(qtbot)
+    slot, _ = add_slots(tab, 2)
+    viewport = tab.view.viewport()
+    pos = tab.view.mapFromScene(slot.sceneBoundingRect().center())
+    QApplication.sendEvent(
+        viewport,
+        QWheelEvent(
+            QPointF(pos),
+            QPointF(viewport.mapToGlobal(pos)),
+            QPoint(),
+            QPoint(0, 120),
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.ControlModifier,
+            Qt.ScrollPhase.NoScrollPhase,
+            False,
+        ),
+    )
+
+    tab.save()
+
+    first, second = spreads.load(tab.spread_path).positions
+    assert (first.rotation, second.rotation) == (15.0, 0.0)
+    window = MainWindow()
+    qtbot.addWidget(window)
+    reopened, _ = window.open_spread(tab.spread_path).slots()
+    assert reopened.orient == 15
+
+
 def test_save_is_disabled_until_the_next_change(qtbot, spreads_base):
     tab = make_tab(qtbot)
     tab.save()
@@ -838,6 +867,7 @@ def test_an_edit_reaches_the_file_only_when_saved(qtbot, spreads_base):
     [
         lambda tab: tab.add_next_slot(),
         lambda tab: tab.on_rotate_card(),
+        lambda tab: tab.on_turn_card_by_wheel(tab.slots()[0], 1, False),
         lambda tab: tab.on_delete_card(),
         lambda tab: tab.on_bring_to_front(),
         lambda tab: tab.on_send_to_back(),
