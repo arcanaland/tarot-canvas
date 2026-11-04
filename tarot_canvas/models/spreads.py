@@ -10,7 +10,7 @@ import tomli_w
 
 from tarot_canvas.models.staged_delete import is_staged
 from tarot_canvas.utils.logger import logger
-from tarot_canvas.utils.path_helper import get_data_directory
+from tarot_canvas.utils.path_helper import BUNDLED_SPREADS_PATH, get_data_directory
 
 SPREADS_SUBPATH = "tarot-canvas/spreads"
 SPREAD_FILE = "spread.toml"
@@ -47,6 +47,21 @@ class Spread:
 
 def spreads_base():
     return get_data_directory(SPREADS_SUBPATH)
+
+
+def included_base():
+    """The spreads that ship with the app, read-only and rewritten by each release"""
+    return BUNDLED_SPREADS_PATH
+
+
+def is_included(path):
+    """Whether folder path is one of the spreads that ship with the app"""
+    if path is None:
+        return False
+    try:
+        return Path(path).resolve().is_relative_to(Path(included_base()).resolve())
+    except OSError:
+        return False
 
 
 def new_spread_dir(base=None):
@@ -202,3 +217,8 @@ def scan(base=None):
         except (OSError, ValueError) as error:
             logger.warning(f"Skipping unreadable spread {folder}: {error}")
     return spreads
+
+
+def scan_included():
+    """(folder, Spread) for each spread that ships with the app"""
+    return scan(included_base())

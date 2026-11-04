@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from PyQt6.QtCore import QPointF, QSize
 from PyQt6.QtGui import QColor, QImage, QPainter, QPixmap
-from PyQt6.QtWidgets import QMessageBox
+from PyQt6.QtWidgets import QMenu, QMessageBox
 
 from tarot_canvas.models import spreads, staged_delete
 from tarot_canvas.models.spread_events import spread_events
@@ -31,7 +31,7 @@ from tarot_canvas.ui.canvas.tab_icon import (
 )
 from tarot_canvas.ui.card_colours import SLOT_COLOUR
 from tarot_canvas.ui.library.deck_model import SORT_AUTHOR, SORT_COUNT, SORT_NAME, SubtitleRole
-from tarot_canvas.ui.library.notes_model import PreviewRole
+from tarot_canvas.ui.library.notes_model import SUBTITLE_SEPARATOR, PreviewRole
 from tarot_canvas.ui.library.spread_details_pane import SpreadDetails
 from tarot_canvas.ui.library.spread_row_delegate import SpreadRowDelegate
 from tarot_canvas.ui.library.spreads_model import SORT_EDITED, SORT_NEWEST, SpreadPathRole
@@ -806,3 +806,97 @@ def test_a_plain_canvas_rotate_with_nothing_selected_reports_no_change(qtbot, wi
 
     with qtbot.assertNotEmitted(canvas.layout_changed):
         canvas.on_flip_card()
+
+
+# -- the spreads that ship with the app
+
+
+def ship(included_base, slug, spread):
+    folder = included_base / slug
+    folder.mkdir(parents=True)
+    spreads.save(folder, spread)
+    return folder
+
+
+@pytest.fixture
+def shipped_page(qtbot, spreads_base, included_base):
+    store(spreads_base, 1000, Spread(name="Mine old", positions=slots(1)))
+    store(spreads_base, 2000, Spread(name="Mine new", positions=slots(3)))
+    ship(included_base, "a", Spread(name="zodiac", positions=slots(2)))
+    ship(included_base, "b", Spread(name="Celtic", positions=slots(4)))
+    page = SpreadsPage()
+    qtbot.addWidget(page)
+    return page
+
+
+@pytest.mark.parametrize(
+    ("sort", "expected"),
+    [
+        (SORT_NEWEST, ["Mine new", "Mine old", "Celtic", "zodiac"]),
+        (SORT_EDITED, ["Mine new", "Mine old", "Celtic", "zodiac"]),
+        (SORT_NAME, ["Mine new", "Mine old", "Celtic", "zodiac"]),
+        (SORT_COUNT, ["Mine old", "Mine new", "zodiac", "Celtic"]),
+    ],
+)
+def test_included_spreads_follow_the_users_in_their_own_order(shipped_page, sort, expected):
+    shipped_page.set_sort_key(sort)
+
+    assert names(shipped_page) == expected
+
+
+def test_an_included_row_says_so_after_its_slot_count(shipped_page):
+    subtitle = index_of(shipped_page, "Celtic").data(SubtitleRole)
+    own = index_of(shipped_page, "Mine new").data(SubtitleRole)
+
+    assert subtitle == SUBTITLE_SEPARATOR.join(
+        [SPREADS["slot_count"].format(count=4), SPREADS["included"]]
+    )
+    assert own == SPREADS["slot_count"].format(count=3)
+
+
+def test_search_covers_included_spreads_too(shipped_page):
+    shipped_page.set_search("celtic")
+    assert names(shipped_page) == ["Celtic"]
+
+    shipped_page.set_search("mine")
+    assert names(shipped_page) == ["Mine new", "Mine old"]
+
+
+def test_only_included_spreads_is_not_empty(qtbot, spreads_base, included_base):
+    ship(included_base, "a", Spread(name="Line", positions=slots(3)))
+    page = SpreadsPage()
+    qtbot.addWidget(page)
+
+    assert names(page) == ["Line"]
+    assert page.list_model.has_items()
+
+
+def test_an_included_row_has_no_menu(qtbot, shipped_page, monkeypatch):
+    executed = []
+    monkeypatch.setattr(QMenu, "exec", lambda menu, *_: executed.append(menu.actions()))
+    shipped_page.resize(600, 500)
+    shipped_page.show()
+    qtbot.waitExposed(shipped_page)
+
+    def right_click(name):
+        rect = shipped_page.list_view.visualRect(index_of(shipped_page, name))
+        assert shipped_page.list_view.indexAt(rect.center()).data() == name
+        shipped_page._on_context_menu(rect.center())
+
+    assert shipped_page.row_menu(index_of(shipped_page, "Celtic")) is None
+    right_click("Celtic")
+    assert executed == []
+
+    right_click("Mine new")
+    assert [action.text() for action in executed[0]] == [SPREADS["delete"]]
+
+
+def test_delete_refuses_an_included_spread(shipped_page, included_base):
+    folder = index_of(shipped_page, "Celtic").data(SpreadPathRole)
+    before = (folder / spreads.SPREAD_FILE).read_bytes()
+
+    shipped_page.delete(folder)
+
+    assert (folder / spreads.SPREAD_FILE).read_bytes() == before
+    assert shipped_page.staged is None
+    assert "Celtic" in names(shipped_page)

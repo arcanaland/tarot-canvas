@@ -8,7 +8,7 @@ from tarot_canvas.models.spreads import Spread, edited_at
 from tarot_canvas.ui.canvas.detail import card_unit_size
 from tarot_canvas.ui.canvas.tab_icon import MINIMAP, layout_marks, spread_icon, spread_marks
 from tarot_canvas.ui.library.deck_model import SORT_COUNT, SORT_NAME, SubtitleRole
-from tarot_canvas.ui.library.notes_model import PreviewRole
+from tarot_canvas.ui.library.notes_model import SUBTITLE_SEPARATOR, PreviewRole
 from tarot_canvas.ui.strings import SPREADS
 
 SpreadPathRole = Qt.ItemDataRole.UserRole + 21
@@ -24,6 +24,7 @@ class SpreadRow(NamedTuple):
     spread: Spread
     thumbnail: QIcon
     edited: float
+    included: bool = False
 
 
 def _stamp(path):
@@ -40,7 +41,15 @@ def _title(spread):
 
 
 def _sorted(rows, sort):
-    """rows in sort's order, ties by name"""
+    """The user's rows in sort's order, then the included ones, each with ties by name"""
+    own = [row for row in rows if not row.included]
+    included = [row for row in rows if row.included]
+    # A packaged folder's name and mtime say nothing about when it was made or edited
+    included_sort = sort if sort in (SORT_NAME, SORT_COUNT) else SORT_NAME
+    return _sorted_by(own, sort) + _sorted_by(included, included_sort)
+
+
+def _sorted_by(rows, sort):
     by_name = sorted(rows, key=lambda row: _title(row.spread).casefold())
     if sort == SORT_NAME:
         return by_name
@@ -54,6 +63,12 @@ def _sorted(rows, sort):
 def _slot_count(spread):
     count = len(spread.positions)
     return SPREADS["slot_count_one"] if count == 1 else SPREADS["slot_count"].format(count=count)
+
+
+def _subtitle(row):
+    if row.included:
+        return SUBTITLE_SEPARATOR.join([_slot_count(row.spread), SPREADS["included"]])
+    return _slot_count(row.spread)
 
 
 def _searchable(spread):
@@ -73,28 +88,31 @@ def _matches(spread, search):
 
 
 class SpreadsListModel(QAbstractListModel):
-    """Every spread on disk"""
+    """Every spread on disk: the user's, then those that ship with the app"""
 
-    def __init__(self, scanned=(), parent=None):
+    def __init__(self, scanned=(), included=(), parent=None):
         super().__init__(parent)
         self._search = ""
         self._sort = SORT_NEWEST
         self._spreads = []
         self._rows = []
-        self._hold(scanned)
+        self._hold(scanned, included)
         self._rebuild()
 
-    def set_spreads(self, scanned):
+    def set_spreads(self, scanned, included=()):
         self.beginResetModel()
-        self._hold(scanned)
+        self._hold(scanned, included)
         self._rebuild()
         self.endResetModel()
 
-    def _hold(self, scanned):
+    def _hold(self, scanned, included):
         unit = card_unit_size()
         self._spreads = [
             SpreadRow(path, spread, _thumbnail(spread, unit), edited_at(path))
             for path, spread in scanned
+        ] + [
+            SpreadRow(path, spread, _thumbnail(spread, unit), 0.0, included=True)
+            for path, spread in included
         ]
 
     def set_search(self, search):
@@ -151,14 +169,15 @@ class SpreadsListModel(QAbstractListModel):
         if not index.isValid() or not 0 <= index.row() < len(self._rows):
             return None
 
-        path, spread, thumbnail, _edited = self._rows[index.row()]
+        row = self._rows[index.row()]
+        path, spread, thumbnail = row.path, row.spread, row.thumbnail
 
         if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.AccessibleTextRole):
             return _title(spread)
         if role == Qt.ItemDataRole.DecorationRole:
             return thumbnail
         if role == SubtitleRole:
-            return _slot_count(spread)
+            return _subtitle(row)
         if role == PreviewRole:
             return _summary(spread)
         if role == SpreadPathRole:

@@ -1,0 +1,101 @@
+name = "Celtic Cross"
+description = "A comprehensive 10-card spread for any major question."
+
+# Based on Benebell Wen's rendition in Holistic Tarot (itself influenced by Eden Gray's method).
+#  (words are my own)
+[[sources]]
+name = "Holistic Tarot"
+author = "Benebell Wen"
+publisher = "North Atlantic Books"
+year = 2015
+took = ["positions", "layout"]
+
+[[positions]]
+id = "p2"
+label = "Current Situation"
+meaning = "What situation you are facing in the present moment"
+x = -1.023
+y = 0.136
+rotation = 0.0
+z = 30.0
+
+[[positions]]
+id = "p4"
+label = "Obstacle"
+meaning = "Challenges that lie ahead or need to be overcome"
+x = -1.027
+y = 0.311
+rotation = 90.0
+z = 69.0
+
+[[positions]]
+id = "p6"
+label = "Foundation"
+meaning = "The root of the matter"
+x = -1.023
+y = 2.322
+rotation = 0.0
+z = 76.0
+
+[[positions]]
+id = "p5"
+label = "Past"
+meaning = "Events or influences in the past affecting this situation"
+x = -2.694
+y = 0.136
+rotation = 0.0
+z = 51.0
+
+[[positions]]
+id = "p3"
+label = "Speculative"
+meaning = "Aspirations and outcomes that should be considered (even totally unexpectedly!)"
+x = -1.023
+y = -2.05
+rotation = 0.0
+z = 75.0
+
+[[positions]]
+id = "p1"
+label = "Near Future"
+meaning = "A likely outcome in the near future"
+x = 0.648
+y = 0.136
+rotation = 0.0
+z = 73.0
+
+[[positions]]
+id = "p7"
+label = "Self"
+meaning = "Attitudes and energies you bring to the situation"
+x = 2.694
+y = 3.219
+rotation = 0.0
+z = 71.0
+
+[[positions]]
+id = "p8"
+label = "Helpful Influences"
+meaning = "Environmental, social or external influences"
+x = 2.694
+y = 1.073
+rotation = 0.0
+z = 65.0
+
+[[positions]]
+id = "p9"
+label = "Hopes and Fears"
+meaning = "How your expectations influence the situation"
+x = 2.694
+y = -1.073
+rotation = 0.0
+z = 70.0
+
+[[positions]]
+id = "p10"
+label = "Final Outcomes"
+meaning = "The combined forces of the other cards' energies and influences"
+x = 2.694
+y = -3.219
+rotation = 0.0
+z = 72.0

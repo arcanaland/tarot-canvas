@@ -36,14 +36,17 @@ SORT_CHOICES = [
 
 
 class SpreadsPage(LibraryListPage):
-    """Every spread the user has saved"""
+    """Every spread the user has saved, then those that ship with the app"""
 
     spread_activated = pyqtSignal(object)  # the spread's folder
     delete_requested = pyqtSignal(object)  # the spread's folder
 
     def __init__(self, parent=None, base=None):
         super().__init__(
-            SpreadsListModel(spreads.scan(base)), SpreadRowDelegate, SpreadDetailsPane(), parent
+            SpreadsListModel(spreads.scan(base), spreads.scan_included()),
+            SpreadRowDelegate,
+            SpreadDetailsPane(),
+            parent,
         )
         self._base = base  # tests point the index somewhere else
         self.list_model.set_sort(
@@ -105,7 +108,7 @@ class SpreadsPage(LibraryListPage):
     def refresh(self):
         """Re-read every spread, keeping the selected one selected if it survives"""
         selected = self._selected_path()
-        self.list_model.set_spreads(spreads.scan(self._base))
+        self.list_model.set_spreads(spreads.scan(self._base), spreads.scan_included())
         if selected is not None:
             self.select(selected)
         self._update_empty_state()
@@ -146,7 +149,10 @@ class SpreadsPage(LibraryListPage):
     # -- the row's menu -----------------------------------------------------
 
     def row_menu(self, index):
+        """The row's menu, or None if there is nothing to offer"""
         path = index.data(SpreadPathRole)
+        if spreads.is_included(path):
+            return None
         menu = QMenu(self)
         delete = menu.addAction(QIcon.fromTheme("edit-delete"), SPREADS["delete"])
         delete.triggered.connect(lambda: self.delete_requested.emit(path))
@@ -154,8 +160,8 @@ class SpreadsPage(LibraryListPage):
 
     def _on_context_menu(self, pos):
         index = self.list_view.indexAt(pos)
-        if index.isValid():
-            menu = self.row_menu(index)
+        menu = self.row_menu(index) if index.isValid() else None
+        if menu is not None:
             menu.exec(self.list_view.viewport().mapToGlobal(pos))
             menu.deleteLater()
 
@@ -163,6 +169,10 @@ class SpreadsPage(LibraryListPage):
 
     def delete(self, path):
         """Take the spread out of every view now; remove its folder once Undo is gone"""
+        if spreads.is_included(path):
+            logger.error(f"Refusing to delete included spread {path}")
+            return
+
         # One Undo at a time: the delete it offered becomes final
         self.commit_pending_delete()
 

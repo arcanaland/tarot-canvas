@@ -1,0 +1,7 @@
+name = "Basic Three-Card Spread"
+description = "A basic three card reading"
+positions = [
+    { id = "p1", label = "Past", meaning = "", x = -1.345, y = 0.0, rotation = 0.0, z = 9.0 },
+    { id = "p2", label = "Present", meaning = "", x = 0.0, y = 0.0, rotation = 0.0, z = 13.0 },
+    { id = "p3", label = "Future", meaning = "", x = 1.345, y = 0.0, rotation = 0.0, z = 12.0 },
+]

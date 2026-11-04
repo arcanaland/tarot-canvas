@@ -164,3 +164,34 @@ def test_load_accepts_the_largest_numbers_it_allows(tmp_path):
 
 def test_a_spread_with_no_file_was_never_edited(tmp_path):
     assert spreads.edited_at(tmp_path) == 0.0
+
+
+# -- the spreads that ship with the app
+
+
+def test_no_included_root_is_no_included_spreads(included_base):
+    assert not included_base.exists()
+    assert spreads.scan_included() == []
+
+
+def test_an_included_spread_is_listed_apart_from_the_users(included_base, spreads_base):
+    included = included_base / "line"
+    included.mkdir(parents=True)
+    spreads.save(included, Spread("Shipped"))
+    own = spreads.new_spread_dir()
+    spreads.save(own, Spread("Mine"))
+
+    assert [(folder, spread.name) for folder, spread in spreads.scan_included()] == [
+        (included, "Shipped")
+    ]
+    assert [folder for folder, _ in spreads.scan()] == [own]
+    assert spreads.is_included(included)
+    assert not spreads.is_included(own)
+
+
+@pytest.mark.parametrize("outside", ["../elsewhere", "../included-not", None])
+def test_a_folder_outside_the_included_root_is_not_included(included_base, outside):
+    included_base.mkdir()
+    path = None if outside is None else included_base / outside
+
+    assert not spreads.is_included(path)
