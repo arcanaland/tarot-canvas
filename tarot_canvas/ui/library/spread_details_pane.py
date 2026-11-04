@@ -40,16 +40,16 @@ def _rich_text(text):
     return label
 
 
-# Between a credit's parts: Benebell Wen · Holistic Tarot
+# Between a credit's parts
 SOURCE_SEPARATOR = " · "
 
 
-# What a source's `took` may name, in the order a credit lists them
+# Values for a source's "took" field
 TOOK_ORDER = ("positions", "layout", "words")
 
 
 def _taken(source):
-    """What `took` says came from this source, as a phrase; "" when it names nothing known"""
+    """What `took` says came from this source (as an English phrase)"""
     took = source.get("took")
     if not isinstance(took, list):
         return ""
@@ -135,7 +135,6 @@ class SpreadDetailsPane(QWidget):
 
         self.heading_label = typography.apply(pane_text(), typography.Role.HEADING_1, primary=True)
 
-        # On the title's line at the trailing edge, as the designer's pane has its menu
         self.edit_button = QToolButton()
         self.edit_button.setIcon(QIcon.fromTheme("document-edit"))
         self.edit_button.setText(SPREADS["edit"])

@@ -26,8 +26,6 @@ class SpreadRowDelegate(NoteRowDelegate):
             return
         super().paint(painter, option, index)
 
-    # A heading has no menu button, so nothing on it answers a press or shows a tip
-
     def editorEvent(self, event, model, option, index):
         if is_section(index):
             return False

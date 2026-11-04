@@ -80,7 +80,7 @@ def two_slots(name="Two"):
     return Spread(
         name=name,
         description="First paragraph\nstill first.\n\nSecond paragraph.",
-        sources=({"url": "https://example.org/a", "author": "Ana", "note": "from a zine"},),
+        sources=({"url": "https://example.org/a", "author": "Jane", "note": "from a zine"},),
         positions=(
             Position(id="p1", label="Past", meaning="What led here", x=-1.0, y=0.5),
             Position(id="p2", label="Future", meaning="Whither", x=1.0, y=-0.5, rotation=90.0),
@@ -501,7 +501,7 @@ def test_the_pane_shows_the_spread_with_its_slots_in_number_order(page):
     ]
     # The source comes last, as a credit under no heading
     (credit,) = texts[7:]
-    assert "Ana · from a zine" in credit and 'href="https://example.org/a"' in credit
+    assert "Jane · from a zine" in credit and 'href="https://example.org/a"' in credit
 
 
 def credit_shown(qtbot, spreads_base, source):

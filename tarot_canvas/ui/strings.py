@@ -421,7 +421,7 @@ SPREADS = {
     "took_positions": "positions",
     "took_layout": "layout",
     "took_words": "wording",
-    "took_list_separator": ", ",  # for i18n?
+    "took_list_separator": ", ",  # for i18n
     "took_last_pair": "{rest} and {last}",
     "remove_source": "Remove Source",
     "slots_title": "Card Slots",
