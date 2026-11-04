@@ -38,7 +38,12 @@ SORT_CHOICES = [
 class SpreadsPage(LibraryListPage):
     """Every spread the user has saved, then those that ship with the app"""
 
-    spread_activated = pyqtSignal(object)  # the spread's folder
+    # A row was double-clicked or Entered: the pane opens even if the user closed it
+    details_requested = pyqtSignal()
+    # A row was clicked or reached by the keyboard: the pane opens unless the user closed it
+    row_chosen = pyqtSignal()
+    edit_requested = pyqtSignal(object)  # the spread's folder
+    duplicate_requested = pyqtSignal(object)  # the spread's folder
     delete_requested = pyqtSignal(object)  # the spread's folder
 
     def __init__(self, parent=None, base=None):
@@ -49,11 +54,19 @@ class SpreadsPage(LibraryListPage):
             parent,
         )
         self._base = base  # tests point the index somewhere else
+        self._programmatic = 0  # nesting depth of selection the user didn't make
+        # The view's clicked follows the release that opened the row's menu
+        self._menu_click = False
         self.list_model.set_sort(
             get_settings().value(LIBRARY_SPREADS_SORT_KEY, LIBRARY_SPREADS_SORT_DEFAULT, type=str)
         )
         self.list_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.list_view.customContextMenuRequested.connect(self._on_context_menu)
+        self.row_delegate.menuRequested.connect(self._on_menu_requested)
+        self.list_view.pressed.connect(self._on_pressed)
+        self.list_view.clicked.connect(self._on_clicked)
+        self.list_view.selectionModel().currentChanged.connect(self._on_keyboard_current)
+        self.details_pane.edit_requested.connect(self.edit_requested)
 
         # (folder, staged path) of a delete that can still be undone
         self.staged = None
@@ -121,10 +134,37 @@ class SpreadsPage(LibraryListPage):
     def _empty_text(self, searching):
         return SPREADS["empty_no_match" if searching else "empty"]
 
+    def _select_index(self, index):
+        self._programmatic += 1
+        try:
+            return super()._select_index(index)
+        finally:
+            self._programmatic -= 1
+
     def _on_activated(self, index):
-        path = index.data(SpreadPathRole)
-        if path is not None:
-            self.spread_activated.emit(path)
+        if self._details_for(index) is not None:
+            self._show_details(index)
+            self.details_requested.emit()
+
+    def _on_pressed(self, _index):
+        self._menu_click = False
+
+    def _on_clicked(self, index):
+        if self._menu_click:
+            self._menu_click = False
+            return
+        if index.data(SpreadRole) is not None:
+            self.row_chosen.emit()
+
+    def _on_keyboard_current(self, current, _previous):
+        # A press makes the row current before it selects it, so this is the keyboard alone
+        if (
+            current.data(SpreadRole) is not None
+            and self.list_view.hasFocus()
+            and self.list_view.selectionModel().isSelected(current)
+            and not self._programmatic
+        ):
+            self.row_chosen.emit()
 
     def _selected_path(self):
         index = self.list_view.currentIndex()
@@ -151,22 +191,40 @@ class SpreadsPage(LibraryListPage):
     # -- the row's menu -----------------------------------------------------
 
     def row_menu(self, index):
-        """The row's menu, or None if there is nothing to offer"""
+        """The row's menu, or None for a heading"""
         path = index.data(SpreadPathRole)
         # A heading has no path
-        if path is None or spreads.is_included(path):
+        if path is None:
             return None
         menu = QMenu(self)
-        delete = menu.addAction(QIcon.fromTheme("edit-delete"), SPREADS["delete"])
-        delete.triggered.connect(lambda: self.delete_requested.emit(path))
+
+        def add(text, icon, signal):
+            action = menu.addAction(QIcon.fromTheme(icon), text)
+            action.triggered.connect(lambda: signal.emit(path))
+
+        # A built-in's Edit would be its Duplicate: a tab that saves as a new spread
+        included = spreads.is_included(path)
+        if not included:
+            add(SPREADS["edit"], "document-edit", self.edit_requested)
+        add(SPREADS["duplicate"], "edit-duplicate", self.duplicate_requested)
+        if not included:
+            menu.addSeparator()
+            add(SPREADS["delete"], "edit-delete", self.delete_requested)
         return menu
+
+    def _show_row_menu(self, index, global_pos):
+        menu = self.row_menu(index) if index.isValid() else None
+        if menu is not None:
+            menu.exec(global_pos)
+            menu.deleteLater()
 
     def _on_context_menu(self, pos):
         index = self.list_view.indexAt(pos)
-        menu = self.row_menu(index) if index.isValid() else None
-        if menu is not None:
-            menu.exec(self.list_view.viewport().mapToGlobal(pos))
-            menu.deleteLater()
+        self._show_row_menu(index, self.list_view.viewport().mapToGlobal(pos))
+
+    def _on_menu_requested(self, index, global_pos):
+        self._menu_click = True
+        self._show_row_menu(index, global_pos)
 
     # -- deleting, undoably -------------------------------------------------
 

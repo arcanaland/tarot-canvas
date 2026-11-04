@@ -578,6 +578,16 @@ class MainWindow(QMainWindow):
             return None
         return self.add_canvas_tab(SpreadTab(spread, path))
 
+    def duplicate_spread(self, path):
+        """An unsaved tab holding a copy of the spread in folder path, and return it"""
+        try:
+            spread = spreads.load(Path(path))
+        except (OSError, ValueError) as error:
+            logger.error(f"Could not open spread {path}: {error}")
+            self.toast.show_message(SPREADS["open_failed"])
+            return None
+        return self.open_unsaved_spread(spread)
+
     def spread_tab_holding(self, path):
         for index in range(self.tab_widget.count()):
             tab = self.tab_widget.widget(index)

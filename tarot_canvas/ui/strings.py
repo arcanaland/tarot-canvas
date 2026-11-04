@@ -409,7 +409,6 @@ SPREADS = {
     "description_hint": "Optional: how to read this spread",
     "description_expand": "Expand description",
     "description_collapse": "Hide description",
-    "sources_title": "Sources",
     "source_url_hint": "Webpage for this spread",
     "source_author_hint": "Who created this spread",
     "source_note_hint": "Free-form notes",
@@ -426,6 +425,7 @@ SPREADS = {
     "slot_row": "{number}. {label}",
     # The pane's menu
     "menu_tooltip": "Spread options",
+    "edit": "Edit",
     "duplicate": "Duplicate Spread",
     "revert": "Revert to Saved",
     "open_folder": "Open in File Explorer",
@@ -460,7 +460,6 @@ SPREADS = {
     "details_toggle_hide": "Hide details",
     "slot_count": "{count} cards",
     "slot_count_one": "single card",
-    # The list's section headings
     "section_mine": "Your Spreads",
     "section_included": "Built-in",
     "sort_tooltip": "Sort spreads",

@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 from PyQt6.QtCore import QPointF, QSize, Qt
-from PyQt6.QtGui import QColor, QImage, QPainter, QPixmap
-from PyQt6.QtWidgets import QMenu, QMessageBox
+from PyQt6.QtGui import QColor, QImage, QPainter, QPalette, QPixmap
+from PyQt6.QtWidgets import QMenu, QMessageBox, QStyleOptionViewItem
 
 from tarot_canvas.models import spreads, staged_delete
 from tarot_canvas.models.spread_events import spread_events
@@ -491,15 +491,36 @@ def test_the_pane_shows_the_spread_with_its_slots_in_number_order(page):
     texts = shown_text(page)
     assert "Second paragraph." in texts[1]
     assert texts[1].count("<p ") == 2
-    assert texts[2] == SPREADS["sources_title"]
-    assert "Ana • from a zine" in texts[3] and 'href="https://example.org/a"' in texts[3]
-    assert texts[4:] == [
+    assert texts[2:7] == [
         SPREADS["slots_title"],
         "1. Past",
         "What led here",
         "2. Future",
         "Whither",
     ]
+    # The source comes last, as a credit under no heading
+    (credit,) = texts[7:]
+    assert "Ana · from a zine" in credit and 'href="https://example.org/a"' in credit
+
+
+def test_a_source_names_its_author_then_its_work(qtbot, spreads_base):
+    source = {"name": "Holistic Tarot", "author": "Benebell Wen", "publisher": "N", "year": 2015}
+    store(spreads_base, 1, Spread(name="X", sources=(source,)))
+    page = SpreadsPage()
+    qtbot.addWidget(page)
+
+    page._select_index(first_spread(page))
+
+    assert shown_text(page)[-1] == "Benebell Wen · Holistic Tarot"
+
+
+def test_a_source_is_a_small_dim_line(page):
+    page._select_index(index_of(page, "Older"))
+
+    credit = page.details_pane.section_labels()[-1]
+    body = page.details_pane.section_labels()[1]
+    assert credit.font().pointSizeF() < body.font().pointSizeF()
+    assert credit.foregroundRole() == QPalette.ColorRole.PlaceholderText
 
 
 def test_the_pane_draws_a_spread_beside_its_text(page):
@@ -550,7 +571,7 @@ def test_description_and_a_source_are_escaped(qtbot, spreads_base):
 
     page._select_index(first_spread(page))
 
-    description, source = shown_text(page)[1], shown_text(page)[3]
+    description, source = shown_text(page)[1], shown_text(page)[-1]
     assert "<b>" not in description
     assert "<i>" not in source and "not a link" in source and "href" not in source
 
@@ -568,17 +589,73 @@ def test_a_slot_with_no_label_or_meaning_is_only_its_number(qtbot, spreads_base)
 # -- opening
 
 
-def test_activating_a_row_opens_its_spread_tab(window, spreads_base):
+def test_activating_a_row_opens_its_pane_and_no_tab(window, spreads_base):
     folder = store(spreads_base, 1000, two_slots())
     library = open_library(window)
     page = library.spreads_page
+    tabs = window.tab_widget.count()
 
     page.list_view.activated.emit(first_spread(page))
+
+    assert window.tab_widget.count() == tabs
+    assert window.tab_widget.currentWidget() is library
+    assert library.details_pane_is_open()
+    assert page.details_pane.details().path == folder
+
+
+def test_the_panes_edit_opens_the_spreads_tab(window, spreads_base):
+    folder = store(spreads_base, 1000, two_slots())
+    library = open_library(window)
+    page = library.spreads_page
+    page.select(folder)
+
+    page.details_pane.edit_button.click()
 
     tab = window.tab_widget.currentWidget()
     assert isinstance(tab, SpreadTab)
     assert tab.spread_path == folder
     assert [slot.label for slot in tab.slots()] == ["Past", "Future"]
+    assert not tab.has_unsaved_changes()
+
+
+def test_the_panes_edit_sits_on_the_titles_line_at_its_end(qtbot, page):
+    pane = page.details_pane
+    pane.resize(500, 400)
+    pane.show()
+    qtbot.waitExposed(pane)
+    page._select_index(index_of(page, "Older"))
+
+    title, edit = pane.heading_label.geometry(), pane.edit_button.geometry()
+    assert edit.left() > title.right()
+    assert edit.top() < title.bottom() and title.top() < edit.bottom()
+    assert edit.right() > pane.width() - 2 * edit.width()
+
+
+def test_the_panes_edit_raises_a_tab_already_open(window, spreads_base):
+    folder = store(spreads_base, 1000, two_slots())
+    library = open_library(window)
+    tab = window.open_spread(folder)
+    window.tab_widget.setCurrentWidget(library)
+    tabs = window.tab_widget.count()
+    library.spreads_page.select(folder)
+
+    library.spreads_page.details_pane.edit_button.click()
+
+    assert window.tab_widget.count() == tabs
+    assert window.tab_widget.currentWidget() is tab
+
+
+def test_the_panes_edit_opens_a_built_in_unmodified(window, spreads_base, included_base):
+    folder = ship(included_base, "celtic", two_slots("Celtic"))
+    library = open_library(window)
+    library.spreads_page.select(folder)
+
+    library.spreads_page.details_pane.edit_button.click()
+
+    tab = window.tab_widget.currentWidget()
+    assert isinstance(tab, SpreadTab)
+    assert tab.spread_path == folder
+    assert window.tab_widget.tabText(window.tab_widget.currentIndex()) == "Celtic"
 
 
 # -- deleting
@@ -632,15 +709,40 @@ def test_a_delete_that_fails_keeps_the_row_and_says_so(page, spreads_base, monke
     assert page.staged is None
 
 
-def test_the_rows_menu_asks_to_delete(page, qtbot, spreads_base):
+def menu_entries(menu):
+    return [None if action.isSeparator() else action.text() for action in menu.actions()]
+
+
+def test_a_users_rows_menu_edits_duplicates_and_deletes(page, qtbot, spreads_base):
     menu = page.row_menu(index_of(page, "Older"))
-    (action,) = menu.actions()
-    assert action.text() == SPREADS["delete"]
+    assert menu_entries(menu) == [
+        SPREADS["edit"],
+        SPREADS["duplicate"],
+        None,
+        SPREADS["delete"],
+    ]
+    edit, duplicate, _separator, delete = menu.actions()
 
-    with qtbot.waitSignal(page.delete_requested) as requested:
-        action.trigger()
+    for action, signal in [
+        (edit, page.edit_requested),
+        (duplicate, page.duplicate_requested),
+        (delete, page.delete_requested),
+    ]:
+        with qtbot.waitSignal(signal) as requested:
+            action.trigger()
+        assert requested.args == [spreads_base / "1000"]
 
-    assert requested.args == [spreads_base / "1000"]
+
+def test_the_menus_edit_opens_the_spreads_tab(window, spreads_base):
+    folder = store(spreads_base, 1000, two_slots())
+    library = open_library(window)
+    page = library.spreads_page
+
+    page.row_menu(first_spread(page)).actions()[0].trigger()
+
+    tab = window.tab_widget.currentWidget()
+    assert isinstance(tab, SpreadTab)
+    assert tab.spread_path == folder
 
 
 def test_deleting_the_shown_spread_empties_and_closes_the_pane(window, spreads_base):
@@ -935,9 +1037,11 @@ def test_only_included_spreads_is_not_empty(qtbot, spreads_base, included_base):
     assert page.list_model.has_items()
 
 
-def test_an_included_row_and_a_heading_have_no_menu(qtbot, shipped_page, monkeypatch):
+def test_an_included_rows_menu_only_duplicates_and_a_heading_has_none(
+    qtbot, shipped_page, monkeypatch
+):
     executed = []
-    monkeypatch.setattr(QMenu, "exec", lambda menu, *_: executed.append(menu.actions()))
+    monkeypatch.setattr(QMenu, "exec", lambda menu, *_: executed.append(menu_entries(menu)))
     shipped_page.resize(600, 500)
     shipped_page.show()
     qtbot.waitExposed(shipped_page)
@@ -947,13 +1051,95 @@ def test_an_included_row_and_a_heading_have_no_menu(qtbot, shipped_page, monkeyp
         assert shipped_page.list_view.indexAt(rect.center()).data() == name
         shipped_page._on_context_menu(rect.center())
 
-    assert shipped_page.row_menu(index_of(shipped_page, "Celtic")) is None
-    right_click("Celtic")
+    assert shipped_page.row_menu(index_of(shipped_page, SPREADS["section_included"])) is None
     right_click(SPREADS["section_included"])
     assert executed == []
 
+    right_click("Celtic")
     right_click("Mine new")
-    assert [action.text() for action in executed[0]] == [SPREADS["delete"]]
+    assert executed == [
+        [SPREADS["duplicate"]],
+        [SPREADS["edit"], SPREADS["duplicate"], None, SPREADS["delete"]],
+    ]
+
+
+# -- the menu button
+
+
+def menu_button_centre(page, index):
+    view = page.list_view
+    option = QStyleOptionViewItem()
+    option.initFrom(view)
+    option.rect = view.visualRect(index)
+    return page.row_delegate._layout(option).menu.center()
+
+
+def test_pressing_a_rows_menu_button_opens_its_menu(qtbot, shipped_page, monkeypatch):
+    executed = []
+    monkeypatch.setattr(QMenu, "exec", lambda menu, *_: executed.append(menu_entries(menu)))
+    shipped_page.resize(600, 500)
+    shipped_page.show()
+    qtbot.waitExposed(shipped_page)
+    viewport = shipped_page.list_view.viewport()
+
+    for name in ("Mine new", "Celtic"):
+        centre = menu_button_centre(shipped_page, index_of(shipped_page, name))
+        qtbot.mouseClick(viewport, Qt.MouseButton.LeftButton, pos=centre)
+
+    assert executed == [
+        [SPREADS["edit"], SPREADS["duplicate"], None, SPREADS["delete"]],
+        [SPREADS["duplicate"]],
+    ]
+
+
+def test_a_heading_has_no_menu_button(qtbot, shipped_page, monkeypatch):
+    executed = []
+    monkeypatch.setattr(QMenu, "exec", lambda menu, *_: executed.append(menu))
+    shipped_page.resize(600, 500)
+    shipped_page.show()
+    qtbot.waitExposed(shipped_page)
+    heading = index_of(shipped_page, SPREADS["section_included"])
+    centre = shipped_page.list_view.visualRect(heading)
+    centre = QPointF(centre.right() - 20, centre.center().y()).toPoint()
+
+    qtbot.mouseClick(shipped_page.list_view.viewport(), Qt.MouseButton.LeftButton, pos=centre)
+
+    assert executed == []
+
+
+def test_duplicating_a_built_in_opens_an_unsaved_copy_saved_as_the_users(
+    window, spreads_base, included_base
+):
+    folder = ship(included_base, "celtic", two_slots("Celtic"))
+    before = (folder / spreads.SPREAD_FILE).read_bytes()
+    library = open_library(window)
+    page = library.spreads_page
+
+    page.row_menu(index_of(page, "Celtic")).actions()[0].trigger()
+
+    tab = window.tab_widget.currentWidget()
+    assert isinstance(tab, SpreadTab)
+    assert tab.spread_path is None
+    assert window.tab_widget.tabText(window.tab_widget.currentIndex()) == SPREADS[
+        "unsaved_tab"
+    ].format(title="Celtic")
+
+    tab.save()
+
+    assert tab.spread_path.parent == spreads_base
+    assert spreads.load(tab.spread_path).name == "Celtic"
+    assert (folder / spreads.SPREAD_FILE).read_bytes() == before
+
+
+def test_a_duplicate_that_cannot_load_says_so(window, spreads_base, monkeypatch):
+    shown = []
+    monkeypatch.setattr(window.toast, "show_message", shown.append)
+    tabs = window.tab_widget.count()
+
+    assert window.duplicate_spread(spreads_base / "missing") is None
+
+    assert shown == [SPREADS["open_failed"]]
+    assert window.tab_widget.count() == tabs
 
 
 def test_delete_refuses_an_included_spread(shipped_page, included_base):

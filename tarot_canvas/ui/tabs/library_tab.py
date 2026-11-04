@@ -143,10 +143,13 @@ class LibraryTab(BaseTab):
         self.esoterica_page = EsotericaPage(deck=deck_manager.get_reference_deck())
         self.esoterica_page.card_activated.connect(self.on_esoterica_card_activated)
         self.esoterica_page.details_changed.connect(self._sync_details_toggle)
-        self.esoterica_page.details_requested.connect(self._open_esoterica_details)
+        self.esoterica_page.details_requested.connect(self._open_details)
 
         self.spreads_page = SpreadsPage()
-        self.spreads_page.spread_activated.connect(self.on_spread_activated)
+        self.spreads_page.details_requested.connect(self._open_details)
+        self.spreads_page.row_chosen.connect(self._open_details_for_selection)
+        self.spreads_page.edit_requested.connect(self.on_spread_edit_requested)
+        self.spreads_page.duplicate_requested.connect(self.on_spread_duplicate_requested)
         self.spreads_page.delete_requested.connect(self.on_spread_delete_requested)
         self.spreads_page.details_changed.connect(self._on_spread_details_changed)
 
@@ -486,10 +489,15 @@ class LibraryTab(BaseTab):
         if card_tab is not None:
             card_tab.open_note(path)
 
-    def on_spread_activated(self, path):
+    def on_spread_edit_requested(self, path):
         main_window = self.window()
         if hasattr(main_window, "open_spread"):
             main_window.open_spread(path)
+
+    def on_spread_duplicate_requested(self, path):
+        main_window = self.window()
+        if hasattr(main_window, "duplicate_spread"):
+            main_window.duplicate_spread(path)
 
     def on_new_spread(self):
         main_window = self.window()
@@ -563,7 +571,8 @@ class LibraryTab(BaseTab):
         if index.data(EntryRole) is not None:
             self._reveal_ghost(index)
 
-    def _open_esoterica_details(self):
+    def _open_details(self):
+        """Open the pane even if the user closed it: they asked for this row's details"""
         self._set_details_open(True)
 
     def _reveal_ghost(self, index):

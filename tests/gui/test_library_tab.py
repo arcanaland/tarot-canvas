@@ -3,13 +3,14 @@ from types import SimpleNamespace
 
 import pytest
 from PyQt6.QtCore import QItemSelectionModel, QPoint, Qt
-from PyQt6.QtWidgets import QFrame, QListView
+from PyQt6.QtWidgets import QFrame, QListView, QMenu
 
 from tarot_canvas.models.catalog import INDEX_URL
 from tarot_canvas.settings import (
     LIBRARY_DENSITY_KEY,
     LIBRARY_DETAILS_PANE_KEY,
     LIBRARY_SORT_KEY,
+    LIBRARY_VIEW_SPREADS,
     SHOW_AVAILABLE_DECKS_KEY,
     get_settings,
 )
@@ -24,9 +25,11 @@ from tarot_canvas.ui.library.deck_model import (
     ProgressRole,
     StateRole,
 )
+from tarot_canvas.ui.library.spreads_model import SpreadPathRole
 from tarot_canvas.ui.strings import DOWNLOAD
 from tarot_canvas.ui.tabs.library_tab import LibraryTab
 from tests.gui.test_catalog_client import FakeTransport
+from tests.gui.test_spreads_view import index_of, menu_button_centre, store, two_slots
 from tests.unit.test_catalog import index, raw_entry
 from tests.unit.test_library_model import catalog_entry, fake_deck
 
@@ -1044,3 +1047,140 @@ def test_view_zoom_is_off_where_there_are_no_covers(library, qtbot):
 
     library.show_view(LIBRARY_VIEW_NOTES)
     assert not any(library.can_zoom(how) for how in ("in", "out", "reset"))
+
+
+# -- the spreads view's pane
+
+
+@pytest.fixture
+def spreads_library(shown_library, spreads_base, qtbot, monkeypatch):
+    store(spreads_base, 1000, two_slots("Older"))
+    store(spreads_base, 2000, two_slots("Newer"))
+    shown_library.spreads_page.refresh()
+    shown_library.show_view(LIBRARY_VIEW_SPREADS)
+    edits = []
+    monkeypatch.setattr(shown_library, "on_spread_edit_requested", edits.append)
+    shown_library.spread_edits = edits
+    return shown_library
+
+
+def spread_row_centre(library, name):
+    page = library.spreads_page
+    return page.list_view.visualRect(index_of(page, name)).center()
+
+
+def click_spread(library, qtbot, name):
+    viewport = library.spreads_page.list_view.viewport()
+    qtbot.mouseClick(viewport, Qt.MouseButton.LeftButton, pos=spread_row_centre(library, name))
+
+
+def double_click_spread(library, qtbot, name):
+    viewport = library.spreads_page.list_view.viewport()
+    pos = spread_row_centre(library, name)
+    qtbot.mouseClick(viewport, Qt.MouseButton.LeftButton, pos=pos)
+    qtbot.mouseDClick(viewport, Qt.MouseButton.LeftButton, pos=pos)
+
+
+def close_with_the_toggle(library, qtbot):
+    click_spread(library, qtbot, "Older")
+    assert library.details_pane_is_open()
+    library.toggle_details_pane()
+    assert not library.details_pane_is_open()
+
+
+def test_a_click_on_a_spread_opens_its_pane(spreads_library, qtbot):
+    assert not spreads_library.details_pane_is_open()
+
+    click_spread(spreads_library, qtbot, "Older")
+
+    assert spreads_library.details_pane_is_open()
+    assert spreads_library.spreads_page.details_pane.heading_label.text() == "Older"
+    assert spreads_library.spread_edits == []
+
+
+def test_a_click_keeps_closed_the_pane_the_toggle_closed(spreads_library, qtbot):
+    close_with_the_toggle(spreads_library, qtbot)
+
+    click_spread(spreads_library, qtbot, "Newer")
+
+    assert not spreads_library.details_pane_is_open()
+    assert spreads_library.spreads_page.details_pane.heading_label.text() == "Newer"
+
+
+def test_a_double_click_opens_the_pane_the_toggle_closed(spreads_library, qtbot):
+    close_with_the_toggle(spreads_library, qtbot)
+
+    double_click_spread(spreads_library, qtbot, "Newer")
+
+    assert spreads_library.details_pane_is_open()
+    assert spreads_library.spreads_page.details_pane.heading_label.text() == "Newer"
+    assert spreads_library.spread_edits == []
+
+
+def test_enter_opens_the_pane_and_no_tab(spreads_library, qtbot):
+    close_with_the_toggle(spreads_library, qtbot)
+    view = spreads_library.spreads_page.list_view
+    view.setFocus()
+
+    qtbot.keyClick(view, Qt.Key.Key_Return)
+
+    assert spreads_library.details_pane_is_open()
+    assert spreads_library.spread_edits == []
+
+
+def test_a_keyboard_move_opens_the_spreads_pane(spreads_library, qtbot):
+    page = spreads_library.spreads_page
+    page.select(index_of(page, "Newer").data(SpreadPathRole))
+    assert not spreads_library.details_pane_is_open()
+    page.list_view.setFocus()
+
+    qtbot.keyClick(page.list_view, Qt.Key.Key_Down)
+
+    assert page.details_pane.heading_label.text() == "Older"
+    assert spreads_library.details_pane_is_open()
+
+
+def test_a_spread_selected_by_code_does_not_open_the_pane(spreads_library):
+    page = spreads_library.spreads_page
+    page.list_view.setFocus()
+
+    page.select(index_of(page, "Older").data(SpreadPathRole))
+
+    assert not spreads_library.details_pane_is_open()
+
+
+@pytest.mark.parametrize("before", ["never opened", "open", "closed by the toggle"])
+def test_a_menu_button_press_leaves_the_pane_as_it_was(spreads_library, qtbot, monkeypatch, before):
+    executed = []
+    monkeypatch.setattr(QMenu, "exec", lambda menu, *_: executed.append(menu))
+    if before == "open":
+        click_spread(spreads_library, qtbot, "Older")
+    elif before == "closed by the toggle":
+        close_with_the_toggle(spreads_library, qtbot)
+    was_open = spreads_library.details_pane_is_open()
+    page = spreads_library.spreads_page
+
+    qtbot.mouseClick(
+        page.list_view.viewport(),
+        Qt.MouseButton.LeftButton,
+        pos=menu_button_centre(page, index_of(page, "Newer")),
+    )
+
+    assert len(executed) == 1
+    assert spreads_library.details_pane_is_open() == was_open
+    assert spreads_library.spread_edits == []
+
+
+def test_a_menu_button_press_does_not_swallow_the_next_click(spreads_library, qtbot, monkeypatch):
+    monkeypatch.setattr(QMenu, "exec", lambda *_: None)
+    page = spreads_library.spreads_page
+    qtbot.mouseClick(
+        page.list_view.viewport(),
+        Qt.MouseButton.LeftButton,
+        pos=menu_button_centre(page, index_of(page, "Newer")),
+    )
+    assert not spreads_library.details_pane_is_open()
+
+    click_spread(spreads_library, qtbot, "Older")
+
+    assert spreads_library.details_pane_is_open()
