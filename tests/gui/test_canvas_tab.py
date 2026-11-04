@@ -9,6 +9,7 @@ from PyQt6.QtGui import (
     QEnterEvent,
     QMouseEvent,
     QPixmap,
+    QTransform,
     QWheelEvent,
 )
 from PyQt6.QtWidgets import QApplication
@@ -16,6 +17,7 @@ from PyQt6.QtWidgets import QApplication
 from tarot_canvas.settings import (
     BACKGROUND_COLOR_KEY,
     BACKGROUND_STYLE_KEY,
+    CANVAS_GUIDES_KEY,
     CANVAS_TAB_MINIMAP_KEY,
     CHECKERBOARD_COLOR_KEY,
     MOTION_LEVEL_KEY,
@@ -29,6 +31,7 @@ from tarot_canvas.ui.canvas import (
 )
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
 from tarot_canvas.ui.canvas.ground import CHECKERBOARD_SQUARE, checkerboard_partner
+from tarot_canvas.ui.canvas.guides import GuideItem
 from tarot_canvas.ui.canvas.icons import CanvasIcon
 from tarot_canvas.ui.canvas.motion import LIFT_REST, LIFT_SELECTED
 from tarot_canvas.ui.canvas.selection import GILT_ON_DARK, GILT_ON_LIGHT
@@ -863,6 +866,200 @@ def test_a_lone_drag_still_ploughs(qtbot):
     assert card._dragging and not card._group_dragging
     assert card.motion.face_y < 0  # the leading edge digs in
     release(tab, end)
+
+
+# Snapping a dragged card
+
+ALT = Qt.KeyboardModifier.AltModifier
+
+
+@pytest.fixture
+def snapping():
+    """Snapping is off until it is turned on in Preferences."""
+    get_settings().setValue(CANVAS_GUIDES_KEY, True)
+
+
+def mover_and_still(tab):
+    """An unselected card at the origin and another, mover, away from it below and to the right."""
+    add_cards(tab, 2)
+    tab.scene.clearSelection()
+    still, mover = sorted(canvas_cards(tab), key=lambda card: card.pos().x())
+    still.setPos(0, 0)
+    mover.setPos(120, 200)
+    tab.view.centerOn(QPointF(110, 180))
+    return still, mover
+
+
+def move_to(tab, at, modifiers=Qt.KeyboardModifier.NoModifier):
+    send_mouse(
+        tab,
+        QMouseEvent.Type.MouseMove,
+        at,
+        Qt.MouseButton.NoButton,
+        Qt.MouseButton.LeftButton,
+        modifiers=modifiers,
+    )
+
+
+def drag_card(tab, card, by, modifiers=Qt.KeyboardModifier.NoModifier):
+    """Press card, move it by screen pixels in three steps, and let go."""
+    start = tab.view.mapFromScene(card.mapToScene(QPointF(20.0, 80.0)))
+    send_mouse(tab, QMouseEvent.Type.MouseButtonPress, start, Qt.MouseButton.LeftButton)
+    for step in range(1, 4):
+        move_to(tab, start + by * step / 3, modifiers)
+    release(tab, start + by)
+
+
+def test_a_dragged_card_lands_exactly_on_a_centre_line_it_comes_near(snapping, qtbot):
+    tab = make_tab(qtbot)
+    still, mover = mover_and_still(tab)
+
+    drag_card(tab, mover, QPoint(-120 + 3, 0))
+
+    assert mover.pos().x() == pytest.approx(still.pos().x(), abs=1e-9)
+    assert mover.pos().y() == pytest.approx(200, abs=1)
+
+
+def test_alt_held_lets_a_card_land_where_the_mouse_put_it(snapping, qtbot):
+    tab = make_tab(qtbot)
+    _, mover = mover_and_still(tab)
+
+    drag_card(tab, mover, QPoint(-120 + 3, 0), modifiers=ALT)
+
+    assert mover.pos().x() == pytest.approx(3, abs=1)
+    assert tab.guide_item.scene() is None
+
+
+def test_snapping_is_off_until_it_is_turned_on(qtbot):
+    tab = make_tab(qtbot)
+    assert not tab.snap_guides
+    _, mover = mover_and_still(tab)
+
+    drag_card(tab, mover, QPoint(-120 + 3, 0))
+
+    assert mover.pos().x() == pytest.approx(3, abs=1)
+
+
+@pytest.mark.parametrize(("miss_px", "snaps"), [(6, True), (12, False)])
+def test_the_snap_radius_is_in_screen_pixels(snapping, qtbot, miss_px, snaps):
+    tab = make_tab(qtbot)
+    _, mover = mover_and_still(tab)
+    tab.view.setTransform(QTransform.fromScale(2.0, 2.0))
+    tab.view.centerOn(QPointF(110, 180))
+
+    drag_card(tab, mover, QPoint(-240 + miss_px, 0))
+
+    if snaps:
+        assert mover.pos().x() == pytest.approx(0, abs=1e-9)
+    else:
+        assert mover.pos().x() == pytest.approx(miss_px / 2.0, abs=1)
+
+
+def test_a_group_snaps_by_the_card_under_the_cursor_and_keeps_its_shape(snapping, qtbot):
+    tab = make_tab(qtbot)
+    add_cards(tab, 4)
+    tab.scene.clearSelection()
+    still, grabbed, second, third = sorted(canvas_cards(tab), key=lambda card: card.pos().x())
+    still.setPos(0, 0)
+    for card, at in ((grabbed, (120, 200)), (second, (290, 260)), (third, (430, 190))):
+        card.setPos(*at)
+        card.setSelected(True)
+    tab.view.centerOn(QPointF(110, 180))
+    shape = [second.pos() - grabbed.pos(), third.pos() - grabbed.pos()]
+
+    drag_card(tab, grabbed, QPoint(-120 + 3, 0))
+
+    assert grabbed.pos().x() == pytest.approx(0, abs=1e-9)
+    assert [second.pos() - grabbed.pos(), third.pos() - grabbed.pos()] == shape
+
+
+def test_a_guide_shows_while_a_snap_holds_and_leaves_the_scene_on_release(snapping, qtbot):
+    tab = make_tab(qtbot)
+    _, mover = mover_and_still(tab)
+
+    end = press_and_move(tab, mover, QPoint(-120 + 3, 0))
+
+    assert tab.guide_item.scene() is tab.scene
+    assert tab.guide_item.guides()
+    assert all(not isinstance(card, GuideItem) for card in tab.cards())
+
+    release(tab, end)
+
+    assert tab.guide_item.scene() is None
+    assert all(not isinstance(item, GuideItem) for item in tab.scene.items())
+
+
+def test_a_card_that_lets_go_of_a_snap_draws_no_guide(snapping, qtbot):
+    tab = make_tab(qtbot)
+    _, mover = mover_and_still(tab)
+
+    end = press_and_move(tab, mover, QPoint(-120 + 3, 0))
+    move_to(tab, end + QPoint(-30, 0))
+
+    assert tab.guide_item.guides() == ()
+    release(tab, end + QPoint(-30, 0))
+
+
+def test_a_snap_engaging_does_not_lean_the_cards(snapping, qtbot):
+    tab = make_tab(qtbot)
+    add_cards(tab, 3)
+    tab.scene.clearSelection()
+    still, grabbed, carried = sorted(canvas_cards(tab), key=lambda card: card.pos().x())
+    still.setPos(0, 0)
+    grabbed.setPos(120, 200)
+    carried.setPos(300, 220)
+    grabbed.setSelected(True)
+    carried.setSelected(True)
+    tab.view.centerOn(QPointF(110, 180))
+
+    start = tab.view.mapFromScene(grabbed.mapToScene(QPointF(20.0, 80.0)))
+    at = start + QPoint(-120 + 3, 0)
+    send_mouse(tab, QMouseEvent.Type.MouseButtonPress, start, Qt.MouseButton.LeftButton)
+    move_to(tab, at, ALT)
+    before = [(card.pos(), QPointF(card._visual_pos)) for card in (grabbed, carried)]
+
+    # Letting go of Alt without moving engages the snap: the cards jump, the hand doesn't
+    move_to(tab, at)
+
+    assert grabbed.pos().x() == pytest.approx(0, abs=1e-9)
+    for card, (pos, visual) in zip((grabbed, carried), before, strict=True):
+        jump = card.pos() - pos
+        assert not jump.isNull()
+        assert card._visual_pos - visual == jump
+    release(tab, at)
+
+
+def test_the_guides_take_the_tabs_gilt_on_either_ground(qtbot):
+    tab = make_tab(qtbot)
+    tab.set_ground(QColor("#202020"))
+    assert tab.guide_item.tone() == QColor(GILT_ON_DARK)
+    tab.set_ground(QColor("#f0f0f0"))
+    assert tab.guide_item.tone() == QColor(GILT_ON_LIGHT)
+
+
+def test_a_guide_paints_a_gilt_core_over_its_halo(qtbot):
+    from PyQt6.QtCore import QRectF
+    from PyQt6.QtGui import QImage, QPainter
+    from PyQt6.QtWidgets import QGraphicsScene
+
+    from tarot_canvas.ui.canvas.guides import Guide
+
+    scene = QGraphicsScene()
+    item = GuideItem()
+    item.set_tone(QColor(GILT_ON_DARK))
+    item.set_guides((Guide(10, 50, 90, 50, ticks=True),))
+    scene.addItem(item)
+    image = QImage(100, 100, QImage.Format.Format_ARGB32)
+    image.fill(QColor("#808080"))
+    painter = QPainter(image)
+    scene.render(painter, QRectF(0, 0, 100, 100), QRectF(0, 0, 100, 100))
+    painter.end()
+
+    column = [image.pixelColor(50, y) for y in range(44, 57)]
+    grey = QColor("#808080").lightness()
+    assert any(c.red() > 200 and c.green() > 180 for c in column)  # a gilt core
+    assert any(c.lightness() < grey for c in column)  # flanked by a dark halo
+    assert image.pixelColor(50, 20) == QColor("#808080")  # and nothing off the line
 
 
 def test_zooming_in_sharpens_the_cards_on_screen_and_only_those(qtbot, tmp_path):

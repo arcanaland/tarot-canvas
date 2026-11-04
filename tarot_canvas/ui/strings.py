@@ -82,6 +82,8 @@ PREFERENCES = {
     "background_colour": "",
     "canvas_tabs": "Tab icon:",
     "canvas_tab_minimap": "Show a minimap of cards",
+    "canvas_guides": "Snapping:",
+    "canvas_guides_snap": "Enable card snapping",
     "zoom_in": "Zoom &In",
     "zoom_out": "Zoom &Out",
     "reset_zoom": "&Reset Zoom",

@@ -31,6 +31,8 @@ from tarot_canvas.models.spreads import Position, Spread, offsets_from_middle
 from tarot_canvas.settings import (
     BACKGROUND_COLOR_DEFAULT,
     BACKGROUND_COLOR_KEY,
+    CANVAS_GUIDES_DEFAULT,
+    CANVAS_GUIDES_KEY,
     CANVAS_TAB_MINIMAP_DEFAULT,
     CANVAS_TAB_MINIMAP_KEY,
     CHECKERBOARD_COLOR_DEFAULT,
@@ -65,6 +67,7 @@ from tarot_canvas.ui.canvas.ground import (
     GRADIENT_STOPS,
     checkerboard_partner,
 )
+from tarot_canvas.ui.canvas.guides import GuideItem
 from tarot_canvas.ui.canvas.motion import (
     AMBIENT_GAIN_FLOOR,
     MotionClock,
@@ -137,6 +140,10 @@ class CanvasTab(BaseTab):
         self._bottom_z = 0.0
         self.motion_level = MOTION_LEVEL_DEFAULT
         self.tab_minimap = CANVAS_TAB_MINIMAP_DEFAULT
+        # Whether a dragged card snaps to the cards around it
+        self.snap_guides = CANVAS_GUIDES_DEFAULT
+        # In the scene only while a card is being dragged
+        self.guide_item = GuideItem()
         self.desktop_wants_animation = True
         self.gilt = QColor(GILT_ON_DARK)
         # Arrange on Arc starts from the last one this tab made
@@ -241,7 +248,27 @@ class CanvasTab(BaseTab):
         self.tab_minimap = settings.value(
             CANVAS_TAB_MINIMAP_KEY, CANVAS_TAB_MINIMAP_DEFAULT, type=bool
         )
+        self.snap_guides = settings.value(CANVAS_GUIDES_KEY, CANVAS_GUIDES_DEFAULT, type=bool)
         self.schedule_tab_icon()
+
+    # Guides
+    def begin_guides(self):
+        """Put the guide layer in the scene for a drag."""
+        self.guide_item.set_guides(())
+        if self.guide_item.scene() is None:
+            self.scene.addItem(self.guide_item)
+
+    def show_guides(self, guides, view_scale=1.0):
+        """Draw what the dragged card has snapped to, or nothing."""
+        if self.guide_item.scene() is None:
+            self.begin_guides()
+        self.guide_item.set_guides(guides, view_scale)
+
+    def end_guides(self):
+        """Take the guide layer out of the scene, so nothing counts it."""
+        self.guide_item.set_guides(())
+        if self.guide_item.scene() is not None:
+            self.guide_item.scene().removeItem(self.guide_item)
 
     # Motion
     def refresh_motion_settings(self):
@@ -267,6 +294,7 @@ class CanvasTab(BaseTab):
         self.gilt = gilt_for_ground(color)
         for card in self._cards:
             card.set_gilt(self.gilt)
+        self.guide_item.set_tone(self.gilt)
 
     def _on_zoom_changed(self, view_scale):
         for card in self._cards:

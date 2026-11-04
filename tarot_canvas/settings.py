@@ -35,6 +35,8 @@ MOTION_LEVELS = ("Off", "Reactive", "Full")
 
 CANVAS_TAB_MINIMAP_KEY = "appearance/canvas_tab_minimap"
 CANVAS_TAB_MINIMAP_DEFAULT = True
+CANVAS_GUIDES_KEY = "appearance/canvas_guides"
+CANVAS_GUIDES_DEFAULT = False
 
 
 def get_motion_level(settings=None):
