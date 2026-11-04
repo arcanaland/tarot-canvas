@@ -1,8 +1,4 @@
-"""Snapping a dragged card to the cards around it, and the guides that show what it snapped to.
-
-The math is pure: footprints in, offsets and line segments out. It is written once for the x axis;
-the y axis runs the same code on footprints with x and y swapped, and swaps its guides back.
-"""
+"""Guides that appear to snap with cards on the canvas"""
 
 import math
 from dataclasses import dataclass
@@ -24,12 +20,12 @@ SNAP_RADIUS_PX = 8.0
 # Half the length of the end ticks on an equal-gap guide, on screen
 GUIDE_TICK_PX = 4.0
 
-# The gilt line, and the band of the opposite tone under it that keeps it legible over card art
+# The line, and the band of the opposite tone under it that keeps it legible over card art
 GUIDE_CORE_PX = 1.5
 GUIDE_HALO_PX = 3.5
 GUIDE_HALO_ALPHA = 0.4
 
-# A line guide is dashed, so it never reads as a card's edge or a selection mark; a gap is solid
+# A line guide is dashed - a gap is solid
 GUIDE_DASH_PX = 4.0
 GUIDE_SPACE_PX = 3.0
 
@@ -173,10 +169,7 @@ def _snap_axis(moving, others, radius):
 
 
 def snap(moving, others, radius):
-    """Where the footprint moving snaps among the footprints others, each axis on its own.
-
-    moving and others are QRectF in scene coordinates; radius is in the same units.
-    """
+    """Where the footprint moving snaps among the footprints others"""
     others = list(others)
     if not others:
         return Snap()
@@ -212,7 +205,7 @@ class GuideItem(QGraphicsItem):
         return QColor(self._tone)
 
     def set_tone(self, color):
-        """The core's colour: the tab's gilt, which already suits its ground."""
+        """The core's color (gilt)"""
         self._tone = QColor(color)
         self.update()
 
@@ -261,7 +254,7 @@ def halo_for(core):
 
 
 def guide_pen(colour, width, dashed):
-    """A cosmetic pen; dashes are in screen pixels whatever the width, so halo and core line up."""
+    """dashes are in screen pixels"""
     pen = QPen(colour)
     pen.setCosmetic(True)
     pen.setWidthF(width)
