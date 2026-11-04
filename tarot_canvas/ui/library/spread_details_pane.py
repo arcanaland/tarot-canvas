@@ -44,14 +44,46 @@ def _rich_text(text):
 SOURCE_SEPARATOR = " · "
 
 
+# What a source's `took` may name, in the order a credit lists them
+TOOK_ORDER = ("positions", "layout", "words")
+
+
+def _taken(source):
+    """What `took` says came from this source, as a phrase; "" when it names nothing known"""
+    took = source.get("took")
+    if not isinstance(took, list):
+        return ""
+    parts = [SPREADS[f"took_{key}"] for key in TOOK_ORDER if key in took]
+    if not parts:
+        return ""
+    phrase = parts[-1]
+    if len(parts) > 1:
+        rest = SPREADS["took_list_separator"].join(parts[:-1])
+        phrase = SPREADS["took_last_pair"].format(rest=rest, last=parts[-1])
+    return phrase[:1].upper() + phrase[1:]
+
+
+def _credit_text(source, extra=()):
+    """Who and what, the year on the last of them, led by what was taken when `took` says"""
+    words = [str(source[key]) for key in ("author", "name") if source.get(key)]
+    year = source.get("year")
+    if words and year not in (None, ""):
+        words[-1] = SPREADS["source_year"].format(source=words[-1], year=year)
+    taken = _taken(source)
+    if words and taken:
+        words = [SPREADS["source_took"].format(taken=taken, source=SOURCE_SEPARATOR.join(words))]
+    words += [str(source["note"])] if source.get("note") else []
+    return SOURCE_SEPARATOR.join(words + list(extra))
+
+
 def _source_label(source):
     """One small, dim line of who and what, then its address: a credit, not a section"""
-    words = [str(source[key]) for key in ("author", "name", "note") if source.get(key)]
     url = str(source.get("url", ""))
+    extra = []
     if not is_link(url):
-        words += [url] if url else []
+        extra = [url] if url else []
         url = None
-    label = _rich_text(link_html(SOURCE_SEPARATOR.join(words), [url] if url else []))
+    label = _rich_text(link_html(_credit_text(source, extra), [url] if url else []))
     typography.apply(label, typography.Role.SMALL)
     label.setForegroundRole(QPalette.ColorRole.PlaceholderText)
     label.setOpenExternalLinks(True)

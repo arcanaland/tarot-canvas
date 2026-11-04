@@ -1,3 +1,4 @@
+import html
 import os
 from dataclasses import replace
 from pathlib import Path
@@ -503,15 +504,70 @@ def test_the_pane_shows_the_spread_with_its_slots_in_number_order(page):
     assert "Ana · from a zine" in credit and 'href="https://example.org/a"' in credit
 
 
-def test_a_source_names_its_author_then_its_work(qtbot, spreads_base):
-    source = {"name": "Holistic Tarot", "author": "Benebell Wen", "publisher": "N", "year": 2015}
+def credit_shown(qtbot, spreads_base, source):
     store(spreads_base, 1, Spread(name="X", sources=(source,)))
     page = SpreadsPage()
     qtbot.addWidget(page)
-
     page._select_index(first_spread(page))
+    return shown_text(page)[-1]
 
-    assert shown_text(page)[-1] == "Benebell Wen · Holistic Tarot"
+
+def test_a_source_names_its_author_then_its_work(qtbot, spreads_base):
+    source = {"name": "Holistic Tarot", "author": "Benebell Wen", "publisher": "N"}
+
+    assert credit_shown(qtbot, spreads_base, source) == html.escape("Benebell Wen · Holistic Tarot")
+
+
+def test_a_source_s_year_follows_its_work(qtbot, spreads_base):
+    source = {"name": "Holistic Tarot", "author": "Benebell Wen", "year": 2015}
+
+    work = SPREADS["source_year"].format(source="Holistic Tarot", year=2015)
+    assert credit_shown(qtbot, spreads_base, source) == html.escape(f"Benebell Wen · {work}")
+
+
+def capitalised(text):
+    return text[:1].upper() + text[1:]
+
+
+def test_a_credit_says_what_was_taken_in_a_fixed_order(qtbot, spreads_base):
+    source = {"name": "Holistic Tarot", "author": "Benebell Wen", "took": ["layout", "positions"]}
+
+    taken = SPREADS["took_last_pair"].format(
+        rest=SPREADS["took_positions"], last=SPREADS["took_layout"]
+    )
+    expected = SPREADS["source_took"].format(
+        taken=capitalised(taken), source="Benebell Wen · Holistic Tarot"
+    )
+    assert credit_shown(qtbot, spreads_base, source) == html.escape(expected)
+
+
+def test_three_things_taken_are_listed_then_joined(qtbot, spreads_base):
+    source = {"author": "A", "took": ["words", "layout", "positions"]}
+
+    rest = SPREADS["took_list_separator"].join([SPREADS["took_positions"], SPREADS["took_layout"]])
+    taken = SPREADS["took_last_pair"].format(rest=rest, last=SPREADS["took_words"])
+    expected = SPREADS["source_took"].format(taken=capitalised(taken), source="A")
+    assert credit_shown(qtbot, spreads_base, source) == html.escape(expected)
+
+
+def test_the_note_follows_what_was_taken_from_whom(qtbot, spreads_base):
+    source = {"author": "A", "note": "p. 12", "took": ["layout"]}
+
+    taken = SPREADS["source_took"].format(taken=capitalised(SPREADS["took_layout"]), source="A")
+    assert credit_shown(qtbot, spreads_base, source) == html.escape(f"{taken} · p. 12")
+
+
+@pytest.mark.parametrize("took", [[], ["drawing"], "layout", 3])
+def test_a_took_that_names_nothing_known_leaves_the_plain_credit(qtbot, spreads_base, took):
+    source = {"name": "Holistic Tarot", "author": "Benebell Wen", "took": took}
+
+    assert credit_shown(qtbot, spreads_base, source) == html.escape("Benebell Wen · Holistic Tarot")
+
+
+def test_what_was_taken_needs_someone_it_was_taken_from(qtbot, spreads_base):
+    source = {"note": "a zine", "took": ["layout"]}
+
+    assert credit_shown(qtbot, spreads_base, source) == "a zine"
 
 
 def test_a_source_is_a_small_dim_line(page):

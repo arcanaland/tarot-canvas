@@ -416,6 +416,13 @@ SPREADS = {
     "source_author_title": "Author",
     "source_note_title": "Note",
     "add_source": "Add Source",
+    "source_took": "{taken} from {source}",
+    "source_year": "{source} ({year})",
+    "took_positions": "positions",
+    "took_layout": "layout",
+    "took_words": "wording",
+    "took_list_separator": ", ",  # for i18n?
+    "took_last_pair": "{rest} and {last}",
     "remove_source": "Remove Source",
     "slots_title": "Card Slots",
     "slots_empty": "No cards yet",
