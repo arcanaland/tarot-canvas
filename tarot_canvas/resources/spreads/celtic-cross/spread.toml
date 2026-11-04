@@ -99,3 +99,6 @@ x = 2.694
 y = -3.219
 rotation = 0.0
 z = 72.0
+
+[app."land.arcana.tarotcanvas"]
+version = 1

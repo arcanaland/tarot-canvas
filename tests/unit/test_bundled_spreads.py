@@ -1,3 +1,5 @@
+import tomllib
+
 import pytest
 
 from tarot_canvas.models import spreads
@@ -20,3 +22,11 @@ def test_every_included_folder_is_scanned(monkeypatch):
     monkeypatch.setattr(spreads, "included_base", lambda: BUNDLED_SPREADS_PATH)
 
     assert [folder for folder, _ in spreads.scan_included()] == FOLDERS
+
+
+@pytest.mark.parametrize("folder", FOLDERS, ids=lambda folder: folder.name)
+def test_each_included_spread_says_which_version_it_is(folder):
+    with open(folder / spreads.SPREAD_FILE, "rb") as handle:
+        table = tomllib.load(handle)
+
+    assert table["app"][spreads.APP_TABLE]["version"] == spreads.VERSION

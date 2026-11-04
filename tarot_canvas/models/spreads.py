@@ -18,6 +18,10 @@ SPREAD_FILE = "spread.toml"
 _POSITION_ID = re.compile(r"p(\d+)")
 _SPREAD_KEYS = {"name", "description", "sources", "positions"}
 _POSITION_KEYS = {"id", "label", "meaning", "x", "y", "rotation", "z"}
+
+APP_TABLE = "land.arcana.tarotcanvas"
+VERSION = 1
+
 # Far past any layout, and well inside what the canvas and z's arithmetic can hold
 MAX_NUMBER = 1e9
 # Far past any spread, and shallow enough that a file that loads can be saved again
@@ -129,6 +133,30 @@ def _position(table):
         raise ValueError(f"bad position: {error!r}") from error
 
 
+def _take_version(extra):
+    """The file's version, removing it from extra's app table (absent is 1)"""
+    apps = extra.get("app")
+    if apps is None:
+        return 1
+    if not isinstance(apps, dict):
+        raise ValueError("app is not a table")
+    ours = apps.get(APP_TABLE)
+    if ours is None:
+        return 1
+    if not isinstance(ours, dict):
+        raise ValueError(f"app.{APP_TABLE} is not a table")
+
+    # actually read version now
+    version = ours.pop("version", 1)
+    if isinstance(version, bool) or not isinstance(version, int) or version < 1:
+        raise ValueError(f"bad version: {version!r}")
+    if not ours:
+        del apps[APP_TABLE]
+    if not apps:
+        del extra["app"]
+    return version
+
+
 def load(path):
     with open(Path(path) / SPREAD_FILE, "rb") as handle:
         try:
@@ -138,6 +166,11 @@ def load(path):
             too_deep = True
     if too_deep:
         raise ValueError("nested too deeply")
+
+    extra = {key: value for key, value in table.items() if key not in _SPREAD_KEYS}
+    version = _take_version(extra)
+    if version > VERSION:
+        raise ValueError(f"written by a newer Tarot Canvas (version {version})")
 
     sources = table.get("sources", [])
     positions = table.get("positions", [])
@@ -151,7 +184,7 @@ def load(path):
         description=str(table.get("description", "")),
         sources=tuple(sources),
         positions=tuple(_position(position) for position in positions),
-        extra={key: value for key, value in table.items() if key not in _SPREAD_KEYS},
+        extra=extra,
     )
 
 
@@ -175,7 +208,11 @@ def _table(spread):
     if spread.sources:
         table["sources"] = list(spread.sources)
     table["positions"] = [_position_table(position) for position in spread.positions]
-    return {**table, **spread.extra}
+    table.update(spread.extra)
+    apps = dict(table.get("app", {}))
+    apps[APP_TABLE] = {**apps.get(APP_TABLE, {}), "version": VERSION}
+    table["app"] = apps
+    return table
 
 
 def save(path, spread):
