@@ -206,7 +206,7 @@ def test_a_spread_with_no_name_is_listed_as_untitled(qtbot, spreads_base):
         ("second paragraph", ["Older"]),
         ("FUTURE", ["Older"]),
         ("zephyr", ["Newer"]),
-        ("ana", ["Older"]),
+        ("Jane", ["Older"]),
         ("zine", ["Older"]),
         ("example.org", []),
     ],
