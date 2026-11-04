@@ -2,11 +2,12 @@ import math
 
 import pytest
 from PyQt6.QtCore import QModelIndex, QPoint, QPointF, QRect, QSize, Qt
-from PyQt6.QtGui import QKeySequence, QWheelEvent
+from PyQt6.QtGui import QKeySequence, QMouseEvent, QWheelEvent
 from PyQt6.QtWidgets import QApplication, QMessageBox, QStyleOptionViewItem, QToolButton
 
 from tarot_canvas.models import spreads
 from tarot_canvas.models.spreads import Position, Spread
+from tarot_canvas.settings import CANVAS_GUIDES_KEY, get_settings
 from tarot_canvas.ui import commands
 from tarot_canvas.ui.canvas.slot_item import SlotItem
 from tarot_canvas.ui.canvas.spread_pane import MeaningRole, NumberRole
@@ -825,6 +826,51 @@ def test_a_slot_turned_by_the_wheel_saves_and_reopens_at_its_angle(qtbot, spread
     qtbot.addWidget(window)
     reopened, _ = window.open_spread(tab.spread_path).slots()
     assert reopened.orient == 15
+
+
+def send_mouse(tab, kind, pos, button, buttons):
+    viewport = tab.view.viewport()
+    QApplication.sendEvent(
+        viewport,
+        QMouseEvent(
+            kind,
+            QPointF(pos),
+            QPointF(viewport.mapToGlobal(pos)),
+            button,
+            buttons,
+            Qt.KeyboardModifier.NoModifier,
+        ),
+    )
+
+
+def test_a_slot_dragged_near_a_centre_line_saves_level_with_it(qtbot, spreads_base):
+    get_settings().setValue(CANVAS_GUIDES_KEY, True)
+    tab = make_tab(qtbot)
+    first, second, _ = add_slots(tab, 3)
+    second.setPos(second.pos() + QPointF(0, 200))
+    tab.save()
+    changes = []
+    tab.layout_changed.connect(lambda: changes.append(1))
+
+    left = Qt.MouseButton.LeftButton
+    start = tab.view.mapFromScene(centre(second))
+    goal = tab.view.mapFromScene(centre(second) - QPointF(0, 200)) + QPoint(0, 3)
+    send_mouse(tab, QMouseEvent.Type.MouseButtonPress, start, left, left)
+    for step in range(1, 4):
+        send_mouse(
+            tab,
+            QMouseEvent.Type.MouseMove,
+            start + (goal - start) * step / 3,
+            Qt.MouseButton.NoButton,
+            left,
+        )
+    send_mouse(tab, QMouseEvent.Type.MouseButtonRelease, goal, left, Qt.MouseButton.NoButton)
+
+    assert len(changes) == 1
+    assert tab.has_unsaved_changes()
+    tab.save()
+    saved_first, saved_second, _ = spreads.load(tab.spread_path).positions
+    assert saved_second.y == saved_first.y
 
 
 def test_save_is_disabled_until_the_next_change(qtbot, spreads_base):

@@ -8,6 +8,7 @@ from tarot_canvas.settings import (
     BACKGROUND_COLOR_KEY,
     BACKGROUND_STYLE_DEFAULT,
     BACKGROUND_STYLE_KEY,
+    CANVAS_GUIDES_KEY,
     CANVAS_TAB_MINIMAP_KEY,
     CHECKERBOARD_COLOR_DEFAULT,
     CHECKERBOARD_COLOR_KEY,
@@ -179,6 +180,7 @@ def test_restore_defaults_resets_the_form_and_stores_nothing(qtbot, theme_kept):
     settings.setValue(CHECKERBOARD_COLOR_KEY, "#000000")
     settings.setValue(MOTION_LEVEL_KEY, "Off")
     settings.setValue(CANVAS_TAB_MINIMAP_KEY, False)
+    settings.setValue(CANVAS_GUIDES_KEY, True)
     settings.setValue(SHOW_AVAILABLE_DECKS_KEY, False)
     settings.setValue(READING_TEXT_SCALE_KEY, 150)
     dialog = PreferencesDialog()
@@ -195,6 +197,7 @@ def test_restore_defaults_resets_the_form_and_stores_nothing(qtbot, theme_kept):
         CHECKERBOARD_COLOR_DEFAULT,
         MOTION_LEVEL_DEFAULT,
         True,
+        False,
         True,
     )
     assert dialog.apply_button.isEnabled()
@@ -382,6 +385,37 @@ def test_applying_the_minimap_switch_reaches_an_open_canvas(qtbot, minimap_unset
     dialog.apply_settings()
 
     assert not canvas_tab.tab_minimap
+    qtbot.wait(1100)
+
+
+def test_the_snap_switch_round_trips(qtbot):
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+    assert not dialog.canvas_guides_check.isChecked()
+
+    dialog.canvas_guides_check.setChecked(True)
+    assert dialog.apply_button.isEnabled()
+    dialog.apply_settings()
+    assert get_settings().value(CANVAS_GUIDES_KEY, type=bool) is True
+
+    reopened = PreferencesDialog()
+    qtbot.addWidget(reopened)
+    assert reopened.canvas_guides_check.isChecked()
+
+
+def test_applying_the_snap_switch_reaches_an_open_canvas(qtbot):
+    window = MainWindow()
+    qtbot.addWidget(window)
+    canvas_tab = window.new_canvas_tab()
+    assert not canvas_tab.snap_guides
+
+    dialog = PreferencesDialog(window)
+    qtbot.addWidget(dialog)
+    dialog.settings_changed.connect(window.apply_settings_to_open_canvases)
+    dialog.canvas_guides_check.setChecked(True)
+    dialog.apply_settings()
+
+    assert canvas_tab.snap_guides
     qtbot.wait(1100)
 
 

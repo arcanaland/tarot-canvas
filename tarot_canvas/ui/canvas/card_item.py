@@ -9,7 +9,9 @@ from PyQt6.QtWidgets import (
     QStyleOptionGraphicsItem,
 )
 
+from tarot_canvas.ui.canvas.alignment import logical_rect
 from tarot_canvas.ui.canvas.detail import art_loader, detail_level, top_level
+from tarot_canvas.ui.canvas.guides import SNAP_RADIUS_PX, snap
 from tarot_canvas.ui.canvas.motion import (
     AMBIENT_SCALE_DRAG,
     AMBIENT_SCALE_HOVER,
@@ -109,6 +111,8 @@ class DraggableCardItem(QGraphicsPixmapItem):
         self._hover_face = (0.0, 0.0)
         self._ambient_scale = 1.0
         self._visual_pos = QPointF(self.pos())
+        # The snap added to this drag's moving cards on the last move
+        self._snap_offset = QPointF()
         self._lift = Spring(LIFT_REST)
         self._apply_motion()
 
@@ -493,6 +497,37 @@ class DraggableCardItem(QGraphicsPixmapItem):
         if not (self._dragging or self._group_dragging):
             self.begin_drag()
         super().mouseMoveEvent(event)
+        if event.buttons() & Qt.MouseButton.LeftButton:
+            self.snap_drag(event.modifiers())
+
+    def snap_drag(self, modifiers):
+        """Pull this card onto the cards around it, and the rest of the moving cards with it.
+
+        Called after Qt's move, which puts every moving card back at its press-time position plus
+        the mouse's travel, so the offset is applied whole each time and never accumulates.
+        """
+        tab = self._registered_tab
+        if tab is None:
+            return
+        moving = self.moving_cards()
+        result = None
+        if getattr(tab, "snap_guides", False) and not modifiers & Qt.KeyboardModifier.AltModifier:
+            self._refresh_view_scale()
+            still = set(map(id, moving))
+            others = [logical_rect(card) for card in tab.cards() if id(card) not in still]
+            radius = SNAP_RADIUS_PX / max(self._view_scale, 1e-6)
+            result = snap(logical_rect(self), others, radius)
+
+        offset = QPointF(result.dx, result.dy) if result else QPointF()
+        change = offset - self._snap_offset
+        self._snap_offset = offset
+        for card in moving:
+            if not offset.isNull():
+                card.setPos(card.pos() + offset)
+            # The lean follows the hand, not the jump onto a target
+            card._visual_pos = card._visual_pos + change
+        if hasattr(tab, "show_guides"):
+            tab.show_guides(result.guides if result else (), self._view_scale)
 
     def begin_drag(self):
         moving = self.moving_cards()
@@ -500,9 +535,12 @@ class DraggableCardItem(QGraphicsPixmapItem):
             self._group_dragging = True
         else:
             self._dragging = True
+        self._snap_offset = QPointF()
         tab = self._registered_tab
         if tab is not None and hasattr(tab, "raise_cards"):
             tab.raise_cards(moving)
+        if tab is not None and hasattr(tab, "begin_guides"):
+            tab.begin_guides()
 
     def moving_cards(self):
         """The cards a drag or turn of this one moves: the whole selection if this card is in it."""
@@ -516,8 +554,12 @@ class DraggableCardItem(QGraphicsPixmapItem):
         self._pressed = False
         self._dragging = False
         self._group_dragging = False
-        if moved and self._registered_tab is not None:
-            self._registered_tab.layout_changed.emit()
+        self._snap_offset = QPointF()
+        tab = self._registered_tab
+        if tab is not None and hasattr(tab, "end_guides"):
+            tab.end_guides()
+        if moved and tab is not None:
+            tab.layout_changed.emit()
 
     def abandon_press(self):
         """Let go of a press whose release a popup is about to swallow."""

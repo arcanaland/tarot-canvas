@@ -21,6 +21,8 @@ from tarot_canvas.settings import (
     BACKGROUND_COLOR_KEY,
     BACKGROUND_STYLE_DEFAULT,
     BACKGROUND_STYLE_KEY,
+    CANVAS_GUIDES_DEFAULT,
+    CANVAS_GUIDES_KEY,
     CANVAS_TAB_MINIMAP_DEFAULT,
     CANVAS_TAB_MINIMAP_KEY,
     CHECKERBOARD_COLOR_DEFAULT,
@@ -174,6 +176,7 @@ class PreferencesDialog(QDialog):
             combo.currentIndexChanged.connect(self.update_apply_button)
         self.show_available_decks_check.toggled.connect(self.update_apply_button)
         self.canvas_tab_minimap_check.toggled.connect(self.update_apply_button)
+        self.canvas_guides_check.toggled.connect(self.update_apply_button)
         self.shortcuts_page.changed.connect(self.update_apply_button)
 
     def pages(self):
@@ -228,6 +231,9 @@ class PreferencesDialog(QDialog):
 
         self.canvas_tab_minimap_check = QCheckBox(PREFERENCES["canvas_tab_minimap"])
         form.addRow(PREFERENCES["canvas_tabs"], self.canvas_tab_minimap_check)
+
+        self.canvas_guides_check = QCheckBox(PREFERENCES["canvas_guides_snap"])
+        form.addRow(PREFERENCES["canvas_guides"], self.canvas_guides_check)
 
         page.setLayout(form)
         return page
@@ -303,6 +309,7 @@ class PreferencesDialog(QDialog):
             self.checkerboard_color.name(),
             self.motion_combo.currentData(),
             self.canvas_tab_minimap_check.isChecked(),
+            self.canvas_guides_check.isChecked(),
             self.show_available_decks_check.isChecked(),
             self.shortcuts_page.state(),
         )
@@ -322,6 +329,7 @@ class PreferencesDialog(QDialog):
         checkerboard_colour,
         motion,
         tab_minimap,
+        guides,
         show_available,
     ):
         select_data(self.theme_combo, theme)
@@ -331,6 +339,7 @@ class PreferencesDialog(QDialog):
         self.set_bg_color(colour)
         self.set_checkerboard_color(checkerboard_colour)
         self.canvas_tab_minimap_check.setChecked(tab_minimap)
+        self.canvas_guides_check.setChecked(guides)
         self.show_available_decks_check.setChecked(show_available)
         self.update_swatch()
         self.update_apply_button()
@@ -345,6 +354,7 @@ class PreferencesDialog(QDialog):
             settings.value(CHECKERBOARD_COLOR_KEY, CHECKERBOARD_COLOR_DEFAULT),
             get_motion_level(settings),
             bool(settings.value(CANVAS_TAB_MINIMAP_KEY, CANVAS_TAB_MINIMAP_DEFAULT, type=bool)),
+            bool(settings.value(CANVAS_GUIDES_KEY, CANVAS_GUIDES_DEFAULT, type=bool)),
             bool(settings.value(SHOW_AVAILABLE_DECKS_KEY, SHOW_AVAILABLE_DECKS_DEFAULT, type=bool)),
         )
         self.shortcuts_page.load()
@@ -360,6 +370,7 @@ class PreferencesDialog(QDialog):
             CHECKERBOARD_COLOR_DEFAULT,
             MOTION_LEVEL_DEFAULT,
             CANVAS_TAB_MINIMAP_DEFAULT,
+            CANVAS_GUIDES_DEFAULT,
             SHOW_AVAILABLE_DECKS_DEFAULT,
         )
         self.shortcuts_page.reset()
@@ -371,6 +382,7 @@ class PreferencesDialog(QDialog):
         settings.setValue(BACKGROUND_COLOR_KEY, self.bg_color.name())
         settings.setValue(CHECKERBOARD_COLOR_KEY, self.checkerboard_color.name())
         settings.setValue(CANVAS_TAB_MINIMAP_KEY, self.canvas_tab_minimap_check.isChecked())
+        settings.setValue(CANVAS_GUIDES_KEY, self.canvas_guides_check.isChecked())
         settings.setValue(SHOW_AVAILABLE_DECKS_KEY, self.show_available_decks_check.isChecked())
 
         ThemeManager.get_instance().set_theme(ThemeType(self.theme_combo.currentData()))
