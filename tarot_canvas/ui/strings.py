@@ -460,7 +460,9 @@ SPREADS = {
     "details_toggle_hide": "Hide details",
     "slot_count": "{count} cards",
     "slot_count_one": "single card",
-    "included": "Built-in",
+    # The list's section headings
+    "section_mine": "Your Spreads",
+    "section_included": "Built-in",
     "sort_tooltip": "Sort spreads",
     "sort_newest": "Newest",
     "sort_edited": "Recently modified",

@@ -52,7 +52,6 @@ class SpreadsPage(LibraryListPage):
         self.list_model.set_sort(
             get_settings().value(LIBRARY_SPREADS_SORT_KEY, LIBRARY_SPREADS_SORT_DEFAULT, type=str)
         )
-        self.list_view.setUniformItemSizes(True)
         self.list_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.list_view.customContextMenuRequested.connect(self._on_context_menu)
 
@@ -123,7 +122,9 @@ class SpreadsPage(LibraryListPage):
         return SPREADS["empty_no_match" if searching else "empty"]
 
     def _on_activated(self, index):
-        self.spread_activated.emit(index.data(SpreadPathRole))
+        path = index.data(SpreadPathRole)
+        if path is not None:
+            self.spread_activated.emit(path)
 
     def _selected_path(self):
         index = self.list_view.currentIndex()
@@ -132,7 +133,8 @@ class SpreadsPage(LibraryListPage):
         return index.data(SpreadPathRole)
 
     def _details_for(self, index):
-        if not index.isValid():
+        # A heading has no spread, and a click on it reaches here all the same
+        if not index.isValid() or index.data(SpreadRole) is None:
             return None
         return SpreadDetails(index.data(SpreadPathRole), index.data(SpreadRole))
 
@@ -151,7 +153,8 @@ class SpreadsPage(LibraryListPage):
     def row_menu(self, index):
         """The row's menu, or None if there is nothing to offer"""
         path = index.data(SpreadPathRole)
-        if spreads.is_included(path):
+        # A heading has no path
+        if path is None or spreads.is_included(path):
             return None
         menu = QMenu(self)
         delete = menu.addAction(QIcon.fromTheme("edit-delete"), SPREADS["delete"])

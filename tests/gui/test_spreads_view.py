@@ -3,7 +3,7 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
-from PyQt6.QtCore import QPointF, QSize
+from PyQt6.QtCore import QPointF, QSize, Qt
 from PyQt6.QtGui import QColor, QImage, QPainter, QPixmap
 from PyQt6.QtWidgets import QMenu, QMessageBox
 
@@ -31,7 +31,8 @@ from tarot_canvas.ui.canvas.tab_icon import (
 )
 from tarot_canvas.ui.card_colours import SLOT_COLOUR
 from tarot_canvas.ui.library.deck_model import SORT_AUTHOR, SORT_COUNT, SORT_NAME, SubtitleRole
-from tarot_canvas.ui.library.notes_model import SUBTITLE_SEPARATOR, PreviewRole
+from tarot_canvas.ui.library.notes_model import PreviewRole
+from tarot_canvas.ui.library.section_row import is_section
 from tarot_canvas.ui.library.spread_details_pane import SpreadDetails
 from tarot_canvas.ui.library.spread_row_delegate import SpreadRowDelegate
 from tarot_canvas.ui.library.spreads_model import SORT_EDITED, SORT_NEWEST, SpreadPathRole
@@ -98,13 +99,25 @@ def page(qtbot, spreads_base):
     return page
 
 
-def names(page):
+def listed(page):
+    """(is a heading, text) of every row, in order"""
     model = page.list_model
-    return [model.index(row, 0).data() for row in range(model.rowCount())]
+    indexes = [model.index(row, 0) for row in range(model.rowCount())]
+    return [(is_section(index), index.data()) for index in indexes]
+
+
+def names(page):
+    """The spreads' names, in order, without the headings"""
+    return [text for heading, text in listed(page) if not heading]
 
 
 def index_of(page, name):
-    return page.list_model.index(names(page).index(name), 0)
+    texts = [text for _heading, text in listed(page)]
+    return page.list_model.index(texts.index(name), 0)
+
+
+def first_spread(page):
+    return index_of(page, names(page)[0])
 
 
 @pytest.fixture
@@ -535,7 +548,7 @@ def test_description_and_a_source_are_escaped(qtbot, spreads_base):
     page = SpreadsPage()
     qtbot.addWidget(page)
 
-    page._select_index(page.list_model.index(0, 0))
+    page._select_index(first_spread(page))
 
     description, source = shown_text(page)[1], shown_text(page)[3]
     assert "<b>" not in description
@@ -547,7 +560,7 @@ def test_a_slot_with_no_label_or_meaning_is_only_its_number(qtbot, spreads_base)
     page = SpreadsPage()
     qtbot.addWidget(page)
 
-    page._select_index(page.list_model.index(0, 0))
+    page._select_index(first_spread(page))
 
     assert shown_text(page) == [SPREADS["slots_title"], "1."]
 
@@ -560,7 +573,7 @@ def test_activating_a_row_opens_its_spread_tab(window, spreads_base):
     library = open_library(window)
     page = library.spreads_page
 
-    page.list_view.activated.emit(page.list_model.index(0, 0))
+    page.list_view.activated.emit(first_spread(page))
 
     tab = window.tab_widget.currentWidget()
     assert isinstance(tab, SpreadTab)
@@ -844,22 +857,72 @@ def test_included_spreads_follow_the_users_in_their_own_order(shipped_page, sort
     assert names(shipped_page) == expected
 
 
-def test_an_included_row_says_so_after_its_slot_count(shipped_page):
+def test_the_users_and_the_included_are_each_under_a_heading(shipped_page):
+    assert listed(shipped_page) == [
+        (True, SPREADS["section_mine"]),
+        (False, "Mine new"),
+        (False, "Mine old"),
+        (True, SPREADS["section_included"]),
+        (False, "Celtic"),
+        (False, "zodiac"),
+    ]
+
+
+def test_an_included_row_says_only_its_slot_count(shipped_page):
     subtitle = index_of(shipped_page, "Celtic").data(SubtitleRole)
-    own = index_of(shipped_page, "Mine new").data(SubtitleRole)
 
-    assert subtitle == SUBTITLE_SEPARATOR.join(
-        [SPREADS["slot_count"].format(count=4), SPREADS["included"]]
+    assert subtitle == SPREADS["slot_count"].format(count=4)
+
+
+def test_a_heading_cannot_be_selected(qtbot, shipped_page):
+    shipped_page.resize(600, 500)
+    shipped_page.show()
+    qtbot.waitExposed(shipped_page)
+    heading = index_of(shipped_page, SPREADS["section_included"])
+
+    qtbot.mouseClick(
+        shipped_page.list_view.viewport(),
+        Qt.MouseButton.LeftButton,
+        pos=shipped_page.list_view.visualRect(heading).center(),
     )
-    assert own == SPREADS["slot_count"].format(count=3)
+
+    assert heading not in shipped_page.list_view.selectionModel().selectedIndexes()
+    assert shipped_page.list_view.currentIndex() != heading
 
 
-def test_search_covers_included_spreads_too(shipped_page):
+def test_the_arrow_keys_step_over_a_heading(qtbot, shipped_page):
+    shipped_page.resize(600, 500)
+    shipped_page.show()
+    qtbot.waitExposed(shipped_page)
+    view = shipped_page.list_view
+    shipped_page.select(index_of(shipped_page, "Mine old").data(SpreadPathRole))
+    view.setFocus()
+
+    qtbot.keyClick(view, Qt.Key.Key_Down)
+    assert view.currentIndex().data() == "Celtic"
+
+    qtbot.keyClick(view, Qt.Key.Key_Up)
+    assert view.currentIndex().data() == "Mine old"
+
+
+def test_a_heading_is_shorter_than_a_spread_row(shipped_page):
+    view = shipped_page.list_view
+    heading = view.visualRect(index_of(shipped_page, SPREADS["section_included"]))
+    row = view.visualRect(index_of(shipped_page, "Celtic"))
+
+    assert 0 < heading.height() < row.height()
+
+
+def test_search_covers_included_spreads_too_and_keeps_only_sections_with_rows(shipped_page):
     shipped_page.set_search("celtic")
-    assert names(shipped_page) == ["Celtic"]
+    assert listed(shipped_page) == [(True, SPREADS["section_included"]), (False, "Celtic")]
 
     shipped_page.set_search("mine")
-    assert names(shipped_page) == ["Mine new", "Mine old"]
+    assert listed(shipped_page) == [
+        (True, SPREADS["section_mine"]),
+        (False, "Mine new"),
+        (False, "Mine old"),
+    ]
 
 
 def test_only_included_spreads_is_not_empty(qtbot, spreads_base, included_base):
@@ -867,11 +930,12 @@ def test_only_included_spreads_is_not_empty(qtbot, spreads_base, included_base):
     page = SpreadsPage()
     qtbot.addWidget(page)
 
-    assert names(page) == ["Line"]
+    # A section with no rows has no heading
+    assert listed(page) == [(True, SPREADS["section_included"]), (False, "Line")]
     assert page.list_model.has_items()
 
 
-def test_an_included_row_has_no_menu(qtbot, shipped_page, monkeypatch):
+def test_an_included_row_and_a_heading_have_no_menu(qtbot, shipped_page, monkeypatch):
     executed = []
     monkeypatch.setattr(QMenu, "exec", lambda menu, *_: executed.append(menu.actions()))
     shipped_page.resize(600, 500)
@@ -885,6 +949,7 @@ def test_an_included_row_has_no_menu(qtbot, shipped_page, monkeypatch):
 
     assert shipped_page.row_menu(index_of(shipped_page, "Celtic")) is None
     right_click("Celtic")
+    right_click(SPREADS["section_included"])
     assert executed == []
 
     right_click("Mine new")

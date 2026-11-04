@@ -8,7 +8,8 @@ from tarot_canvas.models.spreads import Spread, edited_at
 from tarot_canvas.ui.canvas.detail import card_unit_size
 from tarot_canvas.ui.canvas.tab_icon import MINIMAP, layout_marks, spread_icon, spread_marks
 from tarot_canvas.ui.library.deck_model import SORT_COUNT, SORT_NAME, SubtitleRole
-from tarot_canvas.ui.library.notes_model import SUBTITLE_SEPARATOR, PreviewRole
+from tarot_canvas.ui.library.notes_model import PreviewRole
+from tarot_canvas.ui.library.section_row import SectionRole
 from tarot_canvas.ui.strings import SPREADS
 
 SpreadPathRole = Qt.ItemDataRole.UserRole + 21
@@ -17,6 +18,10 @@ SpreadRole = Qt.ItemDataRole.UserRole + 22
 SORT_NEWEST = "newest"
 SORT_EDITED = "edited"
 SORTS = (SORT_NEWEST, SORT_NAME, SORT_COUNT, SORT_EDITED)
+
+# Each section's heading, in the order the sections are listed
+SECTION_MINE = "section_mine"
+SECTION_INCLUDED = "section_included"
 
 
 class SpreadRow(NamedTuple):
@@ -40,13 +45,24 @@ def _title(spread):
     return spread.name or SPREADS["untitled"]
 
 
-def _sorted(rows, sort):
-    """The user's rows in sort's order, then the included ones, each with ties by name"""
+def _sectioned(rows, sort):
+    """The user's rows in sort's order, then the included ones, each under its heading
+
+    Ties go by name. A section with no rows has no heading.
+    """
     own = [row for row in rows if not row.included]
     included = [row for row in rows if row.included]
     # A packaged folder's name and mtime say nothing about when it was made or edited
     included_sort = sort if sort in (SORT_NAME, SORT_COUNT) else SORT_NAME
-    return _sorted_by(own, sort) + _sorted_by(included, included_sort)
+    sectioned = []
+    for heading, members, order in (
+        (SECTION_MINE, own, sort),
+        (SECTION_INCLUDED, included, included_sort),
+    ):
+        if members:
+            sectioned.append(heading)
+            sectioned.extend(_sorted_by(members, order))
+    return sectioned
 
 
 def _sorted_by(rows, sort):
@@ -63,12 +79,6 @@ def _sorted_by(rows, sort):
 def _slot_count(spread):
     count = len(spread.positions)
     return SPREADS["slot_count_one"] if count == 1 else SPREADS["slot_count"].format(count=count)
-
-
-def _subtitle(row):
-    if row.included:
-        return SUBTITLE_SEPARATOR.join([_slot_count(row.spread), SPREADS["included"]])
-    return _slot_count(row.spread)
 
 
 def _searchable(spread):
@@ -95,7 +105,7 @@ class SpreadsListModel(QAbstractListModel):
         self._search = ""
         self._sort = SORT_NEWEST
         self._spreads = []
-        self._rows = []
+        self._rows = []  # a SpreadRow, or the key of a section's heading
         self._hold(scanned, included)
         self._rebuild()
 
@@ -142,13 +152,14 @@ class SpreadsListModel(QAbstractListModel):
         return self._sort
 
     def has_items(self):
-        return bool(self._rows)
+        """Whether any row is a spread, rather than a heading"""
+        return any(isinstance(row, SpreadRow) for row in self._rows)
 
     def _rebuild(self):
         shown = [
             row for row in self._spreads if not self._search or _matches(row.spread, self._search)
         ]
-        self._rows = _sorted(shown, self._sort)
+        self._rows = _sectioned(shown, self._sort)
 
     def spread_at(self, path):
         """The spread in folder path, whether or not the search shows it"""
@@ -156,7 +167,7 @@ class SpreadsListModel(QAbstractListModel):
 
     def index_for_path(self, path):
         for number, row in enumerate(self._rows):
-            if row.path == path:
+            if isinstance(row, SpreadRow) and row.path == path:
                 return self.index(number, 0)
         return QModelIndex()
 
@@ -165,11 +176,26 @@ class SpreadsListModel(QAbstractListModel):
             return 0
         return len(self._rows)
 
+    def flags(self, index):
+        if not index.isValid() or not 0 <= index.row() < len(self._rows):
+            return Qt.ItemFlag.NoItemFlags
+        if not isinstance(self._rows[index.row()], SpreadRow):
+            # Drawn by the delegate, but never selected, focused or activated
+            return Qt.ItemFlag.NoItemFlags
+        return Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
+
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
         if not index.isValid() or not 0 <= index.row() < len(self._rows):
             return None
 
         row = self._rows[index.row()]
+        if not isinstance(row, SpreadRow):
+            if role == SectionRole:
+                return True
+            if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.AccessibleTextRole):
+                return SPREADS[row]
+            return None
+
         path, spread, thumbnail = row.path, row.spread, row.thumbnail
 
         if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.AccessibleTextRole):
@@ -177,7 +203,7 @@ class SpreadsListModel(QAbstractListModel):
         if role == Qt.ItemDataRole.DecorationRole:
             return thumbnail
         if role == SubtitleRole:
-            return _subtitle(row)
+            return _slot_count(spread)
         if role == PreviewRole:
             return _summary(spread)
         if role == SpreadPathRole:
