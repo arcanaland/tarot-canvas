@@ -255,6 +255,20 @@ def test_a_spread_from_a_newer_build_is_refused(tmp_path):
         spreads.load(tmp_path)
 
 
+def test_a_spread_written_to_a_spec_is_refused(tmp_path):
+    (tmp_path / "spread.toml").write_text('name = "A"\n[meta]\nschema_version = "1.0"\n')
+
+    with pytest.raises(ValueError, match="spec"):
+        spreads.load(tmp_path)
+
+
+def test_scan_skips_a_spread_written_to_a_spec(tmp_path):
+    write_spread(tmp_path / "1", '[meta]\nschema_version = "1.0"\n')
+    write_spread(tmp_path / "2", 'name = "Ours"\n')
+
+    assert [spread.name for _, spread in spreads.scan(tmp_path)] == ["Ours"]
+
+
 def test_scan_skips_and_logs_a_spread_from_a_newer_build(tmp_path, monkeypatch):
     warnings = []
     monkeypatch.setattr(spreads.logger, "warning", warnings.append)

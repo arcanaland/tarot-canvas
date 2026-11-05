@@ -171,6 +171,9 @@ def load(path):
             too_deep = True
     if too_deep:
         raise ValueError("nested too deeply")
+    # if [meta] is there, the file might be from a future spec that we're not aware of yet
+    if "meta" in table:
+        raise ValueError("written for an unknown spread spec")
 
     extra = {key: value for key, value in table.items() if key not in _SPREAD_KEYS}
     version = _take_version(extra)
