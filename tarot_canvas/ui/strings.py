@@ -471,7 +471,7 @@ SPREADS = {
     "slot_count": "{count} cards",
     "slot_count_one": "single card",
     "section_mine": "Your Spreads",
-    "section_included": "Built-in",
+    "section_included": "Installed",
     "sort_tooltip": "Sort spreads",
     "sort_newest": "Newest",
     "sort_edited": "Recently modified",
