@@ -102,8 +102,8 @@ def test_align_and_fit_have_their_new_keys(qtbot, minimal_deck, monkeypatch, no_
     window, canvas = canvas_with_cards(qtbot, minimal_deck)
     shown = []
     monkeypatch.setattr(QMenu, "exec", lambda menu, *args: shown.append(menu))
-    fitted = []
-    monkeypatch.setattr(canvas.view, "fit_to_rect", fitted.append)
+    homes = []
+    monkeypatch.setattr(canvas.view, "go_home", lambda: homes.append(True))
     for item in cards_on(canvas):
         item.setSelected(True)
 
@@ -111,7 +111,7 @@ def test_align_and_fit_have_their_new_keys(qtbot, minimal_deck, monkeypatch, no_
     qtbot.keyClick(canvas.view, Qt.Key.Key_F, SHIFT)
 
     assert len(shown) == 1
-    assert len(fitted) == 1
+    assert len(homes) == 1
     assert len(canvas.scene.selectedItems()) == 2, "Ctrl+Alt+A is not Select All"
 
 

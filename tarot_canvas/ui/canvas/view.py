@@ -1,7 +1,7 @@
 import logging
 from contextlib import contextmanager
 
-from PyQt6.QtCore import QEvent, QMimeData, QPoint, QPointF, Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import QEvent, QMimeData, QPoint, QPointF, QRectF, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QPainter
 from PyQt6.QtOpenGLWidgets import QOpenGLWidget
 from PyQt6.QtWidgets import QApplication, QGraphicsView, QWidget
@@ -16,6 +16,8 @@ MIN_ZOOM = 0.1
 MAX_ZOOM = 8.0
 # How far out a layout too large for MIN_ZOOM can go, of the zoom that fits it
 FIT_HEADROOM = 0.5
+# Scene units kept clear around the cards when the view goes home
+HOME_MARGIN = 50
 # angleDelta of one wheel notch; finer wheels and touchpads send less, more often
 WHEEL_NOTCH = 120
 
@@ -109,13 +111,16 @@ class PannableGraphicsView(QGraphicsView):
         return min(MIN_ZOOM, fit * FIT_HEADROOM)
 
     def _scale_to(self, target):
-        """Scale so the view ends at target, clamped to [min_zoom(), MAX_ZOOM]."""
+        """Scale so the view ends at target, clamped to [min_zoom(), MAX_ZOOM]. True if it
+        changed, and so told zoom_changed."""
         current = self.transform().m11()
         target = max(self.min_zoom(), min(MAX_ZOOM, target))
-        if target != current:
-            self.scale(target / current, target / current)
-            self.grow_scene_rect()
-            self.zoom_changed.emit(target)
+        if target == current:
+            return False
+        self.scale(target / current, target / current)
+        self.grow_scene_rect()
+        self.zoom_changed.emit(target)
+        return True
 
     def zoom_by(self, factor):
         """Scale the view by factor about the pointer, clamped."""
@@ -126,18 +131,30 @@ class PannableGraphicsView(QGraphicsView):
         with self._anchored_to_center():
             self._scale_to(self.transform().m11() * factor)
 
-    def fit_to_rect(self, rect):
+    def go_home(self):
+        """Fit the cards, with a margin, but never closer than 1x. No cards: 1x at the origin."""
+        rect = self.scene().itemsBoundingRect()
+        if rect.isNull():
+            self.resetTransform()
+            # Room to centre on the origin, wherever the camera was
+            size = self.viewport().size()
+            w, h = size.width(), size.height()
+            self.scene().setSceneRect(QRectF(-w, -h, 2 * w, 2 * h))
+            self.centerOn(QPointF(0, 0))
+            self.grow_scene_rect()
+            self.zoom_changed.emit(1.0)
+            return
+        rect.adjust(-HOME_MARGIN, -HOME_MARGIN, HOME_MARGIN, HOME_MARGIN)
         self.grow_scene_rect()  # fitInView cannot scroll outside the scene rect
         self.fitInView(rect, Qt.AspectRatioMode.KeepAspectRatio)
         with self._anchored_to_center():  # keep rect centred while correcting the zoom
-            self._scale_to(self.transform().m11())
+            scaled = self._scale_to(min(1.0, self.transform().m11()))
+        # The scene rect was grown for the old camera, and pulled it off centre once it fit
         self.grow_scene_rect()
-        self.zoom_changed.emit(self.transform().m11())
-
-    def reset_zoom(self):
-        """Back to 1x, with no other transform."""
-        self.resetTransform()
-        self.zoom_changed.emit(1.0)
+        self.centerOn(rect.center())
+        self.grow_scene_rect()
+        if not scaled:
+            self.zoom_changed.emit(self.transform().m11())
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

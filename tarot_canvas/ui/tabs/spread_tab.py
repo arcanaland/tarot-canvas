@@ -50,11 +50,11 @@ class SpreadTab(CanvasTab):
 
         self._take(spread)
 
-        self._fit_timer = QTimer(self)
-        self._fit_timer.setSingleShot(True)
-        self._fit_timer.setInterval(0)
-        self._fit_timer.timeout.connect(self.on_fit_view)
-        self._fit_on_show = bool(spread.positions)
+        self._home_timer = QTimer(self)
+        self._home_timer.setSingleShot(True)
+        self._home_timer.setInterval(0)
+        self._home_timer.timeout.connect(self.on_home)
+        self._home_on_show = bool(spread.positions)
 
         self.layout_changed.connect(self.mark_modified)
         self.positions.moved.connect(self.layout_changed)
@@ -106,9 +106,9 @@ class SpreadTab(CanvasTab):
 
     def showEvent(self, event):
         super().showEvent(event)
-        if self._fit_on_show:
-            self._fit_on_show = False
-            self._fit_timer.start()
+        if self._home_on_show:
+            self._home_on_show = False
+            self._home_timer.start()
 
     # -- slots -------------------------------------------------------------
 
@@ -358,7 +358,7 @@ class SpreadTab(CanvasTab):
         self._take(spread)
         self.layout_changed.emit()
         self._mark_saved()
-        self._fit_timer.start()
+        self._home_timer.start()
 
     @pyqtSlot()
     def open_folder(self):
