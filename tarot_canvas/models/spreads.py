@@ -3,7 +3,7 @@ import re
 import tempfile
 import time
 import tomllib
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import tomli_w
@@ -66,6 +66,11 @@ def is_included(path):
         return Path(path).resolve().is_relative_to(Path(included_base()).resolve())
     except OSError:
         return False
+
+
+def copy_of(spread, path):
+    """spread as a copy of the one in folder path; a built-in's credits stay with the built-in"""
+    return replace(spread, sources=()) if is_included(path) else spread
 
 
 def new_spread_dir(base=None):

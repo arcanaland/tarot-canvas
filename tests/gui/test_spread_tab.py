@@ -1733,9 +1733,19 @@ def test_saving_an_included_spread_saves_a_copy_and_the_tab_follows_it(
     assert not tab.has_unsaved_changes()
     saved = spreads.load(copy)
     assert [position.label for position in saved.positions] == ["Past", "Future", "Now"]
-    assert saved.sources == ({"name": "A Book", "took": ["positions"]},)
+    assert saved.sources == ()
     # The built-in is free to open again, on its own
     assert window.open_spread(folder) is not tab
+
+
+def test_a_duplicate_of_an_included_spread_leaves_its_credits_behind(window, shipped):
+    tab = window.open_spread(shipped[0])
+
+    tab.duplicate_action.trigger()
+
+    copied = window.tab_widget.currentWidget().current_spread()
+    assert copied.sources == ()
+    assert [position.label for position in copied.positions] == ["Past", "Future"]
 
 
 def test_a_failed_save_of_an_included_spread_leaves_it_and_makes_no_folder(
