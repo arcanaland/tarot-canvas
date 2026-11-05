@@ -49,7 +49,7 @@ z = 51.0
 [[positions]]
 id = "p3"
 label = "Speculative"
-meaning = "Aspirations and outcomes that should be considered (even totally unexpectedly!)"
+meaning = "Aspirations and outcomes that should be considered (even totally unexpected ones!)"
 x = -1.023
 y = -2.05
 rotation = 0.0
@@ -93,7 +93,7 @@ z = 70.0
 
 [[positions]]
 id = "p10"
-label = "Final Outcomes"
+label = "Final Outcome"
 meaning = "The combined forces of the other cards' energies and influences"
 x = 2.694
 y = -3.219
