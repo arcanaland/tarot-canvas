@@ -189,6 +189,16 @@ def test_an_included_spread_is_listed_apart_from_the_users(included_base, spread
     assert not spreads.is_included(own)
 
 
+def test_a_copy_of_an_included_spread_drops_only_its_sources(included_base, spreads_base):
+    spread = Spread("A", description="d", sources=({"name": "A Book"},), extra={"k": 1})
+    included = included_base / "line"
+    included.mkdir(parents=True)
+
+    assert spreads.copy_of(spread, included) == Spread("A", description="d", extra={"k": 1})
+    assert spreads.copy_of(spread, spreads_base / "1") == spread
+    assert spreads.copy_of(spread, None) == spread
+
+
 @pytest.mark.parametrize("outside", ["../elsewhere", "../included-not", None])
 def test_a_folder_outside_the_included_root_is_not_included(included_base, outside):
     included_base.mkdir()

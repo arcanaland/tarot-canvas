@@ -1174,7 +1174,9 @@ def test_duplicating_a_built_in_opens_an_unsaved_copy_saved_as_the_users(
     tab.save()
 
     assert tab.spread_path.parent == spreads_base
-    assert spreads.load(tab.spread_path).name == "Celtic"
+    saved = spreads.load(tab.spread_path)
+    assert saved.name == "Celtic"
+    assert saved.sources == ()
     assert (folder / spreads.SPREAD_FILE).read_bytes() == before
 
 

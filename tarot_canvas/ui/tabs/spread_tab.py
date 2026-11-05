@@ -256,9 +256,9 @@ class SpreadTab(CanvasTab):
             extra=self._extra,
         )
 
-    def _write(self, path):
+    def _write(self, path, spread):
         try:
-            spreads.save(path, self.current_spread())
+            spreads.save(path, spread)
         except OSError as error:
             logger.error(f"Could not save spread to {path}: {error}")
             self._toast(SPREADS["save_failed"])
@@ -276,18 +276,20 @@ class SpreadTab(CanvasTab):
         """Write the spread to disk; one that ships with the app is saved as a new one"""
         is_new = self.spread_path is None or spreads.is_included(self.spread_path)
         path = self.spread_path
+        spread = spreads.copy_of(self.current_spread(), path)
         if is_new:
             try:
                 path = spreads.new_spread_dir()
             except OSError as error:
                 logger.error(f"Could not create directory for a spread: {error}")
                 return False
-        if not self._write(path):
+        if not self._write(path, spread):
             if is_new:
                 with suppress(OSError):
                     path.rmdir()
             return False
         self.spread_path = path
+        self._sources = spread.sources
         self._mark_saved()
         return True
 
@@ -328,7 +330,9 @@ class SpreadTab(CanvasTab):
 
     @pyqtSlot()
     def duplicate(self):
-        self.navigation_requested.emit("open_unsaved_spread", self.current_spread())
+        self.navigation_requested.emit(
+            "open_unsaved_spread", spreads.copy_of(self.current_spread(), self.spread_path)
+        )
 
     @pyqtSlot()
     def revert(self):
