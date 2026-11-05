@@ -38,6 +38,9 @@ CANVAS_TAB_MINIMAP_DEFAULT = True
 CANVAS_GUIDES_KEY = "appearance/canvas_guides"
 CANVAS_GUIDES_DEFAULT = False
 
+HARDWARE_ACCELERATION_KEY = "advanced/hardware_acceleration"
+HARDWARE_ACCELERATION_DEFAULT = True
+
 
 def get_motion_level(settings=None):
     """How much the canvas is allowed to move"""

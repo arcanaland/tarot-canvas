@@ -1,6 +1,7 @@
 import pytest
 from PyQt6.QtCore import QPoint, Qt
 from PyQt6.QtGui import QAction, QKeySequence, QShortcut
+from PyQt6.QtOpenGLWidgets import QOpenGLWidget
 from PyQt6.QtWidgets import (
     QWIDGETSIZE_MAX,
     QApplication,
@@ -11,6 +12,7 @@ from PyQt6.QtWidgets import (
 )
 
 from tarot_canvas.settings import EXPLORER_VISIBLE_KEY, get_settings
+from tarot_canvas.ui import main_window as main_window_module
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
 from tarot_canvas.ui.card_transfer import CARD_MIME
 from tarot_canvas.ui.main_window import MainWindow
@@ -42,6 +44,21 @@ def test_main_window_opens_with_welcome_tab(qtbot):
     assert tab_widget.count() >= 1
     assert tab_widget.tabText(0) == "Welcome"
     assert not tab_widget.tabIcon(0).isNull()
+
+
+def test_a_raster_window_holds_no_gl_widget(qtbot):
+    window = MainWindow()
+    qtbot.addWidget(window)
+
+    assert window.findChild(QOpenGLWidget) is None
+
+
+def test_a_gl_window_holds_a_hidden_gl_widget(qtbot, monkeypatch):
+    monkeypatch.setattr(main_window_module, "canvas_uses_gl", lambda: True)
+    window = MainWindow()
+    qtbot.addWidget(window)
+
+    assert window.findChild(QOpenGLWidget).isHidden()
 
 
 def test_canvases_are_numbered_from_the_second(qtbot):

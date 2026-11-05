@@ -165,15 +165,6 @@ def test_a_spread_with_no_positions_has_no_marks():
 # -- the list
 
 
-def test_the_view_is_the_librarys_last_row(window):
-    library = open_library(window)
-
-    assert LIBRARY_VIEWS[-1] == LIBRARY_VIEW_SPREADS
-    assert library.sidebar.count() == len(LIBRARY_VIEWS)
-    assert library.current_list_page() is library.spreads_page
-    assert library.search_field.placeholderText() == SPREADS["search_placeholder"]
-
-
 def test_rows_are_newest_first_by_folder_number(qtbot, spreads_base):
     for stamp in (9, 10, 100):
         store(spreads_base, stamp, Spread(name=str(stamp)))

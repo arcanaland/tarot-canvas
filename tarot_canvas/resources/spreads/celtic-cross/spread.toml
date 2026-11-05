@@ -11,7 +11,7 @@ year = 2015
 took = ["positions", "layout"]
 
 [[positions]]
-id = "p2"
+id = "p1"
 label = "Current Situation"
 meaning = "What situation you are facing in the present moment"
 x = -1.023
@@ -20,7 +20,7 @@ rotation = 0.0
 z = 30.0
 
 [[positions]]
-id = "p4"
+id = "p2"
 label = "Obstacle"
 meaning = "Challenges that lie ahead or need to be overcome"
 x = -1.027
@@ -29,7 +29,7 @@ rotation = 90.0
 z = 69.0
 
 [[positions]]
-id = "p6"
+id = "p3"
 label = "Foundation"
 meaning = "The root of the matter"
 x = -1.023
@@ -38,7 +38,7 @@ rotation = 0.0
 z = 76.0
 
 [[positions]]
-id = "p5"
+id = "p4"
 label = "Past"
 meaning = "Events or influences in the past affecting this situation"
 x = -2.694
@@ -47,7 +47,7 @@ rotation = 0.0
 z = 51.0
 
 [[positions]]
-id = "p3"
+id = "p5"
 label = "Speculative"
 meaning = "Aspirations and outcomes that should be considered (even totally unexpected ones!)"
 x = -1.023
@@ -56,7 +56,7 @@ rotation = 0.0
 z = 75.0
 
 [[positions]]
-id = "p1"
+id = "p6"
 label = "Near Future"
 meaning = "A likely outcome in the near future"
 x = 0.648
