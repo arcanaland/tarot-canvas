@@ -49,7 +49,7 @@ COMMANDS = {
     "send_to_back": "Send to Back",
     "align_cards": "Align Cards",
     "save_layout_as_spread": "Save Layout as Spread",
-    "fit_all": "<clankertext>Home view</clankertext>",
+    "fit_all": "Home view",
     "fullscreen_canvas": "Fullscreen Canvas",
     "cancel_selection": "Cancel Selection",
     # Card view
@@ -365,7 +365,7 @@ CANVAS = {
     "align_tooltip": "Align selected cards",
     "zoom_in_tooltip": "Zoom in",
     "zoom_out_tooltip": "Zoom out",
-    "fit_tooltip": "<clankertext>Go to the home view: every card in view, at most 100%</clankertext>",
+    "fit_tooltip": "Fit cards",
     # The align menu
     "align_horizontal": "Horizontal Align",
     "align_left": "Left Edges",
