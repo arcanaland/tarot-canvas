@@ -48,17 +48,25 @@ deps:
   RUNTIME_VERSION=$(grep "runtime-version:" land.arcana.TarotCanvas.yml | cut -d "'" -f 2)
   BASE_VERSION=$(grep "base-version:" land.arcana.TarotCanvas.yml | cut -d "'" -f 2)
 
-  # If you don't have this already, just add it because you should have it anyway ¯\_(ツ)_/¯
-  flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-
-  flatpak install --user -y --noninteractive flathub \
+  # Skip anything already installed, user or system, so this is cheap on every build
+  missing=()
+  for ref in \
     org.kde.Platform//${RUNTIME_VERSION} \
     org.kde.Sdk//${RUNTIME_VERSION} \
     com.riverbankcomputing.PyQt.BaseApp//${BASE_VERSION} \
-    org.flatpak.Builder
+    org.flatpak.Builder//stable; do
+    flatpak info "$ref" >/dev/null 2>&1 || missing+=("$ref")
+  done
+  [ "${#missing[@]}" -gt 0 ] || exit 0
+
+  # If you don't have this already, just add it because you should have it anyway ¯\_(ツ)_/¯
+  flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+
+  echo "installing missing flatpak deps: ${missing[*]}"
+  flatpak install --user -y --noninteractive flathub "${missing[@]}"
 
 # Lint the manifest
-lint-manifest:
+lint-manifest: deps
   #!/bin/bash
   set -euo pipefail
 
@@ -71,17 +79,17 @@ lint-manifest:
     org.flatpak.Builder --gha-format manifest land.arcana.TarotCanvas.yml
 
 # Validate the AppStream metainfo.
-validate:
+validate: deps
   flatpak run --command=appstreamcli org.flatpak.Builder validate --no-net --explain ../tarot_canvas/resources/land.arcana.TarotCanvas.appdata.xml
 
-build:
+build: deps
   {{dbus}} flatpak run org.flatpak.Builder --user --force-clean build-dir land.arcana.TarotCanvas.yml
 
-install:
+install: deps
   {{dbus}} flatpak run org.flatpak.Builder --user --install --force-clean build-dir land.arcana.TarotCanvas.yml
 
 # Build from the release tarball (match Flathub)
-build-tarball:
+build-tarball: deps
   #!/bin/bash
   set -euo pipefail
 
@@ -98,13 +106,13 @@ devel-run: devel-build
 
 # Build the devel build without installing it.
 [private]
-devel-build: gen-devel
+devel-build: deps gen-devel
   {{dbus}} flatpak run org.flatpak.Builder --user --force-clean \
     build-devel devel/land.arcana.TarotCanvas.yml
 
 # Build and install the devel build
 [private]
-devel-install: gen-devel
+devel-install: deps gen-devel
   {{dbus}} flatpak run org.flatpak.Builder --user --install --force-clean \
     build-devel devel/land.arcana.TarotCanvas.yml
 
