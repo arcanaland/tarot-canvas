@@ -1664,9 +1664,55 @@ def test_a_ring_too_wide_for_min_zoom_opens_with_every_slot_in_view(qtbot, tmp_p
     assert len(in_view(tab)) == 78
 
 
+def test_home_fits_a_78_slot_ring_below_1x(qtbot):
+    tab = make_tab(qtbot, ring_of_slots(78, 27.5))
+    tab.view.zoom_by_from_center(3)
+
+    tab.on_home()
+
+    assert tab.view.transform().m11() < 1.0
+    assert len(in_view(tab)) == 78
+
+
+def camera(tab):
+    view = tab.view
+    return view.transform().m11(), view.mapToScene(view.viewport().rect().center())
+
+
+@pytest.mark.parametrize("go_home", ["reset", "fit"])
+def test_ctrl_0_and_shift_f_go_back_to_the_view_the_spread_opened_with(qtbot, go_home):
+    tab = make_tab(qtbot, ring_of_slots(10, 3))
+    qtbot.waitUntil(lambda: tab.view.transform().m11() < 1.0)
+    scale, centre = camera(tab)
+
+    tab.view.zoom_by_from_center(3)
+    tab.view.horizontalScrollBar().setValue(tab.view.horizontalScrollBar().maximum())
+    tab.view.verticalScrollBar().setValue(tab.view.verticalScrollBar().minimum())
+    assert camera(tab) != (scale, centre)
+
+    if go_home == "reset":
+        tab.zoom("reset")
+    else:
+        tab.commands["canvas.fit"].trigger()
+
+    now_scale, now_centre = camera(tab)
+    assert now_scale == pytest.approx(scale)
+    assert now_centre.x() == pytest.approx(centre.x(), abs=1)
+    assert now_centre.y() == pytest.approx(centre.y(), abs=1)
+
+
+def test_the_toolbar_has_home_and_no_reset_beside_it(qtbot):
+    tab = make_tab(qtbot)
+
+    ids = [action.objectName() for action in tab.toolbar.actions()]
+
+    assert ids.count("canvas.fit") == 1
+    assert ids[ids.index("canvas.fit") + 1] == "canvas.fullscreen"
+
+
 def test_a_layout_past_min_zoom_can_be_zoomed_out_by_hand_until_it_fits(qtbot):
     tab = make_tab(qtbot, ring_of_slots(78, 27.5))
-    tab.on_reset_view()
+    tab.on_home()
 
     for _ in range(40):
         before = tab.view.transform().m11()
@@ -1676,7 +1722,7 @@ def test_a_layout_past_min_zoom_can_be_zoomed_out_by_hand_until_it_fits(qtbot):
         assert tab.view.transform().m11() < before
 
     assert not tab.can_zoom("out")
-    tab.on_reset_view()
+    tab.on_home()
     tab.view.zoom_by_from_center(0.001)
     assert len(in_view(tab)) == 78
 
