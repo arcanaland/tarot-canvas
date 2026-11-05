@@ -50,8 +50,9 @@ def choose(platform, system, forced, enabled, failed, probe):
 
 def gl_renderer():
     """GL_RENDERER from a throwaway context, or None when none can be made current."""
+    import ctypes
+
     from PyQt6.QtGui import QOffscreenSurface, QOpenGLContext
-    from PyQt6.QtOpenGL import QOpenGLVersionFunctionsFactory, QOpenGLVersionProfile
 
     try:
         context = QOpenGLContext()
@@ -63,12 +64,13 @@ def gl_renderer():
         try:
             if not context.makeCurrent(surface):
                 return None
-            profile = QOpenGLVersionProfile()
-            profile.setVersion(2, 0)
-            functions = QOpenGLVersionFunctionsFactory.get(profile, context)
-            renderer = functions.glGetString(GL_RENDERER) if functions else None
+            address = context.getProcAddress(b"glGetString")
+            if not address:
+                return None
+            get_string = ctypes.CFUNCTYPE(ctypes.c_char_p, ctypes.c_uint)(int(address))
+            renderer = get_string(GL_RENDERER)
             context.doneCurrent()
-            return renderer
+            return renderer.decode(errors="replace") if renderer else None
         finally:
             surface.destroy()
     except Exception:
