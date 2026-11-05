@@ -1688,3 +1688,106 @@ def test_a_small_layout_stops_at_min_zoom(qtbot):
 
     assert tab.view.transform().m11() == pytest.approx(MIN_ZOOM)
     assert not tab.can_zoom("out")
+
+
+# -- a spread that ships with the app
+
+
+@pytest.fixture
+def shipped(included_base):
+    """A spread that ships with the app, and its file's bytes"""
+    folder = included_base / "line"
+    folder.mkdir(parents=True)
+    spreads.save(
+        folder,
+        Spread(
+            "Shipped",
+            description="Lay them in a line.",
+            sources=({"name": "A Book", "took": ["positions"]},),
+            positions=(Position("p1", "Past"), Position("p2", "Future", x=1.5)),
+        ),
+    )
+    return folder, (folder / spreads.SPREAD_FILE).read_bytes()
+
+
+def test_an_opened_included_spread_is_untouched(window, shipped):
+    folder, _ = shipped
+    tab = window.open_spread(folder)
+
+    assert not tab.has_unsaved_changes()
+    assert window.tab_widget.tabText(window.tab_widget.indexOf(tab)) == "Shipped"
+
+
+def test_saving_an_included_spread_saves_a_copy_and_the_tab_follows_it(
+    window, spreads_base, shipped
+):
+    folder, before = shipped
+    tab = window.open_spread(folder)
+    tab.add_next_slot(QPointF(900, 0)).set_label("Now")
+
+    assert tab.save()
+
+    assert (folder / spreads.SPREAD_FILE).read_bytes() == before
+    (copy,) = (path for path in spreads_base.iterdir() if path.is_dir())
+    assert tab.spread_path == copy
+    assert not tab.has_unsaved_changes()
+    saved = spreads.load(copy)
+    assert [position.label for position in saved.positions] == ["Past", "Future", "Now"]
+    assert saved.sources == ({"name": "A Book", "took": ["positions"]},)
+    # The built-in is free to open again, on its own
+    assert window.open_spread(folder) is not tab
+
+
+def test_a_failed_save_of_an_included_spread_leaves_it_and_makes_no_folder(
+    window, spreads_base, shipped, monkeypatch
+):
+    def fail(*_):
+        raise OSError("disk full")
+
+    folder, before = shipped
+    tab = window.open_spread(folder)
+    tab.rename("Changed")
+    monkeypatch.setattr(spreads, "save", fail)
+
+    assert not tab.save()
+
+    assert tab.spread_path == folder
+    assert tab.has_unsaved_changes()
+    assert sorted(folder.iterdir()) == [folder / spreads.SPREAD_FILE]
+    assert (folder / spreads.SPREAD_FILE).read_bytes() == before
+    assert not spreads_base.exists() or list(spreads_base.iterdir()) == []
+
+
+def test_closing_an_untouched_included_spread_asks_nothing(window, shipped, monkeypatch):
+    asked = answer_with(monkeypatch, Answer.Cancel)
+    tab = window.open_spread(shipped[0])
+
+    assert window.close_tab(window.tab_widget.indexOf(tab))
+
+    assert asked == []
+
+
+def test_revert_restores_an_included_spread(window, shipped, monkeypatch):
+    folder, before = shipped
+    tab = window.open_spread(folder)
+    saved = tab.current_spread()
+    answer_warning(monkeypatch, Answer.Discard)
+    tab.rename("Changed")
+    tab.add_next_slot()
+
+    assert enabled(tab) == (True, False)
+    tab.revert_action.trigger()
+
+    assert tab.current_spread() == saved
+    assert not tab.has_unsaved_changes()
+    assert (folder / spreads.SPREAD_FILE).read_bytes() == before
+
+
+def test_an_included_spreads_folder_is_shown_only_once_it_is_a_copy(window, shipped):
+    tab = window.open_spread(shipped[0])
+    assert enabled(tab) == (False, False)
+
+    tab.rename("Mine")
+    assert tab.save()
+
+    assert enabled(tab) == (False, True)

@@ -10,7 +10,7 @@ import tomli_w
 
 from tarot_canvas.models.staged_delete import is_staged
 from tarot_canvas.utils.logger import logger
-from tarot_canvas.utils.path_helper import get_data_directory
+from tarot_canvas.utils.path_helper import BUNDLED_SPREADS_PATH, get_data_directory
 
 SPREADS_SUBPATH = "tarot-canvas/spreads"
 SPREAD_FILE = "spread.toml"
@@ -18,6 +18,10 @@ SPREAD_FILE = "spread.toml"
 _POSITION_ID = re.compile(r"p(\d+)")
 _SPREAD_KEYS = {"name", "description", "sources", "positions"}
 _POSITION_KEYS = {"id", "label", "meaning", "x", "y", "rotation", "z"}
+
+APP_TABLE = "land.arcana.tarotcanvas"
+VERSION = 1
+
 # Far past any layout, and well inside what the canvas and z's arithmetic can hold
 MAX_NUMBER = 1e9
 # Far past any spread, and shallow enough that a file that loads can be saved again
@@ -47,6 +51,21 @@ class Spread:
 
 def spreads_base():
     return get_data_directory(SPREADS_SUBPATH)
+
+
+def included_base():
+    """The spreads that ship with the app, read-only and rewritten by each release"""
+    return BUNDLED_SPREADS_PATH
+
+
+def is_included(path):
+    """Whether folder path is one of the spreads that ship with the app"""
+    if path is None:
+        return False
+    try:
+        return Path(path).resolve().is_relative_to(Path(included_base()).resolve())
+    except OSError:
+        return False
 
 
 def new_spread_dir(base=None):
@@ -114,6 +133,30 @@ def _position(table):
         raise ValueError(f"bad position: {error!r}") from error
 
 
+def _take_version(extra):
+    """The file's version, removing it from extra's app table (absent is 1)"""
+    apps = extra.get("app")
+    if apps is None:
+        return 1
+    if not isinstance(apps, dict):
+        raise ValueError("app is not a table")
+    ours = apps.get(APP_TABLE)
+    if ours is None:
+        return 1
+    if not isinstance(ours, dict):
+        raise ValueError(f"app.{APP_TABLE} is not a table")
+
+    # actually read version now
+    version = ours.pop("version", 1)
+    if isinstance(version, bool) or not isinstance(version, int) or version < 1:
+        raise ValueError(f"bad version: {version!r}")
+    if not ours:
+        del apps[APP_TABLE]
+    if not apps:
+        del extra["app"]
+    return version
+
+
 def load(path):
     with open(Path(path) / SPREAD_FILE, "rb") as handle:
         try:
@@ -123,6 +166,11 @@ def load(path):
             too_deep = True
     if too_deep:
         raise ValueError("nested too deeply")
+
+    extra = {key: value for key, value in table.items() if key not in _SPREAD_KEYS}
+    version = _take_version(extra)
+    if version > VERSION:
+        raise ValueError(f"written by a newer Tarot Canvas (version {version})")
 
     sources = table.get("sources", [])
     positions = table.get("positions", [])
@@ -136,7 +184,7 @@ def load(path):
         description=str(table.get("description", "")),
         sources=tuple(sources),
         positions=tuple(_position(position) for position in positions),
-        extra={key: value for key, value in table.items() if key not in _SPREAD_KEYS},
+        extra=extra,
     )
 
 
@@ -160,7 +208,11 @@ def _table(spread):
     if spread.sources:
         table["sources"] = list(spread.sources)
     table["positions"] = [_position_table(position) for position in spread.positions]
-    return {**table, **spread.extra}
+    table.update(spread.extra)
+    apps = dict(table.get("app", {}))
+    apps[APP_TABLE] = {**apps.get(APP_TABLE, {}), "version": VERSION}
+    table["app"] = apps
+    return table
 
 
 def save(path, spread):
@@ -202,3 +254,8 @@ def scan(base=None):
         except (OSError, ValueError) as error:
             logger.warning(f"Skipping unreadable spread {folder}: {error}")
     return spreads
+
+
+def scan_included():
+    """(folder, Spread) for each spread that ships with the app"""
+    return scan(included_base())

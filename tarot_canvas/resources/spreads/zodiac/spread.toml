@@ -1,0 +1,121 @@
+name = "Zodiac Spread"
+description = "A spread that maps to the 12 astrological houses of the zodiac wheel."
+
+#  Based loosely on Benebell Wen's version from Holistic Tarot
+[[sources]]
+name = "Holistic Tarot"
+author = "Benebell Wen"
+publisher = "North Atlantic Books"
+year = 2015
+took = ["positions", "layout"]
+
+[[positions]]
+id = "p1"
+label = "Present Self"
+meaning = ""
+x = -4.471
+y = 0.0
+rotation = 0.0
+z = 7.0
+
+[[positions]]
+id = "p2"
+label = "Resources and Material Concerns"
+meaning = ""
+x = -3.872
+y = 2.236
+rotation = 0.0
+z = 8.0
+
+[[positions]]
+id = "p3"
+label = "Mental and Internal Communication"
+meaning = ""
+x = -2.236
+y = 3.872
+rotation = 0.0
+z = 9.0
+
+[[positions]]
+id = "p4"
+label = "Home and Family"
+meaning = ""
+x = 0.0
+y = 4.471
+rotation = 0.0
+z = 10.0
+
+[[positions]]
+id = "p5"
+label = "Creativity"
+meaning = ""
+x = 2.236
+y = 3.872
+rotation = 0.0
+z = 11.0
+
+[[positions]]
+id = "p6"
+label = "Productivity and Health"
+meaning = ""
+x = 3.872
+y = 2.236
+rotation = 0.0
+z = 12.0
+
+[[positions]]
+id = "p7"
+label = "Love and Romance"
+meaning = ""
+x = 4.471
+y = 0.0
+rotation = 0.0
+z = 13.0
+
+[[positions]]
+id = "p8"
+label = "Changes to Come"
+meaning = ""
+x = 3.872
+y = -2.236
+rotation = 0.0
+z = 14.0
+
+[[positions]]
+id = "p9"
+label = "Knowledge and Spirituality"
+meaning = ""
+x = 2.236
+y = -3.872
+rotation = 0.0
+z = 15.0
+
+[[positions]]
+id = "p10"
+label = "Career and Ambitions"
+meaning = ""
+x = 0.0
+y = -4.471
+rotation = 0.0
+z = 16.0
+
+[[positions]]
+id = "p11"
+label = "Community"
+meaning = ""
+x = -2.236
+y = -3.872
+rotation = 0.0
+z = 17.0
+
+[[positions]]
+id = "p12"
+label = "Challenges"
+meaning = ""
+x = -3.872
+y = -2.236
+rotation = 0.0
+z = 18.0
+
+[app."land.arcana.tarotcanvas"]
+version = 1

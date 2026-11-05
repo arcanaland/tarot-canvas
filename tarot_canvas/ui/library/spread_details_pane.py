@@ -1,16 +1,23 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from PyQt6.QtCore import QRect, Qt
-from PyQt6.QtGui import QPainter, QPalette
-from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QScrollArea, QVBoxLayout, QWidget
+from PyQt6.QtCore import QRect, Qt, pyqtSignal
+from PyQt6.QtGui import QIcon, QPainter, QPalette
+from PyQt6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QScrollArea,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 from tarot_canvas.models.spreads import Spread
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.canvas.detail import card_unit_size
 from tarot_canvas.ui.canvas.tab_icon import DIAGRAM, layout_marks, spread_icon, spread_marks
 from tarot_canvas.ui.library import units
-from tarot_canvas.ui.library.notes_model import SUBTITLE_SEPARATOR
 from tarot_canvas.ui.library.pane_text import pane_text
 from tarot_canvas.ui.strings import SPREADS
 from tarot_canvas.ui.tabs.card_view.passage_metrics import body_html
@@ -33,14 +40,52 @@ def _rich_text(text):
     return label
 
 
+# Between a credit's parts
+SOURCE_SEPARATOR = " · "
+
+
+# Values for a source's "took" field
+TOOK_ORDER = ("positions", "layout", "words")
+
+
+def _taken(source):
+    """What `took` says came from this source (as an English phrase)"""
+    took = source.get("took")
+    if not isinstance(took, list):
+        return ""
+    parts = [SPREADS[f"took_{key}"] for key in TOOK_ORDER if key in took]
+    if not parts:
+        return ""
+    phrase = parts[-1]
+    if len(parts) > 1:
+        rest = SPREADS["took_list_separator"].join(parts[:-1])
+        phrase = SPREADS["took_last_pair"].format(rest=rest, last=parts[-1])
+    return phrase[:1].upper() + phrase[1:]
+
+
+def _credit_text(source, extra=()):
+    """Who and what, the year on the last of them, led by what was taken when `took` says"""
+    words = [str(source[key]) for key in ("author", "name") if source.get(key)]
+    year = source.get("year")
+    if words and year not in (None, ""):
+        words[-1] = SPREADS["source_year"].format(source=words[-1], year=year)
+    taken = _taken(source)
+    if words and taken:
+        words = [SPREADS["source_took"].format(taken=taken, source=SOURCE_SEPARATOR.join(words))]
+    words += [str(source["note"])] if source.get("note") else []
+    return SOURCE_SEPARATOR.join(words + list(extra))
+
+
 def _source_label(source):
-    """One line of who and what, then its address"""
-    words = [str(source[key]) for key in ("author", "note") if source.get(key)]
+    """One small, dim line of who and what, then its address: a credit, not a section"""
     url = str(source.get("url", ""))
+    extra = []
     if not is_link(url):
-        words += [url] if url else []
+        extra = [url] if url else []
         url = None
-    label = _rich_text(link_html(SUBTITLE_SEPARATOR.join(words), [url] if url else []))
+    label = _rich_text(link_html(_credit_text(source, extra), [url] if url else []))
+    typography.apply(label, typography.Role.SMALL)
+    label.setForegroundRole(QPalette.ColorRole.PlaceholderText)
     label.setOpenExternalLinks(True)
     label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
     return label
@@ -82,11 +127,26 @@ class SpreadDiagram(QWidget):
 
 
 class SpreadDetailsPane(QWidget):
+    edit_requested = pyqtSignal(object)  # the shown spread's folder
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._details = None
 
         self.heading_label = typography.apply(pane_text(), typography.Role.HEADING_1, primary=True)
+
+        self.edit_button = QToolButton()
+        self.edit_button.setIcon(QIcon.fromTheme("document-edit"))
+        self.edit_button.setText(SPREADS["edit"])
+        self.edit_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.edit_button.setAutoRaise(True)
+        self.edit_button.clicked.connect(self._on_edit)
+        title_row = QHBoxLayout()
+        title_row.setContentsMargins(0, 0, 0, 0)
+        title_row.setSpacing(units.LARGE_SPACING)
+        # A long name wraps before the button, which stays level with its first line
+        title_row.addWidget(self.heading_label, 1)
+        title_row.addWidget(self.edit_button, 0, Qt.AlignmentFlag.AlignTop)
 
         self.sections = QVBoxLayout()
         self.sections.setContentsMargins(0, 0, 0, 0)
@@ -115,7 +175,7 @@ class SpreadDetailsPane(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(margin, 2 * units.LARGE_SPACING, margin, units.LARGE_SPACING)
         layout.setSpacing(units.LARGE_SPACING)
-        layout.addWidget(self.heading_label)
+        layout.addLayout(title_row)
         layout.addLayout(body, 1)
 
     def details(self):
@@ -136,8 +196,6 @@ class SpreadDetailsPane(QWidget):
             self._add_section(
                 SPREADS["description_title"], [_rich_text(body_html(spread.description))]
             )
-        if spread.sources:
-            self._add_section(SPREADS["sources_title"], map(_source_label, spread.sources))
         if spread.positions:
             rows = [
                 widget
@@ -145,9 +203,15 @@ class SpreadDetailsPane(QWidget):
                 for widget in _position_widgets(number, position)
             ]
             self._add_section(SPREADS["slots_title"], rows)
+        if spread.sources:
+            self._add_credits(map(_source_label, spread.sources))
 
         if previous is None or previous.path != details.path:
             self.scroll_area.verticalScrollBar().setValue(0)
+
+    def _on_edit(self):
+        if self._details is not None:
+            self.edit_requested.emit(self._details.path)
 
     def section_labels(self):
         """Every label in the scrolling part, top to bottom"""
@@ -158,6 +222,13 @@ class SpreadDetailsPane(QWidget):
         if self.sections.count():
             self.sections.addSpacing(units.LARGE_SPACING)
         self.sections.addWidget(_section_title(title))
+        for widget in widgets:
+            self.sections.addWidget(widget)
+
+    def _add_credits(self, widgets):
+        """Last, under no heading"""
+        if self.sections.count():
+            self.sections.addSpacing(units.LARGE_SPACING)
         for widget in widgets:
             self.sections.addWidget(widget)
 

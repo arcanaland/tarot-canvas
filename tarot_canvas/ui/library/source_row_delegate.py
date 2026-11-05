@@ -17,6 +17,7 @@ from tarot_canvas.ui.library.esoterica_list_model import (
     RowKind,
     TypeRole,
 )
+from tarot_canvas.ui.library.section_row import is_section, paint_section, section_size_hint
 from tarot_canvas.ui.strings import label_for
 from tarot_canvas.ui.widgets.placeholder_message import tinted_icon
 
@@ -60,12 +61,6 @@ class SourceRowLayout:
     checkbox: QRect  # null without one
 
 
-def section_font():
-    font = typography.font(typography.Role.SMALL)
-    font.setBold(True)
-    return font
-
-
 class SourceRowDelegate(QStyledItemDelegate):
     def _fonts(self, option, selected):
         title = QFont(option.font)
@@ -77,11 +72,8 @@ class SourceRowDelegate(QStyledItemDelegate):
         return QFontMetrics(title).height(), QFontMetrics(small).height()
 
     def sizeHint(self, option, index):
-        if index.data(KindRole) == RowKind.SECTION:
-            # One line of the heading, a gap above it to part it from the section before
-            font = section_font()
-            height = QFontMetrics(font).height() + units.LARGE_SPACING + units.SMALL_SPACING
-            return QSize(units.GRID_UNIT, height)
+        if is_section(index):
+            return section_size_hint()
         title_height, small_height = self._line_heights(option)
         height = max(ICON_SIZE, title_height + small_height)
         return QSize(units.GRID_UNIT, height + 2 * units.LARGE_SPACING)
@@ -137,10 +129,10 @@ class SourceRowDelegate(QStyledItemDelegate):
         return SourceRowLayout(icon, title, subtitle, strip, count, checkbox)
 
     def paint(self, painter, option, index):
-        kind = index.data(KindRole)
-        if kind == RowKind.SECTION:
-            self._paint_section(painter, option, index)
+        if is_section(index):
+            paint_section(painter, option, index)
             return
+        kind = index.data(KindRole)
 
         painter.save()
         palette = option.palette
@@ -189,20 +181,6 @@ class SourceRowDelegate(QStyledItemDelegate):
         if not layout.checkbox.isNull():
             self._paint_checkbox(painter, option, index, layout.checkbox)
 
-        painter.restore()
-
-    def _paint_section(self, painter, option, index):
-        painter.save()
-        font = section_font()
-        rect = option.rect.adjusted(units.LARGE_SPACING, 0, -units.LARGE_SPACING, 0)
-        _draw(
-            painter,
-            rect,
-            index.data(Qt.ItemDataRole.DisplayRole),
-            font,
-            option.palette.placeholderText().color(),
-            Qt.AlignmentFlag.AlignBottom,
-        )
         painter.restore()
 
     def _paint_checkbox(self, painter, option, index, rect):
@@ -255,11 +233,11 @@ def _toggle(model, index):
     model.setData(index, new, Qt.ItemDataRole.CheckStateRole)
 
 
-def _draw(painter, rect, text, font, colour, vertical=Qt.AlignmentFlag.AlignVCenter):
+def _draw(painter, rect, text, font, colour):
     painter.setFont(font)
     painter.setPen(colour)
     painter.drawText(
         rect,
-        int(Qt.AlignmentFlag.AlignLeft | vertical),
+        int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter),
         QFontMetrics(font).elidedText(text or "", Qt.TextElideMode.ElideRight, rect.width()),
     )

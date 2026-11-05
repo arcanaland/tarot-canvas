@@ -5,6 +5,7 @@ from PyQt6.QtCore import QAbstractListModel, QModelIndex, Qt
 from tarot_canvas.models.coverage import CellState
 from tarot_canvas.settings import get_esoterica_disabled, set_esoterica_disabled
 from tarot_canvas.ui.library.deck_model import SubtitleRole
+from tarot_canvas.ui.library.section_row import SectionRole
 from tarot_canvas.ui.strings import label_for, license_name
 
 KindRole = Qt.ItemDataRole.UserRole + 31
@@ -139,6 +140,8 @@ class EsotericaListModel(QAbstractListModel):
 
         if role == KindRole:
             return kind
+        if role == SectionRole:
+            return kind == RowKind.SECTION
         if kind == RowKind.SECTION:
             if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.AccessibleTextRole):
                 return label_for(f"library.section.{payload}")

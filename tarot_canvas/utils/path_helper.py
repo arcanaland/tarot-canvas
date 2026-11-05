@@ -7,6 +7,7 @@ from xdg_base_dirs import xdg_cache_home, xdg_data_home
 EXTERNAL_DECKS_PATH = Path(os.path.expanduser("~/.local/share/tarot/decks"))
 EXTERNAL_ESOTERICA_PATH = Path(os.path.expanduser("~/.local/share/tarot/esoterica"))
 BUNDLED_ESOTERICA_PATH = Path(str(files("tarot_canvas.resources").joinpath("esoterica")))
+BUNDLED_SPREADS_PATH = Path(str(files("tarot_canvas.resources").joinpath("spreads")))
 
 
 def get_data_directory(app_specific_path=None):

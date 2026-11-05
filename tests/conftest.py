@@ -91,6 +91,16 @@ def spreads_base(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def included_base(tmp_path, monkeypatch):
+    """No spread ships unless a test puts one in this directory."""
+    from tarot_canvas.models import spreads
+
+    base = tmp_path / "included"
+    monkeypatch.setattr(spreads, "included_base", lambda: base)
+    return base
+
+
+@pytest.fixture(autouse=True)
 def flush_closed_widgets(monkeypatch):
     """Keep qtbot's widgets alive until it has closed them, then delete them before
     the next test runs an event loop."""

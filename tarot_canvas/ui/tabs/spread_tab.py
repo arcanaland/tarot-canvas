@@ -273,16 +273,17 @@ class SpreadTab(CanvasTab):
         return self._modified
 
     def save(self):
-        """Write the spread to disk"""
+        """Write the spread to disk; one that ships with the app is saved as a new one"""
+        is_new = self.spread_path is None or spreads.is_included(self.spread_path)
         path = self.spread_path
-        if path is None:
+        if is_new:
             try:
                 path = spreads.new_spread_dir()
             except OSError as error:
                 logger.error(f"Could not create directory for a spread: {error}")
                 return False
         if not self._write(path):
-            if self.spread_path is None:
+            if is_new:
                 with suppress(OSError):
                     path.rmdir()
             return False
@@ -321,7 +322,9 @@ class SpreadTab(CanvasTab):
         self.revert_action.setEnabled(
             not self.arranging and self.spread_path is not None and self._modified
         )
-        self.open_folder_action.setEnabled(self.spread_path is not None)
+        self.open_folder_action.setEnabled(
+            self.spread_path is not None and not spreads.is_included(self.spread_path)
+        )
 
     @pyqtSlot()
     def duplicate(self):

@@ -164,3 +164,112 @@ def test_load_accepts_the_largest_numbers_it_allows(tmp_path):
 
 def test_a_spread_with_no_file_was_never_edited(tmp_path):
     assert spreads.edited_at(tmp_path) == 0.0
+
+
+# -- the spreads that ship with the app
+
+
+def test_no_included_root_is_no_included_spreads(included_base):
+    assert not included_base.exists()
+    assert spreads.scan_included() == []
+
+
+def test_an_included_spread_is_listed_apart_from_the_users(included_base, spreads_base):
+    included = included_base / "line"
+    included.mkdir(parents=True)
+    spreads.save(included, Spread("Shipped"))
+    own = spreads.new_spread_dir()
+    spreads.save(own, Spread("Mine"))
+
+    assert [(folder, spread.name) for folder, spread in spreads.scan_included()] == [
+        (included, "Shipped")
+    ]
+    assert [folder for folder, _ in spreads.scan()] == [own]
+    assert spreads.is_included(included)
+    assert not spreads.is_included(own)
+
+
+@pytest.mark.parametrize("outside", ["../elsewhere", "../included-not", None])
+def test_a_folder_outside_the_included_root_is_not_included(included_base, outside):
+    included_base.mkdir()
+    path = None if outside is None else included_base / outside
+
+    assert not spreads.is_included(path)
+
+
+def test_a_saved_spread_carries_the_apps_version(tmp_path):
+    spreads.save(tmp_path, sample())
+    table = tomllib.loads((tmp_path / "spread.toml").read_text())
+
+    assert table["app"][spreads.APP_TABLE] == {"version": spreads.VERSION}
+
+
+def test_a_file_with_no_version_loads_as_the_first(tmp_path):
+    (tmp_path / "spread.toml").write_text("name = 'Old'\n")
+
+    assert spreads.load(tmp_path) == Spread(name="Old")
+
+
+def test_the_version_is_not_kept_as_an_unknown_key(tmp_path):
+    spreads.save(tmp_path, sample())
+
+    assert "app" not in spreads.load(tmp_path).extra
+
+
+def test_other_keys_in_the_app_tables_survive_a_round_trip(tmp_path):
+    folder = write_spread(
+        tmp_path / "in",
+        "name = 'A'\n"
+        '[app."land.arcana.tarotcanvas"]\nversion = 1\nx_hint = 2\n'
+        '[app."org.example.other"]\nversion = 7\n',
+    )
+    spread = spreads.load(folder)
+    out = tmp_path / "out"
+    out.mkdir()
+    spreads.save(out, spread)
+
+    assert tomllib.loads((out / "spread.toml").read_text())["app"] == {
+        "land.arcana.tarotcanvas": {"x_hint": 2, "version": spreads.VERSION},
+        "org.example.other": {"version": 7},
+    }
+    assert spreads.load(out) == spread
+
+
+def test_a_spread_from_a_newer_build_is_refused(tmp_path):
+    newer = spreads.VERSION + 1
+    (tmp_path / "spread.toml").write_text(
+        f'name = "A"\n[app."land.arcana.tarotcanvas"]\nversion = {newer}\n'
+    )
+
+    with pytest.raises(ValueError, match="newer"):
+        spreads.load(tmp_path)
+
+
+def test_scan_skips_and_logs_a_spread_from_a_newer_build(tmp_path, monkeypatch):
+    warnings = []
+    monkeypatch.setattr(spreads.logger, "warning", warnings.append)
+    write_spread(
+        tmp_path / "1",
+        f'name = "A"\n[app."land.arcana.tarotcanvas"]\nversion = {spreads.VERSION + 1}\n',
+    )
+
+    assert spreads.scan(tmp_path) == []
+    assert len(warnings) == 1
+    assert "newer" in warnings[0]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "app = 3\n",
+        'app = { "land.arcana.tarotcanvas" = 3 }\n',
+        '[app."land.arcana.tarotcanvas"]\nversion = "1"\n',
+        '[app."land.arcana.tarotcanvas"]\nversion = true\n',
+        '[app."land.arcana.tarotcanvas"]\nversion = 0\n',
+        '[app."land.arcana.tarotcanvas"]\nversion = 1.0\n',
+    ],
+)
+def test_a_malformed_version_is_a_value_error(tmp_path, text):
+    (tmp_path / "spread.toml").write_text(text)
+    with pytest.raises(ValueError):
+        spreads.load(tmp_path)
