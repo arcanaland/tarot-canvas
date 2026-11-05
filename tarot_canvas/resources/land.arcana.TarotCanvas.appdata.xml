@@ -45,8 +45,8 @@
     </screenshot>
   </screenshots>
   <releases>
-    <!--
-    <release version="1.8.0" date="2026-11-xx" type="development">
+    <release version="1.8.0" date="2026-11-05" type="stable">
+      <description>
         <p>This version introduces tarot spreads as a main feature.</p>
         <ul>
         <li>Create your own custom tarot spreads and save them in a library.</li>
@@ -54,9 +54,12 @@
         </ul>
         <p>Other changes:</p>
         <ul>
-          <li>Improve performance of canvas motion by using GPU acceleration.</li>
+          <li>Added optional card snapping to the canvas for creating precise spreads.</li>
+          <li>Reworked the circle arrangement tool to produce arcs as well.</li>
+          <li>Improved performance of canvas motion by using GPU acceleration.</li>
         </ul>
-     -->
+      </description>
+    </release>
     <release version="1.7.1" date="2026-10-31" type="stable">
       <description>
         <p>🎃 Samhain Update 🕯️</p>

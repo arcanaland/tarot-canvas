@@ -1,6 +1,5 @@
 """Level of detail for card art"""
 
-import functools
 import math
 import weakref
 
@@ -8,12 +7,10 @@ from PyQt6 import sip
 from PyQt6.QtCore import QObject, QRunnable, QSize, Qt, QThreadPool, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QImage, QImageIOHandler, QImageReader, QPixmap
 
-from tarot_canvas.models.deck_manager import deck_manager
-
 # The largest a card is placed on the canvas, in logical px
 CARD_MAX_SIZE = QSize(300, 500)
-# Height over width, for a card unit with no reference deck to measure
-CARD_FALLBACK_ASPECT = 1.71
+# A slot size for spreads
+CARD_UNIT_SIZE = QSize(284, 500)
 # No level may be longer than this on its longest side, however large the art
 DETAIL_MAX_PX = 4096
 # How much of the viewport counts as on screen for choosing a level
@@ -71,19 +68,9 @@ def art_size(path):
     return reader.size().transposed() if _rotates(reader) else reader.size()
 
 
-@functools.cache
 def card_unit_size():
-    """The logical size of a slot: the reference deck's card as the canvas would place it."""
-    deck = deck_manager.get_reference_deck()
-    for card in deck.get_all_cards() if deck else ():
-        if card.get("image"):
-            source = art_size(card["image"])
-            if source.isValid():
-                return logical_size(source)
-            break
-    return QSize(1000, round(1000 * CARD_FALLBACK_ASPECT)).scaled(
-        CARD_MAX_SIZE, Qt.AspectRatioMode.KeepAspectRatio
-    )
+    """The logical size of a slot, and the length of one card width in a spread file."""
+    return QSize(CARD_UNIT_SIZE)
 
 
 def read_art(path, size=None):
