@@ -1,3 +1,5 @@
+import sys
+
 from PyQt6.QtCore import QLocale, QRectF, QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PyQt6.QtWidgets import (
@@ -27,6 +29,8 @@ from tarot_canvas.settings import (
     CANVAS_TAB_MINIMAP_KEY,
     CHECKERBOARD_COLOR_DEFAULT,
     CHECKERBOARD_COLOR_KEY,
+    HARDWARE_ACCELERATION_DEFAULT,
+    HARDWARE_ACCELERATION_KEY,
     MOTION_LEVEL_DEFAULT,
     MOTION_LEVEL_KEY,
     PREFERENCES_GEOMETRY_KEY,
@@ -39,6 +43,7 @@ from tarot_canvas.settings import (
     get_settings,
 )
 from tarot_canvas.ui import typography
+from tarot_canvas.ui.canvas.gl_marker import clear_marker
 from tarot_canvas.ui.icons import LIBRARY_ICON
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.pane_text import pane_form
@@ -99,6 +104,7 @@ class PreferencesDialog(QDialog):
         self.bg_color = QColor(BACKGROUND_COLOR_DEFAULT)
         self.checkerboard_color = QColor(CHECKERBOARD_COLOR_DEFAULT)
         self.stored_state = None
+        self.hardware_acceleration_check = None
 
         self.page_list = PlacesSidebar(
             [
@@ -178,15 +184,20 @@ class PreferencesDialog(QDialog):
         self.canvas_tab_minimap_check.toggled.connect(self.update_apply_button)
         self.canvas_guides_check.toggled.connect(self.update_apply_button)
         self.shortcuts_page.changed.connect(self.update_apply_button)
+        if self.hardware_acceleration_check:
+            self.hardware_acceleration_check.toggled.connect(self.update_apply_button)
 
     def pages(self):
         """The sidebar's pages in order"""
-        return [
+        pages = [
             ("appearance", "games-config-theme", self.build_appearance_page),
             ("canvas", "draw-rectangle", self.build_canvas_page),
             ("library", LIBRARY_ICON, self.build_library_page),
             ("shortcuts", "configure-shortcuts", self.build_shortcuts_page),
         ]
+        if sys.platform == "linux":
+            pages.append(("advanced", "preferences-system", self.build_advanced_page))
+        return pages
 
     def show_page(self, row):
         self.page_stack.setCurrentIndex(row)
@@ -244,6 +255,20 @@ class PreferencesDialog(QDialog):
         # Ghost tiles for catalog decks not installed yet
         self.show_available_decks_check = QCheckBox(PREFERENCES["show_available_decks"])
         form.addRow(PREFERENCES["library_label"], self.show_available_decks_check)
+        page.setLayout(form)
+        return page
+
+    def build_advanced_page(self):
+        page = QWidget()
+        form = pane_form()
+        self.hardware_acceleration_check = QCheckBox(PREFERENCES["hardware_acceleration"])
+        form.addRow(self.hardware_acceleration_check)
+        note = typography.apply(
+            QLabel(PREFERENCES["hardware_acceleration_note"]), typography.Role.SMALL
+        )
+        note.setTextFormat(Qt.TextFormat.PlainText)
+        note.setWordWrap(True)
+        form.addRow(note)
         page.setLayout(form)
         return page
 
@@ -311,6 +336,9 @@ class PreferencesDialog(QDialog):
             self.canvas_tab_minimap_check.isChecked(),
             self.canvas_guides_check.isChecked(),
             self.show_available_decks_check.isChecked(),
+            self.hardware_acceleration_check.isChecked()
+            if self.hardware_acceleration_check
+            else None,
             self.shortcuts_page.state(),
         )
 
@@ -331,6 +359,7 @@ class PreferencesDialog(QDialog):
         tab_minimap,
         guides,
         show_available,
+        hardware_acceleration,
     ):
         select_data(self.theme_combo, theme)
         select_data(self.text_size_combo, text_size)
@@ -341,6 +370,8 @@ class PreferencesDialog(QDialog):
         self.canvas_tab_minimap_check.setChecked(tab_minimap)
         self.canvas_guides_check.setChecked(guides)
         self.show_available_decks_check.setChecked(show_available)
+        if self.hardware_acceleration_check:
+            self.hardware_acceleration_check.setChecked(hardware_acceleration)
         self.update_swatch()
         self.update_apply_button()
 
@@ -356,10 +387,17 @@ class PreferencesDialog(QDialog):
             bool(settings.value(CANVAS_TAB_MINIMAP_KEY, CANVAS_TAB_MINIMAP_DEFAULT, type=bool)),
             bool(settings.value(CANVAS_GUIDES_KEY, CANVAS_GUIDES_DEFAULT, type=bool)),
             bool(settings.value(SHOW_AVAILABLE_DECKS_KEY, SHOW_AVAILABLE_DECKS_DEFAULT, type=bool)),
+            self.stored_hardware_acceleration(settings),
         )
         self.shortcuts_page.load()
         self.stored_state = self.form_state()
         self.update_apply_button()
+
+    @staticmethod
+    def stored_hardware_acceleration(settings):
+        return bool(
+            settings.value(HARDWARE_ACCELERATION_KEY, HARDWARE_ACCELERATION_DEFAULT, type=bool)
+        )
 
     def restore_defaults(self):
         self.show_state(
@@ -372,6 +410,7 @@ class PreferencesDialog(QDialog):
             CANVAS_TAB_MINIMAP_DEFAULT,
             CANVAS_GUIDES_DEFAULT,
             SHOW_AVAILABLE_DECKS_DEFAULT,
+            HARDWARE_ACCELERATION_DEFAULT,
         )
         self.shortcuts_page.reset()
 
@@ -384,6 +423,11 @@ class PreferencesDialog(QDialog):
         settings.setValue(CANVAS_TAB_MINIMAP_KEY, self.canvas_tab_minimap_check.isChecked())
         settings.setValue(CANVAS_GUIDES_KEY, self.canvas_guides_check.isChecked())
         settings.setValue(SHOW_AVAILABLE_DECKS_KEY, self.show_available_decks_check.isChecked())
+        if self.hardware_acceleration_check:
+            enabled = self.hardware_acceleration_check.isChecked()
+            if enabled and not self.stored_hardware_acceleration(settings):
+                clear_marker()
+            settings.setValue(HARDWARE_ACCELERATION_KEY, enabled)
 
         ThemeManager.get_instance().set_theme(ThemeType(self.theme_combo.currentData()))
         typography.set_reading_scale(self.text_size_combo.currentData())

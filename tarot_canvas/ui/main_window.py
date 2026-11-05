@@ -13,6 +13,7 @@ from PyQt6.QtGui import (
     QGuiApplication,
     QIcon,
 )
+from PyQt6.QtOpenGLWidgets import QOpenGLWidget
 from PyQt6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -41,6 +42,7 @@ from tarot_canvas.settings import (
     get_settings,
 )
 from tarot_canvas.ui import commands, focused_text, typography
+from tarot_canvas.ui.canvas.renderer import canvas_uses_gl, watch_window
 from tarot_canvas.ui.command_palette import CommandPalette
 from tarot_canvas.ui.commands import Scope, set_tooltip_with_keys
 from tarot_canvas.ui.components.card_explorer import CardExplorerPanel
@@ -123,6 +125,11 @@ class TabBarEventFilter(QObject):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+        if canvas_uses_gl():
+            # The first show then builds a GL surface
+            self._gl_primer = QOpenGLWidget(self)
+            self._gl_primer.hide()
+        self._window_watched = False
 
         # Explicitly set application and window class names
         self.setObjectName("tarot-canvas")
@@ -1053,6 +1060,12 @@ class MainWindow(QMainWindow):
 
         self.fullscreen_tab_action.setChecked(False)
         tab.on_fullscreen_changed()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if not self._window_watched:
+            self._window_watched = True
+            watch_window(self.windowHandle())
 
     def closeEvent(self, event):
         for index in range(self.tab_widget.count()):

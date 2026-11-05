@@ -1,3 +1,5 @@
+import sys
+
 import pytest
 from PyQt6.QtCore import QMargins
 from PyQt6.QtGui import QColor, QPalette
@@ -12,6 +14,7 @@ from tarot_canvas.settings import (
     CANVAS_TAB_MINIMAP_KEY,
     CHECKERBOARD_COLOR_DEFAULT,
     CHECKERBOARD_COLOR_KEY,
+    HARDWARE_ACCELERATION_KEY,
     MOTION_LEVEL_DEFAULT,
     MOTION_LEVEL_KEY,
     MOTION_LEVELS,
@@ -27,6 +30,7 @@ from tarot_canvas.ui.library.catalog_client import deck_catalog
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.widgets.places_sidebar import PlacesSidebar
+from tarot_canvas.ui.windows import preferences_dialog
 from tarot_canvas.ui.windows.preferences_dialog import PreferencesDialog
 from tarot_canvas.utils.theme_manager import ThemeManager, ThemeType
 
@@ -70,6 +74,8 @@ def test_each_sidebar_row_shows_its_page(qtbot):
         dialog.show_available_decks_check,
         dialog.shortcuts_page.tree,
     ]
+    if dialog.hardware_acceleration_check:
+        controls.append(dialog.hardware_acceleration_check)
     assert dialog.page_list.count() == len(controls)
 
     for row, control in enumerate(controls):
@@ -183,6 +189,7 @@ def test_restore_defaults_resets_the_form_and_stores_nothing(qtbot, theme_kept):
     settings.setValue(CANVAS_GUIDES_KEY, True)
     settings.setValue(SHOW_AVAILABLE_DECKS_KEY, False)
     settings.setValue(READING_TEXT_SCALE_KEY, 150)
+    settings.setValue(HARDWARE_ACCELERATION_KEY, False)
     dialog = PreferencesDialog()
     qtbot.addWidget(dialog)
     stored = {key: settings.value(key) for key in settings.allKeys()}
@@ -198,6 +205,7 @@ def test_restore_defaults_resets_the_form_and_stores_nothing(qtbot, theme_kept):
         MOTION_LEVEL_DEFAULT,
         True,
         False,
+        True,
         True,
     )
     assert dialog.apply_button.isEnabled()
@@ -452,3 +460,56 @@ def test_a_new_text_size_offers_apply_and_applying_stores_it(qtbot):
 
     assert get_reading_text_scale() == 150
     assert not dialog.apply_button.isEnabled()
+
+
+def page_keys(dialog):
+    return [key for key, _icon, _build in dialog.pages()]
+
+
+def test_the_advanced_page_is_linux_only(qtbot, monkeypatch):
+    monkeypatch.setattr(sys, "platform", "linux")
+    linux = PreferencesDialog()
+    qtbot.addWidget(linux)
+    assert page_keys(linux)[-1] == "advanced"
+    monkeypatch.setattr(sys, "platform", "darwin")
+    mac = PreferencesDialog()
+    qtbot.addWidget(mac)
+
+    assert "advanced" not in page_keys(mac)
+    assert mac.page_stack.count() == len(page_keys(mac))
+    mac.restore_defaults()
+    mac.apply_settings()
+    assert get_settings().value(HARDWARE_ACCELERATION_KEY) is None
+
+
+@pytest.fixture
+def cleared(monkeypatch):
+    calls = []
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setattr(preferences_dialog, "clear_marker", lambda: calls.append(True))
+    return calls
+
+
+def test_turning_hardware_acceleration_off_is_stored_and_keeps_the_marker(qtbot, cleared):
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+
+    dialog.hardware_acceleration_check.setChecked(False)
+    dialog.apply_settings()
+
+    assert get_settings().value(HARDWARE_ACCELERATION_KEY, type=bool) is False
+    assert cleared == []
+
+
+def test_turning_hardware_acceleration_back_on_clears_the_marker(qtbot, cleared):
+    get_settings().setValue(HARDWARE_ACCELERATION_KEY, False)
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+    assert not dialog.hardware_acceleration_check.isChecked()
+
+    dialog.hardware_acceleration_check.setChecked(True)
+    assert dialog.apply_button.isEnabled()
+    dialog.apply_settings()
+
+    assert get_settings().value(HARDWARE_ACCELERATION_KEY, type=bool) is True
+    assert cleared == [True]

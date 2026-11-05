@@ -27,6 +27,7 @@ from tarot_canvas.settings import (
     SHOW_AVAILABLE_DECKS_KEY,
     get_settings,
 )
+from tarot_canvas.utils.files import write_atomic
 from tarot_canvas.utils.path_helper import get_cache_directory
 
 # for testing
@@ -182,7 +183,7 @@ class DeckCatalog(QObject):
             return
 
         try:
-            _write_atomic(self._dir / INDEX_FILE, body)
+            write_atomic(self._dir / INDEX_FILE, body)
         except OSError as e:
             log.warning("could not cache the index: %s", e)
         else:
@@ -201,7 +202,7 @@ class DeckCatalog(QObject):
     def _write_meta(self):
         data = json.dumps(self._meta.to_dict(), indent=2).encode()
         try:
-            _write_atomic(self._dir / META_FILE, data)
+            write_atomic(self._dir / META_FILE, data)
         except OSError as e:
             log.warning("could not cache the index metadata: %s", e)
 
@@ -235,7 +236,7 @@ class DeckCatalog(QObject):
             log.warning("cover %s: %s", url, error or f"HTTP {status}")
             return
         try:
-            _write_atomic(path, body)
+            write_atomic(path, body)
         except OSError as e:
             log.warning("could not cache cover %s: %s", url, e)
             return
@@ -279,17 +280,6 @@ def _read_meta(path):
     except (OSError, ValueError, RecursionError):
         return None
     return IndexMeta.from_dict(data)
-
-
-def _write_atomic(path, data):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".tmp")
-    try:
-        tmp.write_bytes(data)
-        os.replace(tmp, path)
-    except BaseException:
-        tmp.unlink(missing_ok=True)
-        raise
 
 
 _instance = None
