@@ -33,9 +33,11 @@ import time
 from importlib.resources import files
 
 from PyQt6.QtCore import (
+    QDateTime,
     QEvent,
     QItemSelectionModel,
     QLineF,
+    QLocale,
     QObject,
     QPointF,
     QPropertyAnimation,
@@ -44,6 +46,7 @@ from PyQt6.QtCore import (
     QSignalBlocker,
     QSize,
     Qt,
+    pyqtSignal,
 )
 from PyQt6.QtGui import (
     QBrush,
@@ -61,21 +64,26 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtWidgets import (
     QAbstractItemView,
+    QButtonGroup,
     QComboBox,
+    QFrame,
     QGraphicsItem,
     QGraphicsOpacityEffect,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QPushButton,
+    QSizePolicy,
     QStyle,
+    QStyleOptionComboBox,
+    QTextEdit,
     QToolButton,
     QToolTip,
-    QVBoxLayout,
     QWidget,
 )
 
 from tarot_canvas.models.deck_manager import deck_manager
+from tarot_canvas.settings import get_readings_reversals, set_readings_reversals
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.canvas import DraggableCardItem, SlotItem
 from tarot_canvas.ui.canvas.motion import (
@@ -85,9 +93,16 @@ from tarot_canvas.ui.canvas.motion import (
     _box_blur,
     drift_phases,
 )
-from tarot_canvas.ui.canvas.spread_pane import MeaningRole, NumberRole, PositionDelegate, _draw
+from tarot_canvas.ui.canvas.spread_pane import (
+    DescriptionBox,
+    MeaningRole,
+    NumberRole,
+    PositionDelegate,
+    _draw,
+)
+from tarot_canvas.ui.icons import SPREAD_ICON, deck_icon
 from tarot_canvas.ui.library import units
-from tarot_canvas.ui.strings import CANVAS, READING_SPIKE
+from tarot_canvas.ui.strings import CANVAS, CARD_VIEW, READING_SPIKE
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.spread_tab import SpreadTab
 from tarot_canvas.ui.widgets.reorder_list import GRIP_WIDTH
@@ -886,11 +901,112 @@ class Placement:
 # -- paint timing -------------------------------------------------------------------
 
 
+class RowOpener(QObject):
+    """Double-clicking a row opens its card.
+
+    The row that was pressed, not the one under the second click: the first click selects a row,
+    which closes the open row above it, so the clicked row has moved by the time the second lands
+    and the view's own doubleClicked never fires
+    """
+
+    def __init__(self, view, opened):
+        super().__init__(view)
+        self._view = view
+        self._opened = opened
+        self._row = None
+        view.viewport().installEventFilter(self)
+
+    def eventFilter(self, watched, event):
+        kind = event.type()
+        if kind == QEvent.Type.MouseButtonPress:
+            # Before the view selects, and so before the rows move
+            index = self._view.indexAt(event.position().toPoint())
+            self._row = index.row() if index.isValid() else None
+        elif (
+            kind == QEvent.Type.MouseButtonDblClick
+            and event.button() == Qt.MouseButton.LeftButton
+            and self._row is not None
+        ):
+            self._opened(self._row)
+            return True
+        return False
+
+
+class QuestionBox(DescriptionBox):
+    """The Question as the pane's heading: wrapped to three lines, then scrolled.
+
+    One paragraph: Enter submits instead of starting a new line, and pasted lines are joined
+    """
+
+    submitted = pyqtSignal()
+
+    def __init__(self, hint):
+        super().__init__(hint, QUESTION_LINES)
+        self.setFrameShape(QFrame.Shape.NoFrame)
+        self.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
+        typography.apply(self, typography.Role.HEADING_2)
+        self.setAccessibleName(hint)
+        # The line limit was measured in the default font
+        document = self.document()
+        margins = 2 * document.documentMargin()
+        line = QFontMetricsF(self.font()).lineSpacing()
+        self._limit = line * QUESTION_LINES + margins
+        self._fit()
+
+    def text(self):
+        return self.toPlainText()
+
+    def setText(self, text):
+        self.setPlainText(text)
+
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self.submitted.emit()
+            return
+        super().keyPressEvent(event)
+
+    def insertFromMimeData(self, source):
+        if source.hasText():
+            self.insertPlainText(" ".join(source.text().split()))
+            return
+        super().insertFromMimeData(source)
+
+
+class ListFit(QObject):
+    """Calls fit whenever the list's rows may have changed height: resized, re-measured, or rows
+    added or removed"""
+
+    def __init__(self, view, fit):
+        super().__init__(view)
+        self._fit = fit
+        view.viewport().installEventFilter(self)
+        model = view.model()
+        model.rowsInserted.connect(fit)
+        model.rowsRemoved.connect(fit)
+        view.itemDelegate().sizeHintChanged.connect(fit)
+
+    def eventFilter(self, watched, event):
+        if event.type() == QEvent.Type.Resize:
+            self._fit()
+        return False
+
+
+# About how many characters of the question the tab shows
+TAB_TITLE_CHARS = 32
+# The Question wraps to this many lines before it scrolls
+QUESTION_LINES = 3
+# The pane's info lines' icons
+INFO_ICON_PX = 16
+# Space past the rows' own height goes to the filler under the Notes, not to the list
+LIST_STRETCH = 1000
+
 REVEAL_KEYS = (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space)
+OPEN_KEYS = (Qt.Key.Key_Return, Qt.Key.Key_Enter)
 
 
 class RevealKeys(QObject):
-    """Enter or Space on the canvas or the pane's list deals, then turns the next card.
+    """Enter or Space on the canvas or the pane's list deals, then turns the next card. On the
+    list, Enter on a row whose card is face-up opens that card instead.
 
     Watched on those two only, so a space typed into the question is still a space
     """
@@ -902,6 +1018,15 @@ class RevealKeys(QObject):
             widget.installEventFilter(self)
 
     def eventFilter(self, watched, event):
+        if (
+            event.type() == QEvent.Type.KeyPress
+            and watched is self.tab.pane.list_view
+            and event.key() in OPEN_KEYS
+            and not event.modifiers() & ~Qt.KeyboardModifier.KeypadModifier
+            and self.tab.open_current_row()
+        ):
+            # Enter on a turned card's row opens it, as a double-click does; Space still turns
+            return True
         if (
             event.type() == QEvent.Type.KeyPress
             and event.key() in REVEAL_KEYS
@@ -1190,6 +1315,15 @@ class ReadingRowDelegate(PositionDelegate):
     def _meaning(self, index):
         return " ".join((index.data(MeaningRole) or "").split())
 
+    def card_line(self, index):
+        """The turned card's name, and whether it lies reversed, said in words: a thumbnail
+        turned over is unreadable at row size and to a screen reader"""
+        card = self.tab.card_in(self.tab.slots()[index.row()])
+        if card is None or getattr(card, "face_down", False):
+            return None
+        name = card.card_data.get("name") or card.card_data.get("id", "")
+        return READING_SPIKE["card_reversed"].format(card=name) if card.is_reversed() else name
+
     def _meaning_width(self, option):
         """How wide the meaning's lines are in a row as wide as the list"""
         measured = type(option)(option)
@@ -1211,15 +1345,17 @@ class ReadingRowDelegate(PositionDelegate):
             return hint
         title_height, small_height = self._line_heights(option)
         meaning = self._wrapped_height(index, self._meaning_width(option))
-        height = title_height + max(small_height, meaning) + 2 * units.LARGE_SPACING
+        card = small_height if self.card_line(index) else 0
+        height = title_height + card + max(small_height, meaning) + 2 * units.LARGE_SPACING
         return QSize(hint.width(), max(hint.height(), height))
 
     def _paint_text(self, painter, option, index):
-        meaning = self._meaning(index)
-        if not self.is_open(index) or not meaning:
-            return super()._paint_text(painter, option, index)
+        """The label; under it the card once turned, else the meaning; an open row adds the
+        whole meaning under both"""
         title_font, small_font = self._fonts(option, False)
-        title = self.title_rect(option, True)
+        meaning = self._meaning(index)
+        card = self.card_line(index)
+        title = self.title_rect(option, bool(card or meaning))
         _draw(
             painter,
             title,
@@ -1227,23 +1363,47 @@ class ReadingRowDelegate(PositionDelegate):
             title_font,
             option.palette.text().color(),
         )
+        small_height = self._line_heights(option)[1]
+        top = title.bottom() + 1
+        if card:
+            _draw(
+                painter,
+                QRect(title.left(), top, title.width(), small_height),
+                card,
+                small_font,
+                option.palette.text().color(),
+            )
+            top += small_height
+        if not meaning or (card and not self.is_open(index)):
+            return
+        grey = option.palette.placeholderText().color()
+        if not self.is_open(index):
+            _draw(
+                painter,
+                QRect(title.left(), top, title.width(), small_height),
+                meaning,
+                small_font,
+                grey,
+            )
+            return
         painter.setFont(small_font)
-        painter.setPen(option.palette.placeholderText().color())
+        painter.setPen(grey)
         bottom = option.rect.bottom() - units.LARGE_SPACING
         painter.drawText(
-            QRect(title.left(), title.bottom() + 1, title.width(), bottom - title.bottom()),
+            QRect(title.left(), top, title.width(), max(small_height, bottom - top)),
             int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop | Qt.TextFlag.TextWordWrap),
             meaning,
         )
-        return None
 
     def helpEvent(self, event, view, option, index):
-        """A closed row whose meaning is cut off shows it whole in a tooltip"""
+        """A closed row shows its meaning whole in a tooltip when the row doesn't: cut off, or
+        hidden under the turned card's name"""
         if event.type() == QEvent.Type.ToolTip and index.isValid():
             meaning = self._meaning(index)
             small = QFontMetrics(typography.font(typography.Role.SMALL))
             width = self.title_rect(option, True).width()
-            if meaning and not self.is_open(index) and small.horizontalAdvance(meaning) > width:
+            hidden = bool(self.card_line(index)) or small.horizontalAdvance(meaning) > width
+            if meaning and not self.is_open(index) and hidden:
                 QToolTip.showText(event.globalPos(), meaning, view)
             else:
                 QToolTip.hideText()
@@ -1337,10 +1497,9 @@ class ReadingSpikeTab(SpreadTab):
             slot.setAcceptHoverEvents(False)
             slot.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
             slot.setCursor(Qt.CursorShape.ArrowCursor)
-        self.pane.name_edit.setReadOnly(True)
-        self.pane.description_edit.setReadOnly(True)
         self.pane.menu_button.hide()
         self.pane.list_view.setDragDropMode(QAbstractItemView.DragDropMode.NoDragDrop)
+        self._dealt_at = None
         self._build_form()
 
         self.deck = self._chosen_deck()
@@ -1354,6 +1513,8 @@ class ReadingSpikeTab(SpreadTab):
         self.rows = ReadingRowDelegate(self.pane.list_view, self)
         self.pane.list_view.setItemDelegate(self.rows)
         self.pane.list_view.selectionModel().selectionChanged.connect(self.refresh_rows)
+        # A row stands for its card: double-clicking it opens the card, as on the canvas
+        self._row_opener = RowOpener(self.pane.list_view, self._open_row_card)
         # Not in the scene: painted over the candle, which would otherwise dim it near the edges
         self.caption = CaptionItem()
         self.halo = HaloItem(self)
@@ -1400,9 +1561,7 @@ class ReadingSpikeTab(SpreadTab):
         if not pool:
             logger.info("reading spike: every card of the deck is on the table")
             return
-        CanvasTab.add_specific_card(
-            self, random.choice(pool), self.deck, random.choice([True, False]), at
-        )
+        CanvasTab.add_specific_card(self, random.choice(pool), self.deck, self._draw_reversed(), at)
 
     def add_specific_card(self, card, card_deck=None, is_reversed=False, at=None):
         return CanvasTab.add_specific_card(self, card, card_deck, is_reversed, at)
@@ -1522,30 +1681,225 @@ class ReadingSpikeTab(SpreadTab):
     # -- the pane -------------------------------------------------------------------------
 
     def _build_form(self):
-        form = QWidget()
-        column = QVBoxLayout(form)
-        margin = units.LARGE_SPACING
-        column.setContentsMargins(margin, 0, margin, margin)
-        column.setSpacing(units.SMALL_SPACING)
+        """The reading pane: the Question as the heading; one line each for the spread, the deck,
+        reversals and the date; the positions; and Notes under the last of them
+        """
+        self._spread_name = self._name
 
+        # The heading is the Question, wrapped; the spread's name moves to its own line
+        self.question_edit = QuestionBox(READING_SPIKE["question_hint"])
+        self.question_edit.textChanged.connect(self.tab_label_changed)
+        # Typing the question and pressing Enter deals: setup is one gesture
+        self.question_edit.submitted.connect(self.deal)
+        self.pane.name_edit.textChanged.disconnect(self._on_name_edited)
+        self.pane.name_edit.hide()
+        heading = self.pane.body.itemAt(0).layout()
+        heading.replaceWidget(self.pane.name_edit, self.question_edit)
+        heading.setAlignment(self.pane.menu_button, Qt.AlignmentFlag.AlignTop)
+
+        form = QWidget()
+        grid = QGridLayout(form)
+        margin = units.LARGE_SPACING
+        grid.setContentsMargins(margin, 0, margin, margin)
+        grid.setHorizontalSpacing(units.LARGE_SPACING)
+        grid.setVerticalSpacing(units.SMALL_SPACING)
+        grid.setColumnStretch(1, 1)
+
+        def info_line(icon, *widgets, control=False):
+            """An icon and its fact. The icon is centred on the fact's first line of text, or on
+            the whole line when that line holds a control taller than text"""
+            row = grid.rowCount()
+            mark = QLabel()
+            mark.setPixmap(icon.pixmap(INFO_ICON_PX))
+            mark.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            mark.setFixedHeight(form.fontMetrics().height())
+            centre = Qt.AlignmentFlag.AlignVCenter if control else Qt.AlignmentFlag.AlignTop
+            grid.addWidget(mark, row, 0, centre)
+            line = QHBoxLayout()
+            line.setContentsMargins(0, 0, 0, 0)
+            line.setSpacing(units.SMALL_SPACING)
+            for widget in widgets:
+                if widget is None:
+                    line.addStretch(1)
+                else:
+                    line.addWidget(widget)
+            grid.addLayout(line, row, 1)
+            return mark
+
+        # The spread. Its own description is the least useful text at reading time: a tooltip
+        self.spread_label = QLabel(self._spread_name)
+        self.spread_label.setWordWrap(True)
+        self.spread_label.setToolTip(self.pane.description().strip())
+        info_line(QIcon.fromTheme(SPREAD_ICON), self.spread_label)
+
+        # The deck: a menu until the deal, then its name
         self.deck_combo = QComboBox()
+        self.deck_combo.setFrame(False)
+        self.deck_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         reference = deck_manager.get_reference_deck()
         for deck in deck_manager.get_all_decks():
             self.deck_combo.addItem(deck.get_name(), deck)
             if deck is reference:
                 self.deck_combo.setCurrentIndex(self.deck_combo.count() - 1)
         self.deck_combo.currentIndexChanged.connect(self._on_deck_chosen)
+        self.deck_label = QLabel()
+        self.deck_label.setWordWrap(True)
+        self._deck_mark = info_line(
+            deck_icon(), self.deck_combo, self.deck_label, None, control=True
+        )
 
-        self.question_edit = QLineEdit()
-        self.question_edit.setPlaceholderText(READING_SPIKE["question_hint"])
-        self.question_edit.setAccessibleName(READING_SPIKE["question_hint"])
+        # Reversals: chosen before the deal, like the deck, and fixed by it
+        self.reversals_label = QLabel(READING_SPIKE["reversals"])
+        self.reversals_switch = QWidget()
+        switch = QHBoxLayout(self.reversals_switch)
+        switch.setContentsMargins(0, 0, 0, 0)
+        switch.setSpacing(0)
+        self.reversals_group = QButtonGroup(self.reversals_switch)
+        self.reversals_off = self._segment(READING_SPIKE["reversals_off"])
+        self.reversals_on = self._segment(READING_SPIKE["reversals_on"])
+        for button in (self.reversals_off, self.reversals_on):
+            self.reversals_group.addButton(button)
+            switch.addWidget(button)
+        # The user's last choice, from any reading; flipping it here makes it the next one's
+        forced = os.environ.get("TAROT_SPIKE_REVERSED")
+        start = get_readings_reversals() and forced != "none"
+        (self.reversals_on if start else self.reversals_off).setChecked(True)
+        self.reversals_on.toggled.connect(set_readings_reversals)
+        self.reversals_label.setBuddy(self.reversals_on)
+        self._reversals_mark = info_line(
+            QIcon.fromTheme("object-flip-vertical"),
+            self.reversals_label,
+            None,
+            self.reversals_switch,
+            control=True,
+        )
 
-        # Typing the question and pressing Enter deals: setup is one gesture
-        self.question_edit.returnPressed.connect(self.deal)
+        # The date, from the deal on
+        self.date_label = QLabel()
+        self.date_mark = info_line(QIcon.fromTheme("view-calendar-day"), self.date_label)
 
-        column.addWidget(self.deck_combo)
-        column.addWidget(self.question_edit)
+        # Plain text starts where the deck menu's text does, so the names line up in a column
+        self.deck_combo.ensurePolished()
+        option = QStyleOptionComboBox()
+        self.deck_combo.initStyleOption(option)
+        field = self.deck_combo.style().subControlRect(
+            QStyle.ComplexControl.CC_ComboBox,
+            option,
+            QStyle.SubControl.SC_ComboBoxEditField,
+            self.deck_combo,
+        )
+        for label in (self.spread_label, self.deck_label, self.reversals_label, self.date_label):
+            label.setIndent(field.left())
+
         self.pane.body.insertWidget(1, form)
+
+        # Notes where the Description was: collapsed, and opened only by a click
+        self.notes_edit = self.pane.description_edit
+        self.notes_edit.setReadOnly(False)
+        self.notes_edit.setPlainText("")
+        # The designer's hint is about describing a spread
+        self.notes_edit.setPlaceholderText("")
+        self.notes_edit.setAccessibleName(CARD_VIEW["tab_notes"])
+        self.pane.description_button.setText(CARD_VIEW["tab_notes"])
+        self.pane.set_description_open(False)
+
+        # Notes sit under the last row, not at the pane's foot: the list is only as tall as its
+        # rows, and what is left goes to a filler under the Notes
+        body = self.pane.body
+        body.setStretchFactor(self.pane.stack, LIST_STRETCH)
+        self._filler = QWidget()
+        self._filler.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
+        body.addWidget(self._filler, 1)
+        expanded = self.pane.set_description_expanded
+
+        def set_notes_expanded(wanted):
+            # Expanded Notes take the list's room, so the filler must not take it from them
+            expanded(wanted)
+            self._filler.setHidden(wanted)
+
+        self.pane.set_description_expanded = set_notes_expanded
+        self._list_fit = ListFit(self.pane.list_view, self.fit_list)
+        self._sync_subtitle()
+
+    def fit_list(self):
+        """The list as tall as its rows, so the Notes follow the last one"""
+        view = self.pane.list_view
+        rows = sum(view.sizeHintForRow(row) for row in range(view.model().rowCount()))
+        self.pane.stack.setMaximumHeight(max(rows + 2 * view.frameWidth(), 1))
+
+    def _segment(self, text):
+        button = QToolButton()
+        button.setText(text)
+        button.setCheckable(True)
+        button.setAutoRaise(True)
+        return button
+
+    def reversals(self):
+        return self.reversals_on.isChecked()
+
+    def _draw_reversed(self):
+        forced = os.environ.get("TAROT_SPIKE_REVERSED")
+        if forced == "all":
+            return True
+        if not self.reversals():
+            return False
+        return random.choice([True, False])
+
+    def question(self):
+        return self.question_edit.text().strip()
+
+    def rename_text(self):
+        return self.question()
+
+    def rename(self, name):
+        self.question_edit.setText(name)
+
+    def display_name(self):
+        return self.question() or self._spread_name or super().display_name()
+
+    def tab_title(self):
+        # A question can run to a paragraph; the tab shows its start and the tooltip the rest
+        metrics = QFontMetrics(self.font())
+        width = metrics.averageCharWidth() * TAB_TITLE_CHARS
+        return metrics.elidedText(self.display_name(), Qt.TextElideMode.ElideRight, width)
+
+    def tab_tooltip(self):
+        name = self.display_name()
+        return name if name != self.tab_title() else ""
+
+    def _open_row_card(self, row):
+        """Open the card on row's position, if it is face-up; say whether it was"""
+        card = self.card_in(self.slots()[row])
+        if card is None or getattr(card, "face_down", False):
+            return False
+        self.open_card_view(card)
+        return True
+
+    def open_current_row(self):
+        index = self.pane.list_view.currentIndex()
+        return index.isValid() and self._open_row_card(index.row())
+
+    def _sync_subtitle(self):
+        """The deck and reversals are controls while staged and plain text after the deal, and
+        the date line appears with the deal"""
+        staged = self.phase == "staged"
+        self.deck_combo.setVisible(staged)
+        self.deck_label.setVisible(not staged)
+        deck = getattr(self, "deck", None) or self._chosen_deck()
+        self.deck_label.setText(deck.get_name() if deck else "")
+        self.reversals_switch.setVisible(staged)
+        self.reversals_label.setText(
+            READING_SPIKE["reversals"]
+            if staged
+            else READING_SPIKE["reversals_with" if self.reversals() else "reversals_without"]
+        )
+        dealt = self._dealt_at is not None and not staged
+        self.date_mark.setVisible(dealt)
+        self.date_label.setVisible(dealt)
+        if dealt:
+            self.date_label.setText(
+                QLocale().toString(self._dealt_at, QLocale.FormatType.ShortFormat)
+            )
 
     def _chosen_deck(self):
         return self.deck_combo.currentData() or deck_manager.get_reference_deck()
@@ -1628,6 +1982,7 @@ class ReadingSpikeTab(SpreadTab):
         self.refresh_motion_settings()
         level = self._level()
         self.deck_combo.setEnabled(False)
+        self._dealt_at = QDateTime.currentDateTime()
         # Disabling Deal would hand the focus to another pane control; the keys that turn are the canvas's
         self.view.setFocus(Qt.FocusReason.OtherFocusReason)
         self.scene.clearSelection()
@@ -1652,11 +2007,9 @@ class ReadingSpikeTab(SpreadTab):
                 f"reading spike: short deal, {len(pool)} cards for {len(open_slots)} positions"
             )
         drawn = random.sample(pool, count)
-        forced = os.environ.get("TAROT_SPIKE_REVERSED")
-
         dealt = []
         for slot, card in zip(open_slots, drawn, strict=False):
-            reversed = {"all": True, "none": False}.get(forced, random.choice([True, False]))
+            reversed = self._draw_reversed()
             item = self.make_card_item(card, self.deck, reversed)
             if item is None:
                 continue
@@ -1824,6 +2177,7 @@ class ReadingSpikeTab(SpreadTab):
     def set_phase(self, phase):
         self.phase = phase
         self.bar.sync()
+        self._sync_subtitle()
         self._quiet_toolbar()
 
     def _quiet_toolbar(self):

@@ -649,6 +649,12 @@ READING_SPIKE = {
     "deal": "Deal Cards",
     "turn_all": "Reveal All",
     "turn_next": "Reveal Next",
+    "reversals": "Reversals",
+    "reversals_off": "Off",
+    "reversals_on": "On",
+    "reversals_with": "With reversals",
+    "reversals_without": "Without reversals",
+    "card_reversed": "{card} (reversed)",
 }
 
 # The command palette

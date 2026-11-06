@@ -100,6 +100,21 @@ READING_TEXT_SCALE_DEFAULT = 100
 READING_TEXT_SCALE_STEPS = (80, 90, 100, 110, 125, 150, 175, 200)
 
 
+# Whether a new reading deals reversed cards: the user's last choice, made in the reading pane
+READINGS_REVERSALS_KEY = "readings/reversals"
+READINGS_REVERSALS_DEFAULT = True
+
+
+def get_readings_reversals(settings=None):
+    settings = settings or get_settings()
+    return settings.value(READINGS_REVERSALS_KEY, READINGS_REVERSALS_DEFAULT, type=bool)
+
+
+def set_readings_reversals(enabled, settings=None):
+    settings = settings or get_settings()
+    settings.setValue(READINGS_REVERSALS_KEY, bool(enabled))
+
+
 def snap_reading_text_scale(value):
     """Find step nearest to value"""
     try:
