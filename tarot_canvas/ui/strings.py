@@ -643,12 +643,12 @@ LOG_VIEWER = {
     "line_error": "Error processing log line: {error}",
 }
 
-# The reading spike: a branch that is never merged
 READING_SPIKE = {
-    "open": "Start Reading…",
+    "open": "Start Reading",
     "question_hint": "Your question…",
     "deal": "Deal Cards",
     "turn_all": "Reveal All",
+    "turn_next": "Reveal Next",
 }
 
 # The command palette

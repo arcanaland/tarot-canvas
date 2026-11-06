@@ -30,6 +30,7 @@ from PyQt6.QtCore import (
     QItemSelectionModel,
     QObject,
     QPointF,
+    QPropertyAnimation,
     QRect,
     QRectF,
     QSignalBlocker,
@@ -54,10 +55,13 @@ from PyQt6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
     QGraphicsItem,
+    QGraphicsOpacityEffect,
     QHBoxLayout,
+    QLabel,
     QLineEdit,
     QPushButton,
     QStyle,
+    QToolButton,
     QToolTip,
     QVBoxLayout,
     QWidget,
@@ -797,7 +801,7 @@ REVEAL_KEYS = (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space)
 
 
 class RevealKeys(QObject):
-    """Enter or Space on the canvas or the pane's list turns the next card.
+    """Enter or Space on the canvas or the pane's list deals, then turns the next card.
 
     Watched on those two only, so a space typed into the question is still a space
     """
@@ -813,13 +817,224 @@ class RevealKeys(QObject):
             event.type() == QEvent.Type.KeyPress
             and event.key() in REVEAL_KEYS
             and not event.modifiers() & ~Qt.KeyboardModifier.KeypadModifier
-            and self.tab.phase == "dealt"
-            and self.tab.has_next()
+            and (self.tab.phase == "staged" or (self.tab.phase == "dealt" and self.tab.has_next()))
         ):
             if not event.isAutoRepeat():
-                self.tab.turn_next()
+                if self.tab.phase == "staged":
+                    self.tab.deal()
+                else:
+                    self.tab.turn_next()
             return True
         return False
+
+
+# -- the player bar ------------------------------------------------------------------------
+
+BAR_MARGIN_PX = 24
+BAR_PAD_PX = 6
+BAR_RADIUS_PX = 12
+BAR_ALPHA = 235
+BAR_FADE_MS = 400
+DOT_PX = 10
+DOT_GAP_PX = 7
+DEAL_MIN_WIDTH_PX = 180
+DEAL_MIN_HEIGHT_PX = 40
+# The band under the canvas the bar sits in: the canvas ends above it, so no card is ever under the bar
+STRIP_PAD_PX = 8
+STRIP_PX = DEAL_MIN_HEIGHT_PX + 2 * BAR_PAD_PX + 2 * STRIP_PAD_PX
+# Narrower than this and the dots become one progress line
+LINE_MIN_WIDTH_PX = 80
+LINE_HEIGHT_PX = 6
+
+
+class ProgressDots(QWidget):
+    """One dot per dealt position, in turn order: filled once turned, lit when next, hollow while
+    face-down, faint until it has landed"""
+
+    def __init__(self, tab, parent=None):
+        super().__init__(parent)
+        self.tab = tab
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+
+    def sizeHint(self):
+        count = max(1, len(self.tab.turn_order()))
+        return QSize(count * DOT_PX + (count - 1) * DOT_GAP_PX + 4, DOT_PX + 8)
+
+    def minimumSizeHint(self):
+        return QSize(min(self.sizeHint().width(), LINE_MIN_WIDTH_PX), DOT_PX + 8)
+
+    def _as_line(self):
+        """A spread too large for a dot each, at this width"""
+        return self.width() < self.sizeHint().width()
+
+    def _dot_rect(self, index):
+        top = (self.height() - DOT_PX) / 2.0
+        return QRectF(2 + index * (DOT_PX + DOT_GAP_PX), top, DOT_PX, DOT_PX)
+
+    def _segment(self, index, count):
+        width = (self.width() - 4) / max(1, count)
+        top = (self.height() - LINE_HEIGHT_PX) / 2.0
+        return QRectF(2 + index * width, top, width, LINE_HEIGHT_PX)
+
+    def _colours(self, card, following):
+        """(fill, outline) for card's state"""
+        palette = self.palette()
+        if card is following:
+            return NEXT_BAR, NEXT_BAR
+        if not card.face_down:
+            return palette.windowText().color(), None
+        colour = QColor(palette.placeholderText().color())
+        if card not in self.tab.landed():
+            colour.setAlphaF(colour.alphaF() * 0.35)
+        return None, colour
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        following = self.tab.next_card()
+        order = self.tab.turn_order()
+        if self._as_line():
+            self._paint_line(painter, order, following)
+            return
+        for index, card in enumerate(order):
+            fill, outline = self._colours(card, following)
+            rect = self._dot_rect(index).adjusted(1, 1, -1, -1)
+            painter.setPen(QPen(outline, 1.5) if outline is not None else Qt.PenStyle.NoPen)
+            painter.setBrush(fill if fill is not None else Qt.BrushStyle.NoBrush)
+            painter.drawEllipse(rect)
+
+    def _paint_line(self, painter, order, following):
+        """One track: turned filled, face-down faint, the next one marked"""
+        painter.setPen(Qt.PenStyle.NoPen)
+        track = QRectF(2, (self.height() - LINE_HEIGHT_PX) / 2.0, self.width() - 4, LINE_HEIGHT_PX)
+        faint = QColor(self.palette().placeholderText().color())
+        faint.setAlphaF(faint.alphaF() * 0.35)
+        painter.setBrush(faint)
+        painter.drawRoundedRect(track, LINE_HEIGHT_PX / 2, LINE_HEIGHT_PX / 2)
+        for index, card in enumerate(order):
+            if card is following or card.face_down:
+                continue
+            painter.setBrush(self.palette().windowText().color())
+            painter.drawRect(self._segment(index, len(order)))
+        if following is not None and following in order:
+            segment = self._segment(order.index(following), len(order))
+            # Never thinner than a dot, however many positions share the track
+            centre = segment.center().x()
+            marker = QRectF(centre - DOT_PX / 2, (self.height() - DOT_PX) / 2, DOT_PX, DOT_PX)
+            painter.setBrush(NEXT_BAR)
+            painter.drawEllipse(marker)
+
+
+class PlayerBar(QWidget):
+    """On the canvas where the cards come from: Deal, then turn · progress · Reveal All.
+
+    Only ever forward: a reading can't be un-turned, so nothing here goes back
+    """
+
+    def __init__(self, tab):
+        super().__init__(tab.view)
+        self.tab = tab
+        row = QHBoxLayout(self)
+        row.setContentsMargins(BAR_PAD_PX * 2, BAR_PAD_PX, BAR_PAD_PX * 2, BAR_PAD_PX)
+        row.setSpacing(BAR_PAD_PX * 2)
+
+        self.deal = QPushButton(QIcon.fromTheme("media-playback-start"), READING_SPIKE["deal"])
+        self.deal.clicked.connect(tab.deal)
+        # The one thing to do before the deal, so the largest control on the canvas
+        self.deal.setIconSize(QSize(22, 22))
+        self.deal.setMinimumSize(DEAL_MIN_WIDTH_PX, DEAL_MIN_HEIGHT_PX)
+        typography.apply(self.deal, typography.Role.HEADING_3)
+        self.turn = self._button("media-playback-start", READING_SPIKE["turn_next"], tab.turn_next)
+        self.dots = ProgressDots(tab, self)
+        self.reveal = self._button("media-seek-forward", READING_SPIKE["turn_all"], tab.turn_all)
+        for widget in (self.deal, self.turn, self.dots, self.reveal):
+            # The keys that deal and turn are the canvas's; a click must not take its focus
+            widget.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            row.addWidget(widget)
+
+        self._effect = QGraphicsOpacityEffect(self)
+        self._effect.setOpacity(1.0)
+        self.setGraphicsEffect(self._effect)
+        self._fade = QPropertyAnimation(self._effect, b"opacity", self)
+        self._fade.setDuration(BAR_FADE_MS)
+        self._fade.finished.connect(self._faded)
+
+        tab.view.viewport().installEventFilter(self)
+        tab.view.setViewportMargins(0, 0, 0, STRIP_PX)
+        self.sync()
+
+    def _button(self, icon, tooltip, slot):
+        button = QToolButton()
+        button.setIcon(QIcon.fromTheme(icon))
+        button.setIconSize(QSize(22, 22))
+        button.setToolTip(tooltip)
+        button.setAccessibleName(tooltip)
+        button.setAutoRaise(True)
+        button.clicked.connect(slot)
+        return button
+
+    def sync(self):
+        """Show what the reading's phase allows"""
+        phase = self.tab.phase
+        staged = phase == "staged"
+        self.deal.setVisible(staged)
+        for widget in (self.turn, self.dots, self.reveal):
+            widget.setVisible(not staged)
+        dealt = phase == "dealt" and self.tab.has_next()
+        self.turn.setEnabled(dealt)
+        self.reveal.setEnabled(dealt)
+        self.dots.updateGeometry()
+        self.dots.update()
+        self.update()
+        if (
+            phase == "read"
+            and self.isVisible()
+            and self._fade.state() != QPropertyAnimation.State.Running
+        ):
+            if self.tab.animates():
+                self._fade.setStartValue(1.0)
+                self._fade.setEndValue(0.0)
+                self._fade.start()
+            else:
+                self._faded()
+        self.place()
+
+    def _faded(self):
+        """Gone, and the canvas takes the strip back"""
+        if self.tab.phase == "read":
+            self.hide()
+            self.tab.view.setViewportMargins(0, 0, 0, 0)
+
+    def place(self):
+        """Centred in the strip under the canvas, never wider than it"""
+        viewport = self.tab.view.viewport().geometry()
+        self.setMaximumWidth(max(0, viewport.width() - 2 * BAR_MARGIN_PX))
+        self.adjustSize()
+        self.move(
+            viewport.x() + (viewport.width() - self.width()) // 2,
+            viewport.bottom() + 1 + (STRIP_PX - self.height()) // 2,
+        )
+        self.raise_()
+
+    def eventFilter(self, watched, event):
+        if event.type() == QEvent.Type.Resize:
+            self.place()
+        return False
+
+    def paintEvent(self, event):
+        # Deal stands alone; the backdrop holds the controls only once there are several
+        if self.tab.phase == "staged":
+            return
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        palette = self.palette()
+        fill = QColor(palette.window().color())
+        fill.setAlpha(BAR_ALPHA)
+        painter.setBrush(fill)
+        painter.setPen(QPen(palette.mid().color(), 1))
+        painter.drawRoundedRect(
+            QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5), BAR_RADIUS_PX, BAR_RADIUS_PX
+        )
 
 
 class PaintTimer(QObject):
@@ -1056,6 +1271,12 @@ class ReadingSpikeTab(SpreadTab):
         self.view.foreground_hooks.append(self._paint_candle)
         self.view.foreground_hooks.append(self._paint_caption)
         self._reveal_keys = RevealKeys(self, (self.view, self.pane.list_view))
+        self._order = []
+        # Deal plays the reading; Reveal All fast-forwards through the turns that are left
+        self.bar = PlayerBar(self)
+        self.deal_button = self.bar.deal
+        self.turn_all_button = self.bar.reveal
+        self._quiet_toolbar()
         if os.environ.get("TAROT_SPIKE_FRAMES"):
             self._paint_timer = PaintTimer(self.view)
         self._stage_significator()
@@ -1229,23 +1450,11 @@ class ReadingSpikeTab(SpreadTab):
         self.question_edit.setPlaceholderText(READING_SPIKE["question_hint"])
         self.question_edit.setAccessibleName(READING_SPIKE["question_hint"])
 
-        # Deal plays the reading; Reveal All fast-forwards through the turns that are left
-        self.deal_button = QPushButton(
-            QIcon.fromTheme("media-playback-start"), READING_SPIKE["deal"]
-        )
-        self.deal_button.clicked.connect(self.deal)
-        self.turn_all_button = QPushButton(
-            QIcon.fromTheme("media-seek-forward"), READING_SPIKE["turn_all"]
-        )
-        self.turn_all_button.clicked.connect(self.turn_all)
-        self.turn_all_button.setEnabled(False)
-        buttons = QHBoxLayout()
-        buttons.addWidget(self.deal_button)
-        buttons.addWidget(self.turn_all_button)
+        # Typing the question and pressing Enter deals: setup is one gesture
+        self.question_edit.returnPressed.connect(self.deal)
 
         column.addWidget(self.deck_combo)
         column.addWidget(self.question_edit)
-        column.addLayout(buttons)
         self.pane.body.insertWidget(1, form)
 
     def _chosen_deck(self):
@@ -1328,8 +1537,6 @@ class ReadingSpikeTab(SpreadTab):
         self._back = back_pixmap(self.deck, size)
         self.refresh_motion_settings()
         level = self._level()
-        self.phase = "dealing"
-        self.deal_button.setEnabled(False)
         self.deck_combo.setEnabled(False)
         # Disabling Deal would hand the focus to another pane control; the keys that turn are the canvas's
         self.view.setFocus(Qt.FocusReason.OtherFocusReason)
@@ -1380,7 +1587,9 @@ class ReadingSpikeTab(SpreadTab):
         else:
             self._turn_queue = sorted(dealt, key=lambda card: number[id(card.slot)])
         self._dealt = dealt
+        self._order = list(self._turn_queue)
         self._candle_target = 1.0 if dealt else 0.0
+        self.set_phase("dealing")
 
         if level == "Off":
             for card in dealt:
@@ -1416,11 +1625,11 @@ class ReadingSpikeTab(SpreadTab):
         self._landed.add(card)
         card.placement.sync_slot(landed=True)
         self.refresh_rows()
+        self.bar.dots.update()
 
     def _finish_deal(self):
-        self.phase = "dealt" if self._turn_queue else "read"
         self._top_z = max([self._top_z] + [c.zValue() for c in self._dealt])
-        self.turn_all_button.setEnabled(bool(self._turn_queue))
+        self.set_phase("dealt" if self._turn_queue else "read")
         self._sync_next()
         self.halo.attach(self._turn_queue[0] if self._turn_queue else None, fade=self._animates())
 
@@ -1508,6 +1717,53 @@ class ReadingSpikeTab(SpreadTab):
     def has_next(self):
         return bool(self._turn_queue)
 
+    def next_card(self):
+        return self._turn_queue[0] if self._turn_queue and self.phase == "dealt" else None
+
+    def turn_order(self):
+        return tuple(self._order)
+
+    def landed(self):
+        return self._landed
+
+    def animates(self):
+        return self._animates()
+
+    # -- the phase, and what each one shows ----------------------------------------------------
+
+    def set_phase(self, phase):
+        self.phase = phase
+        self.bar.sync()
+        self._quiet_toolbar()
+
+    def _quiet_toolbar(self):
+        """Until every card is turned the toolbar shows only View: Summon, Flip, Arrange and the
+        rest mean nothing yet. The actions stay on the tab, so their keys (D deals) still work"""
+        toolbar = self.toolbar
+        if not hasattr(self, "_quieted"):
+            actions = toolbar.actions()
+            start = next(
+                (
+                    i
+                    for i, action in enumerate(actions)
+                    if isinstance(toolbar.widgetForAction(action), QLabel)
+                    and toolbar.widgetForAction(action).text() == CANVAS["section_view"]
+                ),
+                None,
+            )
+            if start is None:
+                self._quieted = ([], None)
+            else:
+                self._quieted = (actions[:start], actions[start])
+                for action in self._quieted[0]:
+                    toolbar.removeAction(action)
+            return
+        hidden, anchor = self._quieted
+        if self.phase == "read" and hidden:
+            for action in hidden:
+                toolbar.insertAction(anchor, action)
+            self._quieted = ([], anchor)
+
     def card_clicked(self, card):
         if self.phase == "dealt" and self._turn_queue and card is self._turn_queue[0]:
             self.turn_next()
@@ -1523,12 +1779,12 @@ class ReadingSpikeTab(SpreadTab):
         self._sync_next()
         self.halo.flare(following, animate)
         if not self._turn_queue:
-            self.turn_all_button.setEnabled(False)
             self._candle_target = 0.0
             if not animate:
                 self._candle = 0.0
                 self.view.viewport().update()
         card.begin_turn(animate)
+        self.bar.sync()
 
     def turn_all(self):
         if not self._turn_queue:
@@ -1544,8 +1800,9 @@ class ReadingSpikeTab(SpreadTab):
         card.setZValue(CARD_Z + card.slot.zValue())
         self.refresh_rows()
         if not self._turn_queue and not any(c.is_turning() for c in self._dealt if c is not card):
-            self.phase = "read"
+            self.set_phase("read")
             self.layout_changed.emit()
+        self.bar.sync()
 
     # -- the caption, over everything ------------------------------------------------------
 
