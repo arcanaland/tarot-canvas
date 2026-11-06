@@ -10,6 +10,13 @@ Never merged, saves nothing. Knobs for trying the brief's questions, read once w
     TAROT_SPIKE_PARTICLES=N       the halo's particle count (default 60)
     TAROT_SPIKE_LIFE=a,b          a particle's life in seconds (default 0.6,1.0)
     TAROT_SPIKE_FRAMES=1          log paint ms per frame for the view, every 2 s
+    TAROT_SPIKE_BACK_ICON=colour  the house back's icon in its own colours, faded (default brass:
+                                  its light parts in the edge's brass, its lines left plum)
+    TAROT_SPIKE_BACK_LIGHT=next   only the card over the halo catches its light (default all: every
+                                  face-down card does, by distance); off for none
+
+A deck with no back of its own gets the house back: the app icon pressed into a plum card with a
+brass edge. The reference deck is one of those, since get_card_backs finds only *.png.
 
 Deal is the pane's button, the canvas's Summon (D), or a double-click on the empty canvas. Cards fly
 in face-down from below the bottom edge of the view, where the reader sits.
@@ -18,16 +25,17 @@ A card already on a slot when Deal is pressed (dropped, pasted or summoned there
 hand: it is snapped in and its card is taken out of the draw.
 """
 
-import glob
 import itertools
 import math
 import os
 import random
 import time
+from importlib.resources import files
 
 from PyQt6.QtCore import (
     QEvent,
     QItemSelectionModel,
+    QLineF,
     QObject,
     QPointF,
     QPropertyAnimation,
@@ -251,44 +259,91 @@ class Flicker:
 # -- the deck's back ------------------------------------------------------------
 
 
+HOUSE_FILL = QColor(58, 36, 48)
+HOUSE_EDGE = QColor(140, 112, 80)
+HOUSE_EDGE_PX = 3.0
+HOUSE_RADIUS = 0.05  # of the card's width
+HOUSE_ICON_WIDTH = 0.42  # of the card's width
+HOUSE_ICON_BRASS_ALPHA = 0.45
+HOUSE_ICON_COLOUR_ALPHA = 0.22
+BACK_ICON = os.environ.get("TAROT_SPIKE_BACK_ICON", "brass")
+
+# The halo's light on a face-down card's edge
+BACK_LIGHT = os.environ.get("TAROT_SPIKE_BACK_LIGHT", "all")
+RIM_RGB = (255, 170, 70)
+RIM_ALPHA = 200
+RIM_GLOW_PX = 10.0
+RIM_GLOW_ALPHA = 70
+RIM_REACH = 2.5  # in card heights from the halo, where a neighbour's light is gone (all)
+RIM_NEIGHBOUR = 0.45  # a neighbour's share of the next card's light, at no distance (all)
+
+
 def back_path(deck):
-    """The deck's default back, or any back it has, or None"""
+    """The deck's default back, or any back it has, or None for the house back"""
     if deck is None:
         return None
     backs, default = deck.get_card_backs()
     if default in backs:
         return backs[default]
-    # get_card_backs globs *.png only; the reference deck's back is classic.jpg
-    folder = os.path.join(deck.deck_path, "card_backs")
-    for extension in ("png", "jpg", "jpeg", "webp"):
-        path = os.path.join(folder, f"{default}.{extension}")
-        if os.path.exists(path):
-            return path
-    found = sorted(glob.glob(os.path.join(folder, "*.*")))
-    return found[0] if found else (next(iter(backs.values())) if backs else None)
+    return next(iter(backs.values()), None)
+
+
+def house_back(size):
+    """The app's own back: the icon pressed into a plum card with a brass edge"""
+    w, h = size.width(), size.height()
+    pixmap = QPixmap(size)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHints(
+        QPainter.RenderHint.Antialiasing | QPainter.RenderHint.SmoothPixmapTransform
+    )
+    inset = HOUSE_EDGE_PX / 2.0
+    radius = w * HOUSE_RADIUS
+    painter.setBrush(HOUSE_FILL)
+    painter.setPen(QPen(HOUSE_EDGE, HOUSE_EDGE_PX))
+    painter.drawRoundedRect(QRectF(inset, inset, w - 2 * inset, h - 2 * inset), radius, radius)
+
+    icon = QImage(str(files("tarot_canvas.resources.icons").joinpath("icon.png")))
+    if not icon.isNull():
+        side = round(w * HOUSE_ICON_WIDTH)
+        icon = icon.scaled(
+            side,
+            side,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        ).convertToFormat(QImage.Format.Format_ARGB32_Premultiplied)
+        if BACK_ICON == "colour":
+            alpha = HOUSE_ICON_COLOUR_ALPHA
+        else:
+            # Brass where the icon is light and none where it is dark, so its linework stays plum
+            tone = QImage(icon.size(), QImage.Format.Format_ARGB32_Premultiplied)
+            tone.fill(QColor(0, 0, 0))
+            under = QPainter(tone)
+            under.drawImage(0, 0, icon)
+            under.end()
+            icon = QImage(icon.size(), QImage.Format.Format_ARGB32_Premultiplied)
+            icon.fill(HOUSE_EDGE)
+            icon.setAlphaChannel(tone.convertToFormat(QImage.Format.Format_Grayscale8))
+            alpha = HOUSE_ICON_BRASS_ALPHA
+        painter.setOpacity(alpha)
+        painter.drawImage(QPointF((w - icon.width()) / 2.0, (h - icon.height()) / 2.0), icon)
+    painter.end()
+    return pixmap
 
 
 def back_pixmap(deck, size):
-    """The deck's back at size, or a plain drawn card"""
+    """The deck's back at size, and whether it is the house back"""
     path = back_path(deck)
     if path:
         source = QPixmap(path)
         if not source.isNull():
-            return source.scaled(
+            scaled = source.scaled(
                 size,
                 Qt.AspectRatioMode.IgnoreAspectRatio,
                 Qt.TransformationMode.SmoothTransformation,
             )
-    pixmap = QPixmap(size)
-    pixmap.fill(Qt.GlobalColor.transparent)
-    painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    painter.setBrush(QColor(58, 36, 48))
-    painter.setPen(QPen(QColor(140, 112, 80), 3))
-    radius = size.width() * 0.05
-    painter.drawRoundedRect(QRectF(1.5, 1.5, size.width() - 3, size.height() - 3), radius, radius)
-    painter.end()
-    return pixmap
+            return scaled, False
+    return house_back(size), True
 
 
 # -- a card that can lie face-down -----------------------------------------------
@@ -455,6 +510,34 @@ class ReadingCard(DraggableCardItem):
             return
         super().mouseDoubleClickEvent(event)
 
+    def paint(self, painter, option, widget=None):
+        super().paint(painter, option, widget)
+        if not self.face_down:
+            return
+        light = self.parent_tab.back_light(self)
+        if light <= 0.0:
+            return
+        # The halo's light caught by the edge: on the house back, its brass
+        rect = QRectF(self.offset(), self.pixmap().deviceIndependentSize())
+        house = self.parent_tab.back_is_house()
+        radius = rect.width() * HOUSE_RADIUS if house else 0.0
+        inset = HOUSE_EDGE_PX / 2.0
+        edge = rect.adjusted(inset, inset, -inset, -inset)
+        r, g, b = RIM_RGB
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Plus)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        # A soft glow just inside the edge, then the edge itself
+        painter.setClipRect(rect)
+        glow = QColor(r, g, b, min(255, round(RIM_GLOW_ALPHA * light)))
+        painter.setPen(QPen(glow, RIM_GLOW_PX))
+        painter.drawRoundedRect(edge, radius, radius)
+        rim = QColor(r, g, b, min(255, round(RIM_ALPHA * light)))
+        painter.setPen(QPen(rim, HOUSE_EDGE_PX))
+        painter.drawRoundedRect(edge, radius, radius)
+        painter.restore()
+
 
 # -- the halo ---------------------------------------------------------------------
 
@@ -520,6 +603,12 @@ class HaloItem(QGraphicsItem):
         self.level = 0.0 if fade else 1.0
         self.setVisible(True)
         self.update()
+
+    def light(self):
+        """How bright the halo is now, flicker and flare included; 0 while hidden"""
+        if self.card is None:
+            return 0.0
+        return max(0.0, self.brightness * self.level * (1.0 - (self.collapse or 0.0)))
 
     def _update_reach(self):
         """Room for the bloom, the warm patch, and a spark's whole rise at this zoom"""
@@ -1256,6 +1345,7 @@ class ReadingSpikeTab(SpreadTab):
 
         self.deck = self._chosen_deck()
         self._back = None
+        self._back_is_house = False
         self._dealt = []
         self.placements = [Placement(slot) for slot in self._slots]
         self._syncing = False
@@ -1534,7 +1624,7 @@ class ReadingSpikeTab(SpreadTab):
         size = self._card_size()
         if size is None:
             return
-        self._back = back_pixmap(self.deck, size)
+        self._back, self._back_is_house = back_pixmap(self.deck, size)
         self.refresh_motion_settings()
         level = self._level()
         self.deck_combo.setEnabled(False)
@@ -1845,6 +1935,31 @@ class ReadingSpikeTab(SpreadTab):
     def candle_level(self):
         return self._candle
 
+    def back_is_house(self):
+        return self._back_is_house
+
+    def back_light(self, card):
+        """The halo's light on a face-down card's edge, 0 to a little over 1"""
+        light = self.halo.light()
+        if light <= 0.0 or BACK_LIGHT == "off":
+            return 0.0
+        lit = self.halo.card
+        if card is lit:
+            return light
+        if BACK_LIGHT != "all" or lit is None:
+            return 0.0
+        height = lit.boundingRect().height() or 1.0
+        d = QLineF(_centre(card), _centre(lit)).length() / height
+        falloff = max(0.0, 1.0 - d / RIM_REACH)
+        return light * RIM_NEIGHBOUR * falloff * falloff * self._candle
+
+    def _light_backs(self):
+        if BACK_LIGHT == "off":
+            return
+        for card in self._dealt:
+            if card.face_down:
+                card.update()
+
     def _dim(self):
         ground = self._ground
         if ground.lightness() > 128:
@@ -1899,6 +2014,7 @@ class ReadingSpikeTab(SpreadTab):
             self.turn_next()
             self._turn_all_at = t + TURN_ALL_GAP_S if self._turn_queue else None
         self.halo.advance(t, dt, full)
+        self._light_backs()
 
         if self._candle != self._candle_target:
             step = dt / (CANDLE_IN_S if self._candle_target > self._candle else CANDLE_OUT_S)
