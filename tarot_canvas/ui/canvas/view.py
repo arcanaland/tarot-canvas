@@ -57,8 +57,15 @@ class PannableGraphicsView(QGraphicsView):
         self._turn_wheel = None
         # While locked, no card can be picked, turned or dropped: every drag pans
         self.locked = False
+        # Called as (painter, scene rect) after the items are drawn: the reading spike's candle
+        self.foreground_hooks = []
         for bar in (self.horizontalScrollBar(), self.verticalScrollBar()):
             bar.actionTriggered.connect(self.camera_taken)
+
+    def drawForeground(self, painter, rect):
+        super().drawForeground(painter, rect)
+        for hook in self.foreground_hooks:
+            hook(painter, rect)
 
     def card_at(self, scene_pos):
         """The topmost card at scene_pos, if any."""
