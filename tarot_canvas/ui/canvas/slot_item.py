@@ -59,8 +59,46 @@ def paint_number(painter, number, rect):
     painter.drawText(top_half, Qt.AlignmentFlag.AlignCenter, str(number))
 
 
-def render_slot(number, label, colour, size, scale):
-    """A slot's face, size * scale device px"""
+def _paint_landscape_text(painter, number, label, rect, basis):
+    """number beside label across a wide rect, at the sizes a slot basis px tall uses"""
+    font = typography.in_pixels(typography.font(typography.Role.BODY), basis * NUMBER_HEIGHT)
+    font.setBold(True)
+    painter.setFont(font)
+    number_width = QFontMetricsF(font).horizontalAdvance(str(number))
+    margin = rect.height() * LABEL_MARGIN
+    gap = margin * 2
+    label_font = typography.in_pixels(typography.font(typography.Role.BODY), basis * LABEL_HEIGHT)
+    metrics = QFontMetricsF(label_font)
+    text_width = rect.width() - number_width - gap - 2 * margin
+    lines = _label_lines(label, label_font, text_width) if label else []
+    # The pair centred together, the number's column first
+    widest = max((metrics.horizontalAdvance(line) for line in lines), default=0.0)
+    left = rect.x() + (rect.width() - (number_width + (gap + widest if lines else 0.0))) / 2
+    painter.drawText(
+        QRectF(left, rect.y(), number_width, rect.height()),
+        Qt.AlignmentFlag.AlignCenter,
+        str(number),
+    )
+    painter.setFont(label_font)
+    top = rect.y() + (rect.height() - len(lines) * metrics.lineSpacing()) / 2
+    for row, line in enumerate(lines):
+        painter.drawText(
+            QRectF(
+                left + number_width + gap,
+                top + row * metrics.lineSpacing(),
+                widest,
+                metrics.height(),
+            ),
+            Qt.AlignmentFlag.AlignLeft,
+            line,
+        )
+
+
+def render_slot(number, label, colour, size, scale, edge=None, ink=None, dashed=False, text_turn=0):
+    """A slot's face, size * scale device px. edge and ink default to the fill's darker outline and
+    whichever of black or white reads on it; dashed draws the outline dashed. text_turn, a multiple of
+    90, turns the text back by that much, so a slot lying turned reads upright: across, on a slot
+    lying on its side"""
     pixmap = QPixmap(size * scale)
     pixmap.fill(Qt.GlobalColor.transparent)
     width, height = size.width(), size.height()
@@ -71,14 +109,28 @@ def render_slot(number, label, colour, size, scale):
     painter.scale(scale, scale)
 
     painter.setBrush(fill)
-    painter.setPen(QPen(fill.darker(OUTLINE_DARKER), OUTLINE_PX))
+    outline = QPen(QColor(edge) if edge is not None else fill.darker(OUTLINE_DARKER), OUTLINE_PX)
+    if dashed:
+        outline.setStyle(Qt.PenStyle.DashLine)
+    painter.setPen(outline)
     inset = OUTLINE_PX / 2
     radius = width * CORNER_RADIUS
     painter.drawRoundedRect(
         QRectF(inset, inset, width - OUTLINE_PX, height - OUTLINE_PX), radius, radius
     )
 
-    painter.setPen(slot_ink(fill))
+    painter.setPen(QColor(ink) if ink is not None else slot_ink(fill))
+    turn = text_turn % 360
+    if turn:
+        painter.translate(width / 2, height / 2)
+        painter.rotate(-turn)
+        if turn % 180:
+            _paint_landscape_text(
+                painter, number, label, QRectF(-height / 2, -width / 2, height, width), height
+            )
+            painter.end()
+            return pixmap
+        painter.translate(-width / 2, -height / 2)
     paint_number(painter, number, QRectF(0, 0, width, height))
 
     label_font = typography.in_pixels(typography.font(typography.Role.BODY), height * LABEL_HEIGHT)

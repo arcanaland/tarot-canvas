@@ -650,8 +650,6 @@ READING_SPIKE = {
     "turn_all": "Reveal All",
     "turn_next": "Reveal Next",
     "reversals": "Reversals",
-    "reversals_off": "Off",
-    "reversals_on": "On",
     "reversals_with": "With reversals",
     "reversals_without": "Without reversals",
     "card_reversed": "{card} (reversed)",
@@ -684,6 +682,8 @@ DATES = {
     "days_ago": "{days} days ago",
     "week_ago": "1 week ago",
     "weeks_ago": "{weeks} weeks ago",
+    # A moment written out whole, such as when a reading was dealt
+    "date_and_time": "{date} · {time}",
 }
 
 # What a licence is called on screen, for the identifiers decks and sources write

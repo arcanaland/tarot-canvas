@@ -37,10 +37,8 @@ from PyQt6.QtCore import (
     QEvent,
     QItemSelectionModel,
     QLineF,
-    QLocale,
     QObject,
     QPointF,
-    QPropertyAnimation,
     QRect,
     QRectF,
     QSignalBlocker,
@@ -55,6 +53,7 @@ from PyQt6.QtGui import (
     QFontMetricsF,
     QIcon,
     QImage,
+    QKeySequence,
     QPainter,
     QPen,
     QPixmap,
@@ -64,11 +63,10 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtWidgets import (
     QAbstractItemView,
-    QButtonGroup,
+    QCheckBox,
     QComboBox,
     QFrame,
     QGraphicsItem,
-    QGraphicsOpacityEffect,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -79,6 +77,7 @@ from PyQt6.QtWidgets import (
     QTextEdit,
     QToolButton,
     QToolTip,
+    QVBoxLayout,
     QWidget,
 )
 
@@ -93,6 +92,8 @@ from tarot_canvas.ui.canvas.motion import (
     _box_blur,
     drift_phases,
 )
+from tarot_canvas.ui.canvas.selection import GILT_ON_DARK, gilt_for_ground
+from tarot_canvas.ui.canvas.slot_item import render_slot
 from tarot_canvas.ui.canvas.spread_pane import (
     DescriptionBox,
     MeaningRole,
@@ -102,10 +103,11 @@ from tarot_canvas.ui.canvas.spread_pane import (
 )
 from tarot_canvas.ui.icons import SPREAD_ICON, deck_icon
 from tarot_canvas.ui.library import units
-from tarot_canvas.ui.strings import CANVAS, CARD_VIEW, READING_SPIKE
+from tarot_canvas.ui.strings import CANVAS, CARD_VIEW, COMMANDS, READING_SPIKE
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.spread_tab import SpreadTab
 from tarot_canvas.ui.widgets.reorder_list import GRIP_WIDTH
+from tarot_canvas.utils.dates import format_qdatetime
 from tarot_canvas.utils.logger import logger
 
 # -- timings, in seconds -----------------------------------------------------
@@ -764,6 +766,22 @@ CAPTION_TEXT = QColor(255, 240, 220)
 CAPTION_MEANING = QColor(225, 205, 185)
 CAPTION_Z = 50000.0
 MEANING_LINES = 2
+# The ink on a lit badge's gilt
+BADGE_INK = QColor(30, 18, 8)
+# A position's badge on its card: this far in from the card's corner, as a share of the badge
+BADGE_INSET = 0.35
+BADGE_RING_PX = 1.5
+
+
+def paint_badge(painter, circle, number, font, lit):
+    """A position's number in a disc: gilt for the next card, else dark with a gilt ring"""
+    gilt = QColor(GILT_ON_DARK)
+    painter.setPen(Qt.PenStyle.NoPen if lit else QPen(gilt, BADGE_RING_PX))
+    painter.setBrush(gilt if lit else CAPTION_FILL)
+    painter.drawEllipse(circle)
+    painter.setFont(font)
+    painter.setPen(BADGE_INK if lit else gilt)
+    painter.drawText(circle, int(Qt.AlignmentFlag.AlignCenter), str(number))
 
 
 class CaptionItem(QGraphicsItem):
@@ -837,11 +855,7 @@ class CaptionItem(QGraphicsItem):
         badge = title.height()
         top = rect.top() + CAPTION_PAD_PX
         circle = QRectF(rect.left() + CAPTION_PAD_PX, top, badge, badge)
-        painter.setBrush(NEXT_BAR)
-        painter.drawEllipse(circle)
-        painter.setFont(self._title_font)
-        painter.setPen(QColor(30, 18, 8))
-        painter.drawText(circle, int(Qt.AlignmentFlag.AlignCenter), str(slot.number))
+        paint_badge(painter, circle, slot.number, self._title_font, lit=True)
 
         left = circle.right() + CAPTION_PAD_PX
         width = rect.right() - CAPTION_PAD_PX - left
@@ -894,8 +908,44 @@ class Placement:
         """The slot shows only while no card has landed on it"""
         shown = self.card is None or not landed
         self.slot.setVisible(shown)
-        # The shadow is its own item in the scene, so it is hidden with the slot or it stays behind
-        self.slot.shadow.setVisible(shown)
+        # An empty socket lies flat in the table, so it casts no shadow
+        self.slot.shadow.setVisible(False)
+
+
+# An empty position before the deal: a socket in the house back's plum and brass, dashed, with no
+# icon, so it can't be taken for a card already dealt face-down. Its plum is laid over the ground
+# ahead of time, so it looks see-through but covers what lies under it, as a crossing card does
+SOCKET_PLUM = QColor(58, 36, 48)
+SOCKET_PLUM_SHARE = 120 / 255
+SOCKET_EDGE = QColor(170, 138, 98)
+SOCKET_INK = QColor(214, 180, 132)
+
+
+def socket_fill(ground):
+    """The plum at its share over ground, made opaque"""
+    ground = QColor(ground)
+    a = SOCKET_PLUM_SHARE
+    return QColor.fromRgbF(
+        a * SOCKET_PLUM.redF() + (1 - a) * ground.redF(),
+        a * SOCKET_PLUM.greenF() + (1 - a) * ground.greenF(),
+        a * SOCKET_PLUM.blueF() + (1 - a) * ground.blueF(),
+    )
+
+
+def render_socket(slot, scale, ground):
+    # Text turned back by the nearest quarter, so it reads upright, across a crossing slot
+    turn = round(slot.orient / 90.0) * 90 % 360
+    return render_slot(
+        slot.number,
+        slot.label,
+        socket_fill(ground),
+        slot._size,
+        scale,
+        edge=SOCKET_EDGE,
+        ink=SOCKET_INK,
+        dashed=True,
+        text_turn=turn,
+    )
 
 
 # -- paint timing -------------------------------------------------------------------
@@ -1002,11 +1052,29 @@ LIST_STRETCH = 1000
 
 REVEAL_KEYS = (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space)
 OPEN_KEYS = (Qt.Key.Key_Return, Qt.Key.Key_Enter)
+# The transport's keys, as the card view's Previous, Next, First and Last. The canvas's only: the
+# list has its own Home and End, and moves its rows with Up and Down
+TURN_KEY = Qt.Key.Key_Right
+TURN_ALL_KEY = Qt.Key.Key_End
+STEP_KEYS = {
+    Qt.Key.Key_Left: "previous",
+    Qt.Key.Key_Right: "next",
+    Qt.Key.Key_Home: "first",
+    Qt.Key.Key_End: "last",
+}
+
+
+def key_names(*keys):
+    return ", ".join(
+        QKeySequence(key).toString(QKeySequence.SequenceFormat.NativeText) for key in keys
+    )
 
 
 class RevealKeys(QObject):
     """Enter or Space on the canvas or the pane's list deals, then turns the next card. On the
-    list, Enter on a row whose card is face-up opens that card instead.
+    list, Enter on a row whose card is face-up opens that card instead. On the canvas, Right
+    turns too and End reveals the rest; once all are turned, Left, Right, Home and End step
+    through the positions.
 
     Watched on those two only, so a space typed into the question is still a space
     """
@@ -1018,6 +1086,8 @@ class RevealKeys(QObject):
             widget.installEventFilter(self)
 
     def eventFilter(self, watched, event):
+        if self._transport(watched, event):
+            return True
         if (
             event.type() == QEvent.Type.KeyPress
             and watched is self.tab.pane.list_view
@@ -1041,14 +1111,35 @@ class RevealKeys(QObject):
             return True
         return False
 
+    def _transport(self, watched, event):
+        """The canvas's transport keys; whether event was one"""
+        if (
+            event.type() != QEvent.Type.KeyPress
+            or watched is not self.tab.view
+            or event.modifiers() & ~Qt.KeyboardModifier.KeypadModifier
+        ):
+            return False
+        key = event.key()
+        phase = self.tab.phase
+        if phase == "dealt" and self.tab.has_next() and key in (TURN_KEY, TURN_ALL_KEY):
+            if not event.isAutoRepeat():
+                if key == TURN_KEY:
+                    self.tab.turn_next()
+                else:
+                    self.tab.turn_all()
+            return True
+        if phase == "read" and key in STEP_KEYS:
+            self.tab.step(STEP_KEYS[key])
+            return True
+        return False
+
 
 # -- the player bar ------------------------------------------------------------------------
 
-BAR_MARGIN_PX = 24
 BAR_PAD_PX = 6
 BAR_RADIUS_PX = 12
 BAR_ALPHA = 235
-BAR_FADE_MS = 400
+BAR_ICON_PX = 22
 DOT_PX = 10
 DOT_GAP_PX = 7
 DEAL_MIN_WIDTH_PX = 180
@@ -1061,9 +1152,14 @@ LINE_MIN_WIDTH_PX = 80
 LINE_HEIGHT_PX = 6
 
 
+def next_gilt(palette):
+    """The next card's mark on a widget: the canvas's selection gilt, for the window's ground"""
+    return gilt_for_ground(palette.window().color())
+
+
 class ProgressDots(QWidget):
-    """One dot per dealt position, in turn order: filled once turned, lit when next, hollow while
-    face-down, faint until it has landed"""
+    """One dot per dealt position, in turn order: filled once turned, lit when next (or, once all
+    are turned, when selected), hollow while face-down, faint until it has landed"""
 
     def __init__(self, tab, parent=None):
         super().__init__(parent)
@@ -1093,8 +1189,9 @@ class ProgressDots(QWidget):
     def _colours(self, card, following):
         """(fill, outline) for card's state"""
         palette = self.palette()
-        if card is following:
-            return NEXT_BAR, NEXT_BAR
+        if card is following or card is self.tab.stepped_card():
+            gilt = next_gilt(palette)
+            return gilt, gilt
         if not card.face_down:
             return palette.windowText().color(), None
         colour = QColor(palette.placeholderText().color())
@@ -1118,7 +1215,8 @@ class ProgressDots(QWidget):
             painter.drawEllipse(rect)
 
     def _paint_line(self, painter, order, following):
-        """One track: turned filled, face-down faint, the next one marked"""
+        """One track: turned filled, face-down faint, the next (or selected) one marked"""
+        following = following or self.tab.stepped_card()
         painter.setPen(Qt.PenStyle.NoPen)
         track = QRectF(2, (self.height() - LINE_HEIGHT_PX) / 2.0, self.width() - 4, LINE_HEIGHT_PX)
         faint = QColor(self.palette().placeholderText().color())
@@ -1135,105 +1233,88 @@ class ProgressDots(QWidget):
             # Never thinner than a dot, however many positions share the track
             centre = segment.center().x()
             marker = QRectF(centre - DOT_PX / 2, (self.height() - DOT_PX) / 2, DOT_PX, DOT_PX)
-            painter.setBrush(NEXT_BAR)
+            painter.setBrush(next_gilt(self.palette()))
             painter.drawEllipse(marker)
 
 
-class PlayerBar(QWidget):
-    """On the canvas where the cards come from: Deal, then turn · progress · Reveal All.
+def _button(icon, words, keys, slot):
+    """A transport button: its words and keys in the tooltip, its words for a screen reader"""
+    button = QToolButton()
+    button.setIcon(QIcon.fromTheme(icon))
+    button.setIconSize(QSize(BAR_ICON_PX, BAR_ICON_PX))
+    button.setToolTip(f"{words} ({key_names(*keys)})")
+    button.setAccessibleName(words)
+    button.setAutoRaise(True)
+    button.clicked.connect(slot)
+    return button
 
-    Only ever forward: a reading can't be un-turned, so nothing here goes back
+
+class PlayerBar(QWidget):
+    """The reading's transport: Deal; then turn · progress · Reveal All; then, once every card is
+    turned, previous · progress · next, stepping the selection through the positions.
+
+    Never back in time: a reading can't be un-turned, so the steps only look again
     """
 
-    def __init__(self, tab):
-        super().__init__(tab.view)
+    def __init__(self, tab, parent):
+        super().__init__(parent)
         self.tab = tab
         row = QHBoxLayout(self)
         row.setContentsMargins(BAR_PAD_PX * 2, BAR_PAD_PX, BAR_PAD_PX * 2, BAR_PAD_PX)
         row.setSpacing(BAR_PAD_PX * 2)
 
+        # ▶ is the reading's one verb, from the Library's spread row on: it opens the reading,
+        # deals it, then turns the next card
         self.deal = QPushButton(QIcon.fromTheme("media-playback-start"), READING_SPIKE["deal"])
         self.deal.clicked.connect(tab.deal)
         # The one thing to do before the deal, so the largest control on the canvas
-        self.deal.setIconSize(QSize(22, 22))
+        self.deal.setIconSize(QSize(BAR_ICON_PX, BAR_ICON_PX))
         self.deal.setMinimumSize(DEAL_MIN_WIDTH_PX, DEAL_MIN_HEIGHT_PX)
         typography.apply(self.deal, typography.Role.HEADING_3)
-        self.turn = self._button("media-playback-start", READING_SPIKE["turn_next"], tab.turn_next)
+        words = COMMANDS["go_previous"].replace("&", "")
+        self.previous = _button(
+            "media-skip-backward", words, (Qt.Key.Key_Left,), lambda: tab.step("previous")
+        )
+        self.turn = _button(
+            "media-playback-start",
+            READING_SPIKE["turn_next"],
+            (Qt.Key.Key_Space, TURN_KEY),
+            tab.turn_next,
+        )
         self.dots = ProgressDots(tab, self)
-        self.reveal = self._button("media-seek-forward", READING_SPIKE["turn_all"], tab.turn_all)
-        for widget in (self.deal, self.turn, self.dots, self.reveal):
+        self.reveal = _button(
+            "media-seek-forward", READING_SPIKE["turn_all"], (TURN_ALL_KEY,), tab.turn_all
+        )
+        words = COMMANDS["go_next"].replace("&", "")
+        self.next = _button(
+            "media-skip-forward", words, (Qt.Key.Key_Right,), lambda: tab.step("next")
+        )
+        for widget in (self.deal, self.previous, self.turn, self.dots, self.reveal, self.next):
             # The keys that deal and turn are the canvas's; a click must not take its focus
             widget.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             row.addWidget(widget)
-
-        self._effect = QGraphicsOpacityEffect(self)
-        self._effect.setOpacity(1.0)
-        self.setGraphicsEffect(self._effect)
-        self._fade = QPropertyAnimation(self._effect, b"opacity", self)
-        self._fade.setDuration(BAR_FADE_MS)
-        self._fade.finished.connect(self._faded)
-
-        tab.view.viewport().installEventFilter(self)
-        tab.view.setViewportMargins(0, 0, 0, STRIP_PX)
         self.sync()
-
-    def _button(self, icon, tooltip, slot):
-        button = QToolButton()
-        button.setIcon(QIcon.fromTheme(icon))
-        button.setIconSize(QSize(22, 22))
-        button.setToolTip(tooltip)
-        button.setAccessibleName(tooltip)
-        button.setAutoRaise(True)
-        button.clicked.connect(slot)
-        return button
 
     def sync(self):
         """Show what the reading's phase allows"""
         phase = self.tab.phase
         staged = phase == "staged"
+        read = phase == "read"
         self.deal.setVisible(staged)
-        for widget in (self.turn, self.dots, self.reveal):
-            widget.setVisible(not staged)
+        self.dots.setVisible(not staged)
+        for widget in (self.turn, self.reveal):
+            widget.setVisible(not staged and not read)
+        for widget in (self.previous, self.next):
+            widget.setVisible(read)
         dealt = phase == "dealt" and self.tab.has_next()
         self.turn.setEnabled(dealt)
         self.reveal.setEnabled(dealt)
+        if read:
+            self.previous.setEnabled(self.tab.can_step("previous"))
+            self.next.setEnabled(self.tab.can_step("next"))
         self.dots.updateGeometry()
         self.dots.update()
         self.update()
-        if (
-            phase == "read"
-            and self.isVisible()
-            and self._fade.state() != QPropertyAnimation.State.Running
-        ):
-            if self.tab.animates():
-                self._fade.setStartValue(1.0)
-                self._fade.setEndValue(0.0)
-                self._fade.start()
-            else:
-                self._faded()
-        self.place()
-
-    def _faded(self):
-        """Gone, and the canvas takes the strip back"""
-        if self.tab.phase == "read":
-            self.hide()
-            self.tab.view.setViewportMargins(0, 0, 0, 0)
-
-    def place(self):
-        """Centred in the strip under the canvas, never wider than it"""
-        viewport = self.tab.view.viewport().geometry()
-        self.setMaximumWidth(max(0, viewport.width() - 2 * BAR_MARGIN_PX))
-        self.adjustSize()
-        self.move(
-            viewport.x() + (viewport.width() - self.width()) // 2,
-            viewport.bottom() + 1 + (STRIP_PX - self.height()) // 2,
-        )
-        self.raise_()
-
-    def eventFilter(self, watched, event):
-        if event.type() == QEvent.Type.Resize:
-            self.place()
-        return False
 
     def paintEvent(self, event):
         # Deal stands alone; the backdrop holds the controls only once there are several
@@ -1249,6 +1330,42 @@ class PlayerBar(QWidget):
         painter.drawRoundedRect(
             QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5), BAR_RADIUS_PX, BAR_RADIUS_PX
         )
+
+
+class ReadingStrip(QWidget):
+    """The band under the canvas, its own widget beside the view rather than a margin inside it, so
+    the canvas ends above it: the transport centred, and View's actions at the trailing end.
+
+    View lives here, not on the rail, for the reading's whole life, so its buttons never move
+    """
+
+    def __init__(self, tab, view_actions):
+        super().__init__()
+        self.setFixedHeight(STRIP_PX)
+        grid = QGridLayout(self)
+        grid.setContentsMargins(STRIP_PAD_PX, 0, STRIP_PAD_PX, 0)
+        # Equal stretch either side keeps the transport centred under the canvas
+        grid.setColumnStretch(0, 1)
+        grid.setColumnStretch(2, 1)
+        self.bar = PlayerBar(tab, self)
+        grid.addWidget(self.bar, 0, 1, Qt.AlignmentFlag.AlignCenter)
+
+        cluster = QWidget()
+        tools = QHBoxLayout(cluster)
+        tools.setContentsMargins(0, 0, 0, 0)
+        tools.setSpacing(0)
+        tools.addStretch(1)
+        # The rail's own actions, so their tooltips, keys and checked states come with them
+        for action in view_actions:
+            button = QToolButton()
+            button.setDefaultAction(action)
+            button.setIconSize(QSize(BAR_ICON_PX, BAR_ICON_PX))
+            button.setAutoRaise(True)
+            button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            tools.addWidget(button)
+        grid.addWidget(cluster, 0, 2)
+        # The leading column as wide as the cluster, so the cluster can't push the transport aside
+        grid.setColumnMinimumWidth(0, cluster.sizeHint().width())
 
 
 class PaintTimer(QObject):
@@ -1287,8 +1404,8 @@ class PaintTimer(QObject):
 # -- the pane's rows ------------------------------------------------------------------
 
 THUMB_RATIO = 0.58
-NEXT_FILL = QColor(255, 150, 60, 55)
-NEXT_BAR = QColor(230, 130, 40)
+# The next row's wash of gilt
+NEXT_FILL_ALPHA = 40
 NEXT_BAR_PX = 3
 
 
@@ -1431,9 +1548,12 @@ class ReadingRowDelegate(PositionDelegate):
             selected.setAlpha(70)
             painter.fillRect(option.rect, selected)
         if self.tab.is_next_slot(slot):
-            painter.fillRect(option.rect, NEXT_FILL)
+            gilt = next_gilt(palette)
+            wash = QColor(gilt)
+            wash.setAlpha(NEXT_FILL_ALPHA)
+            painter.fillRect(option.rect, wash)
             bar = QRect(option.rect.left(), option.rect.top(), NEXT_BAR_PX, option.rect.height())
-            painter.fillRect(bar, NEXT_BAR)
+            painter.fillRect(bar, gilt)
         self._paint_text(painter, option, index)
         self._paint_thumb(painter, self._thumb_rect(option), self.tab.card_in(slot), palette)
         number = self._number_rect(option)
@@ -1486,6 +1606,8 @@ class ReadingSpikeTab(SpreadTab):
         self._deal_started = None
         self._turn_queue = []
         self._turn_all_at = None
+        # Reveal All took the halo away: the turns that follow leave it gone
+        self._revealing_all = False
         self._clock_on = False
         self._now = 0.0
         self.apply_background_settings()
@@ -1497,6 +1619,10 @@ class ReadingSpikeTab(SpreadTab):
             slot.setAcceptHoverEvents(False)
             slot.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
             slot.setCursor(Qt.CursorShape.ArrowCursor)
+            # An empty socket in the back's materials, not the designer's grey card
+            slot._render = lambda scale, slot=slot: render_socket(slot, scale, self._ground)
+            slot._redraw()
+            slot.shadow.setVisible(False)
         self.pane.menu_button.hide()
         self.pane.list_view.setDragDropMode(QAbstractItemView.DragDropMode.NoDragDrop)
         self._dealt_at = None
@@ -1520,14 +1646,22 @@ class ReadingSpikeTab(SpreadTab):
         self.halo = HaloItem(self)
         self.scene.addItem(self.halo)
         self.view.foreground_hooks.append(self._paint_candle)
+        self.view.foreground_hooks.append(self._paint_badges)
         self.view.foreground_hooks.append(self._paint_caption)
+        self._badge_font = typography.font(typography.Role.SMALL)
+        self._badge_font.setBold(True)
         self._reveal_keys = RevealKeys(self, (self.view, self.pane.list_view))
         self._order = []
+        # A table, not an infinite canvas: the cards fit, and middle- or Shift-drag still pans
+        self.view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         # Deal plays the reading; Reveal All fast-forwards through the turns that are left
-        self.bar = PlayerBar(self)
+        self.strip = ReadingStrip(self, self._take_view_actions())
+        self._stack_strip()
+        self.bar = self.strip.bar
         self.deal_button = self.bar.deal
         self.turn_all_button = self.bar.reveal
-        self._quiet_toolbar()
+        self._sync_rail()
         if os.environ.get("TAROT_SPIKE_FRAMES"):
             self._paint_timer = PaintTimer(self.view)
         self._stage_significator()
@@ -1599,10 +1733,12 @@ class ReadingSpikeTab(SpreadTab):
         if not hasattr(self, "placements"):
             return
         self._sync_delete()
-        if self._syncing:
-            return
         selected = self.selected_cards()
         placement = self.placement_of(selected[0]) if len(selected) == 1 else None
+        # Whoever selected it, the row included
+        self._follow_selection()
+        if self._syncing:
+            return
         view = self.pane.list_view
         self._syncing = True
         try:
@@ -1626,12 +1762,64 @@ class ReadingSpikeTab(SpreadTab):
             return
         self._syncing = True
         try:
-            with QSignalBlocker(self.scene):
-                self.scene.clearSelection()
-            card.setSelected(True)
-            self.view.ensureVisible(card.sceneBoundingRect(), 40, 40)
+            self._select_card(card)
         finally:
             self._syncing = False
+
+    def _follow_selection(self):
+        """Once every card is turned the transport stands on the selected card. No caption: on a
+        crossed spread it lies over the cards around it, and the selected row already says it"""
+        if self.phase == "read" and hasattr(self, "bar"):
+            self.bar.sync()
+
+    def _select_card(self, card):
+        with QSignalBlocker(self.scene):
+            self.scene.clearSelection()
+        card.setSelected(True)
+        self.view.ensureVisible(card.sceneBoundingRect(), 40, 40)
+
+    # -- stepping through a turned reading ---------------------------------------------
+
+    def _steps(self):
+        """The turned reading's cards in turn order, those still on the table"""
+        return [card for card in self._order if card.scene() is not None and card.isVisible()]
+
+    def stepped_card(self):
+        """The one selected card the transport stands on, once every card is turned"""
+        if self.phase != "read":
+            return None
+        selected = self.selected_cards()
+        if len(selected) == 1 and selected[0] in self._order:
+            return selected[0]
+        return None
+
+    def _step_index(self, how):
+        steps = self._steps()
+        if not steps:
+            return None
+        current = self.stepped_card()
+        at = steps.index(current) if current in steps else None
+        if how == "first":
+            return 0
+        if how == "last":
+            return len(steps) - 1
+        if at is None:
+            # From nothing selected, Next starts at the first and Previous at the last
+            return 0 if how == "next" else len(steps) - 1
+        target = at + (1 if how == "next" else -1)
+        return target if 0 <= target < len(steps) else None
+
+    def can_step(self, how):
+        index = self._step_index(how)
+        return index is not None and self._steps()[index] is not self.stepped_card()
+
+    def step(self, how):
+        """Select the previous, next, first or last card in turn order"""
+        if self.phase != "read":
+            return
+        index = self._step_index(how)
+        if index is not None:
+            self._select_card(self._steps()[index])
 
     # -- deleting: the reading's cards stay; only extras go ----------------------------
 
@@ -1665,6 +1853,11 @@ class ReadingSpikeTab(SpreadTab):
             self.refresh_rows()
         return replacement
 
+    def ambient_is_allowed(self):
+        """Still until every card has landed and turned: the sockets, the flights and the
+        face-down cards hold their places, and the drift eases in only once the reading is read"""
+        return getattr(self, "phase", None) == "read" and super().ambient_is_allowed()
+
     def mark_modified(self):
         pass
 
@@ -1677,6 +1870,10 @@ class ReadingSpikeTab(SpreadTab):
     def set_ground(self, color):
         super().set_ground(color)
         self._ground = QColor(color)
+        # The sockets' plum is laid over the ground, so a new ground repaints them
+        if hasattr(self, "placements"):
+            for slot in self._slots:
+                slot._redraw()
 
     # -- the pane -------------------------------------------------------------------------
 
@@ -1748,29 +1945,20 @@ class ReadingSpikeTab(SpreadTab):
             deck_icon(), self.deck_combo, self.deck_label, None, control=True
         )
 
-        # Reversals: chosen before the deal, like the deck, and fixed by it
-        self.reversals_label = QLabel(READING_SPIKE["reversals"])
-        self.reversals_switch = QWidget()
-        switch = QHBoxLayout(self.reversals_switch)
-        switch.setContentsMargins(0, 0, 0, 0)
-        switch.setSpacing(0)
-        self.reversals_group = QButtonGroup(self.reversals_switch)
-        self.reversals_off = self._segment(READING_SPIKE["reversals_off"])
-        self.reversals_on = self._segment(READING_SPIKE["reversals_on"])
-        for button in (self.reversals_off, self.reversals_on):
-            self.reversals_group.addButton(button)
-            switch.addWidget(button)
+        # Reversals: chosen before the deal, like the deck, and fixed by it. A checkbox, not a
+        # switch: it takes effect at the deal, not when clicked (HIG, Getting input)
+        self.reversals_check = QCheckBox(READING_SPIKE["reversals"])
         # The user's last choice, from any reading; flipping it here makes it the next one's
         forced = os.environ.get("TAROT_SPIKE_REVERSED")
-        start = get_readings_reversals() and forced != "none"
-        (self.reversals_on if start else self.reversals_off).setChecked(True)
-        self.reversals_on.toggled.connect(set_readings_reversals)
-        self.reversals_label.setBuddy(self.reversals_on)
+        self.reversals_check.setChecked(get_readings_reversals() and forced != "none")
+        self.reversals_check.toggled.connect(set_readings_reversals)
+        # After the deal, the choice said in words
+        self.reversals_label = QLabel()
         self._reversals_mark = info_line(
             QIcon.fromTheme("object-flip-vertical"),
+            self.reversals_check,
             self.reversals_label,
             None,
-            self.reversals_switch,
             control=True,
         )
 
@@ -1793,7 +1981,7 @@ class ReadingSpikeTab(SpreadTab):
 
         self.pane.body.insertWidget(1, form)
 
-        # Notes where the Description was: collapsed, and opened only by a click
+        # Notes where the Description was: collapsed until opened, by a click or by the last turn
         self.notes_edit = self.pane.description_edit
         self.notes_edit.setReadOnly(False)
         self.notes_edit.setPlainText("")
@@ -1804,22 +1992,43 @@ class ReadingSpikeTab(SpreadTab):
         self.pane.set_description_open(False)
 
         # Notes sit under the last row, not at the pane's foot: the list is only as tall as its
-        # rows, and what is left goes to a filler under the Notes
+        # rows. What is left goes to the Notes while they are open, and to a filler under them
+        # while they are closed
         body = self.pane.body
         body.setStretchFactor(self.pane.stack, LIST_STRETCH)
         self._filler = QWidget()
         self._filler.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
         body.addWidget(self._filler, 1)
+        self._notes_item = next(
+            i
+            for i in range(body.count())
+            if body.itemAt(i).layout() is not None
+            and body.itemAt(i).layout().indexOf(self.notes_edit) >= 0
+        )
+        opened = self.pane.set_description_open
         expanded = self.pane.set_description_expanded
 
-        def set_notes_expanded(wanted):
-            # Expanded Notes take the list's room, so the filler must not take it from them
-            expanded(wanted)
-            self._filler.setHidden(wanted)
+        def set_notes_open(wanted):
+            opened(wanted)
+            self._sync_notes_room()
 
+        def set_notes_expanded(wanted):
+            expanded(wanted)
+            self._sync_notes_room()
+
+        # The pane's own buttons call these through the pane, so they are replaced on it
+        self.pane.set_description_open = set_notes_open
         self.pane.set_description_expanded = set_notes_expanded
         self._list_fit = ListFit(self.pane.list_view, self.fit_list)
+        self._sync_notes_room()
         self._sync_subtitle()
+
+    def _sync_notes_room(self):
+        """Open Notes take the pane's room under the list; closed, the filler keeps them under it"""
+        open_ = self.pane.description_open()
+        self.notes_edit.set_fills(open_ and not self.pane.description_expanded())
+        self.pane.body.setStretch(self._notes_item, 1 if open_ else 0)
+        self._filler.setHidden(open_)
 
     def fit_list(self):
         """The list as tall as its rows, so the Notes follow the last one"""
@@ -1827,15 +2036,8 @@ class ReadingSpikeTab(SpreadTab):
         rows = sum(view.sizeHintForRow(row) for row in range(view.model().rowCount()))
         self.pane.stack.setMaximumHeight(max(rows + 2 * view.frameWidth(), 1))
 
-    def _segment(self, text):
-        button = QToolButton()
-        button.setText(text)
-        button.setCheckable(True)
-        button.setAutoRaise(True)
-        return button
-
     def reversals(self):
-        return self.reversals_on.isChecked()
+        return self.reversals_check.isChecked()
 
     def _draw_reversed(self):
         forced = os.environ.get("TAROT_SPIKE_REVERSED")
@@ -1887,19 +2089,16 @@ class ReadingSpikeTab(SpreadTab):
         self.deck_label.setVisible(not staged)
         deck = getattr(self, "deck", None) or self._chosen_deck()
         self.deck_label.setText(deck.get_name() if deck else "")
-        self.reversals_switch.setVisible(staged)
+        self.reversals_check.setVisible(staged)
+        self.reversals_label.setVisible(not staged)
         self.reversals_label.setText(
-            READING_SPIKE["reversals"]
-            if staged
-            else READING_SPIKE["reversals_with" if self.reversals() else "reversals_without"]
+            READING_SPIKE["reversals_with" if self.reversals() else "reversals_without"]
         )
         dealt = self._dealt_at is not None and not staged
         self.date_mark.setVisible(dealt)
         self.date_label.setVisible(dealt)
         if dealt:
-            self.date_label.setText(
-                QLocale().toString(self._dealt_at, QLocale.FormatType.ShortFormat)
-            )
+            self.date_label.setText(format_qdatetime(self._dealt_at))
 
     def _chosen_deck(self):
         return self.deck_combo.currentData() or deck_manager.get_reference_deck()
@@ -2175,38 +2374,58 @@ class ReadingSpikeTab(SpreadTab):
     # -- the phase, and what each one shows ----------------------------------------------------
 
     def set_phase(self, phase):
+        was = self.phase
         self.phase = phase
         self.bar.sync()
         self._sync_subtitle()
-        self._quiet_toolbar()
+        self._sync_rail()
+        if phase == "read" and was != "read":
+            # The reading is on the table: what is left to do is write about it
+            self.pane.set_description_open(True)
 
-    def _quiet_toolbar(self):
-        """Until every card is turned the toolbar shows only View: Summon, Flip, Arrange and the
-        rest mean nothing yet. The actions stay on the tab, so their keys (D deals) still work"""
+    def _take_view_actions(self):
+        """View's actions, and the pane's toggle after them, off the rail: the strip shows them.
+        Their keys stay the tab's"""
         toolbar = self.toolbar
-        if not hasattr(self, "_quieted"):
-            actions = toolbar.actions()
-            start = next(
-                (
-                    i
-                    for i, action in enumerate(actions)
-                    if isinstance(toolbar.widgetForAction(action), QLabel)
-                    and toolbar.widgetForAction(action).text() == CANVAS["section_view"]
-                ),
-                None,
-            )
-            if start is None:
-                self._quieted = ([], None)
-            else:
-                self._quieted = (actions[:start], actions[start])
-                for action in self._quieted[0]:
-                    toolbar.removeAction(action)
-            return
-        hidden, anchor = self._quieted
-        if self.phase == "read" and hidden:
-            for action in hidden:
-                toolbar.insertAction(anchor, action)
-            self._quieted = ([], anchor)
+        actions = toolbar.actions()
+        start = next(
+            (
+                i
+                for i, action in enumerate(actions)
+                if isinstance(toolbar.widgetForAction(action), QLabel)
+                and toolbar.widgetForAction(action).text() == CANVAS["section_view"]
+            ),
+            None,
+        )
+        if start is None:
+            return []
+        # The separator over View's heading goes with it
+        if start > 0 and actions[start - 1].isSeparator():
+            start -= 1
+        taken = actions[start:]
+        buttons = [
+            action
+            for action in taken
+            if not action.isSeparator() and not isinstance(toolbar.widgetForAction(action), QLabel)
+        ]
+        for action in taken:
+            toolbar.removeAction(action)
+        return buttons
+
+    def _stack_strip(self):
+        """The strip under the view, in a column of their own, so the rail stands beside both"""
+        column = QWidget()
+        stack = QVBoxLayout(column)
+        stack.setContentsMargins(0, 0, 0, 0)
+        stack.setSpacing(0)
+        self.canvas_area.layout().replaceWidget(self.view, column)
+        stack.addWidget(self.view, 1)
+        stack.addWidget(self.strip)
+
+    def _sync_rail(self):
+        """No rail until every card is turned: Summon, Flip and Arrange mean nothing yet, and View
+        is in the strip. Then it appears whole, as the candle lifts"""
+        self.toolbar.setVisible(self.phase == "read")
 
     def card_clicked(self, card):
         if self.phase == "dealt" and self._turn_queue and card is self._turn_queue[0]:
@@ -2221,7 +2440,8 @@ class ReadingSpikeTab(SpreadTab):
         # Above the next card while it turns, then back to its own depth
         card.setZValue(TURNING_Z)
         self._sync_next()
-        self.halo.flare(following, animate)
+        if not self._revealing_all:
+            self.halo.flare(following, animate)
         if not self._turn_queue:
             self._candle_target = 0.0
             if not animate:
@@ -2231,8 +2451,12 @@ class ReadingSpikeTab(SpreadTab):
         self.bar.sync()
 
     def turn_all(self):
+        """The halo means "turn this one next", which Reveal All has answered: it flares once on
+        its card and goes, rather than chasing a cascade too quick for it or its caption"""
         if not self._turn_queue:
             return
+        self._revealing_all = True
+        self.halo.flare(None, self._animates())
         if not self._animates():
             while self._turn_queue:
                 self.turn_next()
@@ -2282,6 +2506,34 @@ class ReadingSpikeTab(SpreadTab):
         painter.translate(anchor)
         painter.setOpacity(caption.opacity())
         caption.paint(painter, None)
+        painter.restore()
+
+    # -- the badges -----------------------------------------------------------------------
+
+    def _paint_badges(self, painter, rect):
+        """Each filled position's number at its card's corner  at screen size and
+        upright however the card lies, from the moment it lands: face-down, the layout is
+        readable too. Inside the card, so a moved card's repaint takes its old badge with it"""
+        if self.phase == "staged":
+            return
+        side = QFontMetricsF(self._badge_font).height() + 4
+        inset = side * BADGE_INSET
+        following = self.next_card()
+        painter.save()
+        painter.resetTransform()
+        painter.setRenderHints(
+            QPainter.RenderHint.Antialiasing | QPainter.RenderHint.TextAntialiasing
+        )
+        for placement in self.placements:
+            card = placement.card
+            if card is None or card.scene() is None or not card.isVisible():
+                continue
+            if card in self._dealt and card not in self._landed:
+                continue
+            corner = self.view.mapFromScene(card.sceneBoundingRect()).boundingRect().topLeft()
+            circle = QRectF(corner.x() + inset, corner.y() + inset, side, side)
+            lit = card is following
+            paint_badge(painter, circle, placement.slot.number, self._badge_font, lit)
         painter.restore()
 
     # -- the candle -----------------------------------------------------------------------

@@ -66,6 +66,8 @@ class DescriptionBox(QTextEdit):
         self.setPlaceholderText(hint)
         self.setTabChangesFocus(True)
         self.roomy = False
+        # Takes whatever height its layout gives it, rather than growing line by line
+        self.fills = False
         self.overflowing = False
 
         document = self.document()
@@ -81,16 +83,23 @@ class DescriptionBox(QTextEdit):
             self.setMaximumHeight(QWIDGETSIZE_MAX)
         self._fit()
 
+    def set_fills(self, fills):
+        self.fills = fills
+        if fills:
+            self.setMinimumHeight(ceil(self._limit) + 2 * self.frameWidth())
+            self.setMaximumHeight(QWIDGETSIZE_MAX)
+        self._fit()
+
     def _fit(self):
         height = self.document().size().height()
         overflowing = height > self._limit
         # Off until needed: a bar appearing would narrow the text as it fits
         self.setVerticalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAsNeeded
-            if overflowing or self.roomy
+            if overflowing or self.roomy or self.fills
             else Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
-        if not self.roomy:
+        if not (self.roomy or self.fills):
             self.setFixedHeight(ceil(min(height, self._limit)) + 2 * self.frameWidth())
         if overflowing != self.overflowing:
             self.overflowing = overflowing

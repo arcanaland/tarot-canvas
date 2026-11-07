@@ -18,6 +18,12 @@ def format_qdate(date):
     return locale.toString(date, pattern.strip())
 
 
+def format_qdatetime(datetime):
+    """`datetime`'s date as `format_qdate` writes it, then its time in the locale's short form."""
+    time = QLocale.system().toString(datetime.time(), QLocale.FormatType.ShortFormat)
+    return DATES["date_and_time"].format(date=format_qdate(datetime.date()), time=time)
+
+
 def format_date(text):
     """An ISO date in the system locale's long form, or `text` if it isn't one."""
     date = QDate.fromString(text, Qt.DateFormat.ISODate)

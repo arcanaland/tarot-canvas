@@ -1,10 +1,11 @@
 import pytest
-from PyQt6.QtCore import QDate, QDateTime
+from PyQt6.QtCore import QDate, QDateTime, QLocale, QTime
 
 from tarot_canvas.utils.dates import (
     RELATIVE_DATE_DAYS,
     format_date,
     format_qdate,
+    format_qdatetime,
     relative_date,
     relative_date_from_iso,
     relative_date_from_timestamp,
@@ -72,3 +73,11 @@ def test_the_weekday_is_stripped_from_whatever_the_locale_offers(qtbot):
 
     assert weekday not in rendered
     assert len(rendered) <= len(full)
+
+
+def test_a_moment_reads_as_its_long_date_and_its_short_time(qtbot):
+    moment = QDateTime(TODAY, QTime(15, 42))
+    text = format_qdatetime(moment)
+
+    assert format_qdate(TODAY) in text
+    assert QLocale.system().toString(moment.time(), QLocale.FormatType.ShortFormat) in text
