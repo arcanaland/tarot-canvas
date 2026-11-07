@@ -13,7 +13,8 @@ class ReferenceDeck:
     REFERENCE_DECK_URL = "https://github.com/arcanaland/reference-decks/releases/download/rider-waite-smith%2Fv1.1/rider-waite-smith-1.1.zip"
     REFERENCE_DECK_DIR = "reference-decks"
     REFERENCE_DECK_NAME = "rider-waite-smith"
-    # The published deck's only back, which the app does not show: it draws its own
+
+    # this image looks bad, so it's being retired for using the house back
     RETIRED_BACK = "classic.jpg"
 
     @staticmethod
@@ -30,10 +31,7 @@ class ReferenceDeck:
 
     @staticmethod
     def drop_retired_back(deck_path=None):
-        """Delete the reference deck's retired back, and card_backs/ if that leaves it empty.
-
-        Only that file in only the app's own copy of the reference deck. Never raises.
-        """
+        """Delete the reference deck's retired card back"""
         if deck_path is None:
             deck_path = ReferenceDeck.get_reference_deck_path()
         backs_dir = os.path.join(deck_path, "card_backs")

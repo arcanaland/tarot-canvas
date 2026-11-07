@@ -1,9 +1,3 @@
-"""A card's back: the deck's own, or the house back for a deck without one.
-
-The house back is the app icon pressed in brass into a plum card with a brass edge,
-drawn by code from the icon, so no back image ships with the app.
-"""
-
 from functools import lru_cache
 from importlib.resources import files
 
@@ -54,6 +48,7 @@ def _brass_icon(side):
 
 @lru_cache(maxsize=16)
 def _house_back(w, h):
+    """Our custom plum card back"""
     pixmap = QPixmap(w, h)
     pixmap.fill(Qt.GlobalColor.transparent)
     painter = QPainter(pixmap)
