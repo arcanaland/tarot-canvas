@@ -175,7 +175,7 @@ class BenchCanvas:
         tab = self.tab
         for card in tab.cards():
             tab.scene.removeItem(card)
-        tab.view.reset_zoom()
+        tab.view.go_home()
 
         visible = tab.view.mapToScene(tab.view.viewport().rect()).boundingRect()
         rng = random.Random(LAYOUT_SEED)

@@ -82,7 +82,7 @@ from tarot_canvas.ui.canvas.tab_icon import (
     snapped,
     spread_icon,
 )
-from tarot_canvas.ui.canvas.view import MAX_ZOOM
+from tarot_canvas.ui.canvas.view import HOME_MARGIN, MAX_ZOOM
 from tarot_canvas.ui.card_transfer import (
     cards_from_mime,
     copy_card_to_clipboard,
@@ -474,7 +474,7 @@ class CanvasTab(BaseTab):
             "canvas.send_to_back": self.on_send_to_back,
             "canvas.align": self.on_align_cards,
             "canvas.save_layout_as_spread": self.on_save_layout_as_spread,
-            "canvas.fit": self.on_fit_view,
+            "canvas.fit": self.on_home,
             "canvas.fullscreen": self.on_toggle_fullscreen,
             "canvas.cancel": self.on_escape_pressed,
         }
@@ -591,11 +591,6 @@ class CanvasTab(BaseTab):
         fit_action = self.commands["canvas.fit"]
         fit_action.setToolTip(CANVAS["fit_tooltip"])
         self.toolbar.addAction(fit_action)
-
-        reset_action = QAction(QIcon.fromTheme("zoom-original"), "", self)
-        reset_action.setToolTip(CANVAS["reset_view_tooltip"])
-        reset_action.triggered.connect(self.on_reset_view)
-        self.toolbar.addAction(reset_action)
 
         self.fullscreen_action = self.commands["canvas.fullscreen"]
         self.fullscreen_action.setCheckable(True)
@@ -939,7 +934,7 @@ class CanvasTab(BaseTab):
         return how == "reset"
 
     def zoom(self, how):
-        {"in": self.on_zoom_in, "out": self.on_zoom_out, "reset": self.on_reset_view}[how]()
+        {"in": self.on_zoom_in, "out": self.on_zoom_out, "reset": self.on_home}[how]()
 
     # Canvas Control Methods
     def on_zoom_in(self):
@@ -952,30 +947,10 @@ class CanvasTab(BaseTab):
         self._on_camera_taken()
         self.view.zoom_by_from_center(0.8)
 
-    def on_fit_view(self):
-        """Fit all items in view"""
+    def on_home(self):
+        """Take the camera home: every card in view, never closer than 1x"""
         self._on_camera_taken()
-        # Get bounding rect of all items
-        items = self.scene.items()
-        if not items:
-            return
-        # Calculate bounding rect of all items
-        rect = items[0].sceneBoundingRect()
-        for item in items[1:]:
-            rect = rect.united(item.sceneBoundingRect())
-        # Add margin
-        rect.adjust(-50, -50, 50, 50)
-        # Fit view to rect
-        self.view.fit_to_rect(rect)
-
-    def on_reset_view(self):
-        """Reset view to default position and zoom"""
-        self._on_camera_taken()
-        self.view.reset_zoom()
-        # The scene rect moves with the camera now, so centre on the cards instead.
-        items_rect = self.scene.itemsBoundingRect()
-        self.view.centerOn(items_rect.center() if not items_rect.isNull() else QPointF(0, 0))
-        self.view.grow_scene_rect()
+        self.view.go_home()
 
     # Card Manipulation Methods
     def on_rotate_card(self):
@@ -1181,7 +1156,7 @@ class CanvasTab(BaseTab):
     def keep_in_sight(self, rect, free):
         """Bring scene `rect` into `free`, a part of the viewport, moving the view as little as
         it can. Never a zoom in."""
-        rect = rect.adjusted(-50, -50, 50, 50)  # on_fit_view's margin
+        rect = rect.adjusted(-HOME_MARGIN, -HOME_MARGIN, HOME_MARGIN, HOME_MARGIN)
         if free.isEmpty():
             return
         shown = self.view.mapFromScene(rect).boundingRect()

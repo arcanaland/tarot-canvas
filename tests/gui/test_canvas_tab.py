@@ -691,6 +691,7 @@ def test_selection_marks_are_not_cards(qtbot):
 
 def test_zooming_tells_the_selected_cards_so_their_corners_hold_their_size(qtbot):
     tab = make_tab(qtbot)
+    tab.resize(1000, 700)  # room for one card at 1x, so home is exactly 1x
     add_cards(tab, 1)
     card = canvas_cards(tab)[0]
     near = card.marks.corners[0].path().boundingRect()
@@ -700,10 +701,49 @@ def test_zooming_tells_the_selected_cards_so_their_corners_hold_their_size(qtbot
     assert card.view_scale() == pytest.approx(0.25)
     assert card.marks.corners[0].path().boundingRect().width() > near.width()
 
-    tab.on_reset_view()
+    tab.on_home()
 
     assert card.view_scale() == 1.0
     assert card.marks.corners[0].path().boundingRect() == near
+
+
+def viewport_centre_in_scene(tab):
+    return tab.view.mapToScene(tab.view.viewport().rect().center())
+
+
+def test_home_shows_one_card_at_1x_centred(qtbot):
+    tab = make_tab(qtbot)
+    tab.resize(1000, 700)
+    add_cards(tab, 1)
+    card = canvas_cards(tab)[0]
+    tab.view.zoom_by_from_center(4)
+    told = []
+    tab.view.zoom_changed.connect(told.append)
+
+    tab.on_home()
+
+    assert tab.view.transform().m11() == 1.0
+    assert told == [1.0]
+    centre = viewport_centre_in_scene(tab)
+    expected = card.sceneBoundingRect().center()
+    assert centre.x() == pytest.approx(expected.x(), abs=1)
+    assert centre.y() == pytest.approx(expected.y(), abs=1)
+
+
+def test_home_on_an_empty_canvas_is_1x_at_the_origin(qtbot):
+    tab = make_tab(qtbot)
+    tab.resize(1000, 700)
+    tab.view.zoom_by_from_center(3)
+    for _ in range(5):  # pan well away from the origin
+        tab.view.horizontalScrollBar().setValue(tab.view.horizontalScrollBar().maximum())
+        tab.view.verticalScrollBar().setValue(tab.view.verticalScrollBar().maximum())
+
+    tab.on_home()
+
+    assert tab.view.transform().m11() == 1.0
+    centre = viewport_centre_in_scene(tab)
+    assert centre.x() == pytest.approx(0, abs=1)
+    assert centre.y() == pytest.approx(0, abs=1)
 
 
 @pytest.mark.parametrize(
