@@ -20,6 +20,10 @@ class BaseTab(QWidget):
     def tab_icon(self):
         return QIcon()
 
+    def tab_tooltip(self):
+        """The whole title, for a tab whose title is cut short"""
+        return ""
+
     def flush_pending_edits(self):
         """Persist anything this tab is holding unsaved."""
 

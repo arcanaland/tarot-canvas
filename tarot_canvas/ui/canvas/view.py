@@ -63,8 +63,15 @@ class PannableGraphicsView(QGraphicsView):
         # The moving ground, when the style is swirl and GL could draw it
         self.swirl = None
         self._swirl_paint_failed = False
+        # Called as (painter, scene rect) after the items are drawn, in order
+        self.foreground_hooks = []
         for bar in (self.horizontalScrollBar(), self.verticalScrollBar()):
             bar.actionTriggered.connect(self.camera_taken)
+
+    def drawForeground(self, painter, rect):
+        super().drawForeground(painter, rect)
+        for hook in self.foreground_hooks:
+            hook(painter, rect)
 
     def card_at(self, scene_pos):
         """The topmost card at scene_pos, if any."""

@@ -154,10 +154,17 @@ class MotionChannels:
             t.rotate(tilt_x, Qt.Axis.XAxis)
         if spin:
             t.rotate(spin)
+        turn = self.face_turn()
+        if turn:
+            t.rotate(turn, Qt.Axis.YAxis)
         if self.lift != 1.0:
             t.scale(self.lift, self.lift)
         t.translate(-cx, -cy)
         return t
+
+    def face_turn(self):
+        """Degrees the card is turned about its own vertical axis, as when it is turned over"""
+        return 0.0
 
     def drawn_angle(self):
         """The rotation the card is drawn at in degrees."""

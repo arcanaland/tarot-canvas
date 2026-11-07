@@ -149,6 +149,7 @@ class LibraryTab(BaseTab):
         self.spreads_page.details_requested.connect(self._open_details)
         self.spreads_page.row_chosen.connect(self._open_details_for_selection)
         self.spreads_page.edit_requested.connect(self.on_spread_edit_requested)
+        self.spreads_page.reading_requested.connect(self.on_spread_reading_requested)
         self.spreads_page.duplicate_requested.connect(self.on_spread_duplicate_requested)
         self.spreads_page.delete_requested.connect(self.on_spread_delete_requested)
         self.spreads_page.details_changed.connect(self._on_spread_details_changed)
@@ -493,6 +494,11 @@ class LibraryTab(BaseTab):
         main_window = self.window()
         if hasattr(main_window, "open_spread"):
             main_window.open_spread(path)
+
+    def on_spread_reading_requested(self, path):
+        main_window = self.window()
+        if hasattr(main_window, "open_reading"):
+            main_window.open_reading(path)
 
     def on_spread_duplicate_requested(self, path):
         main_window = self.window()

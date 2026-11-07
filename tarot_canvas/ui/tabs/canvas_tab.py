@@ -135,6 +135,8 @@ class CanvasTab(BaseTab):
 
     # The heading over the toolbar's first group
     TOOLS_TITLE = CANVAS["section_cards"]
+    # What add_slot puts on the canvas
+    SLOT_ITEM = SlotItem
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -300,6 +302,7 @@ class CanvasTab(BaseTab):
 
     def set_ground(self, color):
         """Pick the selection tone that shows up against this background colour."""
+        self.ground = QColor(color)
         self.gilt = gilt_for_ground(color)
         for card in self._cards:
             card.set_gilt(self.gilt)
@@ -612,8 +615,12 @@ class CanvasTab(BaseTab):
         self.update_arrange_actions()
 
         # View control actions group
-        self.toolbar.addSeparator()
-        self.toolbar.addWidget(self.create_section_label(CANVAS["section_view"]))
+        self.view_section = [
+            self.toolbar.addSeparator(),
+            self.toolbar.addWidget(self.create_section_label(CANVAS["section_view"])),
+        ]
+        # The group's buttons, without its separator and heading
+        self.view_actions = []
 
         # Zooming is View > Zoom's, whose keys are the window's
         for icon_name, slot, tooltip in (
@@ -624,10 +631,12 @@ class CanvasTab(BaseTab):
             action.setToolTip(tooltip)
             action.triggered.connect(slot)
             self.toolbar.addAction(action)
+            self.view_actions.append(action)
 
         fit_action = self.commands["canvas.fit"]
         fit_action.setToolTip(CANVAS["fit_tooltip"])
         self.toolbar.addAction(fit_action)
+        self.view_actions.append(fit_action)
 
         self.fullscreen_action = self.commands["canvas.fullscreen"]
         self.fullscreen_action.setCheckable(True)
@@ -635,6 +644,8 @@ class CanvasTab(BaseTab):
             self.fullscreen_action, CANVAS["fullscreen_tooltip"], self.fullscreen_action
         )
         self.toolbar.addAction(self.fullscreen_action)
+        self.view_actions.append(self.fullscreen_action)
+        self.view_section.extend(self.view_actions)
 
         # Add the toolbar to the main layout
         parent_layout.addWidget(self.toolbar, 0)  # 0 means no stretch
@@ -815,8 +826,8 @@ class CanvasTab(BaseTab):
     def on_card_dropped(self, mime, scene_pos):
         self.place_card(mime, at=scene_pos)
 
-    def make_card_item(self, card, deck, reversed):
-        """An item for card, not yet on the canvas, or None if its art won't load."""
+    def make_card_item(self, card, deck, reversed, item_type=DraggableCardItem):
+        """An item_type for card, not yet on the canvas, or None if its art won't load."""
         image_path = card.get("image")
         if not image_path or not os.path.exists(image_path):
             print(f"Card image not found: {image_path}")
@@ -829,7 +840,7 @@ class CanvasTab(BaseTab):
             return None
         pixmap, source_size = art
 
-        card_item = DraggableCardItem(pixmap, card, self, deck=deck, reversed=reversed)
+        card_item = item_type(pixmap, card, self, deck=deck, reversed=reversed)
         card_item.set_art_source(image_path, source_size)
         return card_item
 
@@ -855,7 +866,7 @@ class CanvasTab(BaseTab):
 
     def add_slot(self, number, position_id, at=None, label="", meaning=""):
         """Add a slot, centred on at or under the pointer"""
-        slot = SlotItem(number, position_id, self, label=label, meaning=meaning)
+        slot = self.SLOT_ITEM(number, position_id, self, label=label, meaning=meaning)
         self._place_item(slot, at)
         if at is None:
             slot.place_and_settle()
@@ -882,6 +893,11 @@ class CanvasTab(BaseTab):
         self.scene.addItem(item)
         item.setSelected(True)
         self.layout_changed.emit()
+
+    def _toast(self, text):
+        toast = getattr(self.window(), "toast", None)
+        if toast is not None:
+            toast.show_message(text)
 
     def open_card_view(self, item):
         """Open a card view tab for the card on the canvas, from its own deck"""

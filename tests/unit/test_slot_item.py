@@ -3,7 +3,7 @@ from PyQt6.QtCore import QSize
 from PyQt6.QtGui import QColor
 
 from tarot_canvas.ui.canvas.detail import CARD_UNIT_SIZE, card_unit_size, logical_size
-from tarot_canvas.ui.canvas.slot_item import render_slot
+from tarot_canvas.ui.canvas.slot_item import OUTLINE_DARKER, render_slot, slot_ink
 
 SIZE = QSize(200, 340)
 
@@ -50,3 +50,29 @@ def test_a_long_label_stops_at_three_lines(qapp):
     assert colours_in(short, *below_three_lines) == {"#d62728"}
     assert colours_in(long, *below_three_lines) == {"#d62728"}
     assert long != short
+
+
+def test_a_slots_options_left_out_draw_the_designers_slot(qapp):
+    """The edge, ink, dash and turn a reading's socket asks for change nothing by default"""
+    fill = QColor("#5a5a5a")
+    plain = render_slot(4, "Hopes and Fears", fill, SIZE, 2).toImage()
+    spelled_out = render_slot(
+        4,
+        "Hopes and Fears",
+        fill,
+        SIZE,
+        2,
+        edge=fill.darker(OUTLINE_DARKER),
+        ink=slot_ink(fill),
+        dashed=False,
+        text_turn=0,
+    ).toImage()
+
+    assert plain == spelled_out
+    for option in ({"dashed": True}, {"text_turn": 90}, {"ink": "#ff0000"}, {"edge": "#00ff00"}):
+        assert render_slot(4, "Hopes and Fears", fill, SIZE, 2, **option).toImage() != plain
+
+
+def test_a_slot_turned_a_full_turn_reads_as_one_not_turned(qapp):
+    plain = render_slot(2, "Obstacle", "#5a5a5a", SIZE, 1).toImage()
+    assert render_slot(2, "Obstacle", "#5a5a5a", SIZE, 1, text_turn=360).toImage() == plain

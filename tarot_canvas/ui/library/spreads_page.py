@@ -23,7 +23,7 @@ from tarot_canvas.ui.library.spreads_model import (
     SpreadRole,
     SpreadsListModel,
 )
-from tarot_canvas.ui.strings import LIBRARY, SPREADS, notes_text
+from tarot_canvas.ui.strings import LIBRARY, READINGS, SPREADS, notes_text
 from tarot_canvas.ui.widgets.inline_message import InlineMessage
 from tarot_canvas.utils.logger import logger
 
@@ -43,6 +43,7 @@ class SpreadsPage(LibraryListPage):
     # A row was clicked or reached by the keyboard: the pane opens unless the user closed it
     row_chosen = pyqtSignal()
     edit_requested = pyqtSignal(object)  # the spread's folder
+    reading_requested = pyqtSignal(object)  # the spread's folder
     duplicate_requested = pyqtSignal(object)  # the spread's folder
     delete_requested = pyqtSignal(object)  # the spread's folder
 
@@ -210,6 +211,8 @@ class SpreadsPage(LibraryListPage):
         if not included:
             menu.addSeparator()
             add(SPREADS["delete"], "edit-delete", self.delete_requested)
+        menu.addSeparator()
+        add(READINGS["open"], "media-playback-start", self.reading_requested)
         return menu
 
     def _show_row_menu(self, index, global_pos):

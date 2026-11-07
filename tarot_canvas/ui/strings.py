@@ -643,6 +643,22 @@ LOG_VIEWER = {
     "line_error": "Error processing log line: {error}",
 }
 
+# A reading dealt from a spread
+READINGS = {
+    "open": "Start Reading",
+    "question_hint": "Your question…",
+    "deal": "Begin Reading",
+    "begin": "Finish",
+    "turn_all": "Reveal All",
+    "turn_next": "Reveal Next",
+    "reversals": "Reversals",
+    "reversals_with": "With reversals",
+    "reversals_without": "Without reversals",
+    "card_reversed": "{card} (reversed)",
+    "date_and_time": "{date} · {time}",
+    "short_deal": ("No more cards (dealt all {dealt})"),
+}
+
 # The command palette
 PALETTE = {
     "title": "Find Card",

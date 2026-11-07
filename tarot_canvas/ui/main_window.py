@@ -55,6 +55,7 @@ from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tarot_canvas.ui.tabs.deck_view_tab import DeckViewTab
 from tarot_canvas.ui.tabs.library_tab import LibraryTab
+from tarot_canvas.ui.tabs.reading_tab import ReadingTab
 from tarot_canvas.ui.tabs.spread_tab import SpreadTab
 from tarot_canvas.ui.widgets.document_tabs import DocumentTabs
 from tarot_canvas.ui.widgets.placeholder_message import tinted_icon
@@ -584,6 +585,16 @@ class MainWindow(QMainWindow):
             self.toast.show_message(SPREADS["open_failed"])
             return None
         return self.add_canvas_tab(SpreadTab(spread, path))
+
+    def open_reading(self, path):
+        """A new tab dealing a reading from the spread in folder path, and return it"""
+        try:
+            spread = spreads.load(Path(path))
+        except (OSError, ValueError) as error:
+            logger.error(f"Could not open spread {path}: {error}")
+            self.toast.show_message(SPREADS["open_failed"])
+            return None
+        return self.add_canvas_tab(ReadingTab(spread))
 
     def duplicate_spread(self, path):
         """An unsaved tab holding a copy of the spread in folder path, and return it"""
