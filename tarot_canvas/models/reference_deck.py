@@ -5,6 +5,7 @@ import zipfile
 import requests
 
 from tarot_canvas.ui.strings import SETUP
+from tarot_canvas.utils.logger import logger
 from tarot_canvas.utils.path_helper import get_data_directory
 
 
@@ -12,6 +13,8 @@ class ReferenceDeck:
     REFERENCE_DECK_URL = "https://github.com/arcanaland/reference-decks/releases/download/rider-waite-smith%2Fv1.1/rider-waite-smith-1.1.zip"
     REFERENCE_DECK_DIR = "reference-decks"
     REFERENCE_DECK_NAME = "rider-waite-smith"
+    # The published deck's only back, which the app does not show: it draws its own
+    RETIRED_BACK = "classic.jpg"
 
     @staticmethod
     def get_reference_deck_path():
@@ -24,6 +27,25 @@ class ReferenceDeck:
     @staticmethod
     def is_reference_deck_present():
         return os.path.exists(ReferenceDeck.get_reference_deck_path())
+
+    @staticmethod
+    def drop_retired_back(deck_path=None):
+        """Delete the reference deck's retired back, and card_backs/ if that leaves it empty.
+
+        Only that file in only the app's own copy of the reference deck. Never raises.
+        """
+        if deck_path is None:
+            deck_path = ReferenceDeck.get_reference_deck_path()
+        backs_dir = os.path.join(deck_path, "card_backs")
+        retired = os.path.join(backs_dir, ReferenceDeck.RETIRED_BACK)
+        try:
+            if os.path.isfile(retired):
+                os.remove(retired)
+                logger.info(f"Removed the reference deck's retired back: {retired}")
+            if os.path.isdir(backs_dir) and not os.listdir(backs_dir):
+                os.rmdir(backs_dir)
+        except OSError as e:
+            logger.error(f"Could not remove the reference deck's retired back: {e}")
 
     @staticmethod
     def download_reference_deck(progress_callback=None):
@@ -104,6 +126,8 @@ class ReferenceDeck:
         os.remove(zip_file_path)
         if os.path.exists(temp_extract_dir):
             shutil.rmtree(temp_extract_dir)
+
+        ReferenceDeck.drop_retired_back(reference_deck_path)
 
         if progress_callback:
             progress_callback(100, SETUP["done"])

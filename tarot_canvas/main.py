@@ -152,6 +152,9 @@ def main():
     # Check if reference deck is already present
     needs_download = not ReferenceDeck.is_reference_deck_present()
 
+    if not needs_download:
+        ReferenceDeck.drop_retired_back()
+
     # If we need to download the reference deck, show setup dialog
     if needs_download:
         setup_dialog = SetupDialog()
