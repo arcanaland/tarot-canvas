@@ -34,6 +34,18 @@ CANONICAL_MAJOR_ARCANA_NAMES = {
 RASTER_EXTENSIONS = (".png", ".webp", ".jpg", ".jpeg")
 
 
+def rasters_by_stem(names):
+    """{stem: file name} over RASTER_EXTENSIONS; a stem in several formats takes the first."""
+    best = {}
+    for name in names:
+        stem, ext = os.path.splitext(name)
+        if ext in RASTER_EXTENSIONS:
+            rank = RASTER_EXTENSIONS.index(ext)
+            if stem not in best or rank < best[stem][0]:
+                best[stem] = (rank, name)
+    return {stem: name for stem, (_, name) in best.items()}
+
+
 def pick_raster(images, target_height):
     """The smallest image at or above target_height, else the largest below it."""
     if not images:
@@ -453,14 +465,7 @@ class TarotDeck:
                 names = os.listdir(directory)
             except OSError:
                 continue
-            best = {}
-            for name in names:
-                stem, ext = os.path.splitext(name)
-                if ext in RASTER_EXTENSIONS:
-                    rank = RASTER_EXTENSIONS.index(ext)
-                    if stem not in best or rank < best[stem][0]:
-                        best[stem] = (rank, name)
-            for stem, (_, name) in best.items():
+            for stem, name in rasters_by_stem(names).items():
                 index.setdefault(stem, {})[height] = os.path.join(directory, name)
         return index
 
@@ -523,19 +528,23 @@ class TarotDeck:
         return self._localized_alt_texts_cache[lang]
 
     def _load_card_backs(self):
-        """Load available card back images."""
-        backs = {}
+        """{stem: path} for the deck's backs, and the default back's stem.
 
-        # Get default back
+        A back is card_backs/<stem>.<ext> over RASTER_EXTENSIONS, and when a stem is in
+        more than one format the first in that order wins, as a face does.
+        """
+        # TODO(spec §6.5): card_backs/ under an image root, [card_backs.designs], and SVG
         default_back = self._metadata.get("card_backs", {}).get("default", "classic")
 
-        # Find all backs
-        pattern = os.path.join(self.deck_path, "card_backs", "*.png")
-        back_files = glob.glob(pattern)
-
-        for back_file in back_files:
-            name = os.path.basename(back_file).split(".")[0]
-            backs[name] = back_file
+        directory = os.path.join(self.deck_path, "card_backs")
+        try:
+            names = os.listdir(directory)
+        except OSError:
+            names = []
+        backs = {
+            stem: os.path.join(directory, name)
+            for stem, name in sorted(rasters_by_stem(names).items())
+        }
 
         self._card_backs = backs
         self._default_back = default_back
