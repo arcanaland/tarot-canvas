@@ -99,6 +99,18 @@ from tarot_canvas.utils.logger import logger
 WHEEL_TURN_STEP = 15
 WHEEL_TURN_FINE_STEP = 1
 
+# Background factory
+GROUNDS = {
+    "checkerboard": lambda tab, settings: tab.create_checkerboard_background(
+        settings.value(CHECKERBOARD_COLOR_KEY, CHECKERBOARD_COLOR_DEFAULT)
+    ),
+    "gradient": lambda tab, settings: tab.create_gradient_background(),
+    "solid": lambda tab, settings: tab.create_solid_color_background(
+        settings.value(BACKGROUND_COLOR_KEY, BACKGROUND_COLOR_DEFAULT)
+    ),
+    "swirl": lambda tab, settings: tab.create_swirl_background(),
+}
+
 
 def wheel_turn(orient, notches, fine):
     """Where notches of the wheel leave a card at orient.
@@ -229,19 +241,11 @@ class CanvasTab(BaseTab):
 
         bg_style = get_background_style(settings)
 
-        if bg_style == "checkerboard":
-            colour = settings.value(CHECKERBOARD_COLOR_KEY, CHECKERBOARD_COLOR_DEFAULT)
-            ground = self.create_checkerboard_background(colour)
-        elif bg_style == "gradient":
-            ground = self.create_gradient_background()
-        elif bg_style == "swirl":
-            ground = self.create_swirl_background()
-        else:
-            bg_color = settings.value(BACKGROUND_COLOR_KEY, BACKGROUND_COLOR_DEFAULT)
-            ground = self.create_solid_color_background(bg_color)
+        # swirl has an object we need to keep alive
         if bg_style != "swirl":
             self._drop_swirl()
-        self.set_ground(ground)
+
+        self.set_ground(GROUNDS[bg_style](self, settings))
 
         self.refresh_motion_settings()
         if self.motion_is_enabled() and self.isVisible():
@@ -413,6 +417,7 @@ class CanvasTab(BaseTab):
     def _drop_swirl(self):
         if self.view.swirl is None:
             return
+
         self.view.swirl.detach()
         self.view.swirl.deleteLater()
         self.view.swirl = None

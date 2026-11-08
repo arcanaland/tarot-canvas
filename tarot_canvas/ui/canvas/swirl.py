@@ -1,4 +1,4 @@
-"""A moving canvas ground: a fragment shader drawn small offscreen, read back, scaled up."""
+"""A dreamy swirly background. Inspired by a certain award-winning deck-building roguelike."""
 
 import contextlib
 import logging
@@ -28,7 +28,6 @@ log = logging.getLogger("TarotCanvas.canvas")
 # Where t sits when the ground is still
 STILL_T = 7.0
 
-# Tuned by eye on slop/swirl-spike. bench overrides pixel and every
 PARAMS = {
     "twirl": 0.05,
     "spin": 0.144,
@@ -39,7 +38,6 @@ PARAMS = {
     "warp": 0.648,
     "contrast": 0.648,
     "speed": 0.178,
-    # The dominant band, then the two either side of it
     "colour_1": QColor("#50396b"),
     "colour_2": QColor("#301f46"),
     "colour_3": QColor("#8671a5"),
@@ -50,8 +48,6 @@ PARAMS = {
     "parallax_zoom": 0.08,
 }
 
-# The sources carry no #version, which must be the first line: the header for the
-# context's profile is prepended, and OUT_COLOUR / attribute are its macros
 SHADERS = files("tarot_canvas.resources").joinpath("shaders")
 
 LEGACY_HEADER = ("#version 120\n", "#version 120\n#define OUT_COLOUR gl_FragColor\n")
@@ -72,7 +68,7 @@ def _hash(n):
 
 
 def bloom_data(t, values):
-    """Each bloom's centre, turn and radius at t, the same for every pixel. Always MAX_BLOOMS long."""
+    """Each bloom's center, turn and radius at t. Always MAX_BLOOMS long."""
     blooms = []
     for i in range(MAX_BLOOMS):
         n = i * 7.0
@@ -85,30 +81,27 @@ def bloom_data(t, values):
     return blooms
 
 
-# The raster governor. A swirl render on raster repaints every card, so its cost is
-# that whole paint. Spend at most SHARE_MS of each second on it, rendering less often as
-# the paint grows; past STILL_MS every render drops a frame, so the ground holds still
+# The raster governor. Used in case we are falling behind drawing the swirls.
 TICKS_PER_S = 1000.0 / TICK_MS
 SHARE_MS = 250.0
 STILL_MS = 16.7
 MAX_STRIDE = 16
-# A slower rate is taken at once; a faster one only once it has held this long
+# A slower rate is taken at once
 RECOVER_S = 2.0
 # While held still, how often one render measures whether it can move again
 PROBE_S = 5.0
 # Weight of the newest paint in the running cost
 COST_WEIGHT = 0.25
 
-# Why the canvas paints with raster, and what the ground does about it
+# Why the canvas paints with raster
 NO_FIELD_RULES = ("failed before",)
 STILL_RULES = ("preference off",)
 
-# Every render+readback in ms, while a bench is collecting them
+# Every render+readback in ms (for benchmarking)
 render_log = None
 
 
 def surface_format():
-    """The field's own format, never the process default (a bench's samples, say)."""
     fmt = QSurfaceFormat()
     fmt.setRenderableType(QSurfaceFormat.RenderableType.OpenGL)
     fmt.setSamples(0)
@@ -125,7 +118,7 @@ def surface_format():
 
 
 class SwirlField:
-    """One offscreen GL context drawing the shader into a small framebuffer."""
+    """Offscreen GL context rendering our shader into a throwaway framebuffer."""
 
     def __init__(self):
         self.context = None
@@ -193,6 +186,7 @@ class SwirlField:
                 self.vao = QOpenGLVertexArrayObject()
                 self.vao.create()
                 self.vao.bind()
+
             corners = array("f", (-1.0, -1.0, 3.0, -1.0, -1.0, 3.0))
             self.buffer = QOpenGLBuffer(QOpenGLBuffer.Type.VertexBuffer)
             if not self.buffer.create():
@@ -237,8 +231,10 @@ class SwirlField:
             self._ensure_fbo(size)
             self.fbo.bind()
             self.gl.glViewport(0, 0, size.width(), size.height())
+
             program = self.program
             program.bind()
+            # what an ergonomic API!
             program.setUniformValue("resolution", QVector2D(size.width(), size.height()))
             program.setUniformValue("centre", QVector2D(*centre))
             program.setUniformValue("scale", float(scale))
@@ -250,27 +246,33 @@ class SwirlField:
             program.setUniformValue("rounds", int(values["rounds"]))
             program.setUniformValue("warp", float(values["warp"]))
             program.setUniformValue("contrast", float(values["contrast"]))
+
             for name in ("colour_1", "colour_2", "colour_3"):
                 c = values[name]
                 program.setUniformValue(name, QVector3D(c.redF(), c.greenF(), c.blueF()))
+
             if self.vao is not None:
                 self.vao.bind()
             else:
                 self.buffer.bind()
                 program.enableAttributeArray(0)
                 program.setAttributeBuffer(0, GL_FLOAT, 0, 2, 0)
+
             self.gl.glDrawArrays(GL_TRIANGLES, 0, 3)
             if self.vao is not None:
                 self.vao.release()
             else:
                 self.buffer.release()
+
             program.release()
             image = self.fbo.toImage()
             self.fbo.release()
         finally:
             self.context.doneCurrent()
+
         if render_log is not None:
             render_log.append((time.perf_counter() - start) * 1000.0)
+
         return image
 
     def destroy(self):
@@ -343,12 +345,13 @@ def stride_for(cost_ms, base):
     """Ticks per render for a full repaint of cost_ms, or None to hold still."""
     if cost_ms >= STILL_MS:
         return None
+
     stride = max(base, math.ceil(cost_ms * TICKS_PER_S / SHARE_MS))
     return stride if stride <= MAX_STRIDE else None
 
 
 class Governor:
-    """How often a raster ground renders, from what its repaints cost."""
+    """How often a raster ground renders."""
 
     def __init__(self, base):
         self.base = base
@@ -390,6 +393,7 @@ def _slower(a, b):
     """Whether stride a renders less often than stride b (None is never)."""
     if a is None:
         return b is not None
+
     return b is not None and a > b
 
 
@@ -429,12 +433,12 @@ class SwirlGround(QObject):
     def _on_camera_moved(self):
         if PARAMS["parallax"] or self.image is None or self._stale_size():
             self.dirty = True
-            # A rendering tick is coming anyway; one render per tick, not two
+            # A rendering tick is coming anyway
             if not self.animating:
                 self.request()
 
     def request(self):
-        """Render on the next turn of the event loop, never inside a paint."""
+        """Render on the next turn of the event loop."""
         if not self._failed:
             self._pending.start()
 
@@ -443,6 +447,7 @@ class SwirlGround(QObject):
         allowed = allowed and not self.still
         gl = _is_gl(self.view.viewport())
         stride = int(PARAMS["every"])
+
         if allowed and not gl:
             probe = self.governor.tick(dt)
             if self.governor.stride is None:
@@ -452,11 +457,14 @@ class SwirlGround(QObject):
                     self.request()
             else:
                 stride = self.governor.stride
+
         if self.animating and not allowed and self.dirty:
             self.request()
+
         self.animating = allowed
         if not allowed:
             return
+
         self.t += dt * PARAMS["speed"]
         self.ticks += 1
         if self.ticks % max(1, stride) == 0:
@@ -466,6 +474,7 @@ class SwirlGround(QObject):
         """The viewport's paint took ms. Only one that follows a render repainted everything."""
         if self._measure and not _is_gl(self.view.viewport()):
             self.governor.measured(ms)
+
         self._measure = False
 
     def stop(self):

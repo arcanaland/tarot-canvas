@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import QApplication
 from tarot_canvas.settings import (
     BACKGROUND_COLOR_KEY,
     BACKGROUND_STYLE_KEY,
+    BACKGROUND_STYLES,
     CANVAS_GUIDES_KEY,
     CANVAS_TAB_MINIMAP_KEY,
     CHECKERBOARD_COLOR_KEY,
@@ -37,7 +38,7 @@ from tarot_canvas.ui.canvas.motion import LIFT_REST, LIFT_SELECTED
 from tarot_canvas.ui.canvas.selection import GILT_ON_DARK, GILT_ON_LIGHT
 from tarot_canvas.ui.card_colours import CARD_COLOURS, SLOT_COLOUR
 from tarot_canvas.ui.card_transfer import card_mime_data, cards_mime_data, copy_card_to_clipboard
-from tarot_canvas.ui.tabs.canvas_tab import CanvasTab, wheel_turn
+from tarot_canvas.ui.tabs.canvas_tab import GROUNDS, CanvasTab, wheel_turn
 from tarot_canvas.ui.widgets.document_tabs import DocumentTabs
 
 
@@ -744,6 +745,10 @@ def test_home_on_an_empty_canvas_is_1x_at_the_origin(qtbot):
     centre = viewport_centre_in_scene(tab)
     assert centre.x() == pytest.approx(0, abs=1)
     assert centre.y() == pytest.approx(0, abs=1)
+
+
+def test_every_background_style_has_a_ground():
+    assert set(GROUNDS) == set(BACKGROUND_STYLES)
 
 
 @pytest.mark.parametrize(
