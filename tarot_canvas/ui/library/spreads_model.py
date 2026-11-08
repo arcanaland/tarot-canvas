@@ -41,7 +41,7 @@ def _summary(spread):
     return " ".join(spread.description.split("\n\n")[0].split())
 
 
-def _title(spread):
+def spread_title(spread):
     return spread.name or SPREADS["untitled"]
 
 
@@ -66,7 +66,7 @@ def _sectioned(rows, sort):
 
 
 def _sorted_by(rows, sort):
-    by_name = sorted(rows, key=lambda row: _title(row.spread).casefold())
+    by_name = sorted(rows, key=lambda row: spread_title(row.spread).casefold())
     if sort == SORT_NAME:
         return by_name
     if sort == SORT_COUNT:
@@ -118,10 +118,10 @@ class SpreadsListModel(QAbstractListModel):
     def _hold(self, scanned, included):
         unit = card_unit_size()
         self._spreads = [
-            SpreadRow(path, spread, _thumbnail(spread, unit), edited_at(path))
+            SpreadRow(path, spread, spread_thumbnail(spread, unit), edited_at(path))
             for path, spread in scanned
         ] + [
-            SpreadRow(path, spread, _thumbnail(spread, unit), 0.0, included=True)
+            SpreadRow(path, spread, spread_thumbnail(spread, unit), 0.0, included=True)
             for path, spread in included
         ]
 
@@ -199,7 +199,7 @@ class SpreadsListModel(QAbstractListModel):
         path, spread, thumbnail = row.path, row.spread, row.thumbnail
 
         if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.AccessibleTextRole):
-            return _title(spread)
+            return spread_title(spread)
         if role == Qt.ItemDataRole.DecorationRole:
             return thumbnail
         if role == SubtitleRole:
@@ -213,5 +213,5 @@ class SpreadsListModel(QAbstractListModel):
         return None
 
 
-def _thumbnail(spread, unit):
+def spread_thumbnail(spread, unit):
     return spread_icon(layout_marks(spread_marks(spread, unit), MINIMAP.max_fill))

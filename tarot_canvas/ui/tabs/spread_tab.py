@@ -15,7 +15,7 @@ from tarot_canvas.models.spreads import (
 from tarot_canvas.ui.canvas.detail import card_unit_size
 from tarot_canvas.ui.canvas.spread_pane import SpreadPane
 from tarot_canvas.ui.icons import SPREAD_ICON
-from tarot_canvas.ui.strings import CANVAS, COMMANDS, SPREADS
+from tarot_canvas.ui.strings import CANVAS, COMMANDS, READINGS, SPREADS
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.spread_slots import SpreadSlots
 from tarot_canvas.utils.logger import logger
@@ -41,6 +41,11 @@ class SpreadTab(SpreadSlots, CanvasTab):
 
         self.pane_action = self.pane.toggle_action(self, SPREADS["pane_tooltip"])
         self.toolbar.addAction(self.pane_action)
+        self.start_reading_action = QAction(
+            QIcon.fromTheme("media-playback-start"), READINGS["open"], self
+        )
+        self.start_reading_action.triggered.connect(self.start_reading)
+        self.toolbar.addAction(self.start_reading_action)
         self._build_menu()
 
         self._take(spread)
@@ -57,6 +62,9 @@ class SpreadTab(SpreadSlots, CanvasTab):
         self.pane.name_edit.textChanged.connect(self._on_name_edited)
         self.pane.slot_chosen.connect(self._select_slot)
         self.scene.selectionChanged.connect(self.show_selection)
+        for changed in (self.positions.rowsInserted, self.positions.rowsRemoved):
+            changed.connect(self._sync_start_reading)
+        self._sync_start_reading()
 
         self.spread_path = path
         if path is not None:
@@ -285,6 +293,16 @@ class SpreadTab(SpreadSlots, CanvasTab):
         self.open_folder_action.setEnabled(
             self.spread_path is not None and not spreads.is_included(self.spread_path)
         )
+
+    @pyqtSlot()
+    def _sync_start_reading(self):
+        self.start_reading_action.setEnabled(bool(self._slots))
+
+    @pyqtSlot()
+    def start_reading(self):
+        """A reading of the spread as it stands, saved or not"""
+        if self._slots:
+            self.navigation_requested.emit("open_reading_of", self.current_spread())
 
     @pyqtSlot()
     def duplicate(self):

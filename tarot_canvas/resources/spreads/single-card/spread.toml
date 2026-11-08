@@ -1,0 +1,8 @@
+name = "Single Card"
+description = "A single card for a simple question or a daily draw."
+positions = [
+    { id = "p1", label = "Card", meaning = "What you should be aware of", x = 0.0, y = 0.0, rotation = 0.0, z = 1.0 },
+]
+
+[app."land.arcana.tarotcanvas"]
+version = 1
