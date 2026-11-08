@@ -757,26 +757,36 @@ def test_a_delete_that_fails_keeps_the_row_and_says_so(page, spreads_base, monke
 
 
 def menu_entries(menu):
-    return [None if action.isSeparator() else action.text() for action in menu.actions()]
+    """Each entry's label, without the key it shows"""
+    return [
+        None if action.isSeparator() else action.text().split("\t")[0] for action in menu.actions()
+    ]
 
 
-def test_a_users_rows_menu_edits_duplicates_deletes_and_starts_a_reading(page, qtbot, spreads_base):
+def menu_action(menu, text):
+    return next(action for action in menu.actions() if action.text() == text)
+
+
+# Start Reading first, destructive last
+READING_ENTRIES = [READINGS["open"], READINGS["open_with"], None]
+
+
+def test_a_users_rows_menu_starts_a_reading_edits_duplicates_and_deletes(page, qtbot, spreads_base):
     menu = page.row_menu(index_of(page, "Older"))
     assert menu_entries(menu) == [
+        *READING_ENTRIES,
         SPREADS["edit"],
         SPREADS["duplicate"],
         None,
         SPREADS["delete"],
-        None,
-        READINGS["open"],
     ]
-    edit, duplicate, _separator, delete, _, reading = menu.actions()
+    reading, _with, _, edit, duplicate, _separator, delete = menu.actions()
 
     for action, signal in [
+        (reading, page.reading_requested),
         (edit, page.edit_requested),
         (duplicate, page.duplicate_requested),
         (delete, page.delete_requested),
-        (reading, page.reading_requested),
     ]:
         with qtbot.waitSignal(signal) as requested:
             action.trigger()
@@ -788,7 +798,7 @@ def test_the_menus_edit_opens_the_spreads_tab(window, spreads_base):
     library = open_library(window)
     page = library.spreads_page
 
-    page.row_menu(first_spread(page)).actions()[0].trigger()
+    menu_action(page.row_menu(first_spread(page)), SPREADS["edit"]).trigger()
 
     tab = window.tab_widget.currentWidget()
     assert isinstance(tab, SpreadTab)
@@ -1087,7 +1097,7 @@ def test_only_included_spreads_is_not_empty(qtbot, spreads_base, included_base):
     assert page.list_model.has_items()
 
 
-def test_an_included_rows_menu_duplicates_and_starts_a_reading_and_a_heading_has_none(
+def test_an_included_rows_menu_starts_a_reading_and_duplicates_and_a_heading_has_none(
     qtbot, shipped_page, monkeypatch
 ):
     executed = []
@@ -1107,10 +1117,9 @@ def test_an_included_rows_menu_duplicates_and_starts_a_reading_and_a_heading_has
 
     right_click("Celtic")
     right_click("Mine new")
-    reading = [None, READINGS["open"]]
     assert executed == [
-        [SPREADS["duplicate"], *reading],
-        [SPREADS["edit"], SPREADS["duplicate"], None, SPREADS["delete"], *reading],
+        [*READING_ENTRIES, SPREADS["duplicate"]],
+        [*READING_ENTRIES, SPREADS["edit"], SPREADS["duplicate"], None, SPREADS["delete"]],
     ]
 
 
@@ -1137,10 +1146,9 @@ def test_pressing_a_rows_menu_button_opens_its_menu(qtbot, shipped_page, monkeyp
         centre = menu_button_centre(shipped_page, index_of(shipped_page, name))
         qtbot.mouseClick(viewport, Qt.MouseButton.LeftButton, pos=centre)
 
-    reading = [None, READINGS["open"]]
     assert executed == [
-        [SPREADS["edit"], SPREADS["duplicate"], None, SPREADS["delete"], *reading],
-        [SPREADS["duplicate"], *reading],
+        [*READING_ENTRIES, SPREADS["edit"], SPREADS["duplicate"], None, SPREADS["delete"]],
+        [*READING_ENTRIES, SPREADS["duplicate"]],
     ]
 
 
@@ -1167,7 +1175,7 @@ def test_duplicating_a_built_in_opens_an_unsaved_copy_saved_as_the_users(
     library = open_library(window)
     page = library.spreads_page
 
-    page.row_menu(index_of(page, "Celtic")).actions()[0].trigger()
+    menu_action(page.row_menu(index_of(page, "Celtic")), SPREADS["duplicate"]).trigger()
 
     tab = window.tab_widget.currentWidget()
     assert isinstance(tab, SpreadTab)

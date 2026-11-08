@@ -68,7 +68,7 @@ from tarot_canvas.ui.strings import LIBRARY, SPREADS, label_for, notes_text
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.ui.widgets.placeholder_message import tinted_icon
 from tarot_canvas.ui.widgets.places_sidebar import PlacesSidebar
-from tarot_canvas.ui.widgets.search_field import search_field
+from tarot_canvas.ui.widgets.search_field import search_field, step_into_results
 from tarot_canvas.ui.widgets.zoom_slider import ZoomSlider
 
 ESOTERICA_VIEW_ICON = files("tarot_canvas.resources.icons").joinpath("esoterica.svg")
@@ -207,7 +207,14 @@ class LibraryTab(BaseTab):
         # The sidebar first, so Tab goes from choosing a view to searching it
         QWidget.setTabOrder(self.sidebar, self.search_field)
 
-        commands.bind(self, Scope.LIBRARY, {"library.toggle_details": self.details_toggle.click})
+        commands.bind(
+            self,
+            Scope.LIBRARY,
+            {
+                "library.toggle_details": self.details_toggle.click,
+                "library.start_reading": self._start_reading,
+            },
+        )
 
         self._restore_settings()
         self.sidebar.currentRowChanged.connect(self.on_view_changed)
@@ -224,6 +231,7 @@ class LibraryTab(BaseTab):
 
         self.search_field = search_field(LIBRARY["search_decks"])
         self.search_field.textChanged.connect(self.on_search_changed)
+        step_into_results(self.search_field, self.focus_first_result)
         row.addWidget(self.search_field, 1)
 
         self.sort_combo = QComboBox()  # the current view's sorts, filled by _sync_sort_combo
@@ -455,6 +463,20 @@ class LibraryTab(BaseTab):
         self.search_field.setFocus(Qt.FocusReason.ShortcutFocusReason)
         self.search_field.selectAll()
 
+    def focus_first_result(self):
+        """From the search field onto the first result, selected"""
+        page = self.current_list_page()
+        if page is not None:
+            return page.focus_first_row()
+        index = self.proxy_model.index(0, 0)
+        if not index.isValid():
+            return False
+        self.view.setFocus(Qt.FocusReason.TabFocusReason)
+        self.view.selectionModel().setCurrentIndex(
+            index, QItemSelectionModel.SelectionFlag.ClearAndSelect
+        )
+        return True
+
     def on_search_changed(self, text):
         page = self.current_list_page()
         if page is not None:
@@ -593,6 +615,10 @@ class LibraryTab(BaseTab):
         deck_downloads().cancel(slug)
 
     # -- the details pane -------------------------------------------------
+
+    def _start_reading(self):
+        if self.pages.currentWidget() is self.spreads_page:
+            self.spreads_page.start_reading()
 
     def details_pane_is_open(self):
         return not self.details_container.isHidden()

@@ -87,6 +87,18 @@ class LibraryListPage(QWidget):
 
     # -- selection --------------------------------------------------------
 
+    def focus_first_row(self):
+        """Into the list, onto its first row with details, as an arrow key would go"""
+        for row in range(self.list_model.rowCount()):
+            index = self.list_model.index(row, 0)
+            if self._details_for(index) is not None:
+                self.list_view.setFocus(Qt.FocusReason.TabFocusReason)
+                self.list_view.selectionModel().setCurrentIndex(
+                    index, QItemSelectionModel.SelectionFlag.ClearAndSelect
+                )
+                return True
+        return False
+
     def _select_index(self, index):
         if not index.isValid():
             return False

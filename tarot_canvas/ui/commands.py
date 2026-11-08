@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import QApplication
 
 from tarot_canvas.settings import get_shortcut_keys, set_shortcut_keys
 from tarot_canvas.ui.icons import LIBRARY_ICON, SPREAD_ICON
-from tarot_canvas.ui.strings import COMMANDS, NOTES, PREFERENCES
+from tarot_canvas.ui.strings import COMMANDS, NOTES, PREFERENCES, READINGS
 
 StandardKey = QKeySequence.StandardKey
 
@@ -213,6 +213,13 @@ COMMANDS = (
     _command("notes.delete", NOTES["delete"], "edit-delete", [], N, shows="window.delete"),
     # Library
     _command("library.toggle_details", T["library_toggle_details"], None, ["Ctrl+I"], L),
+    _command(
+        "library.start_reading",
+        READINGS["open"],
+        "media-playback-start",
+        ["Ctrl+Return", "Ctrl+Enter"],
+        L,
+    ),
 )
 
 _BY_ID = {command.id: command for command in COMMANDS}
