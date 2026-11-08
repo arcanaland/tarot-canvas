@@ -534,11 +534,15 @@ def test_the_explorer_opens_at_its_content_width(qtbot):
 
 def test_the_window_reopens_at_the_size_it_was_closed(qtbot):
     first = make_shown_window(qtbot)
+    opened_at = first.size()
+    # The window may refuse to be this narrow: how narrow it can be grows with the font
     first.resize(720, 480)
+    closed_at = first.size()
+    assert closed_at != opened_at
     first.close()
 
     second = make_shown_window(qtbot)
-    assert (second.width(), second.height()) == (720, 480)
+    assert second.size() == closed_at
 
 
 def test_opening_the_same_deck_twice_reuses_its_tab(qtbot):
