@@ -3,7 +3,7 @@
 import os
 import random
 
-from PyQt6.QtCore import QDateTime, QItemSelectionModel, QSignalBlocker, Qt, QTimer
+from PyQt6.QtCore import QDateTime, QItemSelectionModel, QLineF, QRectF, QSignalBlocker, Qt, QTimer
 from PyQt6.QtGui import QFontMetrics, QIcon
 from PyQt6.QtWidgets import QSplitter, QVBoxLayout, QWidget
 
@@ -15,7 +15,9 @@ from tarot_canvas.settings import (
     set_readings_reversals,
 )
 from tarot_canvas.ui.canvas.backs import back_pixmap
+from tarot_canvas.ui.canvas.candle import Candle, WarmPatch
 from tarot_canvas.ui.canvas.detail import card_unit_size
+from tarot_canvas.ui.canvas.halo import HaloItem
 from tarot_canvas.ui.canvas.placement import (
     DIM_IN_S,
     DIM_LIFT_S,
@@ -53,6 +55,14 @@ TURNING_Z = 40001.0
 # About how many characters of the Question the tab shows
 TAB_TITLE_CHARS = 32
 
+# A face-down neighbour's share of the next card's light, at no distance, and how far away in
+# position heights it has none
+RIM_NEIGHBOUR = 0.45
+RIM_REACH = 2.5
+# The table the candle lights is the positions' bounds, this much bigger on each side by its longer
+# side
+TABLE_PAD = 0.05
+
 
 def _centre(item):
     return item.pos() + item.boundingRect().center()
@@ -76,6 +86,8 @@ class ReadingTab(SpreadSlots, CanvasTab):
 
     phase = Phase.STAGED
     _flights = None
+    halo = None
+    candle = None
 
     # {socket: card} filled by hand, until the table next changes
     _by_hand = None
@@ -95,6 +107,8 @@ class ReadingTab(SpreadSlots, CanvasTab):
         self._flights = Flights(self.scene)
         # Seconds until Reveal All's next turn, or None
         self._cascade_wait = None
+        # Under Reveal All the halo has let go, and stays gone
+        self._revealing_all = False
         self._clock_on = False
         self._syncing = False
 
@@ -121,8 +135,13 @@ class ReadingTab(SpreadSlots, CanvasTab):
 
         self.badges = Badges(self.view, self._badge_marks)
         self.caption = Caption(self.view)
-        # The caption last, over everything
-        self.view.foreground_hooks.extend((self.badges, self.caption))
+        self.candle = Candle(self.view, self._table_rect, lambda: self.ground)
+        self.patch = WarmPatch()
+        self.scene.addItem(self.patch)
+        self.halo = HaloItem(self.view, self._halo_moved)
+        self.scene.addItem(self.halo)
+        # The candle under the marks, and the caption last, over everything
+        self.view.foreground_hooks.extend((self.candle, self.badges, self.caption))
         self._reveal_keys = RevealKeys(self, self.view, self.pane.list_view)
 
         # First, so every reader below sees the table as it now is
@@ -227,6 +246,7 @@ class ReadingTab(SpreadSlots, CanvasTab):
         for card in self._cards:
             if isinstance(card, SocketItem):
                 card.redraw()
+        self.view.viewport().update()
 
     def ambient_is_allowed(self):
         """Still until every card has landed and turned, then as any canvas"""
@@ -405,6 +425,8 @@ class ReadingTab(SpreadSlots, CanvasTab):
             self.ground_pace.set_target(FACE_DOWN_GROUND_PACE, DIM_IN_S)
         else:
             self.ground_pace.set_target(1.0, DIM_LIFT_S)
+        self.candle.set_lit(phase is Phase.DEALT, self.motion_level != "Off")
+        self._wake()
         self._sync_facts()
 
         # No rail until every card is turned
@@ -553,8 +575,8 @@ class ReadingTab(SpreadSlots, CanvasTab):
             size = item.face_pixmap().size()
             key = (size.width(), size.height())
             if key not in backs:
-                backs[key] = back_pixmap(self.deck, size)[0]
-            item.lie_face_down(backs[key])
+                backs[key] = back_pixmap(self.deck, size)
+            item.lie_face_down(*backs[key])
             placement.fill(item)
             dealt.append(item)
             logger.debug(
@@ -598,11 +620,13 @@ class ReadingTab(SpreadSlots, CanvasTab):
             self._read()
             return
         self._sync_next()
+        self.halo.attach(self.next_card(), fade=self.motion_level != "Off")
+        self._wake()
 
     # -- turning ----------------------------------------------------------------------------
 
     def _sync_next(self):
-        """The next card answers the pointer, lies on top, and its row and caption show"""
+        """The next card answers the pointer, lies on top, and its row shows"""
         following = self.next_card()
         for card in self._dealt:
             card.set_next(card is following)
@@ -610,7 +634,6 @@ class ReadingTab(SpreadSlots, CanvasTab):
             following.setZValue(NEXT_Z)
             index = self.positions.index(self.placements.index(self.placement_of(following)))
             self.pane.list_view.scrollTo(index)
-        self.caption.show_for(self.placement_of(following).slot if following else None)
         self.refresh_rows()
         self.bar.sync()
         self.view.viewport().update()
@@ -623,16 +646,24 @@ class ReadingTab(SpreadSlots, CanvasTab):
         if not self.can_turn():
             return
         card = self._turn_queue.pop(0)
+        animate = self.motion_level != "Off"
         # Above the next card while it turns, then back to its own depth
         card.setZValue(TURNING_Z)
         self._sync_next()
-        card.begin_turn(self.motion_level != "Off")
+        if not self._revealing_all:
+            self.halo.flare(self.next_card(), animate)
+        card.begin_turn(animate)
         self.bar.sync()
+        self._wake()
 
     def turn_all(self):
         """Turn every card left, in order, one after another"""
         if not self.can_turn():
             return
+        # The halo means "turn this one next", which Reveal All has answered: it flares once and
+        # goes, rather than chase a cascade quicker than its flare
+        self._revealing_all = True
+        self.halo.flare(None, self.motion_level != "Off")
         if self.motion_level == "Off":
             while self._turn_queue:
                 self.turn_next()
@@ -659,7 +690,7 @@ class ReadingTab(SpreadSlots, CanvasTab):
 
     def _read(self):
         self._cascade_wait = None
-        self.caption.show_for(None)
+        self._revealing_all = False
         self.set_phase(Phase.READ)
         self.layout_changed.emit()
 
@@ -721,6 +752,63 @@ class ReadingTab(SpreadSlots, CanvasTab):
             and placement.card in self._landed
         ]
 
+    # -- the halo, the rim light and the candle -------------------------------------------------
+
+    def _table_rect(self):
+        """The positions' bounds, padded: the table the candle leaves lit"""
+        rect = QRectF()
+        for slot in self._slots:
+            rect = rect.united(slot.sceneBoundingRect())
+        pad = max(rect.width(), rect.height()) * TABLE_PAD
+        return rect.adjusted(-pad, -pad, pad, pad)
+
+    def _halo_moved(self, card):
+        placement = self.placement_of(card) if card is not None else None
+        self.caption.show_for(placement.slot if placement is not None else None)
+        self.patch.follow(card)
+        self._sync_light()
+
+    def back_light(self, card):
+        """The halo's light on a face-down card's edge: all of it on its own card, and a share
+        falling off with distance on the others"""
+        light = self.halo.light()
+        lit = self.halo.card
+        if light <= 0.0 or lit is None:
+            return 0.0
+        if card is lit:
+            return light
+        # In position heights: a deck's art may be smaller than its positions
+        placement = self.placement_of(lit)
+        rect = placement.slot.boundingRect() if placement is not None else lit.boundingRect()
+        height = rect.height() or 1.0
+        d = QLineF(_centre(card), _centre(lit)).length() / height
+        falloff = max(0.0, 1.0 - d / RIM_REACH)
+        return light * RIM_NEIGHBOUR * falloff * falloff * self.candle.level
+
+    def _sync_light(self):
+        """The caption, the warm patch and every face-down back, to the halo and the candle now"""
+        fade = self.halo.fade()
+        if fade != self.caption.opacity:
+            before = self.caption.rect()
+            self.caption.opacity = fade
+            self.view.viewport().update(before.united(self.caption.rect()).toAlignedRect())
+        self.patch.set_strength(self.halo.glow() * self.candle.level)
+        for card in self._dealt:
+            if card.face_down:
+                card.set_rim(self.back_light(card))
+
+    def _needs_clock(self):
+        """Whether anything is still moving: a flight, a cascade, a fade, or a lively halo"""
+        if self.is_dealing() or self._cascade_wait is not None:
+            return True
+        if not self.candle.is_still() or not self.halo.is_steady():
+            return True
+        return self.halo.card is not None and self.motion_level == "Full"
+
+    def _wake(self):
+        if self.isVisible() and self._needs_clock():
+            self._clock(True)
+
     # -- the clock --------------------------------------------------------------------------
 
     def _clock(self, on):
@@ -742,7 +830,10 @@ class ReadingTab(SpreadSlots, CanvasTab):
             if self._cascade_wait <= 0.0:
                 self.turn_next()
                 self._cascade_wait = TURN_ALL_GAP_S if self._turn_queue else None
-        if not self.is_dealing() and self._cascade_wait is None:
+        self.halo.advance(t, dt, self.motion_level == "Full")
+        self.candle.advance(dt)
+        self._sync_light()
+        if not self._needs_clock():
             self._clock(False)
 
     def showEvent(self, event):
@@ -750,8 +841,7 @@ class ReadingTab(SpreadSlots, CanvasTab):
         if self._home_on_show:
             self._home_on_show = False
             self._home_timer.start()
-        if self.is_dealing() or self._cascade_wait is not None:
-            self._clock(True)
+        self._wake()
 
     def hideEvent(self, event):
         super().hideEvent(event)
@@ -764,3 +854,7 @@ class ReadingTab(SpreadSlots, CanvasTab):
             for card in self._flights.cards():
                 self._land(card, instant=True)
             self._finish_deal()
+        if self.halo is not None:
+            self.halo.settle()
+            self.candle.snap()
+            self._sync_light()
