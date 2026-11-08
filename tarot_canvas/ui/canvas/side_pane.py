@@ -1,4 +1,5 @@
 from PyQt6.QtCore import QSize, Qt, pyqtSignal, pyqtSlot
+from PyQt6.QtGui import QAction, QIcon
 from PyQt6.QtWidgets import QFrame, QScrollArea, QVBoxLayout, QWidget
 
 DEFAULT_WIDTH = 320
@@ -36,6 +37,22 @@ class SidePane(QScrollArea):
         splitter.setCollapsible(0, False)
         splitter.setCollapsible(last, True)
         splitter.splitterMoved.connect(self._on_splitter_moved)
+
+    def toggle_action(self, parent, tooltip):
+        """A checkable action that opens and collapses this pane, its icon following"""
+        action = QAction(parent)
+        action.setToolTip(tooltip)
+        action.setCheckable(True)
+        action.triggered.connect(self.set_open)
+
+        def sync(is_open):
+            action.setChecked(is_open)
+            name = "sidebar-collapse-right" if is_open else "sidebar-expand-right"
+            action.setIcon(QIcon.fromTheme(name))
+
+        self.open_changed.connect(sync)
+        sync(True)
+        return action
 
     def is_open(self):
         return self.splitter.sizes()[-1] > 0

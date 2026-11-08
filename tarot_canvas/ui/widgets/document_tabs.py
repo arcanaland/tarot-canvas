@@ -23,4 +23,5 @@ class DocumentTabs(QTabWidget):
 
     def _label(self, index, page):
         self.setTabText(index, page.tab_title())
+        self.setTabToolTip(index, page.tab_tooltip())
         self.setTabIcon(index, page.tab_icon())

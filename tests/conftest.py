@@ -32,6 +32,7 @@ DECK_MANAGER_CONSUMERS = [
     "tarot_canvas.ui.main_window",
     "tarot_canvas.ui.tabs.card_view_tab",
     "tarot_canvas.ui.tabs.library_tab",
+    "tarot_canvas.ui.tabs.reading_tab",
     "tarot_canvas.ui.components.card_explorer",
     "tarot_canvas.ui.library.deck_downloads",
 ]

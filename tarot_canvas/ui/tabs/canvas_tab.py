@@ -72,6 +72,7 @@ from tarot_canvas.ui.canvas.guides import GuideItem
 from tarot_canvas.ui.canvas.motion import (
     AMBIENT_GAIN_FLOOR,
     MotionClock,
+    Pace,
     approach,
     system_animations_enabled,
 )
@@ -135,6 +136,8 @@ class CanvasTab(BaseTab):
 
     # The heading over the toolbar's first group
     TOOLS_TITLE = CANVAS["section_cards"]
+    # What add_slot puts on the canvas
+    SLOT_ITEM = SlotItem
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -147,6 +150,8 @@ class CanvasTab(BaseTab):
 
         self.motion_clock = MotionClock(self)
         self.ambient_gain = 0.0
+        # How fast the ground moves on its own
+        self.ground_pace = Pace()
 
         self._cards = []
         self._top_z = 0.0
@@ -290,7 +295,8 @@ class CanvasTab(BaseTab):
     def reactive_is_allowed(self):
         return self.motion_level != "Off"
 
-    def ambient_is_allowed(self):
+    def ground_motion_is_allowed(self):
+        """Whether the background may move on its own"""
         return (
             self.motion_level == "Full"
             and self.desktop_wants_animation
@@ -298,8 +304,13 @@ class CanvasTab(BaseTab):
             and self.window().isActiveWindow()
         )
 
+    def ambient_is_allowed(self):
+        """Whether the cards may drift on their own"""
+        return self.ground_motion_is_allowed()
+
     def set_ground(self, color):
         """Pick the selection tone that shows up against this background colour."""
+        self.ground = QColor(color)
         self.gilt = gilt_for_ground(color)
         for card in self._cards:
             card.set_gilt(self.gilt)
@@ -361,12 +372,19 @@ class CanvasTab(BaseTab):
         view_scale = abs(self.view.transform().m11())
         for card in self._cards:
             card.advance_motion(t, dt, self.ambient_gain, view_scale)
+        ground_moves = self.ground_motion_is_allowed()
+        # Held still, the pace is wherever it was going, so nothing resumes mid-ease
+        if ground_moves:
+            self.ground_pace.advance(dt)
+        else:
+            self.ground_pace.snap()
         if self.view.swirl is not None:
-            self.view.swirl.advance(dt, self.ambient_is_allowed())
+            self.view.swirl.advance(dt, ground_moves, self.ground_pace.value)
 
     def settle_motion(self):
         """Put every card flat."""
         self.ambient_gain = 0.0
+        self.ground_pace.snap()
         for card in self._cards:
             card.settle_motion()
         if self.view.swirl is not None:
@@ -612,8 +630,12 @@ class CanvasTab(BaseTab):
         self.update_arrange_actions()
 
         # View control actions group
-        self.toolbar.addSeparator()
-        self.toolbar.addWidget(self.create_section_label(CANVAS["section_view"]))
+        self.view_section = [
+            self.toolbar.addSeparator(),
+            self.toolbar.addWidget(self.create_section_label(CANVAS["section_view"])),
+        ]
+        # The group's buttons, without its separator and heading
+        self.view_actions = []
 
         # Zooming is View > Zoom's, whose keys are the window's
         for icon_name, slot, tooltip in (
@@ -624,10 +646,12 @@ class CanvasTab(BaseTab):
             action.setToolTip(tooltip)
             action.triggered.connect(slot)
             self.toolbar.addAction(action)
+            self.view_actions.append(action)
 
         fit_action = self.commands["canvas.fit"]
         fit_action.setToolTip(CANVAS["fit_tooltip"])
         self.toolbar.addAction(fit_action)
+        self.view_actions.append(fit_action)
 
         self.fullscreen_action = self.commands["canvas.fullscreen"]
         self.fullscreen_action.setCheckable(True)
@@ -635,6 +659,8 @@ class CanvasTab(BaseTab):
             self.fullscreen_action, CANVAS["fullscreen_tooltip"], self.fullscreen_action
         )
         self.toolbar.addAction(self.fullscreen_action)
+        self.view_actions.append(self.fullscreen_action)
+        self.view_section.extend(self.view_actions)
 
         # Add the toolbar to the main layout
         parent_layout.addWidget(self.toolbar, 0)  # 0 means no stretch
@@ -815,8 +841,8 @@ class CanvasTab(BaseTab):
     def on_card_dropped(self, mime, scene_pos):
         self.place_card(mime, at=scene_pos)
 
-    def make_card_item(self, card, deck, reversed):
-        """An item for card, not yet on the canvas, or None if its art won't load."""
+    def make_card_item(self, card, deck, reversed, item_type=DraggableCardItem):
+        """An item_type for card, not yet on the canvas, or None if its art won't load."""
         image_path = card.get("image")
         if not image_path or not os.path.exists(image_path):
             print(f"Card image not found: {image_path}")
@@ -829,7 +855,7 @@ class CanvasTab(BaseTab):
             return None
         pixmap, source_size = art
 
-        card_item = DraggableCardItem(pixmap, card, self, deck=deck, reversed=reversed)
+        card_item = item_type(pixmap, card, self, deck=deck, reversed=reversed)
         card_item.set_art_source(image_path, source_size)
         return card_item
 
@@ -855,7 +881,7 @@ class CanvasTab(BaseTab):
 
     def add_slot(self, number, position_id, at=None, label="", meaning=""):
         """Add a slot, centred on at or under the pointer"""
-        slot = SlotItem(number, position_id, self, label=label, meaning=meaning)
+        slot = self.SLOT_ITEM(number, position_id, self, label=label, meaning=meaning)
         self._place_item(slot, at)
         if at is None:
             slot.place_and_settle()
@@ -882,6 +908,11 @@ class CanvasTab(BaseTab):
         self.scene.addItem(item)
         item.setSelected(True)
         self.layout_changed.emit()
+
+    def _toast(self, text):
+        toast = getattr(self.window(), "toast", None)
+        if toast is not None:
+            toast.show_message(text)
 
     def open_card_view(self, item):
         """Open a card view tab for the card on the canvas, from its own deck"""
@@ -1256,7 +1287,7 @@ class CanvasTab(BaseTab):
         """Redraw the tab icon if the spread's snapped marks have changed"""
         marks = ()
         if self.tab_minimap:
-            marks = snapped(layout_marks(card_marks(self._cards), MINIMAP.max_fill))
+            marks = snapped(layout_marks(card_marks(self.cards()), MINIMAP.max_fill))
         if marks == self._tab_marks:
             return
         self._tab_marks = marks

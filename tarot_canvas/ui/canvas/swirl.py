@@ -442,8 +442,9 @@ class SwirlGround(QObject):
         if not self._failed:
             self._pending.start()
 
-    def advance(self, dt, allowed):
-        """One MotionClock tick. On raster the governor picks how often to render."""
+    def advance(self, dt, allowed, pace=1.0):
+        """One MotionClock tick, with the field's time running at pace. On raster the governor
+        picks how often to render."""
         allowed = allowed and not self.still
         gl = _is_gl(self.view.viewport())
         stride = int(PARAMS["every"])
@@ -465,7 +466,7 @@ class SwirlGround(QObject):
         if not allowed:
             return
 
-        self.t += dt * PARAMS["speed"]
+        self.t += dt * PARAMS["speed"] * pace
         self.ticks += 1
         if self.ticks % max(1, stride) == 0:
             self.render()

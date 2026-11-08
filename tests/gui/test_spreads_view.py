@@ -39,7 +39,7 @@ from tarot_canvas.ui.library.spread_row_delegate import SpreadRowDelegate
 from tarot_canvas.ui.library.spreads_model import SORT_EDITED, SORT_NEWEST, SpreadPathRole
 from tarot_canvas.ui.library.spreads_page import SpreadsPage
 from tarot_canvas.ui.main_window import MainWindow
-from tarot_canvas.ui.strings import SPREADS
+from tarot_canvas.ui.strings import READINGS, SPREADS
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.library_tab import LibraryTab
 from tarot_canvas.ui.tabs.spread_tab import SpreadTab
@@ -760,20 +760,23 @@ def menu_entries(menu):
     return [None if action.isSeparator() else action.text() for action in menu.actions()]
 
 
-def test_a_users_rows_menu_edits_duplicates_and_deletes(page, qtbot, spreads_base):
+def test_a_users_rows_menu_edits_duplicates_deletes_and_starts_a_reading(page, qtbot, spreads_base):
     menu = page.row_menu(index_of(page, "Older"))
     assert menu_entries(menu) == [
         SPREADS["edit"],
         SPREADS["duplicate"],
         None,
         SPREADS["delete"],
+        None,
+        READINGS["open"],
     ]
-    edit, duplicate, _separator, delete = menu.actions()
+    edit, duplicate, _separator, delete, _, reading = menu.actions()
 
     for action, signal in [
         (edit, page.edit_requested),
         (duplicate, page.duplicate_requested),
         (delete, page.delete_requested),
+        (reading, page.reading_requested),
     ]:
         with qtbot.waitSignal(signal) as requested:
             action.trigger()
@@ -1084,7 +1087,7 @@ def test_only_included_spreads_is_not_empty(qtbot, spreads_base, included_base):
     assert page.list_model.has_items()
 
 
-def test_an_included_rows_menu_only_duplicates_and_a_heading_has_none(
+def test_an_included_rows_menu_duplicates_and_starts_a_reading_and_a_heading_has_none(
     qtbot, shipped_page, monkeypatch
 ):
     executed = []
@@ -1104,9 +1107,10 @@ def test_an_included_rows_menu_only_duplicates_and_a_heading_has_none(
 
     right_click("Celtic")
     right_click("Mine new")
+    reading = [None, READINGS["open"]]
     assert executed == [
-        [SPREADS["duplicate"]],
-        [SPREADS["edit"], SPREADS["duplicate"], None, SPREADS["delete"]],
+        [SPREADS["duplicate"], *reading],
+        [SPREADS["edit"], SPREADS["duplicate"], None, SPREADS["delete"], *reading],
     ]
 
 
@@ -1133,9 +1137,10 @@ def test_pressing_a_rows_menu_button_opens_its_menu(qtbot, shipped_page, monkeyp
         centre = menu_button_centre(shipped_page, index_of(shipped_page, name))
         qtbot.mouseClick(viewport, Qt.MouseButton.LeftButton, pos=centre)
 
+    reading = [None, READINGS["open"]]
     assert executed == [
-        [SPREADS["edit"], SPREADS["duplicate"], None, SPREADS["delete"]],
-        [SPREADS["duplicate"]],
+        [SPREADS["edit"], SPREADS["duplicate"], None, SPREADS["delete"], *reading],
+        [SPREADS["duplicate"], *reading],
     ]
 
 

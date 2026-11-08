@@ -1,6 +1,6 @@
 from contextlib import suppress
 
-from PyQt6.QtCore import QPointF, QSignalBlocker, Qt, QTimer, QUrl, pyqtSlot
+from PyQt6.QtCore import QSignalBlocker, Qt, QTimer, QUrl, pyqtSlot
 from PyQt6.QtGui import QAction, QDesktopServices, QIcon
 from PyQt6.QtWidgets import QMenu, QMessageBox, QSplitter
 
@@ -13,14 +13,15 @@ from tarot_canvas.models.spreads import (
     offsets_from_middle,
 )
 from tarot_canvas.ui.canvas.detail import card_unit_size
-from tarot_canvas.ui.canvas.spread_pane import PositionModel, SpreadPane
+from tarot_canvas.ui.canvas.spread_pane import SpreadPane
 from tarot_canvas.ui.icons import SPREAD_ICON
 from tarot_canvas.ui.strings import CANVAS, COMMANDS, SPREADS
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
+from tarot_canvas.ui.tabs.spread_slots import SpreadSlots
 from tarot_canvas.utils.logger import logger
 
 
-class SpreadTab(CanvasTab):
+class SpreadTab(SpreadSlots, CanvasTab):
     """A canvas of numbered slots"""
 
     TOOLS_TITLE = SPREADS["section_slots"]
@@ -29,8 +30,7 @@ class SpreadTab(CanvasTab):
         super().__init__(parent)
         spread = spread or Spread()
         self.spread_path = None
-        self._slots = []  # in number order
-        self.positions = PositionModel(self._slots, self)
+        self.init_slots()
         self._modified = False
 
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -39,12 +39,7 @@ class SpreadTab(CanvasTab):
         self.pane = SpreadPane(self.positions, self.commands["canvas.summon"])
         self.pane.dock(self.splitter)
 
-        self.pane_action = QAction(self)
-        self.pane_action.setToolTip(SPREADS["pane_tooltip"])
-        self.pane_action.setCheckable(True)
-        self.pane_action.triggered.connect(self.pane.set_open)
-        self.pane.open_changed.connect(self._sync_pane_action)
-        self._sync_pane_action(True)
+        self.pane_action = self.pane.toggle_action(self, SPREADS["pane_tooltip"])
         self.toolbar.addAction(self.pane_action)
         self._build_menu()
 
@@ -112,10 +107,6 @@ class SpreadTab(CanvasTab):
 
     # -- slots -------------------------------------------------------------
 
-    def slots(self):
-        """Every slot, in number order"""
-        return tuple(self._slots)
-
     def arrange_order(self, items):
         """Slots go round an arc in number order"""
         number = {id(slot): index for index, slot in enumerate(self._slots)}
@@ -142,33 +133,10 @@ class SpreadTab(CanvasTab):
         self._extra = spread.extra
         self._position_extra = {position.id: position.extra for position in spread.positions}
         self.pane.set_document(spread.name, spread.description)
-        self._lay_out(spread.positions)
-
-    def _lay_out(self, positions):
-        unit = card_unit_size().width()
-        for number, position in enumerate(positions, start=1):
-            centre = QPointF(position.x * unit, position.y * unit)
-            slot = self.add_slot(
-                number, position.id, at=centre, label=position.label, meaning=position.meaning
-            )
-            slot.setPos(centre - slot.boundingRect().center())
-            slot.setZValue(position.z)
-            slot.set_orient(position.rotation)
-            self.positions.append(slot)
-        if positions:
-            self._top_z = max(position.z for position in positions)
-            self._bottom_z = min(position.z for position in positions)
-        self.scene.clearSelection()
-        self.settle_motion()
+        self.lay_out_slots(spread.positions, card_unit_size().width())
 
     def on_delete_card(self):
         super().on_delete_card()
-        self.positions.remove_unplaced()
-
-    def _remove_slots(self):
-        self.scene.clearSelection()
-        for slot in self._slots:
-            self.scene.removeItem(slot)
         self.positions.remove_unplaced()
 
     # -- the slot's menu ---------------------------------------------------
@@ -187,11 +155,6 @@ class SpreadTab(CanvasTab):
         # A new slot is selected before it has a row
         selected = [card for card in self.selected_cards() if card in self._slots]
         self.pane.show_selected(selected[0] if len(selected) == 1 else None)
-
-    def _sync_pane_action(self, is_open):
-        self.pane_action.setChecked(is_open)
-        name = "sidebar-collapse-right" if is_open else "sidebar-expand-right"
-        self.pane_action.setIcon(QIcon.fromTheme(name))
 
     def _select_slot(self, row):
         slot = self._slots[row]
@@ -303,11 +266,6 @@ class SpreadTab(CanvasTab):
             self._modified = True
             self.tab_label_changed.emit()
 
-    def _toast(self, text):
-        toast = getattr(self.window(), "toast", None)
-        if toast is not None:
-            toast.show_message(text)
-
     # -- the pane's menu ---------------------------------------------------
 
     @pyqtSlot()
@@ -354,7 +312,7 @@ class SpreadTab(CanvasTab):
             self._toast(SPREADS["open_failed"])
             return
 
-        self._remove_slots()
+        self.remove_slots()
         self._take(spread)
         self.layout_changed.emit()
         self._mark_saved()

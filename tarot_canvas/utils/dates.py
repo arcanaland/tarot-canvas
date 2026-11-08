@@ -1,6 +1,6 @@
 from PyQt6.QtCore import QDate, QDateTime, QLocale, Qt
 
-from tarot_canvas.ui.strings import DATES
+from tarot_canvas.ui.strings import DATES, READINGS
 
 RELATIVE_DATE_DAYS = 30
 
@@ -16,6 +16,12 @@ def format_qdate(date):
         pattern = pattern.replace(weekday, "")
 
     return locale.toString(date, pattern.strip())
+
+
+def format_qdatetime(datetime):
+    """`datetime`'s date as `format_qdate` writes it, then its time in the locale's short form."""
+    time = QLocale.system().toString(datetime.time(), QLocale.FormatType.ShortFormat)
+    return READINGS["date_and_time"].format(date=format_qdate(datetime.date()), time=time)
 
 
 def format_date(text):

@@ -100,6 +100,35 @@ READING_TEXT_SCALE_DEFAULT = 100
 READING_TEXT_SCALE_STEPS = (80, 90, 100, 110, 125, 150, 175, 200)
 
 
+# Whether a new reading deals reversed cards
+READINGS_REVERSALS_KEY = "readings/reversals"
+READINGS_REVERSALS_DEFAULT = True
+
+
+def get_readings_reversals(settings=None):
+    settings = settings or get_settings()
+    return settings.value(READINGS_REVERSALS_KEY, READINGS_REVERSALS_DEFAULT, type=bool)
+
+
+def set_readings_reversals(enabled, settings=None):
+    settings = settings or get_settings()
+    settings.setValue(READINGS_REVERSALS_KEY, bool(enabled))
+
+
+# The deck a new reading starts with
+READINGS_DECK_KEY = "readings/deck"
+
+
+def get_readings_deck(settings=None):
+    settings = settings or get_settings()
+    return settings.value(READINGS_DECK_KEY, "", type=str)
+
+
+def set_readings_deck(deck_path, settings=None):
+    settings = settings or get_settings()
+    settings.setValue(READINGS_DECK_KEY, str(deck_path or ""))
+
+
 def snap_reading_text_scale(value):
     """Find step nearest to value"""
     try:

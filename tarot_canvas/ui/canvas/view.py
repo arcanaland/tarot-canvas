@@ -63,8 +63,15 @@ class PannableGraphicsView(QGraphicsView):
         # The moving ground, when the style is swirl and GL could draw it
         self.swirl = None
         self._swirl_paint_failed = False
+        # Called as (painter, scene rect) after the items are drawn, in order
+        self.foreground_hooks = []
         for bar in (self.horizontalScrollBar(), self.verticalScrollBar()):
             bar.actionTriggered.connect(self.camera_taken)
+
+    def drawForeground(self, painter, rect):
+        super().drawForeground(painter, rect)
+        for hook in self.foreground_hooks:
+            hook(painter, rect)
 
     def card_at(self, scene_pos):
         """The topmost card at scene_pos, if any."""
@@ -137,7 +144,13 @@ class PannableGraphicsView(QGraphicsView):
 
     def go_home(self):
         """Fit the cards, with a margin, but never closer than 1x. No cards: 1x at the origin."""
-        rect = self.scene().itemsBoundingRect()
+
+        # create bounding box for visible items
+        rect = QRectF()
+        for item in self.scene().items():
+            if item.isVisible():
+                rect = rect.united(item.sceneBoundingRect())
+
         if rect.isNull():
             self.resetTransform()
             # Room to centre on the origin, wherever the camera was

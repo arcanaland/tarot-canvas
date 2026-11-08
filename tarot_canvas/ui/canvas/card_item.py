@@ -361,6 +361,10 @@ class DraggableCardItem(QGraphicsPixmapItem):
         self._art_path = path
         self._top_level = top_level(source_size, self._base.size())
 
+    def face_pixmap(self):
+        """The card's face at 1x, whatever level is shown"""
+        return self._base
+
     def detail(self):
         """The level currently shown."""
         return self._level
