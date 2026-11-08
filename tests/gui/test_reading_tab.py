@@ -1065,3 +1065,122 @@ def test_a_remembered_deck_since_removed_gives_way_to_the_reference(qtbot, deck,
     set_readings_deck("/no/such/deck")
 
     assert make_tab(qtbot).deck is deck
+
+
+# -- review fixes
+
+
+def test_a_card_laid_loose_before_the_deal_is_not_dealt_again(qtbot, short_deck, off):
+    tab = make_tab(qtbot, three_card())
+    loose = short_deck.get_all_cards()[0]
+    far = tab.slots()[-1].sceneBoundingRect().bottomRight() + QPointF(2000, 2000)
+    tab.add_specific_card(loose, short_deck, False, far)
+
+    deal(qtbot, tab)
+
+    assert loose["id"] not in {card.card_data["id"] for card in tab.turn_order()}
+    assert len(tab.turn_order()) == 2
+
+
+def test_summon_mid_deal_draws_no_card_still_in_flight(qtbot, short_deck):
+    at_level("Reactive")
+    tab = make_tab(qtbot, three_card())
+    tab.deal()
+    assert tab.is_dealing()
+
+    tab.on_draw_card()
+
+    qtbot.waitUntil(lambda: not tab.is_dealing(), timeout=5000)
+    ids = [card.card_data["id"] for card in tab.cards() if not isinstance(card, SocketItem)]
+    assert len(ids) == len(set(ids)) == 3
+
+
+def test_a_card_whose_art_wont_load_gives_way_to_the_next(qtbot, deck, off, monkeypatch):
+    toasts = []
+    monkeypatch.setattr(ReadingTab, "_toast", lambda self, text: toasts.append(text))
+    broken = deck.get_all_cards()[0]["id"]
+    make = CanvasTab.make_card_item
+
+    def failing(self, card, *args, **kwargs):
+        return None if card.get("id") == broken else make(self, card, *args, **kwargs)
+
+    monkeypatch.setattr(CanvasTab, "make_card_item", failing)
+    monkeypatch.setattr(
+        random, "sample", lambda pool, k: sorted(pool, key=lambda c: c["id"] != broken)
+    )
+    tab = make_tab(qtbot)
+
+    deal(qtbot, tab)
+
+    assert all(placement.card is not None for placement in tab.placements)
+    assert broken not in {card.card_data["id"] for card in tab.turn_order()}
+    assert toasts == []
+
+
+def test_a_reading_opens_with_no_deck_installed(qtbot, deck, off, stub_deck_manager):
+    stub_deck_manager.get_reference_deck = lambda: None
+    stub_deck_manager.get_all_decks = lambda: []
+
+    tab = make_tab(qtbot)
+    tab.deal()
+
+    assert tab.deck is None
+    assert tab.phase is Phase.STAGED
+
+
+def test_ctrl_wheel_does_not_turn_a_socket(qtbot, deck, off):
+    tab = make_tab(qtbot, three_card())
+    socket = tab.slots()[0]
+    viewport = tab.view.viewport()
+    pos = centre_on_screen(tab, socket)
+
+    QApplication.sendEvent(
+        viewport,
+        QWheelEvent(
+            QPointF(pos),
+            QPointF(viewport.mapToGlobal(pos)),
+            QPoint(),
+            QPoint(0, 120),
+            NONE,
+            Qt.KeyboardModifier.ControlModifier,
+            Qt.ScrollPhase.NoScrollPhase,
+            False,
+        ),
+    )
+
+    assert [slot.orient for slot in tab.slots()] == [0.0, 0.0, 0.0]
+
+
+def test_home_and_the_tab_icon_leave_out_filled_sockets(qtbot, deck, off):
+    tab = make_tab(qtbot, three_card())
+    deal(qtbot, tab)
+    read(qtbot, tab)
+    away = QPointF(20000, 20000)
+    for card in tab.turn_order():
+        card.setPos(card.pos() + away)
+    tab.layout_changed.emit()
+
+    tab.on_home()
+    tab.refresh_tab_icon()
+
+    visible = tab.view.mapToScene(tab.view.viewport().rect()).boundingRect()
+    assert not any(visible.intersects(slot.sceneBoundingRect()) for slot in tab.slots())
+    assert len(tab._tab_marks) == len(tab.turn_order())
+
+
+def test_the_pane_reads_the_staged_table_once_per_change(qtbot, deck, off, monkeypatch):
+    tab = make_tab(qtbot)
+    calls = []
+    scan = ReadingTab._filled_by_hand
+    monkeypatch.setattr(ReadingTab, "_filled_by_hand", lambda self: calls.append(1) or scan(self))
+    tab.layout_changed.emit()
+
+    for slot in tab.slots():
+        tab.card_in(slot)
+    assert len(calls) == 1
+
+    first = tab.slots()[0]
+    staged = tab.add_specific_card(
+        deck.get_all_cards()[0], deck, False, first.sceneBoundingRect().center()
+    )
+    assert tab.card_in(first) is staged

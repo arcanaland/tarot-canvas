@@ -144,7 +144,12 @@ class PannableGraphicsView(QGraphicsView):
 
     def go_home(self):
         """Fit the cards, with a margin, but never closer than 1x. No cards: 1x at the origin."""
-        rect = self.scene().itemsBoundingRect()
+        # The items shown, not itemsBoundingRect: that counts hidden ones too, such as a reading's
+        # filled sockets left where their cards were dealt
+        rect = QRectF()
+        for item in self.scene().items():
+            if item.isVisible():
+                rect = rect.united(item.sceneBoundingRect())
         if rect.isNull():
             self.resetTransform()
             # Room to centre on the origin, wherever the camera was

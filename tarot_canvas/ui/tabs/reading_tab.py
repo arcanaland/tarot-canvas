@@ -73,6 +73,8 @@ class ReadingTab(SpreadSlots, CanvasTab):
     # Read before __init__ is done: CanvasTab's settles and grounds the canvas as it builds it
     phase = Phase.STAGED
     _flights = None
+    # {socket: card} filled by hand, until the table next changes
+    _by_hand = None
 
     def __init__(self, spread, parent=None):
         super().__init__(parent)
@@ -119,6 +121,8 @@ class ReadingTab(SpreadSlots, CanvasTab):
         self.view.foreground_hooks.extend((self.badges, self.caption))
         self._reveal_keys = RevealKeys(self, self.view, self.pane.list_view)
 
+        # First, so every reader below sees the table as it now is
+        self.layout_changed.connect(self._forget_by_hand)
         self.layout_changed.connect(self.refresh_rows)
         # A card dropped on, or moved off, a socket may change what the deal will do
         self.layout_changed.connect(self._sync_staging)
@@ -180,8 +184,8 @@ class ReadingTab(SpreadSlots, CanvasTab):
         if self.phase is Phase.STAGED:
             self.deal()
             return
-        on_table = {card.card_data.get("id") for card in self.cards() if card.deck is self.deck}
-        pool = [card for card in self._pool() if card.get("id") not in on_table]
+        taken = self._taken_ids()
+        pool = [card for card in self._pool() if card.get("id") not in taken]
         if not pool:
             logger.info("Every card of the reading's deck is on the table")
             return
@@ -199,12 +203,21 @@ class ReadingTab(SpreadSlots, CanvasTab):
         return super().build_card_menu(item)
 
     def on_turn_card_by_wheel(self, card, notches, fine):
-        if not is_face_down(card):
+        # A socket is the spread's, and the card dealt to it lands at its angle
+        if not isinstance(card, SlotItem) and not is_face_down(card):
             super().on_turn_card_by_wheel(card, notches, fine)
 
     def cards(self):
         # A filled position's hidden socket is not on the table: nothing snaps to it
         return tuple(card for card in self._cards if card.isVisible())
+
+    def register_card(self, card):
+        super().register_card(card)
+        self._forget_by_hand()
+
+    def unregister_card(self, card):
+        super().unregister_card(card)
+        self._forget_by_hand()
 
     def set_ground(self, color):
         super().set_ground(color)
@@ -231,7 +244,7 @@ class ReadingTab(SpreadSlots, CanvasTab):
     def card_in(self, slot):
         """The card on slot: dealt and landed, or put there by hand before the deal"""
         if self.phase is Phase.STAGED:
-            return self._filled_by_hand().get(slot)
+            return self._staged_by_hand().get(slot)
         card = self._placement_at(slot).card
         if card in self._dealt and card not in self._landed:
             return None
@@ -395,7 +408,8 @@ class ReadingTab(SpreadSlots, CanvasTab):
 
     def _sync_facts(self):
         if self.phase is Phase.STAGED:
-            self.pane.sync(self.phase, [self.deck], self.reversals(), None, not self.all_placed())
+            decks = [self.deck] if self.deck is not None else []
+            self.pane.sync(self.phase, decks, self.reversals(), None, not self.all_placed())
             return
         # The decks the cards came from, not the menu's: cards placed by hand may be any deck's
         decks = []
@@ -403,7 +417,9 @@ class ReadingTab(SpreadSlots, CanvasTab):
             if card.deck is not None and card.deck not in decks:
                 decks.append(card.deck)
         reversals = self.reversals() if self._dealt else None
-        self.pane.sync(self.phase, decks or [self.deck], reversals, self.dealt_at)
+        if not decks and self.deck is not None:
+            decks.append(self.deck)
+        self.pane.sync(self.phase, decks, reversals, self.dealt_at)
 
     def _sync_staging(self):
         if self.phase is Phase.STAGED:
@@ -412,7 +428,7 @@ class ReadingTab(SpreadSlots, CanvasTab):
 
     def all_placed(self):
         """Whether every position is filled by hand, so the deal would draw nothing"""
-        return self.phase is Phase.STAGED and len(self._filled_by_hand()) == len(self._slots)
+        return self.phase is Phase.STAGED and len(self._staged_by_hand()) == len(self._slots)
 
     def can_turn(self):
         """Whether a card waits to be turned and every card has landed"""
@@ -436,6 +452,28 @@ class ReadingTab(SpreadSlots, CanvasTab):
         """The deck's cards that can be drawn: those with a face to turn up"""
         cards = list(self.deck.get_all_cards()) if self.deck is not None else []
         return [card for card in cards if card.get("image") and os.path.exists(card["image"])]
+
+    def _taken_ids(self):
+        """Ids of the cards the deck can't give again: those filling a position, whichever deck
+        they came from, including any still in flight; and the deck's own cards loose on the
+        table"""
+        placed = [p.card for p in self.placements if p.card is not None]
+        loose = [
+            card
+            for card in self.cards()
+            if not isinstance(card, SlotItem) and card.deck is self.deck
+        ]
+        return {card.card_data.get("id") for card in (*placed, *loose)}
+
+    def _forget_by_hand(self):
+        self._by_hand = None
+
+    def _staged_by_hand(self):
+        """_filled_by_hand, kept until the table changes: the pane asks for it row by row, on
+        every paint"""
+        if self._by_hand is None:
+            self._by_hand = self._filled_by_hand()
+        return self._by_hand
 
     def _filled_by_hand(self):
         """{socket: card} for face-up cards whose centre lies in an empty socket"""
@@ -475,11 +513,10 @@ class ReadingTab(SpreadSlots, CanvasTab):
             logger.info(
                 f"Left {faceless} cards with no face out of the draw from {self.deck.get_name()}"
             )
-        taken = {item.card_data.get("id") for item in by_hand.values()}
+        taken = self._taken_ids()
         pool = [card for card in drawable if card.get("id") not in taken]
         empty = [placement for placement in self.placements if placement.card is None]
-        drawn = random.sample(pool, min(len(empty), len(pool)))
-        self._dealt = self._make_cards(empty, drawn)
+        self._dealt = self._make_cards(empty, random.sample(pool, len(pool)))
         if len(self._dealt) < len(empty):
             logger.info(f"Short deal: {len(self._dealt)} cards for {len(empty)} positions")
             filled = len(self.placements) - len(empty) + len(self._dealt)
@@ -497,15 +534,23 @@ class ReadingTab(SpreadSlots, CanvasTab):
             return
         self._launch(self._dealt)
 
-    def _make_cards(self, placements, drawn):
-        """A face-down card for each drawn card, its art loaded, filling placements in order"""
+    def _make_cards(self, placements, shuffled):
+        """A face-down card for each of placements in order, drawn from the top of shuffled. A
+        card whose art won't load is passed over for the next, so a position stays empty only
+        once the deck is out"""
         backs = {}
         dealt = []
-        for placement, card in zip(placements, drawn, strict=False):
-            reversed = self._draw_reversed()
-            item = self.make_card_item(card, self.deck, reversed, item_type=ReadingCard)
+        draw = iter(shuffled)
+        for placement in placements:
+            item = None
+            for card in draw:
+                reversed = self._draw_reversed()
+                item = self.make_card_item(card, self.deck, reversed, item_type=ReadingCard)
+                if item is not None:
+                    break
+                logger.info(f"Passed over {card.get('name')}: its art won't load")
             if item is None:
-                continue
+                break
             size = item.face_pixmap().size()
             key = (size.width(), size.height())
             if key not in backs:

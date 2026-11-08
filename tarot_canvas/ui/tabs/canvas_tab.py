@@ -1272,7 +1272,7 @@ class CanvasTab(BaseTab):
         """Redraw the tab icon if the spread's snapped marks have changed"""
         marks = ()
         if self.tab_minimap:
-            marks = snapped(layout_marks(card_marks(self._cards), MINIMAP.max_fill))
+            marks = snapped(layout_marks(card_marks(self.cards()), MINIMAP.max_fill))
         if marks == self._tab_marks:
             return
         self._tab_marks = marks
