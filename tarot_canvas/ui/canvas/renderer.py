@@ -83,7 +83,6 @@ _canvas_watched = False
 _window_watch = None
 
 
-@cache
 def canvas_uses_gl():
     return _choice()[0]
 
@@ -91,6 +90,11 @@ def canvas_uses_gl():
 def canvas_renderer_rule():
     """The rule canvas_uses_gl() went by: "hardware", "software", "failed before", …"""
     return _choice()[1]
+
+
+def forget_renderer_choice():
+    """Choose again on the next call, e.g. after the forcing env var changes."""
+    _choice.cache_clear()
 
 
 @cache
