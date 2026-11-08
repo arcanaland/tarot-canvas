@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import QApplication
 from bench.env import BenchError
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
 from tarot_canvas.ui.canvas.detail import load_card_art
-from tarot_canvas.ui.canvas.renderer import RENDERER_ENV, canvas_uses_gl
+from tarot_canvas.ui.canvas.renderer import RENDERER_ENV, forget_renderer_choice
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 
 SYNTHETIC_ART_SIZE = QSize(720, 1200)
@@ -125,7 +125,7 @@ class BenchCanvas:
             )
         previous = os.environ.get(RENDERER_ENV)
         os.environ[RENDERER_ENV] = viewport
-        canvas_uses_gl.cache_clear()
+        forget_renderer_choice()
         try:
             tab = CanvasTab()
         finally:
@@ -133,7 +133,7 @@ class BenchCanvas:
                 os.environ.pop(RENDERER_ENV, None)
             else:
                 os.environ[RENDERER_ENV] = previous
-            canvas_uses_gl.cache_clear()
+            forget_renderer_choice()
         if isinstance(tab.view.viewport(), QOpenGLWidget) != (viewport == "gl"):
             raise BenchError(f"the canvas did not choose a {viewport} viewport")
         return tab

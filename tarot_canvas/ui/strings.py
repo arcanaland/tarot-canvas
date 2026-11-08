@@ -98,6 +98,7 @@ PREFERENCES = {
     "canvas_background": "Canvas Background:",
     "background_checkerboard": "Checkerboard",
     "background_gradient": "Gradient",
+    "background_swirl": "Dreamy Swirls",
     "background_solid": "Solid Color",
     "canvas_motion": "Canvas Motion:",
     "motion_off": "None",

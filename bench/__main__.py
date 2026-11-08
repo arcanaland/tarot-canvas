@@ -59,6 +59,9 @@ def parser():
         default="offscreen",
         help="Qt platform plugin; gl needs a real one such as wayland",
     )
+    p.add_argument("--ground", choices=("gradient", "swirl"), default="gradient")
+    p.add_argument("--pixel", type=int, default=3, help="swirl downscale factor")
+    p.add_argument("--every", type=int, default=2, help="swirl renders every Nth frame")
     p.add_argument("--json", type=Path, help="also save full results, raw frames included")
     p.add_argument("--snapshot", type=Path, help="save each cell's last frame here, to eyeball")
     return p
@@ -86,6 +89,12 @@ def bench(args):
     from bench.canvas import BenchCanvas, art_in, synthetic_art
     from bench.frames import run, summarize
     from bench.report import HEADER, describe, row, save
+    from tarot_canvas.settings import BACKGROUND_STYLE_KEY, get_settings
+    from tarot_canvas.ui.canvas import swirl
+
+    get_settings().setValue(BACKGROUND_STYLE_KEY, args.ground)
+    swirl.PARAMS["pixel"] = args.pixel
+    swirl.PARAMS["every"] = args.every
 
     art = art_in(args.art) if args.art else synthetic_art(scratch / "art")
     config = {
@@ -96,6 +105,9 @@ def bench(args):
         "msaa": args.msaa,
         "cache": args.cache,
         "art": str(args.art) if args.art else "synthetic",
+        "ground": args.ground,
+        "pixel": args.pixel,
+        "every": args.every,
     }
     meta = None
     results = []
@@ -117,8 +129,13 @@ def bench(args):
             meta["gl_renderer"] = canvas.gl_renderer
             if "llvmpipe" in canvas.gl_renderer.lower():
                 print(f"warning: software GL ({canvas.gl_renderer})", file=sys.stderr)
+        if args.ground == "swirl":
+            if canvas.tab.view.swirl is None:
+                raise BenchError("the swirl ground has no GL here")
+            print(f"swirl field: {swirl._field.renderer}", file=sys.stderr)
         for workload in chosen:
             for count in args.cards:
+                swirl.render_log = []
                 runs = [
                     run(canvas, workload, count, args.frames, args.warmup) for _ in range(args.runs)
                 ]
@@ -131,6 +148,16 @@ def bench(args):
                 }
                 results.append(result)
                 print(row(result), flush=True)
+                if swirl.render_log:
+                    from bench.frames import percentile
+
+                    rendered = swirl.render_log
+                    result["swirl_render_ms"] = rendered
+                    print(
+                        f"    field render+readback: p50 {percentile(rendered, 50):.2f}"
+                        f"  p99 {percentile(rendered, 99):.2f} ms  ({len(rendered)} renders)",
+                        flush=True,
+                    )
                 # A multisampled framebuffer has to be resolved before it can be read
                 if args.snapshot and not (kind == "gl" and args.msaa):
                     args.snapshot.mkdir(parents=True, exist_ok=True)
