@@ -26,11 +26,16 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from tarot_canvas.models import backgrounds
 from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.models.spreads import Position, Spread, offsets_from_middle
 from tarot_canvas.settings import (
     BACKGROUND_COLOR_DEFAULT,
     BACKGROUND_COLOR_KEY,
+    BACKGROUND_FILL_DEFAULT,
+    BACKGROUND_FILL_KEY,
+    BACKGROUND_IMAGE_DEFAULT,
+    BACKGROUND_IMAGE_KEY,
     CANVAS_GUIDES_DEFAULT,
     CANVAS_GUIDES_KEY,
     CANVAS_TAB_MINIMAP_DEFAULT,
@@ -38,6 +43,7 @@ from tarot_canvas.settings import (
     CHECKERBOARD_COLOR_DEFAULT,
     CHECKERBOARD_COLOR_KEY,
     MOTION_LEVEL_DEFAULT,
+    get_background_positioning,
     get_background_style,
     get_motion_level,
     get_settings,
@@ -54,6 +60,7 @@ from tarot_canvas.ui.canvas import (
     align_items_vertically,
     distribute_items_horizontally,
     distribute_items_vertically,
+    image_ground,
     swirl,
 )
 from tarot_canvas.ui.canvas.arc_popover import ARC_DEFAULTS, ArcPopover
@@ -110,6 +117,11 @@ GROUNDS = {
         settings.value(BACKGROUND_COLOR_KEY, BACKGROUND_COLOR_DEFAULT)
     ),
     "swirl": lambda tab, settings: tab.create_swirl_background(),
+    "image": lambda tab, settings: tab.create_image_background(
+        settings.value(BACKGROUND_IMAGE_KEY, BACKGROUND_IMAGE_DEFAULT),
+        get_background_positioning(settings),
+        settings.value(BACKGROUND_FILL_KEY, BACKGROUND_FILL_DEFAULT),
+    ),
 }
 
 
@@ -249,6 +261,9 @@ class CanvasTab(BaseTab):
         # swirl has an object we need to keep alive
         if bg_style != "swirl":
             self._drop_swirl()
+        if self.view.backdrop is not None:
+            self.view.backdrop = None
+            self.view.viewport().update()
 
         self.set_ground(GROUNDS[bg_style](self, settings))
 
@@ -440,6 +455,23 @@ class CanvasTab(BaseTab):
         self.view.swirl.deleteLater()
         self.view.swirl = None
         self.view.viewport().update()
+
+    def create_image_background(self, name, positioning, fill):
+        """A copied image: tiled on the scene, or else held still over the viewport on fill"""
+        path = backgrounds.background_path(name)
+        source = image_ground.load(path, positioning, image_ground.decode_bound()) if path else None
+        if source is None or source.isNull():
+            logger.warning(f"No background image {name!r} to draw; drawing the gradient")
+            return self.create_gradient_background()
+        if positioning == "tile":
+            brush = QBrush(QPixmap.fromImage(source))
+        else:
+            self.view.backdrop = image_ground.ImageGround(source, positioning, fill)
+            self.view.viewport().update()
+            brush = QBrush(QColor(fill))
+        self.scene.setBackgroundBrush(brush)
+        self.view.setBackgroundBrush(brush)
+        return image_ground.average_colour(source)
 
     def create_solid_color_background(self, color_str):
         """Create a solid color background for the canvas"""

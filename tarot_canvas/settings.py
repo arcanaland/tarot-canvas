@@ -10,7 +10,7 @@ SETTINGS_APPLICATION = "TarotCanvas"
 
 BACKGROUND_STYLE_KEY = "appearance/background_style"
 BACKGROUND_STYLE_DEFAULT = "gradient"
-BACKGROUND_STYLES = ("checkerboard", "gradient", "solid", "swirl")
+BACKGROUND_STYLES = ("checkerboard", "gradient", "solid", "swirl", "image")
 LEGACY_BACKGROUND_STYLES = {
     "Checkerboard": "checkerboard",
     "Gradient": "gradient",
@@ -22,6 +22,18 @@ BACKGROUND_COLOR_DEFAULT = "#1e1432"
 
 CHECKERBOARD_COLOR_KEY = "appearance/checkerboard_color"
 CHECKERBOARD_COLOR_DEFAULT = "#a3a3a3"
+
+# A file name under the backgrounds directory, or "" for none
+BACKGROUND_IMAGE_KEY = "appearance/background_image"
+BACKGROUND_IMAGE_DEFAULT = ""
+
+BACKGROUND_POSITIONING_KEY = "appearance/background_positioning"
+BACKGROUND_POSITIONING_DEFAULT = "crop"
+BACKGROUND_POSITIONINGS = ("crop", "stretch", "fit", "center", "tile")
+
+# What shows around an image that doesn't cover the canvas
+BACKGROUND_FILL_KEY = "appearance/background_fill"
+BACKGROUND_FILL_DEFAULT = "#000000"
 
 ANIMATIONS_ENABLED_KEY = "appearance/enable_animations"
 ANIMATIONS_ENABLED_DEFAULT = True
@@ -69,6 +81,14 @@ def get_background_style(settings=None):
         settings.setValue(BACKGROUND_STYLE_KEY, style)
         return style
     return BACKGROUND_STYLE_DEFAULT
+
+
+def get_background_positioning(settings=None):
+    settings = settings or get_settings()
+    stored = settings.value(BACKGROUND_POSITIONING_KEY)
+    if stored in BACKGROUND_POSITIONINGS:
+        return stored
+    return BACKGROUND_POSITIONING_DEFAULT
 
 
 def get_settings():

@@ -1,25 +1,34 @@
 import sys
 
-from PyQt6.QtCore import QLocale, QRectF, QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QIcon, QPainter, QPixmap
+from PyQt6.QtCore import QLocale, QRectF, QSize, Qt, QUrl, pyqtSignal
+from PyQt6.QtGui import QColor, QDesktopServices, QGuiApplication, QIcon, QPainter, QPixmap
 from PyQt6.QtWidgets import (
     QCheckBox,
     QColorDialog,
     QComboBox,
     QDialog,
     QDialogButtonBox,
+    QFileDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
+    QPushButton,
     QStackedWidget,
     QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
+from tarot_canvas.models import backgrounds
 from tarot_canvas.settings import (
     BACKGROUND_COLOR_DEFAULT,
     BACKGROUND_COLOR_KEY,
+    BACKGROUND_FILL_DEFAULT,
+    BACKGROUND_FILL_KEY,
+    BACKGROUND_IMAGE_DEFAULT,
+    BACKGROUND_IMAGE_KEY,
+    BACKGROUND_POSITIONING_DEFAULT,
+    BACKGROUND_POSITIONING_KEY,
     BACKGROUND_STYLE_DEFAULT,
     BACKGROUND_STYLE_KEY,
     CANVAS_GUIDES_DEFAULT,
@@ -37,6 +46,7 @@ from tarot_canvas.settings import (
     READING_TEXT_SCALE_STEPS,
     SHOW_AVAILABLE_DECKS_DEFAULT,
     SHOW_AVAILABLE_DECKS_KEY,
+    get_background_positioning,
     get_background_style,
     get_motion_level,
     get_settings,
@@ -48,7 +58,9 @@ from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.pane_text import pane_form
 from tarot_canvas.ui.strings import PREFERENCES
 from tarot_canvas.ui.widgets.places_sidebar import PlacesSidebar
+from tarot_canvas.ui.windows.background_grid import BackgroundGrid
 from tarot_canvas.ui.windows.shortcuts_page import ShortcutsPage
+from tarot_canvas.utils.logger import logger
 from tarot_canvas.utils.theme_manager import ThemeManager, ThemeType
 
 THEME_LABELS = (
@@ -62,7 +74,18 @@ BACKGROUND_STYLE_LABELS = (
     ("gradient", PREFERENCES["background_gradient"]),
     ("solid", PREFERENCES["background_solid"]),
     ("swirl", PREFERENCES["background_swirl"]),
+    ("image", PREFERENCES["background_image"]),
 )
+
+POSITIONING_LABELS = (
+    ("crop", PREFERENCES["positioning_crop"]),
+    ("stretch", PREFERENCES["positioning_stretch"]),
+    ("fit", PREFERENCES["positioning_fit"]),
+    ("center", PREFERENCES["positioning_center"]),
+    ("tile", PREFERENCES["positioning_tile"]),
+)
+# The positionings that can leave the canvas uncovered, where the fill shows
+FILLED_POSITIONINGS = ("fit", "center")
 
 MOTION_LEVEL_LABELS = (
     ("Off", PREFERENCES["motion_off"]),
@@ -101,6 +124,7 @@ class PreferencesDialog(QDialog):
         self.setWindowTitle(PREFERENCES["title"])
         self.bg_color = QColor(BACKGROUND_COLOR_DEFAULT)
         self.checkerboard_color = QColor(CHECKERBOARD_COLOR_DEFAULT)
+        self.fill_color = QColor(BACKGROUND_FILL_DEFAULT)
         self.stored_state = None
         self.hardware_acceleration_check = None
 
@@ -176,8 +200,16 @@ class PreferencesDialog(QDialog):
 
         self.load_settings()
 
-        for combo in (self.theme_combo, self.text_size_combo, self.bg_combo, self.motion_combo):
+        for combo in (
+            self.theme_combo,
+            self.text_size_combo,
+            self.bg_combo,
+            self.positioning_combo,
+            self.motion_combo,
+        ):
             combo.currentIndexChanged.connect(self.update_apply_button)
+        self.background_grid.selectionModel().selectionChanged.connect(self.update_apply_button)
+        self.background_grid.removal_toggled.connect(self.update_apply_button)
         self.show_available_decks_check.toggled.connect(self.update_apply_button)
         self.canvas_tab_minimap_check.toggled.connect(self.update_apply_button)
         self.canvas_guides_check.toggled.connect(self.update_apply_button)
@@ -235,6 +267,7 @@ class PreferencesDialog(QDialog):
 
         self.bg_combo = keyed_combo(BACKGROUND_STYLE_LABELS)
         self.bg_combo.currentIndexChanged.connect(self.show_type_rows)
+        self.bg_combo.activated.connect(self.select_an_image)
         self.background_form.addRow(PREFERENCES["background_type"], self.bg_combo)
 
         self.solid_color_btn = self.swatch_button(self.select_solid_color)
@@ -244,12 +277,42 @@ class PreferencesDialog(QDialog):
             PREFERENCES["background_colour_label"], self.checkerboard_color_btn
         )
 
+        self.positioning_combo = keyed_combo(POSITIONING_LABELS)
+        self.positioning_combo.currentIndexChanged.connect(self.show_type_rows)
+        self.background_form.addRow(PREFERENCES["background_positioning"], self.positioning_combo)
+        self.fill_color_btn = self.swatch_button(self.select_fill_color)
+        self.background_form.addRow(PREFERENCES["background_fill"], self.fill_color_btn)
+
+        self.images_header = QWidget()
+        header = QHBoxLayout(self.images_header)
+        header.setContentsMargins(0, units.LARGE_SPACING, 0, 0)
+        images_label = typography.apply(
+            QLabel(PREFERENCES["background_images"]), typography.Role.HEADING_4
+        )
+        images_label.setTextFormat(Qt.TextFormat.PlainText)
+        header.addWidget(images_label)
+        header.addStretch(1)
+        self.add_image_btn = QPushButton(QIcon.fromTheme("list-add"), PREFERENCES["background_add"])
+        self.add_image_btn.clicked.connect(self.add_images)
+        header.addWidget(self.add_image_btn)
+        self.background_form.addRow(self.images_header)
+
+        self.background_grid = BackgroundGrid(self.canvas_aspect())
+        self.background_grid.files_dropped.connect(self.add_image_files)
+        self.background_grid.open_folder_requested.connect(self.open_backgrounds_folder)
+        self.background_form.addRow(self.background_grid)
+
         # The label column keeps the widest type's width, so the combo doesn't change width under
         # the pointer as rows come and go
         form = self.background_form
         widest = max(
-            form.labelForField(button).sizeHint().width()
-            for button in (self.solid_color_btn, self.checkerboard_color_btn)
+            form.labelForField(field).sizeHint().width()
+            for field in (
+                self.solid_color_btn,
+                self.checkerboard_color_btn,
+                self.positioning_combo,
+                self.fill_color_btn,
+            )
         )
         form.labelForField(self.bg_combo).setMinimumWidth(widest)
 
@@ -264,11 +327,60 @@ class PreferencesDialog(QDialog):
         button.clicked.connect(slot)
         return button
 
+    def canvas_aspect(self):
+        """Width over height of the window the canvas is in, for the tiles' shape"""
+        window = self.parentWidget().window() if self.parentWidget() else None
+        size = window.size() if window else QGuiApplication.primaryScreen().size()
+        if size.isEmpty():
+            return 16 / 10
+        return size.width() / size.height()
+
     def show_type_rows(self):
         """Only the selected type's own rows"""
         style = self.bg_combo.currentData()
-        self.background_form.setRowVisible(self.solid_color_btn, style == "solid")
-        self.background_form.setRowVisible(self.checkerboard_color_btn, style == "checkerboard")
+        form = self.background_form
+        form.setRowVisible(self.solid_color_btn, style == "solid")
+        form.setRowVisible(self.checkerboard_color_btn, style == "checkerboard")
+        image = style == "image"
+        form.setRowVisible(self.positioning_combo, image)
+        filled = self.positioning_combo.currentData() in FILLED_POSITIONINGS
+        form.setRowVisible(self.fill_color_btn, image and filled)
+        form.setRowVisible(self.images_header, image)
+        form.setRowVisible(self.background_grid, image)
+
+    def select_an_image(self):
+        """Choosing Image with none selected selects the first"""
+        grid = self.background_grid
+        if self.bg_combo.currentData() != "image" or grid.selected_name():
+            return
+        names = [name for name in grid.names() if not grid.is_pending(name)]
+        if names:
+            grid.select_name(names[0])
+
+    def add_images(self):
+        suffixes = " ".join("*" + suffix for suffix in sorted(backgrounds.image_suffixes()))
+        files, _filter = QFileDialog.getOpenFileNames(
+            self,
+            PREFERENCES["background_add_title"],
+            "",
+            f"{PREFERENCES['background_images']} ({suffixes})",
+        )
+        self.add_image_files(files)
+
+    def add_image_files(self, files):
+        """Copy each in; the last one copied becomes the selection"""
+        added = [name for name in map(backgrounds.add_background, files) if name]
+        if not added:
+            return
+        grid = self.background_grid
+        grid.reload(grid.pending())
+        grid.select_name(added[-1])
+        select_data(self.bg_combo, "image")
+
+    def open_backgrounds_folder(self):
+        folder = backgrounds.backgrounds_base()
+        if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder))):
+            logger.error(f"Could not open the folder {folder}")
 
     def build_library_page(self):
         page = QWidget()
@@ -302,6 +414,11 @@ class PreferencesDialog(QDialog):
         self.solid_color_btn.setIcon(self.swatch_icon(self.solid_color_btn, self.bg_color))
         self.update_apply_button()
 
+    def set_fill_color(self, color):
+        self.fill_color = QColor(color)
+        self.fill_color_btn.setIcon(self.swatch_icon(self.fill_color_btn, self.fill_color))
+        self.update_apply_button()
+
     def set_checkerboard_color(self, color):
         self.checkerboard_color = QColor(color)
         self.checkerboard_color_btn.setIcon(
@@ -333,6 +450,11 @@ class PreferencesDialog(QDialog):
         if color.isValid():
             self.set_bg_color(color)
 
+    def select_fill_color(self):
+        color = QColorDialog.getColor(initial=self.fill_color, parent=self)
+        if color.isValid():
+            self.set_fill_color(color)
+
     def select_checkerboard_color(self):
         color = QColorDialog.getColor(initial=self.checkerboard_color, parent=self)
         if color.isValid():
@@ -346,6 +468,10 @@ class PreferencesDialog(QDialog):
             self.bg_combo.currentData(),
             self.bg_color.name(),
             self.checkerboard_color.name(),
+            self.background_grid.selected_name(),
+            self.positioning_combo.currentData(),
+            self.fill_color.name(),
+            self.background_grid.pending(),
             self.motion_combo.currentData(),
             self.canvas_tab_minimap_check.isChecked(),
             self.canvas_guides_check.isChecked(),
@@ -369,6 +495,9 @@ class PreferencesDialog(QDialog):
         background,
         colour,
         checkerboard_colour,
+        image,
+        positioning,
+        fill,
         motion,
         tab_minimap,
         guides,
@@ -381,6 +510,9 @@ class PreferencesDialog(QDialog):
         select_data(self.motion_combo, motion)
         self.set_bg_color(colour)
         self.set_checkerboard_color(checkerboard_colour)
+        self.background_grid.select_name(image)
+        select_data(self.positioning_combo, positioning)
+        self.set_fill_color(fill)
         self.canvas_tab_minimap_check.setChecked(tab_minimap)
         self.canvas_guides_check.setChecked(guides)
         self.show_available_decks_check.setChecked(show_available)
@@ -391,12 +523,16 @@ class PreferencesDialog(QDialog):
 
     def load_settings(self):
         settings = get_settings()
+        self.background_grid.reload()
         self.show_state(
             ThemeManager.get_instance().get_current_theme().value,
             typography.reading_scale(),
             get_background_style(settings),
             settings.value(BACKGROUND_COLOR_KEY, BACKGROUND_COLOR_DEFAULT),
             settings.value(CHECKERBOARD_COLOR_KEY, CHECKERBOARD_COLOR_DEFAULT),
+            settings.value(BACKGROUND_IMAGE_KEY, BACKGROUND_IMAGE_DEFAULT),
+            get_background_positioning(settings),
+            settings.value(BACKGROUND_FILL_KEY, BACKGROUND_FILL_DEFAULT),
             get_motion_level(settings),
             bool(settings.value(CANVAS_TAB_MINIMAP_KEY, CANVAS_TAB_MINIMAP_DEFAULT, type=bool)),
             bool(settings.value(CANVAS_GUIDES_KEY, CANVAS_GUIDES_DEFAULT, type=bool)),
@@ -420,6 +556,9 @@ class PreferencesDialog(QDialog):
             BACKGROUND_STYLE_DEFAULT,
             BACKGROUND_COLOR_DEFAULT,
             CHECKERBOARD_COLOR_DEFAULT,
+            BACKGROUND_IMAGE_DEFAULT,
+            BACKGROUND_POSITIONING_DEFAULT,
+            BACKGROUND_FILL_DEFAULT,
             MOTION_LEVEL_DEFAULT,
             CANVAS_TAB_MINIMAP_DEFAULT,
             CANVAS_GUIDES_DEFAULT,
@@ -434,6 +573,14 @@ class PreferencesDialog(QDialog):
         settings.setValue(MOTION_LEVEL_KEY, self.motion_combo.currentData())
         settings.setValue(BACKGROUND_COLOR_KEY, self.bg_color.name())
         settings.setValue(CHECKERBOARD_COLOR_KEY, self.checkerboard_color.name())
+        settings.setValue(BACKGROUND_IMAGE_KEY, self.background_grid.selected_name())
+        settings.setValue(BACKGROUND_POSITIONING_KEY, self.positioning_combo.currentData())
+        settings.setValue(BACKGROUND_FILL_KEY, self.fill_color.name())
+        removed = self.background_grid.pending()
+        for name in removed:
+            backgrounds.remove_background(name)
+        if removed:
+            self.background_grid.reload()
         settings.setValue(CANVAS_TAB_MINIMAP_KEY, self.canvas_tab_minimap_check.isChecked())
         settings.setValue(CANVAS_GUIDES_KEY, self.canvas_guides_check.isChecked())
         settings.setValue(SHOW_AVAILABLE_DECKS_KEY, self.show_available_decks_check.isChecked())
