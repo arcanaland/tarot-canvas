@@ -534,11 +534,15 @@ def test_the_explorer_opens_at_its_content_width(qtbot):
 
 def test_the_window_reopens_at_the_size_it_was_closed(qtbot):
     first = make_shown_window(qtbot)
+    opened_at = first.size()
+    # The window may refuse to be this narrow: how narrow it can be grows with the font
     first.resize(720, 480)
+    closed_at = first.size()
+    assert closed_at != opened_at
     first.close()
 
     second = make_shown_window(qtbot)
-    assert (second.width(), second.height()) == (720, 480)
+    assert second.size() == closed_at
 
 
 def test_opening_the_same_deck_twice_reuses_its_tab(qtbot):
@@ -778,11 +782,15 @@ def file_menu(window):
 
 
 def test_opening_a_tab_takes_no_drill_down(qtbot):
-    """The New submenu is gone: three items did not earn a level of navigation."""
+    """The New submenu is gone: three items did not earn a level of navigation.
+
+    The one submenu is the spreads a reading starts from, which is a list, not a level.
+    """
     window = MainWindow()
     qtbot.addWidget(window)
     actions = file_menu(window).actions()
-    assert not any(action.menu() for action in actions), "File has no submenus"
+    submenus = [action for action in actions if action.menu()]
+    assert submenus == [window.new_reading_menu.menuAction()]
 
     labels = [action.text() for action in actions if not action.isSeparator()]
     assert labels[:4] == [
@@ -819,6 +827,7 @@ def test_the_tab_bar_has_a_new_tab_button(qtbot):
         window.new_library_action,
         window.new_card_view_action,
         window.new_spread_action,
+        window.new_reading_menu.menuAction(),
     ]
 
 

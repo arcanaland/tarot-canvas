@@ -36,6 +36,7 @@ from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.settings import (
     EXPLORER_VISIBLE_DEFAULT,
     EXPLORER_VISIBLE_KEY,
+    LIBRARY_VIEW_SPREADS,
     MAIN_WINDOW_GEOMETRY_KEY,
     SHOW_AVAILABLE_DECKS_DEFAULT,
     SHOW_AVAILABLE_DECKS_KEY,
@@ -49,6 +50,7 @@ from tarot_canvas.ui.components.card_explorer import CardExplorerPanel
 from tarot_canvas.ui.icons import LIBRARY_ICON, deck_icon
 from tarot_canvas.ui.library.catalog_client import deck_catalog
 from tarot_canvas.ui.library.deck_downloads import deck_downloads
+from tarot_canvas.ui.spread_menu import spread_menu
 from tarot_canvas.ui.strings import COMMANDS, DOWNLOAD, LIBRARY, MAIN_WINDOW, SPREADS
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
@@ -229,6 +231,10 @@ class MainWindow(QMainWindow):
                 self.new_spread_action,
             ]
         )
+        self.new_reading_menu = self.new_spread_menu(self)
+        self.new_reading_menu.setTitle(MAIN_WINDOW["new_reading_from_spread"])
+        self.new_reading_menu.setIcon(QIcon.fromTheme("media-playback-start"))
+        file_menu.addMenu(self.new_reading_menu)
         file_menu.addSeparator()
         file_menu.addAction(actions["window.open_deck"])
         self.save_action = actions["window.save"]
@@ -440,11 +446,12 @@ class MainWindow(QMainWindow):
             new_tab_button, MAIN_WINDOW["new_tab_tooltip"], self.new_canvas_action
         )
 
-        new_tab_menu = QMenu(new_tab_button)
+        self.new_tab_menu = new_tab_menu = QMenu(new_tab_button)
         new_tab_menu.addAction(self.new_canvas_action)
         new_tab_menu.addAction(self.new_library_action)
         new_tab_menu.addAction(self.new_card_view_action)
         new_tab_menu.addAction(self.new_spread_action)
+        new_tab_menu.addMenu(self.new_reading_menu)
         new_tab_button.setMenu(new_tab_menu)
 
         # Create search button and put it in the tab corner
@@ -522,7 +529,13 @@ class MainWindow(QMainWindow):
         # Button container
         button_layout = QHBoxLayout()
 
-        # Buttons for different tab types
+        # Buttons for different tab types; the newest first, to be found
+        reading_btn = QPushButton(
+            QIcon.fromTheme("media-playback-start"), MAIN_WINDOW["welcome_new_reading"]
+        )
+        reading_btn.setMenu(self.new_spread_menu(reading_btn))
+        button_layout.addWidget(reading_btn)
+
         canvas_btn = QPushButton(
             QIcon.fromTheme("draw-rectangle"), MAIN_WINDOW["welcome_new_canvas"]
         )
@@ -594,7 +607,17 @@ class MainWindow(QMainWindow):
             logger.error(f"Could not open spread {path}: {error}")
             self.toast.show_message(SPREADS["open_failed"])
             return None
+        return self.open_reading_of(spread)
+
+    def open_reading_of(self, spread):
+        """A new tab dealing a reading from spread, and return it"""
         return self.add_canvas_tab(ReadingTab(spread))
+
+    def new_spread_menu(self, parent):
+        """The spreads a new reading can start from, ending in the Library's Spreads view"""
+        return spread_menu(
+            parent, self.open_reading, partial(self.new_library_tab, LIBRARY_VIEW_SPREADS)
+        )
 
     def duplicate_spread(self, path):
         """An unsaved tab holding a copy of the spread in folder path, and return it"""
@@ -723,6 +746,9 @@ class MainWindow(QMainWindow):
 
         elif action == "open_unsaved_spread":
             self.open_unsaved_spread(data)
+
+        elif action == "open_reading_of":
+            self.open_reading_of(data)
 
     @staticmethod
     def _deck_path_key(deck_path):
