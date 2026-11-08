@@ -10,7 +10,7 @@ SETTINGS_APPLICATION = "TarotCanvas"
 
 BACKGROUND_STYLE_KEY = "appearance/background_style"
 BACKGROUND_STYLE_DEFAULT = "gradient"
-BACKGROUND_STYLES = ("checkerboard", "gradient", "solid")
+BACKGROUND_STYLES = ("checkerboard", "gradient", "solid", "swirl")
 LEGACY_BACKGROUND_STYLES = {
     "Checkerboard": "checkerboard",
     "Gradient": "gradient",

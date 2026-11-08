@@ -62,6 +62,7 @@ BACKGROUND_STYLE_LABELS = (
     ("checkerboard", PREFERENCES["background_checkerboard"]),
     ("gradient", PREFERENCES["background_gradient"]),
     ("solid", PREFERENCES["background_solid"]),
+    ("swirl", PREFERENCES["background_swirl"]),
 )
 # The styles drawn from a colour the user picks
 COLOURED_BACKGROUND_STYLES = ("checkerboard", "solid")

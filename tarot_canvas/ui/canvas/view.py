@@ -1,4 +1,5 @@
 import logging
+import time
 from contextlib import contextmanager
 
 from PyQt6.QtCore import QEvent, QMimeData, QPoint, QPointF, QRectF, Qt, QTimer, pyqtSignal
@@ -59,6 +60,9 @@ class PannableGraphicsView(QGraphicsView):
         self._turn_wheel = None
         # While locked, no card can be picked, turned or dropped: every drag pans
         self.locked = False
+        # The moving ground, when the style is swirl and GL could draw it
+        self.swirl = None
+        self._swirl_paint_failed = False
         for bar in (self.horizontalScrollBar(), self.verticalScrollBar()):
             bar.actionTriggered.connect(self.camera_taken)
 
@@ -163,7 +167,31 @@ class PannableGraphicsView(QGraphicsView):
 
     def scrollContentsBy(self, dx, dy):
         super().scrollContentsBy(dx, dy)
+        if self.swirl is not None:
+            # A raster scroll blits the old ground along with the cards
+            self.viewport().update()
         self.camera_moved.emit()
+
+    def paintEvent(self, event):
+        if self.swirl is None:
+            super().paintEvent(event)
+            return
+        start = time.perf_counter()
+        super().paintEvent(event)
+        try:
+            self.swirl.painted((time.perf_counter() - start) * 1000.0)
+        except Exception:
+            log.exception("The swirl ground could not time a paint")
+
+    def drawBackground(self, painter, rect):
+        if self.swirl is not None and not self._swirl_paint_failed:
+            try:
+                if self.swirl.paint(painter, self.viewport().rect()):
+                    return
+            except Exception:
+                self._swirl_paint_failed = True
+                log.exception("The swirl ground failed to paint")
+        super().drawBackground(painter, rect)
 
     def event(self, event):
         # Moving between differently scaled outputs changes dpr without resizing anything

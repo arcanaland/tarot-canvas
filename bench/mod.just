@@ -35,7 +35,17 @@ window *args:
 in-compositor *cmd:
   set -euo pipefail
   out=$(mktemp -d)
-  trap 'rm -rf "$out"' EXIT
+  proxy=
+  trap '[ -n "$proxy" ] && kill "$proxy" 2>/dev/null; rm -rf "$out"' EXIT
+  xdg-dbus-proxy "${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}" "$out/bus" --filter \
+    >"$out/bus.log" 2>&1 &
+  proxy=$!
+  for _ in $(seq 100); do [ -S "$out/bus" ] && break; sleep 0.05; done
+  if [ ! -S "$out/bus" ]; then
+    echo "bench: xdg-dbus-proxy did not start:" >&2
+    cat "$out/bus.log" >&2
+    exit 1
+  fi
   printf -v forwarded '%q ' "$@"
   cat >"$out/session.sh" <<EOF
   $forwarded >$out/stdout 2>$out/stderr
@@ -43,7 +53,7 @@ in-compositor *cmd:
   EOF
   touch "$out/stdout"
   # One socket per run, so two benches can run side by side
-  WAYLAND_DISPLAY= {{compositor}} --socket "tarot-canvas-bench-$$" --exit-with-session "bash $out/session.sh" \
+  WAYLAND_DISPLAY= DBUS_SESSION_BUS_ADDRESS="unix:path=$out/bus" {{compositor}} --socket "tarot-canvas-bench-$$" --exit-with-session "bash $out/session.sh" \
     >"$out/compositor.log" 2>&1 &
   compositor=$!
   # Rows as they finish, not all at the end

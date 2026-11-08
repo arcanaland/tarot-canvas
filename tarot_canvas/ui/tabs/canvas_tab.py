@@ -54,6 +54,7 @@ from tarot_canvas.ui.canvas import (
     align_items_vertically,
     distribute_items_horizontally,
     distribute_items_vertically,
+    swirl,
 )
 from tarot_canvas.ui.canvas.arc_popover import ARC_DEFAULTS, ArcPopover
 from tarot_canvas.ui.canvas.detail import (
@@ -233,9 +234,13 @@ class CanvasTab(BaseTab):
             ground = self.create_checkerboard_background(colour)
         elif bg_style == "gradient":
             ground = self.create_gradient_background()
+        elif bg_style == "swirl":
+            ground = self.create_swirl_background()
         else:
             bg_color = settings.value(BACKGROUND_COLOR_KEY, BACKGROUND_COLOR_DEFAULT)
             ground = self.create_solid_color_background(bg_color)
+        if bg_style != "swirl":
+            self._drop_swirl()
         self.set_ground(ground)
 
         self.refresh_motion_settings()
@@ -352,12 +357,16 @@ class CanvasTab(BaseTab):
         view_scale = abs(self.view.transform().m11())
         for card in self._cards:
             card.advance_motion(t, dt, self.ambient_gain, view_scale)
+        if self.view.swirl is not None:
+            self.view.swirl.advance(dt, self.ambient_is_allowed())
 
     def settle_motion(self):
         """Put every card flat."""
         self.ambient_gain = 0.0
         for card in self._cards:
             card.settle_motion()
+        if self.view.swirl is not None:
+            self.view.swirl.stop()
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -385,6 +394,29 @@ class CanvasTab(BaseTab):
         self.scene.setBackgroundBrush(brush)
         self.view.setBackgroundBrush(brush)
         return gradient.stops()[0][1]
+
+    def create_swirl_background(self):
+        """The moving ground, or the gradient where no GL context can draw it"""
+        field = swirl.field()
+        if field is None:
+            return self.create_gradient_background()
+        if self.view.swirl is None:
+            self.view.swirl = swirl.SwirlGround(self.view, field, self)
+            self.view.swirl.request()
+        # A solid colour for everything that reads the brush rather than the field
+        colour = QColor(swirl.PARAMS["colour_1"])
+        brush = QBrush(colour)
+        self.scene.setBackgroundBrush(brush)
+        self.view.setBackgroundBrush(brush)
+        return colour
+
+    def _drop_swirl(self):
+        if self.view.swirl is None:
+            return
+        self.view.swirl.detach()
+        self.view.swirl.deleteLater()
+        self.view.swirl = None
+        self.view.viewport().update()
 
     def create_solid_color_background(self, color_str):
         """Create a solid color background for the canvas"""
