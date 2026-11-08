@@ -70,6 +70,7 @@ def test_each_sidebar_row_shows_its_page(qtbot):
     qtbot.addWidget(dialog)
     controls = [
         dialog.theme_combo,
+        dialog.motion_combo,
         dialog.bg_combo,
         dialog.show_available_decks_check,
         dialog.shortcuts_page.tree,
@@ -112,38 +113,89 @@ def test_the_dialog_opens_at_the_size_it_was_left(qtbot):
     assert reopened.size() == size
 
 
-def test_the_swatch_is_shown_for_the_styles_drawn_from_a_colour(qtbot):
+def test_each_type_shows_only_its_own_colour_row(qtbot):
     dialog = PreferencesDialog()
     qtbot.addWidget(dialog)
+    form = dialog.background_form
 
-    for key in ("checkerboard", "gradient", "solid"):
+    for key, _label in preferences_dialog.BACKGROUND_STYLE_LABELS:
         dialog.bg_combo.setCurrentIndex(dialog.bg_combo.findData(key))
-        assert dialog.bg_color_btn.isHidden() is (key == "gradient")
+        assert form.isRowVisible(dialog.solid_color_btn) is (key == "solid")
+        assert form.isRowVisible(dialog.checkerboard_color_btn) is (key == "checkerboard")
+        assert form.isRowVisible(dialog.bg_combo)
 
 
-def test_the_swatch_edits_the_selected_styles_own_colour(qtbot, monkeypatch):
+def test_the_type_combo_keeps_its_width_as_rows_come_and_go(qtbot):
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+    dialog.show()
+    dialog.page_list.setCurrentRow(page_keys(dialog).index("background"))
+
+    widths = set()
+    for key, _label in preferences_dialog.BACKGROUND_STYLE_LABELS:
+        dialog.bg_combo.setCurrentIndex(dialog.bg_combo.findData(key))
+        dialog.page_stack.currentWidget().layout().activate()
+        widths.add(dialog.bg_combo.geometry().getRect())
+
+    assert len(widths) == 1
+
+
+def test_a_load_shows_the_stored_types_rows(qtbot):
+    get_settings().setValue(BACKGROUND_STYLE_KEY, "checkerboard")
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+    form = dialog.background_form
+    assert form.isRowVisible(dialog.checkerboard_color_btn)
+    assert not form.isRowVisible(dialog.solid_color_btn)
+
+    dialog.restore_defaults()
+
+    assert dialog.bg_combo.currentData() == BACKGROUND_STYLE_DEFAULT
+    assert form.isRowVisible(dialog.solid_color_btn) is (BACKGROUND_STYLE_DEFAULT == "solid")
+    assert form.isRowVisible(dialog.checkerboard_color_btn) is (
+        BACKGROUND_STYLE_DEFAULT == "checkerboard"
+    )
+
+
+def test_each_colour_button_edits_only_its_own_colour(qtbot, monkeypatch):
     dialog = PreferencesDialog()
     qtbot.addWidget(dialog)
     picked = []
+    answers = iter([QColor("#335544"), QColor("#aa2211")])
     monkeypatch.setattr(
         "tarot_canvas.ui.windows.preferences_dialog.QColorDialog.getColor",
-        lambda initial, parent: picked.append(QColor(initial)) or QColor("#335544"),
+        lambda initial, parent: picked.append(QColor(initial)) or next(answers),
     )
 
-    dialog.bg_combo.setCurrentIndex(dialog.bg_combo.findData("checkerboard"))
-    dialog.select_bg_color()
+    dialog.checkerboard_color_btn.click()
     assert picked[-1] == QColor(CHECKERBOARD_COLOR_DEFAULT)
     assert dialog.checkerboard_color == QColor("#335544")
     assert dialog.bg_color == QColor(BACKGROUND_COLOR_DEFAULT)
 
-    # Switching style and back keeps both
-    dialog.bg_combo.setCurrentIndex(dialog.bg_combo.findData("solid"))
-    assert dialog.swatch_color() == QColor(BACKGROUND_COLOR_DEFAULT)
-    dialog.select_bg_color()
+    dialog.solid_color_btn.click()
     assert picked[-1] == QColor(BACKGROUND_COLOR_DEFAULT)
-    assert dialog.bg_color == QColor("#335544")
-    dialog.bg_combo.setCurrentIndex(dialog.bg_combo.findData("checkerboard"))
-    assert dialog.swatch_color() == QColor("#335544")
+    assert dialog.bg_color == QColor("#aa2211")
+    assert dialog.checkerboard_color == QColor("#335544")
+
+    dialog.apply_settings()
+    assert get_settings().value(CHECKERBOARD_COLOR_KEY) == "#335544"
+    assert get_settings().value(BACKGROUND_COLOR_KEY) == "#aa2211"
+
+
+def test_a_cancelled_colour_dialog_changes_nothing(qtbot, monkeypatch):
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+    monkeypatch.setattr(
+        "tarot_canvas.ui.windows.preferences_dialog.QColorDialog.getColor",
+        lambda initial, parent: QColor(),
+    )
+
+    dialog.solid_color_btn.click()
+    dialog.checkerboard_color_btn.click()
+
+    assert dialog.bg_color == QColor(BACKGROUND_COLOR_DEFAULT)
+    assert dialog.checkerboard_color == QColor(CHECKERBOARD_COLOR_DEFAULT)
+    assert not dialog.apply_button.isEnabled()
 
 
 def test_the_checkerboard_colour_is_stored_and_shown_again(qtbot):
@@ -464,6 +516,14 @@ def test_a_new_text_size_offers_apply_and_applying_stores_it(qtbot):
 
 def page_keys(dialog):
     return [key for key, _icon, _build in dialog.pages()]
+
+
+def test_the_background_page_follows_the_canvas_page(qtbot):
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+    keys = page_keys(dialog)
+
+    assert keys[keys.index("canvas") + 1] == "background"
 
 
 def test_the_advanced_page_is_linux_only(qtbot, monkeypatch):

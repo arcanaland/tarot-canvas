@@ -11,7 +11,6 @@ from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
-    QSizePolicy,
     QStackedWidget,
     QToolButton,
     QVBoxLayout,
@@ -64,8 +63,6 @@ BACKGROUND_STYLE_LABELS = (
     ("solid", PREFERENCES["background_solid"]),
     ("swirl", PREFERENCES["background_swirl"]),
 )
-# The styles drawn from a colour the user picks
-COLOURED_BACKGROUND_STYLES = ("checkerboard", "solid")
 
 MOTION_LEVEL_LABELS = (
     ("Off", PREFERENCES["motion_off"]),
@@ -193,6 +190,7 @@ class PreferencesDialog(QDialog):
         pages = [
             ("appearance", "games-config-theme", self.build_appearance_page),
             ("canvas", "draw-rectangle", self.build_canvas_page),
+            ("background", "preferences-desktop-wallpaper", self.build_background_page),
             ("library", LIBRARY_ICON, self.build_library_page),
             ("shortcuts", "configure-shortcuts", self.build_shortcuts_page),
         ]
@@ -218,26 +216,6 @@ class PreferencesDialog(QDialog):
         page = QWidget()
         form = pane_form()
 
-        self.bg_combo = keyed_combo(BACKGROUND_STYLE_LABELS)
-        self.bg_combo.currentIndexChanged.connect(self.update_swatch)
-
-        self.bg_color_btn = QToolButton()
-        self.bg_color_btn.setToolTip(PREFERENCES["background_colour"])
-        self.bg_color_btn.setAccessibleName(PREFERENCES["background_colour"])
-        self.bg_color_btn.clicked.connect(self.select_bg_color)
-        # Hiding the swatch keeps its room, so the combo doesn't change width under the pointer
-        policy = self.bg_color_btn.sizePolicy()
-        policy.setRetainSizeWhenHidden(True)
-        self.bg_color_btn.setSizePolicy(policy)
-
-        background = QWidget()
-        background.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-        row = QHBoxLayout(background)
-        row.setContentsMargins(0, 0, 0, 0)
-        row.addWidget(self.bg_combo, 1)
-        row.addWidget(self.bg_color_btn)
-        form.addRow(PREFERENCES["canvas_background"], background)
-
         self.motion_combo = keyed_combo(MOTION_LEVEL_LABELS)
         form.addRow(PREFERENCES["canvas_motion"], self.motion_combo)
 
@@ -249,6 +227,48 @@ class PreferencesDialog(QDialog):
 
         page.setLayout(form)
         return page
+
+    def build_background_page(self):
+        """A Type row, then the rows that belong to the selected type, in one label column"""
+        page = QWidget()
+        self.background_form = pane_form()
+
+        self.bg_combo = keyed_combo(BACKGROUND_STYLE_LABELS)
+        self.bg_combo.currentIndexChanged.connect(self.show_type_rows)
+        self.background_form.addRow(PREFERENCES["background_type"], self.bg_combo)
+
+        self.solid_color_btn = self.swatch_button(self.select_solid_color)
+        self.background_form.addRow(PREFERENCES["background_colour_label"], self.solid_color_btn)
+        self.checkerboard_color_btn = self.swatch_button(self.select_checkerboard_color)
+        self.background_form.addRow(
+            PREFERENCES["background_colour_label"], self.checkerboard_color_btn
+        )
+
+        # The label column keeps the widest type's width, so the combo doesn't change width under
+        # the pointer as rows come and go
+        form = self.background_form
+        widest = max(
+            form.labelForField(button).sizeHint().width()
+            for button in (self.solid_color_btn, self.checkerboard_color_btn)
+        )
+        form.labelForField(self.bg_combo).setMinimumWidth(widest)
+
+        page.setLayout(form)
+        return page
+
+    @staticmethod
+    def swatch_button(slot):
+        button = QToolButton()
+        button.setToolTip(PREFERENCES["background_colour"])
+        button.setAccessibleName(PREFERENCES["background_colour"])
+        button.clicked.connect(slot)
+        return button
+
+    def show_type_rows(self):
+        """Only the selected type's own rows"""
+        style = self.bg_combo.currentData()
+        self.background_form.setRowVisible(self.solid_color_btn, style == "solid")
+        self.background_form.setRowVisible(self.checkerboard_color_btn, style == "checkerboard")
 
     def build_library_page(self):
         page = QWidget()
@@ -277,29 +297,21 @@ class PreferencesDialog(QDialog):
         self.shortcuts_page = ShortcutsPage()
         return self.shortcuts_page
 
-    def swatch_color(self):
-        """The selected style's own colour, which the one swatch shows and edits"""
-        if self.bg_combo.currentData() == "checkerboard":
-            return self.checkerboard_color
-        return self.bg_color
-
-    def update_swatch(self):
-        self.bg_color_btn.setVisible(self.bg_combo.currentData() in COLOURED_BACKGROUND_STYLES)
-        self.bg_color_btn.setIcon(self.swatch_icon(self.swatch_color()))
-
     def set_bg_color(self, color):
         self.bg_color = QColor(color)
-        self.update_swatch()
+        self.solid_color_btn.setIcon(self.swatch_icon(self.solid_color_btn, self.bg_color))
         self.update_apply_button()
 
     def set_checkerboard_color(self, color):
         self.checkerboard_color = QColor(color)
-        self.update_swatch()
+        self.checkerboard_color_btn.setIcon(
+            self.swatch_icon(self.checkerboard_color_btn, self.checkerboard_color)
+        )
         self.update_apply_button()
 
-    def swatch_icon(self, color):
-        """A rounded square of `color`, drawn at the screen's pixel density"""
-        size = self.bg_color_btn.iconSize()
+    def swatch_icon(self, button, color):
+        """A rounded square of `color` at `button`'s icon size and the screen's pixel density"""
+        size = button.iconSize()
         ratio = self.devicePixelRatioF()
         pixmap = QPixmap(QSize(round(size.width() * ratio), round(size.height() * ratio)))
         pixmap.setDevicePixelRatio(ratio)
@@ -316,14 +328,15 @@ class PreferencesDialog(QDialog):
         painter.end()
         return QIcon(pixmap)
 
-    def select_bg_color(self):
-        color = QColorDialog.getColor(initial=self.swatch_color(), parent=self)
-        if not color.isValid():
-            return
-        if self.bg_combo.currentData() == "checkerboard":
-            self.set_checkerboard_color(color)
-        else:
+    def select_solid_color(self):
+        color = QColorDialog.getColor(initial=self.bg_color, parent=self)
+        if color.isValid():
             self.set_bg_color(color)
+
+    def select_checkerboard_color(self):
+        color = QColorDialog.getColor(initial=self.checkerboard_color, parent=self)
+        if color.isValid():
+            self.set_checkerboard_color(color)
 
     def form_state(self):
         """What the form says, in the terms it is stored in"""
@@ -373,7 +386,7 @@ class PreferencesDialog(QDialog):
         self.show_available_decks_check.setChecked(show_available)
         if self.hardware_acceleration_check:
             self.hardware_acceleration_check.setChecked(hardware_acceleration)
-        self.update_swatch()
+        self.show_type_rows()
         self.update_apply_button()
 
     def load_settings(self):

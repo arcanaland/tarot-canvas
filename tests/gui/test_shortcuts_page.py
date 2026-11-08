@@ -145,7 +145,7 @@ def test_a_key_typed_into_the_editor_is_taken(qtbot, qtlog):
     dialog.show()
     dialog.activateWindow()
     qtbot.waitActive(dialog)
-    dialog.page_list.setCurrentRow(3)
+    dialog.page_list.setCurrentRow(dialog.page_stack.indexOf(page))
 
     editor = open_editor(page, "canvas.summon")
     qtbot.waitUntil(editor.hasFocus)
@@ -168,7 +168,7 @@ def test_the_editors_clear_button_clears_the_cell(qtbot):
     dialog, page = make_dialog(qtbot)
     dialog.show()
     qtbot.waitExposed(dialog)
-    dialog.page_list.setCurrentRow(3)
+    dialog.page_list.setCurrentRow(dialog.page_stack.indexOf(page))
 
     editor = open_editor(page, "canvas.summon")
     clear = editor.findChild(QLineEdit).findChild(QToolButton)
