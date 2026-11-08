@@ -1,5 +1,4 @@
-"""The band under a reading's canvas: its transport, centred, and View's actions at the end. And
-the keys that deal, turn and step, on the canvas and the pane's list."""
+"""The band under a canvas when reading. Designed to mimic a media player"""
 
 from PyQt6.QtCore import QEvent, QObject, QRectF, QSize, Qt
 from PyQt6.QtGui import QColor, QIcon, QKeySequence, QPainter, QPen
@@ -19,7 +18,8 @@ DOT_PX = 10
 DOT_GAP_PX = 7
 DEAL_MIN_WIDTH_PX = 180
 DEAL_MIN_HEIGHT_PX = 40
-# The band under the canvas the bar sits in: the canvas ends above it, so no card is ever under it
+
+# The band under the canvas the bar sits in
 STRIP_PAD_PX = 8
 STRIP_PX = DEAL_MIN_HEIGHT_PX + 2 * BAR_PAD_PX + 2 * STRIP_PAD_PX
 # Narrower than this and the dots become one progress line
@@ -28,15 +28,11 @@ LINE_HEIGHT_PX = 6
 # A dot for a card not yet on the table, as a share of a face-down one's
 UNLANDED_ALPHA = 0.35
 
-# Deal's icon, and the same button's when every position was filled by hand and there is nothing
-# to deal: KDE's confirm, as its wizards' Finish has
 DEAL_ICON = "media-playback-start"
 FINISH_ICON = "dialog-ok-apply"
 
 REVEAL_KEYS = (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space)
 OPEN_KEYS = (Qt.Key.Key_Return, Qt.Key.Key_Enter)
-# The transport's keys, as the card view's Previous, Next, First and Last. The canvas's only: the
-# list has its own Home and End, and moves its rows with Up and Down
 TURN_KEY = Qt.Key.Key_Right
 TURN_ALL_KEY = Qt.Key.Key_End
 STEP_KEYS = {
@@ -58,14 +54,9 @@ def _plain(event):
     return not event.modifiers() & ~Qt.KeyboardModifier.KeypadModifier
 
 
+# TODO: we should reuse or shortcut command stuff here
 class RevealKeys(QObject):
-    """Enter or Space on the canvas or the pane's list deals, then turns the next card. On the
-    list, Enter on a row whose card is face-up opens that card instead. On the canvas, Right
-    turns too and End reveals the rest; once all are turned, Left, Right, Home and End step
-    through the positions.
-
-    Watched on those two only, so a space typed into the Question is still a space
-    """
+    """Shortcuts that for revealing cards"""
 
     def __init__(self, reading, canvas, rows):
         super().__init__(reading)
@@ -112,9 +103,7 @@ class RevealKeys(QObject):
 
 
 class ProgressDots(QWidget):
-    """One dot per filled position, in turn order: filled once turned, gilt when next (or, once all
-    are turned, when stepped to), hollow while face-down, faint until it has landed. Too many for
-    the width, and they fold into one progress line"""
+    """One dot per filled position in turn order"""
 
     def __init__(self, reading, parent=None):
         super().__init__(parent)
@@ -206,11 +195,7 @@ def _button(icon, words, keys, slot):
 
 
 class PlayerBar(QWidget):
-    """The reading's transport: Deal; then turn · progress · Reveal All; then, once every card is
-    turned, previous · progress · next, stepping the selection through the positions.
-
-    Never back in time: a reading can't be un-turned, so the steps only look again
-    """
+    """The transport controls"""
 
     def __init__(self, reading, parent=None):
         super().__init__(parent)
@@ -296,11 +281,7 @@ class PlayerBar(QWidget):
 
 
 class ReadingStrip(QWidget):
-    """The band under the canvas, a widget beside the view rather than a margin inside it, so the
-    canvas ends above it: the transport centred, and View's actions at the trailing end.
-
-    View lives here, not on the rail, for the reading's whole life, so its buttons never move
-    """
+    """The band under the canvas"""
 
     def __init__(self, reading, view_actions, parent=None):
         super().__init__(parent)

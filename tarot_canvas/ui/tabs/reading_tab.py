@@ -1,5 +1,4 @@
-"""A reading dealt from a spread: staged on its sockets, dealt face-down, turned card by card, then
-an ordinary canvas. It saves nothing: closing the tab lets the reading go."""
+"""A tarot reading dealt from a spread"""
 
 import os
 import random
@@ -46,8 +45,6 @@ from tarot_canvas.utils.logger import logger
 # Seconds between turns under Reveal All
 TURN_ALL_GAP_S = 0.15
 
-# Dealt cards lie above whatever was on the table; in flight, above them; the next to turn, above
-# all of them, so a covered position (Celtic Cross 1) can be clicked; and the turning one above that
 CARD_Z = 10000.0
 FLIGHT_Z = 30000.0
 NEXT_Z = 40000.0
@@ -62,7 +59,7 @@ def _centre(item):
 
 
 def remembered_deck():
-    """The deck the user last read with, while it is installed; else the reference deck"""
+    """The deck the user last read with"""
     wanted = deck_path_key(get_readings_deck())
     if wanted is not None:
         for deck in deck_manager.get_all_decks():
@@ -77,9 +74,9 @@ class ReadingTab(SpreadSlots, CanvasTab):
     TOOLS_TITLE = CANVAS["section_cards"]
     SLOT_ITEM = SocketItem
 
-    # Read before __init__ is done: CanvasTab's settles and grounds the canvas as it builds it
     phase = Phase.STAGED
     _flights = None
+
     # {socket: card} filled by hand, until the table next changes
     _by_hand = None
 
@@ -145,18 +142,20 @@ class ReadingTab(SpreadSlots, CanvasTab):
     def _connect_pane(self):
         pane = self.pane
         pane.question_edit.textChanged.connect(self.tab_label_changed)
-        # Typing the Question and pressing Enter deals: setup is one gesture
         pane.question_edit.submitted.connect(self.deal)
+
         pane.deck_combo.currentIndexChanged.connect(self._on_deck_chosen)
-        # The user's last choice, from any reading; changing it here makes it the next one's
+
+        # The user's last choice, from any reading
         pane.reversals_check.setChecked(get_readings_reversals())
         pane.reversals_check.toggled.connect(set_readings_reversals)
+
         selection = pane.list_view.selectionModel()
         selection.selectionChanged.connect(self.refresh_rows)
         selection.selectionChanged.connect(self._on_row_selected)
+
         # A row chosen again, its card turned since, selects it too
         pane.list_view.clicked.connect(self._on_row_selected)
-        # A row stands for its card: double-clicking it opens the card, as on the canvas
         self._row_opener = RowOpener(pane.list_view, self._open_row_card)
 
     def _build_strip(self):
@@ -186,8 +185,7 @@ class ReadingTab(SpreadSlots, CanvasTab):
         return handlers
 
     def on_draw_card(self, at=None):
-        """Before the deal, Summon deals. After it, a card from the reading's deck that isn't
-        already on the table"""
+        # If we haven't dealt the cards yet, deal the cards first
         if self.phase is Phase.STAGED:
             self.deal()
             return
@@ -210,12 +208,10 @@ class ReadingTab(SpreadSlots, CanvasTab):
         return super().build_card_menu(item)
 
     def on_turn_card_by_wheel(self, card, notches, fine):
-        # A socket is the spread's, and the card dealt to it lands at its angle
         if not isinstance(card, SlotItem) and not is_face_down(card):
             super().on_turn_card_by_wheel(card, notches, fine)
 
     def cards(self):
-        # A filled position's hidden socket is not on the table: nothing snaps to it
         return tuple(card for card in self._cards if card.isVisible())
 
     def register_card(self, card):
@@ -228,7 +224,6 @@ class ReadingTab(SpreadSlots, CanvasTab):
 
     def set_ground(self, color):
         super().set_ground(color)
-        # A socket's plum is laid over the ground
         for card in self._cards:
             if isinstance(card, SocketItem):
                 card.redraw()
@@ -249,7 +244,7 @@ class ReadingTab(SpreadSlots, CanvasTab):
         return self.placements[self._slots.index(slot)]
 
     def card_in(self, slot):
-        """The card on slot: dealt and landed, or put there by hand before the deal"""
+        """The card in a given slot (either dealt or manually placed)"""
         if self.phase is Phase.STAGED:
             return self._staged_by_hand().get(slot)
         card = self._placement_at(slot).card
@@ -313,7 +308,7 @@ class ReadingTab(SpreadSlots, CanvasTab):
         self.view.ensureVisible(card.sceneBoundingRect(), 40, 40)
 
     def _open_row_card(self, row):
-        """Open the card on row's position, if it is face-up; say whether it was"""
+        """Open the card on row's position, if it is face-up"""
         card = self.card_in(self._slots[row])
         if card is None or is_face_down(card):
             return False
@@ -341,7 +336,7 @@ class ReadingTab(SpreadSlots, CanvasTab):
         return self.can_copy_card() and self.can_delete()
 
     def on_delete_card(self):
-        """Remove the selected extras; a card that fills a position is the reading, and stays"""
+        """Remove the selected extras"""
         extras = self._extras()
         for card in extras:
             self.scene.removeItem(card)
@@ -381,7 +376,6 @@ class ReadingTab(SpreadSlots, CanvasTab):
         return self.question() or self.spread.name or SPREADS["untitled"]
 
     def tab_title(self):
-        # A question can run to a paragraph: the tab shows its start and the tooltip the rest
         metrics = QFontMetrics(self.font())
         width = metrics.averageCharWidth() * TAB_TITLE_CHARS
         return metrics.elidedText(self.display_name(), Qt.TextElideMode.ElideRight, width)
@@ -412,8 +406,8 @@ class ReadingTab(SpreadSlots, CanvasTab):
         else:
             self.ground_pace.set_target(1.0, DIM_LIFT_S)
         self._sync_facts()
-        # No rail until every card is turned: Summon, Flip and Arrange mean nothing yet, and
-        # View is in the strip. Their keys are the tab's, so they work all the same
+
+        # No rail until every card is turned
         self.toolbar.setVisible(phase is Phase.READ)
         self.bar.sync()
         self.edit_state_changed()
@@ -466,9 +460,7 @@ class ReadingTab(SpreadSlots, CanvasTab):
         return [card for card in cards if card.get("image") and os.path.exists(card["image"])]
 
     def _taken_ids(self):
-        """Ids of the cards the deck can't give again: those filling a position, whichever deck
-        they came from, including any still in flight; and the deck's own cards loose on the
-        table"""
+        """Ids of the cards the deck can't give again"""
         placed = [p.card for p in self.placements if p.card is not None]
         loose = [
             card
@@ -481,8 +473,6 @@ class ReadingTab(SpreadSlots, CanvasTab):
         self._by_hand = None
 
     def _staged_by_hand(self):
-        """_filled_by_hand, kept until the table changes: the pane asks for it row by row, on
-        every paint"""
         if self._by_hand is None:
             self._by_hand = self._filled_by_hand()
         return self._by_hand
@@ -547,9 +537,6 @@ class ReadingTab(SpreadSlots, CanvasTab):
         self._launch(self._dealt)
 
     def _make_cards(self, placements, shuffled):
-        """A face-down card for each of placements in order, drawn from the top of shuffled. A
-        card whose art won't load is passed over for the next, so a position stays empty only
-        once the deck is out"""
         backs = {}
         dealt = []
         draw = iter(shuffled)

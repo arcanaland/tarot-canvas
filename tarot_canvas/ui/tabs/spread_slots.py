@@ -4,8 +4,7 @@ from tarot_canvas.ui.canvas.spread_pane import PositionModel
 
 
 class SpreadSlots:
-    """A canvas tab's numbered slots, laid out from a spread's positions, and the model that lists
-    them as rows. Mixed into a CanvasTab: the designer edits the slots, a reading deals onto them"""
+    """A canvas tab's numbered slots"""
 
     def init_slots(self):
         self._slots = []  # in number order

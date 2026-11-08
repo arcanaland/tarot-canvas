@@ -1,5 +1,4 @@
-"""A reading's pane: the Question as its heading, one line for each fact of the reading, and its
-positions, each with the card that fills it."""
+"""Pane on the side of a reading"""
 
 from PyQt6.QtCore import QEvent, QObject, QRect, QRectF, QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QFontMetrics, QFontMetricsF, QIcon, QPainter, QPen
@@ -53,10 +52,7 @@ LIST_STRETCH = 1000
 
 
 class QuestionBox(DescriptionBox):
-    """The Question as the pane's heading: wrapped to three lines, then scrolled.
-
-    One paragraph: Enter submits instead of starting a new line, and pasted lines are joined
-    """
+    """The Question as the pane's heading: wrapped to three lines, then scrolled."""
 
     submitted = pyqtSignal()
 
@@ -91,12 +87,7 @@ class QuestionBox(DescriptionBox):
 
 
 class RowOpener(QObject):
-    """Double-clicking a row opens its card.
-
-    The row that was pressed, not the one under the second click: the first click selects a row,
-    which closes the open row above it, so the clicked row has moved by the time the second lands
-    and the view's own doubleClicked never fires
-    """
+    """Double-clicking a row opens its card."""
 
     def __init__(self, view, opened):
         super().__init__(view)
@@ -122,8 +113,7 @@ class RowOpener(QObject):
 
 
 class ListFit(QObject):
-    """Keeps the list as tall as its rows, so what follows it sits under the last one: called
-    whenever the rows may have changed height, by a resize, a re-measure, or rows coming or going"""
+    """Keeps the list as tall as its rows"""
 
     def __init__(self, view):
         super().__init__(view)
@@ -147,8 +137,7 @@ class ListFit(QObject):
 
 
 class ReadingRowDelegate(PositionDelegate):
-    """A position's row with its card in place of the grip, and the next card's row lit. The
-    selected row and the next row open to their whole meaning"""
+    """A position's row with its card in place of the grip"""
 
     def __init__(self, view, reading):
         super().__init__(view)
@@ -161,7 +150,7 @@ class ReadingRowDelegate(PositionDelegate):
         return index.row() in self._open_rows
 
     def set_open_rows(self, rows):
-        """Open rows, asking the view to re-measure every row that changed"""
+        """Open rows"""
         changed = self._open_rows ^ set(rows)
         self._open_rows = set(rows)
         model = self.view.model()
@@ -175,8 +164,7 @@ class ReadingRowDelegate(PositionDelegate):
         return self.reading.card_in(self.reading.slots()[index.row()])
 
     def card_line(self, index):
-        """The turned card's name, and whether it lies reversed, said in words: a thumbnail
-        turned over is unreadable at row size and to a screen reader"""
+        """The revealed card's name + reversed"""
         card = self._card(index)
         if card is None or is_face_down(card):
             return None
@@ -209,7 +197,7 @@ class ReadingRowDelegate(PositionDelegate):
         return QSize(hint.width(), max(hint.height(), height))
 
     def meaning_is_hidden(self, option, index):
-        """Whether a closed row doesn't show its whole meaning: cut off, or under the card's name"""
+        """Whether a closed row doesn't show its whole meaning"""
         meaning = self._meaning(index)
         if not meaning or self.is_open(index):
             return False
@@ -230,8 +218,6 @@ class ReadingRowDelegate(PositionDelegate):
     # -- painting -------------------------------------------------------------------
 
     def _paint_text(self, painter, option, index):
-        """The label; under it the card once turned, else the meaning; an open row adds the
-        whole meaning under both"""
         title_font, small_font = self._fonts(option, False)
         meaning = self._meaning(index)
         card = self.card_line(index)
@@ -305,8 +291,6 @@ class ReadingRowDelegate(PositionDelegate):
         painter.restore()
 
     def _paint_thumb(self, painter, rect, card, palette):
-        """An empty position as a dashed outline; else its card's back, or its face once turned,
-        turned over if it is reversed"""
         painter.save()
         painter.setRenderHints(
             QPainter.RenderHint.Antialiasing | QPainter.RenderHint.SmoothPixmapTransform
@@ -329,9 +313,7 @@ class ReadingRowDelegate(PositionDelegate):
 
 
 class ReadingPane(SidePane):
-    """The Question as the heading; one line each, with an icon, for the spread, the deck,
-    Reversals and the date; then the positions. The deck and Reversals are controls until the
-    deal and plain text after it, and the date appears with the deal"""
+    """The pane on the side of a reading canvas"""
 
     def __init__(self, reading, positions, spread_name, spread_description, decks, deck):
         super().__init__()
@@ -348,7 +330,8 @@ class ReadingPane(SidePane):
 
         self._build_facts(spread_name, spread_description, decks, deck)
         self.list_view = self._build_list(positions)
-        # The list takes room first, up to its rows' height; what is left goes under it
+
+        # The list takes room first
         self.body.addWidget(self.list_view, LIST_STRETCH)
         filler = QWidget()
         filler.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
@@ -364,13 +347,13 @@ class ReadingPane(SidePane):
         grid.setColumnStretch(1, 1)
         self._form = form
 
-        # The spread. Its own description is the least useful text at reading time: a tooltip
+        # The spread.
         self.spread_label = QLabel(spread_name)
         self.spread_label.setWordWrap(True)
         self.spread_label.setToolTip(spread_description.strip())
         self._info_line(QIcon.fromTheme(SPREAD_ICON), self.spread_label)
 
-        # The deck: a menu until the deal, then its name
+        # The deck
         self.deck_combo = QComboBox()
         self.deck_combo.setFrame(False)
         self.deck_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
@@ -382,8 +365,7 @@ class ReadingPane(SidePane):
         self.deck_label.setWordWrap(True)
         self._info_line(deck_icon(), self.deck_combo, self.deck_label, None, control=True)
 
-        # Reversals: chosen before the deal, like the deck, and fixed by it. A checkbox, not a
-        # switch: it takes effect at the deal, not when clicked
+        # Reversals
         self.reversals_check = QCheckBox(READINGS["reversals"])
         self.reversals_label = QLabel()
         self.reversals_mark = self._info_line(
@@ -394,7 +376,7 @@ class ReadingPane(SidePane):
             control=True,
         )
 
-        # The date, from the deal on
+        # The date
         self.date_label = QLabel()
         self.date_mark = self._info_line(QIcon.fromTheme("view-calendar-day"), self.date_label)
 
@@ -413,8 +395,7 @@ class ReadingPane(SidePane):
         self.body.addWidget(form)
 
     def _info_line(self, icon, *widgets, control=False):
-        """An icon and its fact. The icon is centred on the fact's first line of text, or on the
-        whole line when that line holds a control taller than text"""
+        """An icon and its fact"""
         grid = self._grid
         row = grid.rowCount()
         mark = QLabel()

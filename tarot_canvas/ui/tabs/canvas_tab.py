@@ -150,7 +150,7 @@ class CanvasTab(BaseTab):
 
         self.motion_clock = MotionClock(self)
         self.ambient_gain = 0.0
-        # How fast the ground moves on its own: 1, except where a reading slows it
+        # How fast the ground moves on its own
         self.ground_pace = Pace()
 
         self._cards = []

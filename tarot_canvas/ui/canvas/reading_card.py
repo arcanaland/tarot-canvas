@@ -1,4 +1,4 @@
-"""A dealt card: flown in, face-down until its turn, then an ordinary canvas card."""
+"""A card we're dealing that is flown in, face-down, then an ordinary canvas card."""
 
 import math
 import random
@@ -14,7 +14,7 @@ from tarot_canvas.ui.canvas.motion import TICK_MS, MotionChannels
 TURN_S = 0.5
 # How far a card lifts as it is turned over
 TURN_LIFT = 1.10
-# A face-down card's colour on the tab icon: no suit's
+# A face-down card's colour on the tab icon
 FACE_DOWN_MARK = QColor(110, 96, 90)
 
 
@@ -64,12 +64,10 @@ class ReadingMotion(MotionChannels):
 
 
 class ReadingCard(DraggableCardItem):
-    """A dealt card. Face-down it shows its deck's back and gives nothing of its face away: not its
-    reversal, its suit's colour, its art at a sharper level, its menu or its card view. It answers
-    the pointer only when it is the next to turn, and then only to be turned"""
+    """A dealt card."""
 
     def __init__(self, pixmap, card_data, parent_tab=None, deck=None, reversed=False):
-        # Drawn upright until the turn, or a reversed back would tell
+        # we need to draw the back upright until the reveal (otherwise they'll know it's reversed)
         super().__init__(pixmap, card_data, parent_tab, deck=deck, reversed=False)
         self.motion = ReadingMotion()
         self._applied = None
@@ -81,7 +79,6 @@ class ReadingCard(DraggableCardItem):
         self._apply_motion()
 
     def lie_face_down(self, back):
-        """Show back, a pixmap the size of the face, until the turn"""
         self.setPixmap(back)
 
     def set_interactive(self, interactive):
@@ -92,7 +89,6 @@ class ReadingCard(DraggableCardItem):
         self.setCursor(Qt.CursorShape.OpenHandCursor if interactive else Qt.CursorShape.ArrowCursor)
 
     def set_next(self, is_next):
-        """Only the next card to turn answers the pointer"""
         if not self.face_down:
             return
         self.setAcceptHoverEvents(is_next)
@@ -104,7 +100,6 @@ class ReadingCard(DraggableCardItem):
         return FACE_DOWN_MARK if self.face_down else super().mark_colour()
 
     def set_detail(self, device_scale):
-        # A sharper level is the face's art
         if not self.face_down:
             super().set_detail(device_scale)
 
@@ -112,7 +107,7 @@ class ReadingCard(DraggableCardItem):
         return self._turning is not None
 
     def begin_turn(self, animate):
-        """Turn face-up: over TURN_S, lifting, or at once"""
+        """Turn face-up"""
         if not animate:
             self._reveal()
             self.motion.flip = 0.0
@@ -192,8 +187,7 @@ class ReadingCard(DraggableCardItem):
 
 
 class Flights:
-    """Cards flying in one after another, from just below the view's bottom edge, where the reader
-    sits, on a gentle arc to their positions, turning to each one's angle as they go"""
+    """Cards flying in one after another"""
 
     def __init__(self, scene):
         self._scene = scene
@@ -205,12 +199,11 @@ class Flights:
         return bool(self._flights)
 
     def cards(self):
-        """Those not yet landed, in the order they leave"""
+        """cards not yet landed"""
         return [flight["card"] for flight in self._flights]
 
     def launch(self, cards, visible, duration, z):
-        """Fly each of cards, as (card, its slot), leaving the bottom of visible, a scene rect.
-        In flight they lie at z and up"""
+        """Fly all of the cards"""
         height = cards[0][0].boundingRect().height() if cards else 0.0
         self._origin = QPointF(visible.center().x(), visible.bottom() + height * DEAL_FROM_BELOW)
         self._flights = [
@@ -226,7 +219,7 @@ class Flights:
         self._started = None
 
     def advance(self, t):
-        """Step each flight to time t; return the cards that arrived"""
+        """Step each flight to time t. Returns the cards that arrived."""
         if self._started is None:
             self._started = t
         elapsed = t - self._started

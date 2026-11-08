@@ -1,5 +1,4 @@
-"""A reading's phases and positions: one Placement per position, and the socket drawn while it is
-empty."""
+"""Phases and positions for readings"""
 
 from enum import Enum
 
@@ -11,26 +10,23 @@ from tarot_canvas.ui.canvas.slot_item import SlotItem, render_slot
 
 
 class Phase(Enum):
-    """Where a reading is. Nothing goes back: a turned card can't be un-turned"""
+    """Phases for the reading"""
 
-    # The spread's positions are sockets, and the deck and Reversals can be chosen
+    # 1: sockets + setup options are unlocked
     STAGED = "staged"
-    # The cards are on the table, some still face-down
+    # 2: cards are dealt and options are locked
     DEALT = "dealt"
-    # Every dealt card is face-up, and the canvas is an ordinary one again
+    # 3: every card revealed
     READ = "read"
 
 
-# The ground's pace while any card is face-down, and how long it takes to slow from the Deal and
-# to come back after the last turn. The candle fades in and lifts over the same times
+# swirl pace while any card is face-down
 FACE_DOWN_GROUND_PACE = 0.2
 DIM_IN_S = 0.6
 DIM_LIFT_S = 1.0
 
 
-# An empty position: a socket in the house back's plum and brass, dashed, with no icon, so it can't
-# be taken for a card already dealt face-down. Its plum is laid over the ground ahead of time, so it
-# looks see-through but covers what lies under it, as a crossing card does
+# Sockets are empty positions
 SOCKET_PLUM = QColor(58, 36, 48)
 SOCKET_PLUM_SHARE = 120 / 255
 SOCKET_EDGE = QColor(170, 138, 98)
@@ -38,7 +34,7 @@ SOCKET_INK = QColor(214, 180, 132)
 
 
 def socket_fill(ground):
-    """The plum at its share over ground, made opaque"""
+    """fill color for the socket"""
     ground = QColor(ground)
     a = SOCKET_PLUM_SHARE
     return QColor.fromRgbF(
@@ -49,8 +45,6 @@ def socket_fill(ground):
 
 
 def render_socket(slot, scale, ground):
-    """slot's face as a socket over ground, its text turned back by the nearest quarter so it reads
-    upright, across a crossing slot"""
     turn = round(slot.orient / 90.0) * 90 % 360
     return render_slot(
         slot.number,
@@ -66,8 +60,7 @@ def render_socket(slot, scale, ground):
 
 
 class SocketItem(SlotItem):
-    """A position of a reading, drawn as a socket while it is empty. It is read, not designed: it
-    can't be picked, moved or selected, and lies flat in the table, so it casts no shadow"""
+    """A position of a reading"""
 
     def __init__(self, number, position_id, parent_tab=None, label="", meaning=""):
         super().__init__(number, position_id, parent_tab, label=label, meaning=meaning)
@@ -87,7 +80,6 @@ class SocketItem(SlotItem):
         return render_socket(self, scale, self._ground())
 
     def redraw(self):
-        """Draw again, for a new ground or a new turn"""
         self._redraw()
 
     def set_orient(self, degrees):
@@ -97,17 +89,13 @@ class SocketItem(SlotItem):
 
 
 class Placement:
-    """One position of the spread and the card that fills it.
-
-    The socket on the canvas, the row in the pane and the card are three views of this. The socket
-    is drawn only while nothing fills the position; the card carries the position wherever it is
-    moved, and selecting the card or the row selects the other
-    """
+    """One position of the spread + the card that slotted in"""
 
     def __init__(self, slot):
         self.slot = slot
         self.card = None
-        # Filled by hand before the deal, so it was never face-down
+
+        # Filled by hand before the deal
         self.by_hand = False
 
     @property
@@ -122,5 +110,4 @@ class Placement:
         """The socket shows only while no card has landed on it"""
         shown = self.card is None or not landed
         self.slot.setVisible(shown)
-        # Its shadow is an item of its own, and would stay on the table
         self.slot.shadow.setVisible(False)

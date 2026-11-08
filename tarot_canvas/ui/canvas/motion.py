@@ -87,8 +87,7 @@ def approach(current, target, rate, dt):
 
 
 class Pace:
-    """A rate multiplier eased to a target over a set time. Ease the rate, never the time it
-    drives, or what it drives jumps."""
+    """A rate multiplier eased to a target over a set time"""
 
     def __init__(self, value=1.0):
         self.value = value
@@ -196,7 +195,7 @@ class MotionChannels:
         return t
 
     def face_turn(self):
-        """Degrees the card is turned about its own vertical axis, as when it is turned over"""
+        """Degrees the card is turned about its own vertical axis (turned over?)"""
         return 0.0
 
     def drawn_angle(self):

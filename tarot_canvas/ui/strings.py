@@ -646,7 +646,7 @@ LOG_VIEWER = {
 # A reading dealt from a spread
 READINGS = {
     "open": "Start Reading",
-    "question_hint": "Your question…",
+    "question_hint": "Question or topic…",
     "deal": "Begin Reading",
     "begin": "Finish",
     "turn_all": "Reveal All",

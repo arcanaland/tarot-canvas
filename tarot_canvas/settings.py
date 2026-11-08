@@ -100,7 +100,7 @@ READING_TEXT_SCALE_DEFAULT = 100
 READING_TEXT_SCALE_STEPS = (80, 90, 100, 110, 125, 150, 175, 200)
 
 
-# Whether a new reading deals reversed cards: the user's last choice, made in the reading pane
+# Whether a new reading deals reversed cards
 READINGS_REVERSALS_KEY = "readings/reversals"
 READINGS_REVERSALS_DEFAULT = True
 
@@ -115,8 +115,7 @@ def set_readings_reversals(enabled, settings=None):
     settings.setValue(READINGS_REVERSALS_KEY, bool(enabled))
 
 
-# The deck a new reading starts with: the folder of the user's last choice, in the reading pane or
-# the Library. Empty for the reference deck
+# The deck a new reading starts with
 READINGS_DECK_KEY = "readings/deck"
 
 

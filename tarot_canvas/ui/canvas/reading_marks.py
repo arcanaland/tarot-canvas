@@ -1,6 +1,4 @@
-"""What a reading paints over its canvas, in viewport pixels: each filled position's number at its
-card's corner, and the next card's position under it. Foreground painters, so they stay upright
-and at screen size at any zoom or turn, on raster and GL alike."""
+"""labels and numbered badges on top / near cards"""
 
 import math
 
@@ -47,10 +45,6 @@ def _viewport_painting(painter):
 
 
 class Badges:
-    """Each filled position's number at its card's bounding-rect corner, face-down included: the
-    layout reads before the turn too. Inside the card, so a moved card's repaint takes its old
-    badge with it"""
-
     def __init__(self, view, marks):
         """marks() gives (card, number, lit) for every badge to paint"""
         self.view = view
@@ -73,8 +67,7 @@ class Badges:
 
 
 class Caption:
-    """The next card's position under it, at screen size: its number, label and meaning in the
-    spread's own words. Above the card when there is no room below, and never off the view's sides"""
+    """The next card's position under it"""
 
     def __init__(self, view):
         self.view = view
@@ -167,7 +160,8 @@ class Caption:
             return
         small = QFontMetricsF(self._small_font)
         meaning = self._meaning()
-        # Wrapped into its lines; only a meaning too long for them is elided
+
+        # Wrapped into its lines
         fitted = meaning
         if small.horizontalAdvance(meaning) > width * self._lines:
             room = width * self._lines - small.averageCharWidth() * 4 * (self._lines - 1)
