@@ -86,6 +86,39 @@ def approach(current, target, rate, dt):
     return current + (target - current) * (1.0 - math.exp(-rate * dt))
 
 
+class Pace:
+    """A rate multiplier eased to a target over a set time. Ease the rate, never the time it
+    drives, or what it drives jumps."""
+
+    def __init__(self, value=1.0):
+        self.value = value
+        self.target = value
+        self._from = value
+        self._elapsed = 0.0
+        self._duration = 0.0
+
+    def set_target(self, target, duration):
+        if target == self.target:
+            return
+        self._from = self.value
+        self.target = target
+        self._elapsed = 0.0
+        self._duration = duration
+
+    def snap(self):
+        self.value = self._from = self.target
+
+    def advance(self, dt):
+        if self.value == self.target:
+            return
+        self._elapsed += dt
+        if self._elapsed >= self._duration:
+            self.snap()
+            return
+        s = self._elapsed / self._duration
+        self.value = self._from + (self.target - self._from) * s * s * (3.0 - 2.0 * s)
+
+
 def max_corner_delta(previous, current):
     """The furthest any one corner moved between two sequences of mapped points."""
     worst = 0.0

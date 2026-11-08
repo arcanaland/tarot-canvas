@@ -16,6 +16,7 @@ from tarot_canvas.ui.canvas.motion import (
     AmbientDrift,
     MotionChannels,
     MotionClock,
+    Pace,
     PinkOscillator,
     Spring,
     approach,
@@ -299,3 +300,31 @@ def test_ambient_drift_moves_a_card_far_less_than_a_pixel_per_frame():
             worst = max(worst, max_corner_delta(previous, mapped))
         previous = mapped
     assert worst < MOTION_EPSILON_PX
+
+
+def test_a_pace_eases_to_its_target_over_its_duration():
+    pace = Pace()
+    pace.set_target(0.2, 0.6)
+    pace.advance(0.3)
+    assert pace.value == pytest.approx(0.6)
+    pace.advance(0.3)
+    assert pace.value == 0.2
+
+
+def test_a_pace_retargeted_mid_ease_starts_from_where_it_is():
+    pace = Pace()
+    pace.set_target(0.2, 0.6)
+    pace.advance(0.3)
+    pace.set_target(1.0, 1.0)
+    assert pace.value == pytest.approx(0.6)
+    pace.advance(0.01)
+    assert 0.6 < pace.value < 0.61
+
+
+def test_a_snapped_pace_is_at_its_target_and_stays():
+    pace = Pace()
+    pace.set_target(0.2, 0.6)
+    pace.snap()
+    assert pace.value == 0.2
+    pace.advance(0.1)
+    assert pace.value == 0.2

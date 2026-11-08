@@ -17,7 +17,14 @@ from tarot_canvas.settings import (
 )
 from tarot_canvas.ui.canvas.backs import back_pixmap
 from tarot_canvas.ui.canvas.detail import card_unit_size
-from tarot_canvas.ui.canvas.placement import Phase, Placement, SocketItem
+from tarot_canvas.ui.canvas.placement import (
+    DIM_IN_S,
+    DIM_LIFT_S,
+    FACE_DOWN_GROUND_PACE,
+    Phase,
+    Placement,
+    SocketItem,
+)
 from tarot_canvas.ui.canvas.reading_card import (
     FLIGHT_S,
     REACTIVE_FLIGHT_S,
@@ -399,6 +406,11 @@ class ReadingTab(SpreadSlots, CanvasTab):
 
     def set_phase(self, phase):
         self.phase = phase
+        # The ground slows while any card is face-down, and comes back once all are turned
+        if phase is Phase.DEALT:
+            self.ground_pace.set_target(FACE_DOWN_GROUND_PACE, DIM_IN_S)
+        else:
+            self.ground_pace.set_target(1.0, DIM_LIFT_S)
         self._sync_facts()
         # No rail until every card is turned: Summon, Flip and Arrange mean nothing yet, and
         # View is in the strip. Their keys are the tab's, so they work all the same

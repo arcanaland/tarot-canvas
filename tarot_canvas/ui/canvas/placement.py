@@ -21,6 +21,13 @@ class Phase(Enum):
     READ = "read"
 
 
+# The ground's pace while any card is face-down, and how long it takes to slow from the Deal and
+# to come back after the last turn. The candle fades in and lifts over the same times
+FACE_DOWN_GROUND_PACE = 0.2
+DIM_IN_S = 0.6
+DIM_LIFT_S = 1.0
+
+
 # An empty position: a socket in the house back's plum and brass, dashed, with no icon, so it can't
 # be taken for a card already dealt face-down. Its plum is laid over the ground ahead of time, so it
 # looks see-through but covers what lies under it, as a crossing card does

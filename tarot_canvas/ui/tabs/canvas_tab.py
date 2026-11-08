@@ -72,6 +72,7 @@ from tarot_canvas.ui.canvas.guides import GuideItem
 from tarot_canvas.ui.canvas.motion import (
     AMBIENT_GAIN_FLOOR,
     MotionClock,
+    Pace,
     approach,
     system_animations_enabled,
 )
@@ -149,6 +150,8 @@ class CanvasTab(BaseTab):
 
         self.motion_clock = MotionClock(self)
         self.ambient_gain = 0.0
+        # How fast the ground moves on its own: 1, except where a reading slows it
+        self.ground_pace = Pace()
 
         self._cards = []
         self._top_z = 0.0
@@ -369,12 +372,19 @@ class CanvasTab(BaseTab):
         view_scale = abs(self.view.transform().m11())
         for card in self._cards:
             card.advance_motion(t, dt, self.ambient_gain, view_scale)
+        ground_moves = self.ground_motion_is_allowed()
+        # Held still, the pace is wherever it was going, so nothing resumes mid-ease
+        if ground_moves:
+            self.ground_pace.advance(dt)
+        else:
+            self.ground_pace.snap()
         if self.view.swirl is not None:
-            self.view.swirl.advance(dt, self.ground_motion_is_allowed())
+            self.view.swirl.advance(dt, ground_moves, self.ground_pace.value)
 
     def settle_motion(self):
         """Put every card flat."""
         self.ambient_gain = 0.0
+        self.ground_pace.snap()
         for card in self._cards:
             card.settle_motion()
         if self.view.swirl is not None:

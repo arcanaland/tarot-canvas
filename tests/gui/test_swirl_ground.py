@@ -1,3 +1,4 @@
+import pytest
 from PyQt6.QtCore import QSize
 from PyQt6.QtGui import QColor, QRadialGradient
 
@@ -86,6 +87,14 @@ def test_a_still_ground_keeps_its_time(monkeypatch):
     ground = bare_ground(monkeypatch)
     ground.advance(0.1, False)
     assert ground.t == swirl.STILL_T
+
+
+def test_the_grounds_time_runs_at_its_pace(monkeypatch):
+    ground = bare_ground(monkeypatch)
+    ground.advance(0.1, True)
+    full = ground.t - swirl.STILL_T
+    ground.advance(0.1, True, 0.2)
+    assert ground.t - swirl.STILL_T == pytest.approx(1.2 * full)
 
 
 def test_a_cheap_raster_ground_moves_at_the_base_rate(monkeypatch):

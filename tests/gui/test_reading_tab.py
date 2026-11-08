@@ -20,7 +20,12 @@ from tarot_canvas.settings import (
 from tarot_canvas.ui.canvas import placement as placement_module
 from tarot_canvas.ui.canvas import reading_strip as strip_module
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
-from tarot_canvas.ui.canvas.placement import Phase, SocketItem, socket_fill
+from tarot_canvas.ui.canvas.placement import (
+    FACE_DOWN_GROUND_PACE,
+    Phase,
+    SocketItem,
+    socket_fill,
+)
 from tarot_canvas.ui.canvas.reading_card import FACE_DOWN_MARK, ReadingCard
 from tarot_canvas.ui.canvas.reading_strip import DEAL_ICON, FINISH_ICON, ProgressDots
 from tarot_canvas.ui.card_colours import card_colour
@@ -242,6 +247,33 @@ def test_the_deal_lays_the_celtic_cross_face_down(qtbot, deck, level):
     assert tab.next_card() is cards[0]
     assert cards[0].zValue() == NEXT_Z
     assert len({card.card_data["id"] for card in cards}) == 10
+
+
+def test_the_ground_slows_while_face_down_and_comes_back_once_read(qtbot, deck, off, monkeypatch):
+    tab = make_tab(qtbot, three_card())
+    assert tab.ground_pace.value == 1.0
+    deal(qtbot, tab)
+    assert tab.ground_pace.target == FACE_DOWN_GROUND_PACE
+    monkeypatch.setattr(tab, "ground_motion_is_allowed", lambda: True)
+    tab._advance_motion(0.0, 0.3)
+    assert FACE_DOWN_GROUND_PACE < tab.ground_pace.value < 1.0
+    read(qtbot, tab)
+    assert tab.ground_pace.target == 1.0
+
+
+def test_held_still_the_ground_snaps_to_its_pace(qtbot, deck, off, monkeypatch):
+    tab = make_tab(qtbot, three_card())
+    deal(qtbot, tab)
+    monkeypatch.setattr(tab, "ground_motion_is_allowed", lambda: False)
+    tab._advance_motion(0.0, 0.016)
+    assert tab.ground_pace.value == FACE_DOWN_GROUND_PACE
+
+
+def test_an_ordinary_canvas_keeps_its_ground_at_full_pace(qtbot):
+    tab = CanvasTab()
+    qtbot.addWidget(tab)
+    tab._advance_motion(0.0, 1.0)
+    assert tab.ground_pace.value == tab.ground_pace.target == 1.0
 
 
 def test_a_filled_socket_is_left_out_of_the_cards(qtbot, deck, off):
