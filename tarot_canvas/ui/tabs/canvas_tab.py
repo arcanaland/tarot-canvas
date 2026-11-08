@@ -292,13 +292,18 @@ class CanvasTab(BaseTab):
     def reactive_is_allowed(self):
         return self.motion_level != "Off"
 
-    def ambient_is_allowed(self):
+    def ground_motion_is_allowed(self):
+        """Whether the background may move on its own"""
         return (
             self.motion_level == "Full"
             and self.desktop_wants_animation
             and self.isVisible()
             and self.window().isActiveWindow()
         )
+
+    def ambient_is_allowed(self):
+        """Whether the cards may drift on their own"""
+        return self.ground_motion_is_allowed()
 
     def set_ground(self, color):
         """Pick the selection tone that shows up against this background colour."""
@@ -365,7 +370,7 @@ class CanvasTab(BaseTab):
         for card in self._cards:
             card.advance_motion(t, dt, self.ambient_gain, view_scale)
         if self.view.swirl is not None:
-            self.view.swirl.advance(dt, self.ambient_is_allowed())
+            self.view.swirl.advance(dt, self.ground_motion_is_allowed())
 
     def settle_motion(self):
         """Put every card flat."""
