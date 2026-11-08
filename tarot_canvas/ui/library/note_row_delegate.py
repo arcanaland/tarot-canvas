@@ -5,6 +5,7 @@ from PyQt6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter
 from PyQt6.QtWidgets import QLineEdit, QStyle, QStyledItemDelegate, QToolTip
 
 from tarot_canvas.ui import typography
+from tarot_canvas.ui.commands import tooltip_with_keys
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.cover_cache import CoverCache
 from tarot_canvas.ui.library.deck_delegate import SELECTED_SUBTITLE_ALPHA
@@ -19,11 +20,22 @@ MENU_BUTTON_SIZE = MENU_ICON_SIZE + 2 * units.SMALL_SPACING
 
 
 @dataclass(frozen=True)
+class RowButton:
+    """A button painted at a row's trailing end"""
+
+    icon: str  # a theme name
+    tooltip: str
+    signal: str  # the delegate's signal it emits: (the row, where a menu should open)
+    command: str | None = None  # whose key the tooltip names
+
+
+@dataclass(frozen=True)
 class NoteRowLayout:
     well: QRect
     title: QRect
     subtitle: QRect
     preview: QRect
+    buttons: tuple  # a QRect per row button, in their order
     menu: QRect  # null without a menu button
 
 
@@ -42,13 +54,16 @@ class NoteRowDelegate(QStyledItemDelegate):
         menu_button=False,
         menu_tooltip="",
         reading=False,
+        buttons=(),
     ):
         super().__init__(parent)
         self._reading = reading
         self._cover_cache = cover_cache or CoverCache()
         self._thumbnail = thumbnail
+        # The menu button, when there is one, comes last
         self._menu_button = menu_button
-        self._menu_tooltip = menu_tooltip
+        menu = (RowButton("overflow-menu", menu_tooltip, "menuRequested"),) if menu_button else ()
+        self._buttons = tuple(buttons) + menu
 
     def _fonts(self, option, selected):
         title = QFont(option.font)
@@ -70,17 +85,29 @@ class NoteRowDelegate(QStyledItemDelegate):
         left = well.left() + (well_width + units.LARGE_SPACING if self._thumbnail else 0)
         right = option.rect.right() + 1 - units.LARGE_SPACING
 
-        menu = QRect()
-        if self._menu_button:
-            menu = QRect(right - MENU_BUTTON_SIZE, 0, MENU_BUTTON_SIZE, MENU_BUTTON_SIZE)
-            menu.moveCenter(QPoint(menu.center().x(), option.rect.center().y()))
-            right = menu.left() - units.SMALL_SPACING
+        # Laid out from the trailing end, side by side
+        buttons = []
+        for _button in self._buttons:
+            rect = QRect(right - MENU_BUTTON_SIZE, 0, MENU_BUTTON_SIZE, MENU_BUTTON_SIZE)
+            rect.moveCenter(QPoint(rect.center().x(), option.rect.center().y()))
+            buttons.insert(0, rect)
+            right = rect.left()
+        if buttons:
+            right -= units.SMALL_SPACING
+        menu = buttons[-1] if self._menu_button else QRect()
 
         width = max(1, right - left)
         title = QRect(left, top, width, title_height)
         subtitle = QRect(left, title.bottom() + 1, width, small_height)
         preview = QRect(left, subtitle.bottom() + 1, width, small_height)
-        return NoteRowLayout(well=well, title=title, subtitle=subtitle, preview=preview, menu=menu)
+        return NoteRowLayout(
+            well=well,
+            title=title,
+            subtitle=subtitle,
+            preview=preview,
+            buttons=tuple(buttons),
+            menu=menu,
+        )
 
     def sizeHint(self, option, index):
         title_height, small_height = self._line_heights(option)
@@ -116,50 +143,55 @@ class NoteRowDelegate(QStyledItemDelegate):
         _draw(painter, layout.subtitle, index.data(SubtitleRole), small_font, dim_colour)
         _draw(painter, layout.preview, index.data(PreviewRole), small_font, dim_colour)
 
-        if self._menu_button:
+        mode = QIcon.Mode.Selected if selected else QIcon.Mode.Normal
+        for button, rect in zip(self._buttons, layout.buttons, strict=False):
             icon_rect = QRect(0, 0, MENU_ICON_SIZE, MENU_ICON_SIZE)
-            icon_rect.moveCenter(layout.menu.center())
-            mode = QIcon.Mode.Selected if selected else QIcon.Mode.Normal
-            QIcon.fromTheme("overflow-menu").paint(
+            icon_rect.moveCenter(rect.center())
+            QIcon.fromTheme(button.icon).paint(
                 painter, icon_rect, Qt.AlignmentFlag.AlignCenter, mode
             )
 
         painter.restore()
 
-    # -- the menu button ----------------------------------------------------
+    # -- the row's buttons --------------------------------------------------
 
-    def _on_menu_button(self, event, option):
-        return self._menu_button and self._layout(option).menu.contains(event.position().toPoint())
+    def _button_at(self, pos, option):
+        """The row button under pos and its rect, or (None, None)"""
+        for button, rect in zip(self._buttons, self._layout(option).buttons, strict=False):
+            if rect.contains(pos):
+                return button, rect
+        return None, None
 
     def editorEvent(self, event, model, option, index):
         kind = event.type()
         if (
             kind in (QEvent.Type.MouseButtonRelease, QEvent.Type.MouseButtonDblClick)
             and event.button() == Qt.MouseButton.LeftButton
-            and self._on_menu_button(event, option)
         ):
-            if kind == QEvent.Type.MouseButtonRelease:
-                self.menuRequested.emit(index, self._menu_anchor(event, option))
-            # Consumed, so the click that opens the menu doesn't also open the note
-            return True
+            button, rect = self._button_at(event.position().toPoint(), option)
+            if button is not None:
+                if kind == QEvent.Type.MouseButtonRelease:
+                    getattr(self, button.signal).emit(index, self._anchor(event, option, rect))
+                # Consumed, so the click on a button doesn't also open the row
+                return True
         return super().editorEvent(event, model, option, index)
 
-    def _menu_anchor(self, event, option):
+    def _anchor(self, event, option, rect):
         """Under the button, where a tool button's menu would drop."""
         view = option.widget
         if view is not None and hasattr(view, "viewport"):
-            return view.viewport().mapToGlobal(self._layout(option).menu.bottomLeft())
+            return view.viewport().mapToGlobal(rect.bottomLeft())
         return event.globalPosition().toPoint()
 
     def helpEvent(self, event, view, option, index):
-        if (
-            event.type() == QEvent.Type.ToolTip
-            and self._menu_button
-            and self._menu_tooltip
-            and self._layout(option).menu.contains(event.pos())
-        ):
-            QToolTip.showText(event.globalPos(), self._menu_tooltip, view)
-            return True
+        if event.type() == QEvent.Type.ToolTip:
+            button, _rect = self._button_at(event.pos(), option)
+            if button is not None and button.tooltip:
+                text = button.tooltip
+                if button.command is not None:
+                    text = tooltip_with_keys(text, button.command)
+                QToolTip.showText(event.globalPos(), text, view)
+                return True
         return super().helpEvent(event, view, option, index)
 
     # -- renaming in place --------------------------------------------------

@@ -115,7 +115,9 @@ def test_every_key_is_bound_as_it_was(qtbot):
         ("card_image", "Space", WC, "ZoomableImageView"),
         ("card_image", "[", WC, "ZoomableImageView"),
         ("card_image", "]", WC, "ZoomableImageView"),
+        ("library", "Ctrl+Enter", WC, "LibraryTab"),
         ("library", "Ctrl+I", WC, "LibraryTab"),
+        ("library", "Ctrl+Return", WC, "LibraryTab"),
         # Dismiss keys inside a widget, not commands
         ("library", "Esc", WS, "QListView"),
         ("library", "Esc", WS, "QListView"),

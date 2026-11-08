@@ -17,9 +17,11 @@ from tarot_canvas.models.spreads import Spread
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.canvas.detail import card_unit_size
 from tarot_canvas.ui.canvas.tab_icon import DIAGRAM, layout_marks, spread_icon, spread_marks
+from tarot_canvas.ui.commands import set_tooltip_with_keys
 from tarot_canvas.ui.library import units
+from tarot_canvas.ui.library.deck_menu import deck_menu
 from tarot_canvas.ui.library.pane_text import pane_text
-from tarot_canvas.ui.strings import SPREADS
+from tarot_canvas.ui.strings import READINGS, SPREADS
 from tarot_canvas.ui.tabs.card_view.passage_metrics import body_html
 from tarot_canvas.ui.widgets.deck_header import is_link, link_html
 
@@ -128,12 +130,24 @@ class SpreadDiagram(QWidget):
 
 class SpreadDetailsPane(QWidget):
     edit_requested = pyqtSignal(object)  # the shown spread's folder
+    reading_requested = pyqtSignal(object)  # the shown spread's folder
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._details = None
 
         self.heading_label = typography.apply(pane_text(), typography.Role.HEADING_1, primary=True)
+
+        # Starts with the remembered deck; its arrow chooses another
+        self.reading_button = QToolButton()
+        self.reading_button.setIcon(QIcon.fromTheme("media-playback-start"))
+        self.reading_button.setText(READINGS["open"])
+        self.reading_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.reading_button.setAutoRaise(True)
+        set_tooltip_with_keys(self.reading_button, READINGS["open"], "library.start_reading")
+        self.reading_button.setPopupMode(QToolButton.ToolButtonPopupMode.MenuButtonPopup)
+        self.reading_button.setMenu(deck_menu(self.reading_button, self._on_reading))
+        self.reading_button.clicked.connect(self._on_reading)
 
         self.edit_button = QToolButton()
         self.edit_button.setIcon(QIcon.fromTheme("document-edit"))
@@ -146,6 +160,7 @@ class SpreadDetailsPane(QWidget):
         title_row.setSpacing(units.LARGE_SPACING)
         # A long name wraps before the button, which stays level with its first line
         title_row.addWidget(self.heading_label, 1)
+        title_row.addWidget(self.reading_button, 0, Qt.AlignmentFlag.AlignTop)
         title_row.addWidget(self.edit_button, 0, Qt.AlignmentFlag.AlignTop)
 
         self.sections = QVBoxLayout()
@@ -212,6 +227,10 @@ class SpreadDetailsPane(QWidget):
     def _on_edit(self):
         if self._details is not None:
             self.edit_requested.emit(self._details.path)
+
+    def _on_reading(self):
+        if self._details is not None:
+            self.reading_requested.emit(self._details.path)
 
     def section_labels(self):
         """Every label in the scrolling part, top to bottom"""

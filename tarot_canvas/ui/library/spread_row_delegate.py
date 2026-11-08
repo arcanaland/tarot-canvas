@@ -1,8 +1,8 @@
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QModelIndex, QPoint, Qt, pyqtSignal
 
-from tarot_canvas.ui.library.note_row_delegate import NoteRowDelegate
+from tarot_canvas.ui.library.note_row_delegate import NoteRowDelegate, RowButton
 from tarot_canvas.ui.library.section_row import is_section, paint_section, section_size_hint
-from tarot_canvas.ui.strings import SPREADS
+from tarot_canvas.ui.strings import READINGS, SPREADS
 
 
 class SpreadRowDelegate(NoteRowDelegate):
@@ -10,9 +10,23 @@ class SpreadRowDelegate(NoteRowDelegate):
 
     WELL_ASPECT = 1.0
 
+    # The row, and where its button is (unused)
+    readingRequested = pyqtSignal(QModelIndex, QPoint)
+
     def __init__(self, parent=None, cover_cache=None):
         super().__init__(
-            parent, cover_cache, menu_button=True, menu_tooltip=SPREADS["menu_tooltip"]
+            parent,
+            cover_cache,
+            buttons=(
+                RowButton(
+                    "media-playback-start",
+                    READINGS["open"],
+                    "readingRequested",
+                    command="library.start_reading",
+                ),
+            ),
+            menu_button=True,
+            menu_tooltip=SPREADS["menu_tooltip"],
         )
 
     def sizeHint(self, option, index):

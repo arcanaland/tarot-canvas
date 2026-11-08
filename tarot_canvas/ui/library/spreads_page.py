@@ -11,7 +11,10 @@ from tarot_canvas.settings import (
     LIBRARY_SPREADS_SORT_KEY,
     get_settings,
 )
+from tarot_canvas.ui.commands import set_menu_text
+from tarot_canvas.ui.icons import deck_icon
 from tarot_canvas.ui.library import units
+from tarot_canvas.ui.library.deck_menu import deck_menu
 from tarot_canvas.ui.library.deck_model import SORT_COUNT, SORT_NAME
 from tarot_canvas.ui.library.list_page import LibraryListPage
 from tarot_canvas.ui.library.spread_details_pane import SpreadDetails, SpreadDetailsPane
@@ -56,18 +59,20 @@ class SpreadsPage(LibraryListPage):
         )
         self._base = base  # tests point the index somewhere else
         self._programmatic = 0  # nesting depth of selection the user didn't make
-        # The view's clicked follows the release that opened the row's menu
-        self._menu_click = False
+        # The view's clicked follows the release on a row's button
+        self._button_click = False
         self.list_model.set_sort(
             get_settings().value(LIBRARY_SPREADS_SORT_KEY, LIBRARY_SPREADS_SORT_DEFAULT, type=str)
         )
         self.list_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.list_view.customContextMenuRequested.connect(self._on_context_menu)
         self.row_delegate.menuRequested.connect(self._on_menu_requested)
+        self.row_delegate.readingRequested.connect(self._on_reading_button)
         self.list_view.pressed.connect(self._on_pressed)
         self.list_view.clicked.connect(self._on_clicked)
         self.list_view.selectionModel().currentChanged.connect(self._on_keyboard_current)
         self.details_pane.edit_requested.connect(self.edit_requested)
+        self.details_pane.reading_requested.connect(self.reading_requested)
 
         # (folder, staged path) of a delete that can still be undone
         self.staged = None
@@ -148,11 +153,11 @@ class SpreadsPage(LibraryListPage):
             self.details_requested.emit()
 
     def _on_pressed(self, _index):
-        self._menu_click = False
+        self._button_click = False
 
     def _on_clicked(self, index):
-        if self._menu_click:
-            self._menu_click = False
+        if self._button_click:
+            self._button_click = False
             return
         if index.data(SpreadRole) is not None:
             self.row_chosen.emit()
@@ -202,6 +207,15 @@ class SpreadsPage(LibraryListPage):
         def add(text, icon, signal):
             action = menu.addAction(QIcon.fromTheme(icon), text)
             action.triggered.connect(lambda: signal.emit(path))
+            return action
+
+        start = add(READINGS["open"], "media-playback-start", self.reading_requested)
+        set_menu_text(start, READINGS["open"], "library.start_reading")
+        decks = deck_menu(menu, lambda: self.reading_requested.emit(path))
+        decks.setTitle(READINGS["open_with"])
+        decks.setIcon(deck_icon())
+        menu.addMenu(decks)
+        menu.addSeparator()
 
         # A built-in's Edit would be its Duplicate: a tab that saves as a new spread
         included = spreads.is_included(path)
@@ -211,9 +225,13 @@ class SpreadsPage(LibraryListPage):
         if not included:
             menu.addSeparator()
             add(SPREADS["delete"], "edit-delete", self.delete_requested)
-        menu.addSeparator()
-        add(READINGS["open"], "media-playback-start", self.reading_requested)
         return menu
+
+    def start_reading(self):
+        """Start a reading from the selected spread, if one is"""
+        path = self._selected_path()
+        if path is not None:
+            self.reading_requested.emit(path)
 
     def _show_row_menu(self, index, global_pos):
         menu = self.row_menu(index) if index.isValid() else None
@@ -226,8 +244,14 @@ class SpreadsPage(LibraryListPage):
         self._show_row_menu(index, self.list_view.viewport().mapToGlobal(pos))
 
     def _on_menu_requested(self, index, global_pos):
-        self._menu_click = True
+        self._button_click = True
         self._show_row_menu(index, global_pos)
+
+    def _on_reading_button(self, index, _global_pos):
+        self._button_click = True
+        path = index.data(SpreadPathRole)
+        if path is not None:
+            self.reading_requested.emit(path)
 
     # -- deleting, undoably -------------------------------------------------
 
