@@ -2,10 +2,17 @@ import re
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
-import tomli_w
-
 from tarot_canvas.models.staged_delete import is_staged
-from tarot_canvas.models.toml_files import load_table, new_timestamped_dir, number, write_atomically
+from tarot_canvas.models.toml_files import (
+    APP_TABLE,
+    app_table,
+    load_table,
+    new_timestamped_dir,
+    number,
+    version_of,
+    with_app_table,
+    write_toml,
+)
 from tarot_canvas.utils.logger import logger
 from tarot_canvas.utils.path_helper import BUNDLED_SPREADS_PATH, get_data_directory
 
@@ -16,7 +23,6 @@ _POSITION_ID = re.compile(r"p(\d+)")
 _SPREAD_KEYS = {"name", "description", "sources", "positions"}
 _POSITION_KEYS = {"id", "label", "meaning", "x", "y", "rotation", "z"}
 
-APP_TABLE = "land.arcana.tarotcanvas"
 VERSION = 1
 
 
@@ -106,21 +112,14 @@ def position_from_table(table):
 
 def _take_version(extra):
     """The file's version, removing it from extra's app table (absent is 1)"""
-    apps = extra.get("app")
-    if apps is None:
-        return 1
-    if not isinstance(apps, dict):
-        raise ValueError("app is not a table")
-    ours = apps.get(APP_TABLE)
-    if ours is None:
-        return 1
-    if not isinstance(ours, dict):
-        raise ValueError(f"app.{APP_TABLE} is not a table")
+    ours = app_table(extra)
+    version = version_of(ours)
+    if APP_TABLE not in extra.get("app", {}):
+        return version
 
-    # actually read version now
-    version = ours.pop("version", 1)
-    if isinstance(version, bool) or not isinstance(version, int) or version < 1:
-        raise ValueError(f"bad version: {version!r}")
+    # What is left of the app's table round-trips in extra; an emptied one goes
+    ours.pop("version", None)
+    apps = extra["app"]
     if not ours:
         del apps[APP_TABLE]
     if not apps:
@@ -184,18 +183,10 @@ def spread_table(spread):
     return table
 
 
-def _table(spread):
-    table = spread_table(spread)
-    apps = dict(table.get("app", {}))
-    apps[APP_TABLE] = {**apps.get(APP_TABLE, {}), "version": VERSION}
-    table["app"] = apps
-    return table
-
-
 def save(path, spread):
     """Write spread to folder path"""
-    text = tomli_w.dumps(_table(spread), multiline_strings=True)
-    write_atomically(Path(path) / SPREAD_FILE, text)
+    table = with_app_table(spread_table(spread), {"version": VERSION})
+    write_toml(Path(path) / SPREAD_FILE, table)
 
 
 def edited_at(path):

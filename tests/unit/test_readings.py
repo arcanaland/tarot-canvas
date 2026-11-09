@@ -265,3 +265,28 @@ def test_a_failed_save_keeps_the_old_file_and_leaves_no_temporary(tmp_path, monk
 
 def test_the_events_singleton_is_stable():
     assert reading_events() is reading_events()
+
+
+@pytest.mark.parametrize(
+    "app",
+    [
+        "app = 'not a table'\n",
+        "[app]\n'land.arcana.tarotcanvas' = 3\n",
+        "[app.'land.arcana.tarotcanvas']\nversion = 'two'\n",
+        "[app.'land.arcana.tarotcanvas']\nversion = true\n",
+    ],
+)
+def test_a_bad_app_table_or_version_is_logged_and_the_reading_still_loads(
+    tmp_path, monkeypatch, app
+):
+    warnings = []
+    monkeypatch.setattr(readings.logger, "warning", warnings.append)
+    write(tmp_path, "date = 2026-11-09\n[[cards]]\nid = 'major_arcana.0'\n" + app)
+
+    assert readings.load(tmp_path).cards[0].id == "major_arcana.0"
+    assert len(warnings) == 1
+
+
+def test_another_apps_table_is_not_written_into_a_reading(tmp_path):
+    readings.save(tmp_path, sample())
+    assert list(table_of(tmp_path)["app"]) == ["land.arcana.tarotcanvas"]

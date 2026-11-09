@@ -5,18 +5,23 @@ from datetime import date as Date
 from datetime import datetime
 from pathlib import Path
 
-import tomli_w
-
 from tarot_canvas.models.spreads import Spread, spread_from_table, spread_table
 from tarot_canvas.models.staged_delete import is_staged
-from tarot_canvas.models.toml_files import load_table, new_timestamped_dir, number, write_atomically
+from tarot_canvas.models.toml_files import (
+    app_table,
+    load_table,
+    new_timestamped_dir,
+    number,
+    version_of,
+    with_app_table,
+    write_toml,
+)
 from tarot_canvas.utils.logger import logger
 from tarot_canvas.utils.path_helper import get_data_directory
 
 READINGS_SUBPATH = "tarot-canvas/readings"
 READING_FILE = "reading.toml"
 
-APP_TABLE = "land.arcana.tarotcanvas"
 VERSION = 1
 
 
@@ -108,13 +113,6 @@ def _geometry(entry, index):
         return defaults
 
 
-def _ours(table):
-    """The app's own table, else empty"""
-    apps = table.get("app")
-    ours = apps.get(APP_TABLE) if isinstance(apps, dict) else None
-    return ours if isinstance(ours, dict) else {}
-
-
 def _spread(table, path):
     """(snapshot, from) from the [spread] table; a bad one is dropped and the reading still loads"""
     snapshot = table.get("spread")
@@ -134,9 +132,17 @@ def _spread(table, path):
 
 
 def _reading(table, path):
-    ours = _ours(table)
-    version = ours.get("version", 1)
-    if isinstance(version, int) and not isinstance(version, bool) and version > VERSION:
+    try:
+        ours = app_table(table)
+    except ValueError as error:
+        logger.warning(f"Ignored reading {path}'s app table: {error}")
+        ours = {}
+    try:
+        version = version_of(ours)
+    except ValueError as error:
+        logger.warning(f"Ignored reading {path}'s version: {error}")
+        version = VERSION
+    if version > VERSION:
         logger.warning(
             f"Reading {path} was written by a newer Tarot Canvas (version {version}); "
             "loading what this one understands"
@@ -180,7 +186,7 @@ def _reading(table, path):
 
 
 def load(path):
-    """The Reading in folder path, or None (logged) when it can't be read"""
+    """The Reading in folder path"""
     try:
         return _reading(load_table(Path(path) / READING_FILE), path)
     except (OSError, ValueError, TypeError) as error:
@@ -225,23 +231,21 @@ def _table(reading):
     layout = [
         {"x": card.x, "y": card.y, "z": card.z, "rotation": card.rotation} for card in reading.cards
     ]
-    table["app"] = {APP_TABLE: {"version": VERSION, "layout": layout}}
-    return table
+    return with_app_table(table, {"version": VERSION, "layout": layout})
 
 
 def save(path, reading):
     """Write reading to folder path, replacing reading.toml whole; raises OSError"""
     path = Path(path)
     path.mkdir(parents=True, exist_ok=True)
-    text = tomli_w.dumps(_table(reading), multiline_strings=True)
-    write_atomically(path / READING_FILE, text)
+    write_toml(path / READING_FILE, _table(reading))
 
 
 # -- scanning ------------------------------------------------------------------------------
 
 
 def scan(base=None):
-    """(folder, Reading) for each readable reading, newest date first"""
+    """Scan all tarot readings in a base folder"""
     base = Path(base) if base is not None else readings_base()
     try:
         folders = [
