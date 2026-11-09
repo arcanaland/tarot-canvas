@@ -23,6 +23,7 @@ from tarot_canvas.settings import (
     MOTION_LEVEL_DEFAULT,
     MOTION_LEVEL_KEY,
     MOTION_LEVELS,
+    PREFERENCES_PAGE_KEY,
     READING_TEXT_SCALE_DEFAULT,
     READING_TEXT_SCALE_KEY,
     READING_TEXT_SCALE_STEPS,
@@ -119,6 +120,29 @@ def test_the_dialog_opens_at_the_size_it_was_left(qtbot):
     assert reopened.size() == size
 
 
+def test_the_dialog_opens_on_the_page_it_was_left_on(qtbot):
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+    assert dialog.page_list.currentRow() == 0
+
+    background = dialog.page_keys().index("background")
+    dialog.page_list.setCurrentRow(background)
+    dialog.reject()
+
+    reopened = PreferencesDialog()
+    qtbot.addWidget(reopened)
+    assert reopened.page_list.currentRow() == background
+    assert reopened.page_stack.currentIndex() == background
+    assert reopened.page_title.text() == reopened.page_list.item(background).text()
+
+
+def test_a_page_this_build_lacks_opens_the_first(qtbot):
+    get_settings().setValue(PREFERENCES_PAGE_KEY, "no-such-page")
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+    assert dialog.page_list.currentRow() == 0
+
+
 def test_each_type_shows_only_its_own_colour_row(qtbot):
     dialog = PreferencesDialog()
     qtbot.addWidget(dialog)
@@ -135,7 +159,7 @@ def test_the_type_combo_keeps_its_width_as_rows_come_and_go(qtbot):
     dialog = PreferencesDialog()
     qtbot.addWidget(dialog)
     dialog.show()
-    dialog.page_list.setCurrentRow(page_keys(dialog).index("background"))
+    dialog.page_list.setCurrentRow(dialog.page_keys().index("background"))
 
     widths = set()
     for key, _label in preferences_dialog.BACKGROUND_STYLE_LABELS:
@@ -525,14 +549,10 @@ def test_a_new_text_size_offers_apply_and_applying_stores_it(qtbot):
     assert not dialog.apply_button.isEnabled()
 
 
-def page_keys(dialog):
-    return [key for key, _icon, _build in dialog.pages()]
-
-
 def test_the_background_page_follows_the_canvas_page(qtbot):
     dialog = PreferencesDialog()
     qtbot.addWidget(dialog)
-    keys = page_keys(dialog)
+    keys = dialog.page_keys()
 
     assert keys[keys.index("canvas") + 1] == "background"
 
@@ -541,13 +561,13 @@ def test_the_advanced_page_is_linux_only(qtbot, monkeypatch):
     monkeypatch.setattr(sys, "platform", "linux")
     linux = PreferencesDialog()
     qtbot.addWidget(linux)
-    assert page_keys(linux)[-1] == "advanced"
+    assert linux.page_keys()[-1] == "advanced"
     monkeypatch.setattr(sys, "platform", "darwin")
     mac = PreferencesDialog()
     qtbot.addWidget(mac)
 
-    assert "advanced" not in page_keys(mac)
-    assert mac.page_stack.count() == len(page_keys(mac))
+    assert "advanced" not in mac.page_keys()
+    assert mac.page_stack.count() == len(mac.page_keys())
     mac.restore_defaults()
     mac.apply_settings()
     assert get_settings().value(HARDWARE_ACCELERATION_KEY) is None
@@ -754,7 +774,7 @@ def test_a_tiles_remove_button_marks_it_without_selecting_it(qtbot, backgrounds_
     dialog = PreferencesDialog()
     qtbot.addWidget(dialog)
     dialog.show()
-    dialog.page_list.setCurrentRow(page_keys(dialog).index("background"))
+    dialog.page_list.setCurrentRow(dialog.page_keys().index("background"))
     qtbot.waitExposed(dialog)
     grid = dialog.background_grid
     index = grid.model().index(1, 0)

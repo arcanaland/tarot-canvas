@@ -52,6 +52,7 @@ from tarot_canvas.settings import (
     MOTION_LEVEL_DEFAULT,
     MOTION_LEVEL_KEY,
     PREFERENCES_GEOMETRY_KEY,
+    PREFERENCES_PAGE_KEY,
     READING_TEXT_SCALE_DEFAULT,
     READING_TEXT_SCALE_STEPS,
     SHOW_AVAILABLE_DECKS_DEFAULT,
@@ -164,7 +165,7 @@ class PreferencesDialog(QDialog):
         header_row.addWidget(self.page_title)
 
         self.page_list.currentRowChanged.connect(self.show_page)
-        self.page_list.setCurrentRow(0)
+        self.page_list.setCurrentRow(self.remembered_page_row())
 
         self.button_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok
@@ -243,6 +244,15 @@ class PreferencesDialog(QDialog):
         if sys.platform == "linux":
             pages.append(("advanced", "preferences-system", self.build_advanced_page))
         return pages
+
+    def page_keys(self):
+        return [key for key, _icon_name, _build in self.pages()]
+
+    def remembered_page_row(self):
+        """The row of the page last shown, else the first"""
+        key = get_settings().value(PREFERENCES_PAGE_KEY, "", type=str)
+        keys = self.page_keys()
+        return keys.index(key) if key in keys else 0
 
     def show_page(self, row):
         self.page_stack.setCurrentIndex(row)
@@ -682,5 +692,7 @@ class PreferencesDialog(QDialog):
         super().accept()
 
     def done(self, result):
-        get_settings().setValue(PREFERENCES_GEOMETRY_KEY, self.saveGeometry())
+        settings = get_settings()
+        settings.setValue(PREFERENCES_GEOMETRY_KEY, self.saveGeometry())
+        settings.setValue(PREFERENCES_PAGE_KEY, self.page_keys()[self.page_list.currentRow()])
         super().done(result)
