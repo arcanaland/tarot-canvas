@@ -2,7 +2,6 @@ import pytest
 from PyQt6.QtGui import QColor
 
 from tarot_canvas.settings import GROUND_HUE_KEY, get_settings
-from tarot_canvas.ui.canvas import swirl
 from tarot_canvas.ui.canvas.ground import (
     GRADIENT_STOPS,
     GROUND_HUE_DEFAULT,
@@ -47,26 +46,3 @@ def test_a_stored_hue_is_read_back():
 
 def test_aura_is_the_gradients_new_label():
     assert PREFERENCES["background_gradient"] == "Aura"
-
-
-@pytest.mark.parametrize(
-    ("pixel", "logical", "dpr", "expected"),
-    [
-        (4, False, 1.0, 4.0),
-        (4, False, 2.0, 4.0),
-        # Logical: the block is pixel / 2 logical px at every scale
-        (4, True, 2.0, 4.0),
-        (4, True, 1.0, 2.0),
-        (3, True, 1.5, 2.25),
-        # Never finer than a device px
-        (1, True, 1.0, 1.0),
-    ],
-)
-def test_the_divisor(pixel, logical, dpr, expected):
-    values = {**swirl.PARAMS, "pixel": pixel, "logical_px": logical}
-    assert swirl.divisor(dpr, values) == pytest.approx(expected)
-
-
-def test_the_swirl_ships_smooth_in_device_px():
-    assert swirl.PARAMS["smooth"] is True
-    assert swirl.PARAMS["logical_px"] is False

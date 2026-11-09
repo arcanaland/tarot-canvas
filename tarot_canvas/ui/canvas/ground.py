@@ -6,12 +6,9 @@ from PyQt6.QtGui import QColor
 from tarot_canvas.settings import GROUND_HUE_KEY, get_settings
 
 
-@dataclass
+@dataclass(frozen=True)
 class GroundHue:
-    """One preset shared by Swirl and Aura: six hand-tuned colours, none derived.
-
-    Mutable only so the tuning dock can edit one live.
-    """
+    """One preset shared by Swirl and Aura: six hand-tuned colours, none derived."""
 
     # The swirl shader's colour_1, colour_2, colour_3
     swirl: tuple

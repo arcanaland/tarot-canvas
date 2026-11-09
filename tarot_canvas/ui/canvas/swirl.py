@@ -3,13 +3,12 @@
 import contextlib
 import logging
 import math
-import os
 import sys
 import time
 from array import array
 from importlib.resources import files
 
-from PyQt6.QtCore import QObject, QRect, QSize, QTimer, pyqtSignal
+from PyQt6.QtCore import QObject, QRect, QSize, QTimer
 from PyQt6.QtGui import (
     QOffscreenSurface,
     QOpenGLContext,
@@ -40,10 +39,6 @@ PARAMS = {
     "contrast": 0.648,
     "speed": 0.178,
     "pixel": 4,
-    # Bilinear stretch of the field instead of nearest-neighbour
-    "smooth": True,
-    # pixel counts logical px at 2x: the field divides device px by pixel * dpr / 2
-    "logical_px": False,
     "every": 2,
     "parallax": True,
     "parallax_pan": 0.376,
@@ -102,35 +97,10 @@ STILL_RULES = ("preference off",)
 # Every render+readback in ms (for benchmarking)
 render_log = None
 
-# Set to 1 to open the tuning dock beside a swirling canvas
-DOCK_ENV = "TAROT_CANVAS_SWIRL_DOCK"
-
 
 def colour_values(hue):
     """The shader's colour uniforms from a GroundHue"""
     return dict(zip(("colour_1", "colour_2", "colour_3"), hue.swirl, strict=True))
-
-
-class Tuning(QObject):
-    """The dock's live edits, process-wide. Never persisted."""
-
-    # PARAMS or a GroundHue's colours changed: every ground redraws
-    changed = pyqtSignal()
-
-    def __init__(self):
-        super().__init__()
-        # The preset the dock is editing, shown in place of the stored one
-        self.hue_id = None
-
-
-tuning = Tuning()
-
-
-def tuned_hue_id(stored):
-    """The dock's preset while it is open, otherwise the stored one"""
-    if tuning.hue_id is not None and _dock is not None and _dock.isVisible():
-        return tuning.hue_id
-    return stored
 
 
 def surface_format():
@@ -162,8 +132,6 @@ class SwirlField:
         self.gl = None
         self.renderer = None
         self.size = QSize()
-        # The last render+readback, for the dock
-        self.last_ms = None
 
     def create(self):
         """Raises RuntimeError with the reason when any part cannot be made."""
@@ -304,9 +272,8 @@ class SwirlField:
         finally:
             self.context.doneCurrent()
 
-        self.last_ms = (time.perf_counter() - start) * 1000.0
         if render_log is not None:
-            render_log.append(self.last_ms)
+            render_log.append((time.perf_counter() - start) * 1000.0)
 
         return image
 
@@ -366,15 +333,6 @@ def _destroy_field():
     if _field is not None:
         _field.destroy()
         _field = None
-
-
-def divisor(dpr, values=None):
-    """Device px per field px: pixel, or with logical_px pixel * dpr / 2, never below 1."""
-    values = PARAMS if values is None else values
-    pixel = values["pixel"]
-    if values["logical_px"]:
-        pixel = pixel * dpr / 2.0
-    return max(1.0, pixel)
 
 
 def field_size(viewport_size, dpr, pixel):
@@ -532,8 +490,7 @@ class SwirlGround(QObject):
 
     def _target_size(self):
         viewport = self.view.viewport()
-        dpr = viewport.devicePixelRatioF() or 1.0
-        return field_size(viewport.size(), dpr, divisor(dpr))
+        return field_size(viewport.size(), viewport.devicePixelRatioF() or 1.0, PARAMS["pixel"])
 
     def _stale_size(self):
         return self.image is not None and self.image.size() != self._target_size()
@@ -542,8 +499,7 @@ class SwirlGround(QObject):
         """Where the field's centre sits, in field px, and how far it is scaled."""
         view = self.view
         viewport = view.viewport()
-        dpr = viewport.devicePixelRatioF() or 1.0
-        to_field = dpr / divisor(dpr)
+        to_field = (viewport.devicePixelRatioF() or 1.0) / PARAMS["pixel"]
         cx, cy = viewport.width() / 2.0, viewport.height() / 2.0
         scale = 1.0
         if PARAMS["parallax"]:
@@ -581,36 +537,8 @@ class SwirlGround(QObject):
             self.request()
         painter.save()
         painter.resetTransform()
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, bool(PARAMS["smooth"]))
+        # Bilinear: nearest-neighbour blocks read as pixelated
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
         painter.drawImage(QRect(0, 0, rect.width(), rect.height()), self.image)
         painter.restore()
         return True
-
-
-def dock_wanted():
-    return os.environ.get(DOCK_ENV) == "1"
-
-
-_dock = None
-
-
-def show_dock(parent):
-    """The tuning dock, once per process."""
-    global _dock
-    if _dock is None:
-        from tarot_canvas.ui.canvas.swirl_dock import SwirlDock
-
-        _dock = SwirlDock(parent)
-    _dock.show()
-
-
-def dock_is_active():
-    """Whether the dock, or a dialog it opened, has focus."""
-    from PyQt6.QtWidgets import QApplication
-
-    widget = QApplication.activeWindow()
-    while widget is not None:
-        if widget is _dock:
-            return True
-        widget = widget.parentWidget()
-    return False
