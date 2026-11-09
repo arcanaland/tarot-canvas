@@ -552,7 +552,7 @@ MAIN_WINDOW = {
     "welcome_new_reading": "New Reading",
     "welcome_new_canvas": "New Canvas",
     "welcome_open_deck": "Open Standard Deck",
-    "welcome_library": "Deck Library",
+    "welcome_library": "Library",
     "welcome_random_card": "Pick Random Card",
     "canvas_tab": "Canvas",
     "canvas_tab_numbered": "Canvas ({n})",

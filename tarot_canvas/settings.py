@@ -231,6 +231,9 @@ MAIN_WINDOW_GEOMETRY_KEY = "main_window/geometry"
 # for the Preferences window size
 PREFERENCES_GEOMETRY_KEY = "preferences/geometry"
 
+# for remembering the page that the user was last on
+PREFERENCES_PAGE_KEY = "preferences/page"
+
 # Followed by a command id; a list of keys in portable text, present only when not the defaults
 SHORTCUTS_PREFIX = "shortcuts/"
 

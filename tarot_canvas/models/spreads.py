@@ -1,14 +1,18 @@
-import os
 import re
-import tempfile
-import time
-import tomllib
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
-import tomli_w
-
 from tarot_canvas.models.staged_delete import is_staged
+from tarot_canvas.models.toml_files import (
+    APP_TABLE,
+    app_table,
+    load_table,
+    new_timestamped_dir,
+    number,
+    version_of,
+    with_app_table,
+    write_toml,
+)
 from tarot_canvas.utils.logger import logger
 from tarot_canvas.utils.path_helper import BUNDLED_SPREADS_PATH, get_data_directory
 
@@ -19,13 +23,7 @@ _POSITION_ID = re.compile(r"p(\d+)")
 _SPREAD_KEYS = {"name", "description", "sources", "positions"}
 _POSITION_KEYS = {"id", "label", "meaning", "x", "y", "rotation", "z"}
 
-APP_TABLE = "land.arcana.tarotcanvas"
 VERSION = 1
-
-# Far past any layout, and well inside what the canvas and z's arithmetic can hold
-MAX_NUMBER = 1e9
-# Far past any spread, and shallow enough that a file that loads can be saved again
-MAX_NESTING = 32
 
 
 @dataclass(frozen=True)
@@ -75,17 +73,7 @@ def copy_of(spread, path):
 
 def new_spread_dir(base=None):
     """A new folder with the name as the current time"""
-    base = Path(base) if base is not None else spreads_base()
-    base.mkdir(parents=True, exist_ok=True)
-    stamp = int(time.time())
-    while True:
-        path = base / str(stamp)
-        try:
-            path.mkdir()
-        except FileExistsError:
-            stamp += 1
-        else:
-            return path
+    return new_timestamped_dir(base if base is not None else spreads_base())
 
 
 def next_position_id(positions):
@@ -105,33 +93,17 @@ def offsets_from_middle(centres, unit, places=3):
     ]
 
 
-def _nesting(value):
-    if isinstance(value, dict):
-        children = value.values()
-    elif isinstance(value, list):
-        children = value
-    else:
-        return 0
-    return 1 + max(map(_nesting, children), default=0)
-
-
-def _number(table, key):
-    value = float(table.get(key, 0.0))
-    if not abs(value) <= MAX_NUMBER:  # nan compares false
-        raise ValueError(f"{key} is out of range: {value}")
-    return value
-
-
-def _position(table):
+def position_from_table(table):
+    """A Position from its TOML table, else ValueError"""
     try:
         return Position(
             id=str(table["id"]),
             label=str(table.get("label", "")),
             meaning=str(table.get("meaning", "")),
-            x=_number(table, "x"),
-            y=_number(table, "y"),
-            rotation=_number(table, "rotation"),
-            z=_number(table, "z"),
+            x=number(table, "x"),
+            y=number(table, "y"),
+            rotation=number(table, "rotation"),
+            z=number(table, "z"),
             extra={key: value for key, value in table.items() if key not in _POSITION_KEYS},
         )
     except (KeyError, TypeError, AttributeError, OverflowError) as error:
@@ -140,21 +112,14 @@ def _position(table):
 
 def _take_version(extra):
     """The file's version, removing it from extra's app table (absent is 1)"""
-    apps = extra.get("app")
-    if apps is None:
-        return 1
-    if not isinstance(apps, dict):
-        raise ValueError("app is not a table")
-    ours = apps.get(APP_TABLE)
-    if ours is None:
-        return 1
-    if not isinstance(ours, dict):
-        raise ValueError(f"app.{APP_TABLE} is not a table")
+    ours = app_table(extra)
+    version = version_of(ours)
+    if APP_TABLE not in extra.get("app", {}):
+        return version
 
-    # actually read version now
-    version = ours.pop("version", 1)
-    if isinstance(version, bool) or not isinstance(version, int) or version < 1:
-        raise ValueError(f"bad version: {version!r}")
+    # What is left of the app's table round-trips in extra; an emptied one goes
+    ours.pop("version", None)
+    apps = extra["app"]
     if not ours:
         del apps[APP_TABLE]
     if not apps:
@@ -163,14 +128,11 @@ def _take_version(extra):
 
 
 def load(path):
-    with open(Path(path) / SPREAD_FILE, "rb") as handle:
-        try:
-            table = tomllib.load(handle)
-            too_deep = _nesting(table) > MAX_NESTING
-        except RecursionError:
-            too_deep = True
-    if too_deep:
-        raise ValueError("nested too deeply")
+    return spread_from_table(load_table(Path(path) / SPREAD_FILE))
+
+
+def spread_from_table(table):
+    """A Spread from its TOML table, else ValueError"""
     # if [meta] is there, the file might be from a future spec that we're not aware of yet
     if "meta" in table:
         raise ValueError("written for an unknown spread spec")
@@ -191,12 +153,12 @@ def load(path):
         name=str(table.get("name", "")),
         description=str(table.get("description", "")),
         sources=tuple(sources),
-        positions=tuple(_position(position) for position in positions),
+        positions=tuple(position_from_table(position) for position in positions),
         extra=extra,
     )
 
 
-def _position_table(position):
+def position_table(position):
     return {
         "id": position.id,
         "label": position.label,
@@ -209,32 +171,22 @@ def _position_table(position):
     }
 
 
-def _table(spread):
+def spread_table(spread):
+    """spread as its TOML table, without the app's own table"""
     table = {"name": spread.name}
     if spread.description:
         table["description"] = spread.description
     if spread.sources:
         table["sources"] = list(spread.sources)
-    table["positions"] = [_position_table(position) for position in spread.positions]
+    table["positions"] = [position_table(position) for position in spread.positions]
     table.update(spread.extra)
-    apps = dict(table.get("app", {}))
-    apps[APP_TABLE] = {**apps.get(APP_TABLE, {}), "version": VERSION}
-    table["app"] = apps
     return table
 
 
 def save(path, spread):
     """Write spread to folder path"""
-    path = Path(path)
-    text = tomli_w.dumps(_table(spread), multiline_strings=True)
-    descriptor, temporary = tempfile.mkstemp(dir=path, prefix=f".{SPREAD_FILE}.")
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            handle.write(text)
-        os.replace(temporary, path / SPREAD_FILE)
-    except BaseException:
-        Path(temporary).unlink(missing_ok=True)
-        raise
+    table = with_app_table(spread_table(spread), {"version": VERSION})
+    write_toml(Path(path) / SPREAD_FILE, table)
 
 
 def edited_at(path):
