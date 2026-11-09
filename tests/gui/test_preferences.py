@@ -779,3 +779,75 @@ def test_the_background_types_are_offered_in_order(qtbot):
         "checkerboard",
         "solid",
     ]
+
+
+@pytest.fixture
+def no_thumbnails(monkeypatch):
+    from tarot_canvas.ui.windows import background_grid
+
+    monkeypatch.setattr(background_grid, "_thumbnails", {})
+    return background_grid
+
+
+def tile_pixmap(grid, name):
+    return grid.model_.item(grid.names().index(name)).data(Qt.ItemDataRole.DecorationRole)
+
+
+def test_the_dialog_opens_before_a_thumbnail_is_decoded(
+    qtbot, backgrounds_base, monkeypatch, no_thumbnails
+):
+    # A large PNG decodes in full whatever size is asked for: never on the GUI thread
+    write_background(backgrounds_base, "big.png")
+    decodes = []
+    monkeypatch.setattr(
+        no_thumbnails,
+        "art_loader",
+        lambda: type("L", (), {"request": lambda *a: decodes.append(a)}),
+    )
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+
+    grid = dialog.background_grid
+    assert grid.names() == ["big.png"]
+    assert tile_pixmap(grid, "big.png") is None
+    assert grid.is_loading()
+    assert len(decodes) == 1
+
+
+def test_a_thumbnail_lands_cropped_and_a_reopen_takes_it_from_the_cache(
+    qtbot, backgrounds_base, no_thumbnails
+):
+    write_background(backgrounds_base, "a.png", "#c03030")
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+    grid = dialog.background_grid
+    qtbot.waitUntil(lambda: not grid.is_loading())
+
+    pixmap = tile_pixmap(grid, "a.png")
+    tile = grid.delegate.tile
+    ratio = grid.devicePixelRatioF()
+    assert pixmap.size() == QSize(round(tile.width() * ratio), round(tile.height() * ratio))
+    assert pixmap.toImage().pixelColor(2, 2) == QColor("#c03030")
+
+    reopened = PreferencesDialog()
+    qtbot.addWidget(reopened)
+    assert not reopened.background_grid.is_loading()
+    assert tile_pixmap(reopened.background_grid, "a.png").cacheKey() == pixmap.cacheKey()
+
+
+def test_an_edited_image_is_thumbnailed_again(qtbot, backgrounds_base, no_thumbnails):
+    import os
+
+    path = write_background(backgrounds_base, "a.png", "#c03030")
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+    qtbot.waitUntil(lambda: not dialog.background_grid.is_loading())
+
+    write_background(backgrounds_base, "a.png", "#30c030")
+    stat = path.stat()
+    os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000_000))
+    grid = dialog.background_grid
+    grid.reload()
+    assert grid.is_loading()
+    qtbot.waitUntil(lambda: not grid.is_loading())
+    assert tile_pixmap(grid, "a.png").toImage().pixelColor(2, 2) == QColor("#30c030")

@@ -1,4 +1,4 @@
-"""A picture as the canvas ground, held still under pan and zoom"""
+"""A picture as the canvas ground"""
 
 from PyQt6.QtCore import QPoint, QRect, QSize, Qt
 from PyQt6.QtGui import (
@@ -17,7 +17,7 @@ _last_load = None
 
 
 def decode_bound():
-    """The largest screen in device pixels: no positioning needs more of the image than that"""
+    """The largest screen in device pixels"""
     bound = QSize(1, 1)
     for screen in QGuiApplication.screens():
         ratio = screen.devicePixelRatio()
@@ -46,7 +46,7 @@ def _decode(path, positioning, bound):
 
 
 def load(path, positioning, bound):
-    """The image at path decoded for positioning, or a null QImage. The last one is kept."""
+    """The image at path decoded for positioning"""
     global _last_load
     try:
         stamp = path.stat().st_mtime_ns
@@ -64,7 +64,7 @@ def load(path, positioning, bound):
 
 
 def flatten(source, fill):
-    """source laid on fill, with no alpha left: a transparent texel would show an uncleared viewport"""
+    """source laid on fill with no alpha"""
     if not source.hasAlphaChannel():
         return source
     image = QImage(source.size(), QImage.Format.Format_RGB32)
@@ -82,7 +82,7 @@ def average_colour(image):
 
 
 def compose(source, size, positioning, fill):
-    """A QImage of size device pixels, source placed on fill as positioning says"""
+    """A QImage of size device pixels, source placed on fill"""
     image = QImage(size, QImage.Format.Format_RGB32)
     image.fill(QColor(fill))
     target = QRect(QPoint(0, 0), size)
@@ -104,7 +104,7 @@ def compose(source, size, positioning, fill):
 
 
 class ImageGround:
-    """Paints source over the viewport, composed once per viewport size and pixel ratio"""
+    """Paints source over the viewport"""
 
     def __init__(self, source, positioning, fill):
         self.source = source

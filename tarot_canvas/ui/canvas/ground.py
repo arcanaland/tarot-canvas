@@ -8,7 +8,7 @@ from tarot_canvas.settings import GROUND_HUE_KEY, get_settings
 
 @dataclass(frozen=True)
 class GroundHue:
-    """One preset shared by Swirl and Aura: six hand-tuned colours, none derived."""
+    """preset shared by Swirl and Aura"""
 
     # The swirl shader's colour_1, colour_2, colour_3
     swirl: tuple
@@ -19,7 +19,6 @@ class GroundHue:
         return tuple(zip((0.0, 0.5, 1.0), self.aura, strict=True))
 
 
-# In swatch order. Each id is stored in GROUND_HUE_KEY and named by PREFERENCES["hue_<id>"]
 GROUND_HUES = {
     "violet": GroundHue(
         swirl=(QColor("#50396b"), QColor("#301f46"), QColor("#8671a5")),
@@ -58,7 +57,7 @@ GROUND_HUE_DEFAULT = "violet"
 
 
 def ground_hue_id(settings=None):
-    """The stored preset's id, or the default's when it names none we have"""
+    """The stored preset's id"""
     stored = (settings or get_settings()).value(GROUND_HUE_KEY)
     return stored if stored in GROUND_HUES else GROUND_HUE_DEFAULT
 
@@ -98,7 +97,7 @@ def _contrast(y1, y2):
 
 
 # The clanker provided the following citation for this mess of floats:
-# Björn Ottosson, "A perceptual color space for image processing" (2020). The cone_* are its
+# Björn Ottosson, "A perceptual color space for image processing" (2020).
 def _to_oklab(rgb):
     r, g, b = rgb
     cone_l = math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b)

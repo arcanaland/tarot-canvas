@@ -125,7 +125,7 @@ PREFERENCES = {
     "background_open_folder": "Open Folder",
     "background_remove": "Remove",
     "background_undo_remove": "Undo",
-    "background_drop_hint": "Drop images here",
+    "background_drop_hint": "No images yet.",
     "canvas_motion": "Canvas Motion:",
     "motion_off": "None",
     "motion_reactive": "Response only",

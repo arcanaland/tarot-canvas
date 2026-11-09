@@ -1,10 +1,19 @@
 """The Background page's tiles of the images a ground can be"""
 
-from PyQt6.QtCore import QEvent, QItemSelectionModel, QPoint, QRect, QRectF, QSize, Qt, pyqtSignal
+from PyQt6.QtCore import (
+    QEvent,
+    QItemSelectionModel,
+    QObject,
+    QPoint,
+    QRect,
+    QRectF,
+    QSize,
+    Qt,
+    pyqtSignal,
+)
 from PyQt6.QtGui import (
     QColor,
     QIcon,
-    QImageReader,
     QPainter,
     QPainterPath,
     QPen,
@@ -21,7 +30,9 @@ from PyQt6.QtWidgets import (
 )
 
 from tarot_canvas.models import backgrounds
+from tarot_canvas.ui.canvas.detail import art_loader, art_size
 from tarot_canvas.ui.library import units
+from tarot_canvas.ui.library.ghost_paint import paint_placeholder_well
 from tarot_canvas.ui.palette import muted_text
 from tarot_canvas.ui.strings import PREFERENCES
 from tarot_canvas.utils.logger import logger
@@ -38,27 +49,43 @@ OPEN_FOLDER = "open_folder"
 REMOVE = "remove"
 
 
-def thumbnail(path, size, ratio):
-    """The image at path scaled and cropped to size, or a null pixmap"""
-    reader = QImageReader(str(path))
-    reader.setAutoTransform(True)
-    device = QSize(round(size.width() * ratio), round(size.height() * ratio))
-    source = reader.size()
-    if source.isValid():
-        reader.setScaledSize(source.scaled(device, Qt.AspectRatioMode.KeepAspectRatioByExpanding))
-    image = reader.read()
-    if image.isNull():
-        return QPixmap()
-    image = image.scaled(
-        device,
-        Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-        Qt.TransformationMode.SmoothTransformation,
-    )
+# Thumbnails already cut, by (path, mtime, device width, device height): a reopened
+# dialog shows them at once
+_thumbnails = {}
+
+
+def thumbnail_key(path, device):
+    try:
+        stamp = path.stat().st_mtime_ns
+    except OSError:
+        return None
+    return (str(path), stamp, device.width(), device.height())
+
+
+def crop_thumbnail(image, device, ratio):
+    """A decode at least device in both directions, cropped to device about its centre"""
     crop = QRect(QPoint(0, 0), device)
     crop.moveCenter(image.rect().center())
     pixmap = QPixmap.fromImage(image.copy(crop))
     pixmap.setDevicePixelRatio(ratio)
     return pixmap
+
+
+class _PendingThumbnail(QObject):
+    """ArtLoader's receiver for one tile's decode. The grid holds it until it lands."""
+
+    def __init__(self, grid, name, key, device, ratio):
+        super().__init__(grid)
+        self.grid = grid
+        self.name = name
+        self.key = key
+        self.device = device
+        self.ratio = ratio
+
+    def receive_detail(self, _level, image):
+        pixmap = crop_thumbnail(image, self.device, self.ratio)
+        _thumbnails[self.key] = pixmap
+        self.grid.thumbnail_ready(self, pixmap)
 
 
 class BackgroundDelegate(QStyledItemDelegate):
@@ -116,6 +143,9 @@ class BackgroundDelegate(QStyledItemDelegate):
         pixmap = index.data(Qt.ItemDataRole.DecorationRole)
         if isinstance(pixmap, QPixmap) and not pixmap.isNull():
             painter.drawPixmap(tile, pixmap)
+        else:
+            # Still decoding
+            paint_placeholder_well(painter, tile, palette)
         painter.setOpacity(1.0)
         painter.setClipping(False)
 
@@ -190,25 +220,58 @@ class BackgroundGrid(QListView):
         self.setModel(self.model_)
         self.delegate = BackgroundDelegate(tile, self)
         self.setItemDelegate(self.delegate)
+        # Decodes in flight, by name
+        self._pending = {}
 
     def reload(self, pending=()):
-        """Re-read the backgrounds directory, keeping the selection and the pending removals"""
+        """Re-read the backgrounds directory, keeping the selection and the pending removals.
+
+        Rows are added at once; a thumbnail not cut before is decoded off the GUI thread and
+        fills its tile when it lands.
+        """
         selected = self.selected_name()
         self.model_.clear()
+        for request in self._pending.values():
+            request.deleteLater()
+        self._pending.clear()
         ratio = self.devicePixelRatioF()
+        tile = self.delegate.tile
+        device = QSize(round(tile.width() * ratio), round(tile.height() * ratio))
         for name in backgrounds.list_backgrounds():
-            pixmap = thumbnail(backgrounds.background_path(name), self.delegate.tile, ratio)
-            if pixmap.isNull():
+            path = backgrounds.background_path(name)
+            # The header only: cheap, and enough to leave out what can't be read
+            source = art_size(path)
+            key = thumbnail_key(path, device)
+            if not source.isValid() or source.isEmpty() or key is None:
                 logger.warning(f"Leaving the undecodable background {name} out of the grid")
                 continue
             item = QStandardItem()
             item.setData(name, NAME_ROLE)
-            item.setData(pixmap, Qt.ItemDataRole.DecorationRole)
             item.setData(name in pending, PENDING_ROLE)
+            cached = _thumbnails.get(key)
+            if cached is not None:
+                item.setData(cached, Qt.ItemDataRole.DecorationRole)
+            else:
+                request = _PendingThumbnail(self, name, key, device, ratio)
+                self._pending[name] = request
+                decode = source.scaled(device, Qt.AspectRatioMode.KeepAspectRatioByExpanding)
+                art_loader().request(request, str(path), decode, 0)
             item.setEditable(False)
             item.setDropEnabled(False)
             self.model_.appendRow(item)
         self.select_name(selected)
+
+    def thumbnail_ready(self, request, pixmap):
+        if self._pending.get(request.name) is not request:
+            return
+        del self._pending[request.name]
+        request.deleteLater()
+        row = self._row_of(request.name)
+        if row >= 0:
+            self.model_.item(row).setData(pixmap, Qt.ItemDataRole.DecorationRole)
+
+    def is_loading(self):
+        return bool(self._pending)
 
     def names(self):
         return [self.model_.item(row).data(NAME_ROLE) for row in range(self.model_.rowCount())]
