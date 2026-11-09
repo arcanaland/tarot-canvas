@@ -81,11 +81,11 @@ THEME_LABELS = (
 )
 
 BACKGROUND_STYLE_LABELS = (
-    ("checkerboard", PREFERENCES["background_checkerboard"]),
     ("gradient", PREFERENCES["background_gradient"]),
-    ("solid", PREFERENCES["background_solid"]),
     ("swirl", PREFERENCES["background_swirl"]),
     ("image", PREFERENCES["background_image"]),
+    ("checkerboard", PREFERENCES["background_checkerboard"]),
+    ("solid", PREFERENCES["background_solid"]),
 )
 
 POSITIONING_LABELS = (

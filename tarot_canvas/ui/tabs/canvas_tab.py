@@ -494,6 +494,8 @@ class CanvasTab(BaseTab):
         if source is None or source.isNull():
             logger.warning(f"No background image {name!r} to draw; drawing the gradient")
             return self.create_gradient_background()
+        # Its transparency shows the fill, in every positioning
+        source = image_ground.flatten(source, fill)
         if positioning == "tile":
             brush = QBrush(QPixmap.fromImage(source))
         else:

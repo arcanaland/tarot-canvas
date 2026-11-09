@@ -90,3 +90,20 @@ def test_the_ground_paints_over_the_whole_device_and_recomposes_on_a_new_ratio(q
         painter.end()
         assert target.pixelColor(0, 0) == RED
         assert target.pixelColor(target.width() - 1, target.height() - 1) == RED
+
+
+def test_flatten_lays_transparency_on_the_fill(qapp):
+    source = QImage(QSize(2, 1), QImage.Format.Format_ARGB32)
+    source.setPixelColor(0, 0, RED)
+    source.setPixelColor(1, 0, QColor(0, 0, 0, 0))
+
+    flat = image_ground.flatten(source, FILL)
+
+    assert not flat.hasAlphaChannel()
+    assert flat.pixelColor(0, 0) == RED
+    assert flat.pixelColor(1, 0) == FILL
+
+
+def test_flatten_leaves_an_opaque_image_alone(qapp):
+    source = solid(QSize(4, 4))
+    assert image_ground.flatten(source, FILL) is source

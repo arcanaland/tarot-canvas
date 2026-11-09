@@ -63,6 +63,18 @@ def load(path, positioning, bound):
     return image
 
 
+def flatten(source, fill):
+    """source laid on fill, with no alpha left: a transparent texel would show an uncleared viewport"""
+    if not source.hasAlphaChannel():
+        return source
+    image = QImage(source.size(), QImage.Format.Format_RGB32)
+    image.fill(QColor(fill))
+    painter = QPainter(image)
+    painter.drawImage(QPoint(0, 0), source)
+    painter.end()
+    return image
+
+
 def average_colour(image):
     return image.scaled(
         1, 1, Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.SmoothTransformation

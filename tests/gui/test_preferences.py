@@ -766,3 +766,16 @@ def test_a_tiles_remove_button_marks_it_without_selecting_it(qtbot, backgrounds_
 
     assert grid.pending() == ("b.png",)
     assert grid.selected_name() == "a.png"
+
+
+def test_the_background_types_are_offered_in_order(qtbot):
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+    combo = dialog.bg_combo
+    assert [combo.itemData(i) for i in range(combo.count())] == [
+        "gradient",
+        "swirl",
+        "image",
+        "checkerboard",
+        "solid",
+    ]

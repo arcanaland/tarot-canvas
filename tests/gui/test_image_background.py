@@ -89,3 +89,26 @@ def test_leaving_the_image_type_drops_the_backdrop(qtbot, backgrounds_base):
     tab.apply_background_settings()
 
     assert tab.view.backdrop is None
+
+
+def write_half_transparent(base, name):
+    """Left half RED, right half fully transparent"""
+    image = QImage(QSize(64, 32), QImage.Format.Format_ARGB32)
+    image.fill(Qt.GlobalColor.transparent)
+    for x in range(32):
+        for y in range(32):
+            image.setPixelColor(x, y, RED)
+    base.mkdir(parents=True, exist_ok=True)
+    assert image.save(str(base / name))
+    return name
+
+
+def test_a_tiled_image_with_transparency_is_laid_on_the_fill(qtbot, backgrounds_base):
+    # Transparent texels over an uncleared viewport show the last frame: the canvas flickers
+    store_image_ground(write_half_transparent(backgrounds_base, "holes.png"), "tile", "#204060")
+    tab = make_tab(qtbot)
+
+    texture = tab.view.backgroundBrush().textureImage()
+    assert not texture.hasAlphaChannel()
+    assert texture.pixelColor(8, 8) == RED
+    assert texture.pixelColor(48, 8) == QColor("#204060")
