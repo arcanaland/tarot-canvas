@@ -63,8 +63,8 @@ class PannableGraphicsView(QGraphicsView):
         # The moving ground, when the style is swirl and GL could draw it
         self.swirl = None
         self._swirl_paint_failed = False
-        # Called as (painter, scene rect) after the items are drawn, in order
         self.foreground_hooks = []
+        self.backdrop = None
         for bar in (self.horizontalScrollBar(), self.verticalScrollBar()):
             bar.actionTriggered.connect(self.camera_taken)
 
@@ -180,7 +180,7 @@ class PannableGraphicsView(QGraphicsView):
 
     def scrollContentsBy(self, dx, dy):
         super().scrollContentsBy(dx, dy)
-        if self.swirl is not None:
+        if self.swirl is not None or self.backdrop is not None:
             # A raster scroll blits the old ground along with the cards
             self.viewport().update()
         self.camera_moved.emit()
@@ -204,6 +204,14 @@ class PannableGraphicsView(QGraphicsView):
             except Exception:
                 self._swirl_paint_failed = True
                 log.exception("The swirl ground failed to paint")
+        if self.backdrop is not None:
+            try:
+                ratio = self.viewport().devicePixelRatioF()
+                if self.backdrop.paint(painter, self.viewport().rect(), ratio):
+                    return
+            except Exception:
+                self.backdrop = None
+                log.exception("The image ground failed to paint")
         super().drawBackground(painter, rect)
 
     def event(self, event):

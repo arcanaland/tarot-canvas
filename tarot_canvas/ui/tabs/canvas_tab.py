@@ -26,11 +26,16 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from tarot_canvas.models import backgrounds
 from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.models.spreads import Position, Spread, offsets_from_middle
 from tarot_canvas.settings import (
     BACKGROUND_COLOR_DEFAULT,
     BACKGROUND_COLOR_KEY,
+    BACKGROUND_FILL_DEFAULT,
+    BACKGROUND_FILL_KEY,
+    BACKGROUND_IMAGE_DEFAULT,
+    BACKGROUND_IMAGE_KEY,
     CANVAS_GUIDES_DEFAULT,
     CANVAS_GUIDES_KEY,
     CANVAS_TAB_MINIMAP_DEFAULT,
@@ -38,6 +43,7 @@ from tarot_canvas.settings import (
     CHECKERBOARD_COLOR_DEFAULT,
     CHECKERBOARD_COLOR_KEY,
     MOTION_LEVEL_DEFAULT,
+    get_background_positioning,
     get_background_style,
     get_motion_level,
     get_settings,
@@ -54,6 +60,7 @@ from tarot_canvas.ui.canvas import (
     align_items_vertically,
     distribute_items_horizontally,
     distribute_items_vertically,
+    image_ground,
     swirl,
 )
 from tarot_canvas.ui.canvas.arc_popover import ARC_DEFAULTS, ArcPopover
@@ -65,12 +72,16 @@ from tarot_canvas.ui.canvas.detail import (
 )
 from tarot_canvas.ui.canvas.ground import (
     CHECKERBOARD_SQUARE,
-    GRADIENT_STOPS,
+    GROUND_HUE_DEFAULT,
+    GROUND_HUES,
     checkerboard_partner,
+    ground_hue_id,
+    shadow_for_ground,
 )
 from tarot_canvas.ui.canvas.guides import GuideItem
 from tarot_canvas.ui.canvas.motion import (
     AMBIENT_GAIN_FLOOR,
+    SHADOW_OPACITY,
     MotionClock,
     Pace,
     approach,
@@ -105,12 +116,22 @@ GROUNDS = {
     "checkerboard": lambda tab, settings: tab.create_checkerboard_background(
         settings.value(CHECKERBOARD_COLOR_KEY, CHECKERBOARD_COLOR_DEFAULT)
     ),
-    "gradient": lambda tab, settings: tab.create_gradient_background(),
+    "gradient": lambda tab, settings: tab.create_gradient_background(ground_hue(settings)),
     "solid": lambda tab, settings: tab.create_solid_color_background(
         settings.value(BACKGROUND_COLOR_KEY, BACKGROUND_COLOR_DEFAULT)
     ),
-    "swirl": lambda tab, settings: tab.create_swirl_background(),
+    "swirl": lambda tab, settings: tab.create_swirl_background(ground_hue(settings)),
+    "image": lambda tab, settings: tab.create_image_background(
+        settings.value(BACKGROUND_IMAGE_KEY, BACKGROUND_IMAGE_DEFAULT),
+        get_background_positioning(settings),
+        settings.value(BACKGROUND_FILL_KEY, BACKGROUND_FILL_DEFAULT),
+    ),
 }
+
+
+def ground_hue(settings):
+    """The stored GroundHue, which Swirl and Aura share"""
+    return GROUND_HUES[ground_hue_id(settings)]
 
 
 def wheel_turn(orient, notches, fine):
@@ -164,6 +185,7 @@ class CanvasTab(BaseTab):
         self.guide_item = GuideItem()
         self.desktop_wants_animation = True
         self.gilt = QColor(GILT_ON_DARK)
+        self.shadow_tone = (QColor(Qt.GlobalColor.black), SHADOW_OPACITY)
         # Arrange on Arc starts from the last one this tab made
         self.arc_settings = dict(ARC_DEFAULTS)
         self.arc_popover = None
@@ -249,6 +271,9 @@ class CanvasTab(BaseTab):
         # swirl has an object we need to keep alive
         if bg_style != "swirl":
             self._drop_swirl()
+        if self.view.backdrop is not None:
+            self.view.backdrop = None
+            self.view.viewport().update()
 
         self.set_ground(GROUNDS[bg_style](self, settings))
 
@@ -309,11 +334,13 @@ class CanvasTab(BaseTab):
         return self.ground_motion_is_allowed()
 
     def set_ground(self, color):
-        """Pick the selection tone that shows up against this background colour."""
+        """Pick the selection and shadow tones that suit this background colour."""
         self.ground = QColor(color)
         self.gilt = gilt_for_ground(color)
+        self.shadow_tone = shadow_for_ground(color)
         for card in self._cards:
             card.set_gilt(self.gilt)
+            card.set_shadow_tone(*self.shadow_tone)
         self.guide_item.set_tone(self.gilt)
 
     def _on_zoom_changed(self, view_scale):
@@ -349,6 +376,7 @@ class CanvasTab(BaseTab):
         """Called by a card when it enters this tab's scene."""
         if card not in self._cards:
             self._cards.append(card)
+            card.set_shadow_tone(*self.shadow_tone)
             self.schedule_detail()
             self.schedule_tab_icon()
             self.update_save_layout_action()
@@ -404,29 +432,32 @@ class CanvasTab(BaseTab):
         self.motion_clock.unsubscribe(self._advance_motion)
         self.settle_motion()
 
-    def create_gradient_background(self):
-        """Create a gradient background for the canvas"""
+    def create_gradient_background(self, hue=None):
+        """Aura: a radial gradient through hue's three stops"""
+        hue = hue or GROUND_HUES[GROUND_HUE_DEFAULT]
         center = QPointF(0, 0)
         radius = 800
         gradient = QRadialGradient(center, radius)
 
-        gradient.setStops(GRADIENT_STOPS)
+        gradient.setStops(hue.aura_stops())
 
         brush = QBrush(gradient)
         self.scene.setBackgroundBrush(brush)
         self.view.setBackgroundBrush(brush)
         return gradient.stops()[0][1]
 
-    def create_swirl_background(self):
-        """The moving ground, or the gradient where no GL context can draw it"""
+    def create_swirl_background(self, hue=None):
+        """The moving ground, or Aura in the same hue where no GL context can draw it"""
+        hue = hue or GROUND_HUES[GROUND_HUE_DEFAULT]
         field = swirl.field()
         if field is None:
-            return self.create_gradient_background()
+            return self.create_gradient_background(hue)
         if self.view.swirl is None:
             self.view.swirl = swirl.SwirlGround(self.view, field, self)
-            self.view.swirl.request()
+        self.view.swirl.colours = swirl.colour_values(hue)
+        self.view.swirl.request()
         # A solid colour for everything that reads the brush rather than the field
-        colour = QColor(swirl.PARAMS["colour_1"])
+        colour = QColor(hue.swirl[0])
         brush = QBrush(colour)
         self.scene.setBackgroundBrush(brush)
         self.view.setBackgroundBrush(brush)
@@ -440,6 +471,25 @@ class CanvasTab(BaseTab):
         self.view.swirl.deleteLater()
         self.view.swirl = None
         self.view.viewport().update()
+
+    def create_image_background(self, name, positioning, fill):
+        """A copied image: tiled on the scene, or else held still over the viewport on fill"""
+        path = backgrounds.background_path(name)
+        source = image_ground.load(path, positioning, image_ground.decode_bound()) if path else None
+        if source is None or source.isNull():
+            logger.warning(f"No background image {name!r} to draw; drawing the gradient")
+            return self.create_gradient_background()
+        # Its transparency shows the fill, in every positioning
+        source = image_ground.flatten(source, fill)
+        if positioning == "tile":
+            brush = QBrush(QPixmap.fromImage(source))
+        else:
+            self.view.backdrop = image_ground.ImageGround(source, positioning, fill)
+            self.view.viewport().update()
+            brush = QBrush(QColor(fill))
+        self.scene.setBackgroundBrush(brush)
+        self.view.setBackgroundBrush(brush)
+        return image_ground.average_colour(source)
 
     def create_solid_color_background(self, color_str):
         """Create a solid color background for the canvas"""

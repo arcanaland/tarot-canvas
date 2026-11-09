@@ -1,13 +1,18 @@
 import sys
 
 import pytest
-from PyQt6.QtCore import QMargins
-from PyQt6.QtGui import QColor, QPalette
+from PyQt6.QtCore import QMargins, QMimeData, QPointF, QSize, Qt, QUrl
+from PyQt6.QtGui import QColor, QDragEnterEvent, QDropEvent, QImage, QPalette
+from PyQt6.QtWidgets import QApplication
 
 from tarot_canvas.settings import (
     ANIMATIONS_ENABLED_KEY,
     BACKGROUND_COLOR_DEFAULT,
     BACKGROUND_COLOR_KEY,
+    BACKGROUND_FILL_DEFAULT,
+    BACKGROUND_IMAGE_DEFAULT,
+    BACKGROUND_IMAGE_KEY,
+    BACKGROUND_POSITIONING_DEFAULT,
     BACKGROUND_STYLE_DEFAULT,
     BACKGROUND_STYLE_KEY,
     CANVAS_GUIDES_KEY,
@@ -26,6 +31,7 @@ from tarot_canvas.settings import (
     get_reading_text_scale,
     get_settings,
 )
+from tarot_canvas.ui.canvas.ground import GROUND_HUE_DEFAULT
 from tarot_canvas.ui.library.catalog_client import deck_catalog
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
@@ -70,6 +76,7 @@ def test_each_sidebar_row_shows_its_page(qtbot):
     qtbot.addWidget(dialog)
     controls = [
         dialog.theme_combo,
+        dialog.motion_combo,
         dialog.bg_combo,
         dialog.show_available_decks_check,
         dialog.shortcuts_page.tree,
@@ -112,38 +119,89 @@ def test_the_dialog_opens_at_the_size_it_was_left(qtbot):
     assert reopened.size() == size
 
 
-def test_the_swatch_is_shown_for_the_styles_drawn_from_a_colour(qtbot):
+def test_each_type_shows_only_its_own_colour_row(qtbot):
     dialog = PreferencesDialog()
     qtbot.addWidget(dialog)
+    form = dialog.background_form
 
-    for key in ("checkerboard", "gradient", "solid"):
+    for key, _label in preferences_dialog.BACKGROUND_STYLE_LABELS:
         dialog.bg_combo.setCurrentIndex(dialog.bg_combo.findData(key))
-        assert dialog.bg_color_btn.isHidden() is (key == "gradient")
+        assert form.isRowVisible(dialog.solid_color_btn) is (key == "solid")
+        assert form.isRowVisible(dialog.checkerboard_color_btn) is (key == "checkerboard")
+        assert form.isRowVisible(dialog.bg_combo)
 
 
-def test_the_swatch_edits_the_selected_styles_own_colour(qtbot, monkeypatch):
+def test_the_type_combo_keeps_its_width_as_rows_come_and_go(qtbot):
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+    dialog.show()
+    dialog.page_list.setCurrentRow(page_keys(dialog).index("background"))
+
+    widths = set()
+    for key, _label in preferences_dialog.BACKGROUND_STYLE_LABELS:
+        dialog.bg_combo.setCurrentIndex(dialog.bg_combo.findData(key))
+        dialog.page_stack.currentWidget().layout().activate()
+        widths.add(dialog.bg_combo.geometry().getRect())
+
+    assert len(widths) == 1
+
+
+def test_a_load_shows_the_stored_types_rows(qtbot):
+    get_settings().setValue(BACKGROUND_STYLE_KEY, "checkerboard")
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+    form = dialog.background_form
+    assert form.isRowVisible(dialog.checkerboard_color_btn)
+    assert not form.isRowVisible(dialog.solid_color_btn)
+
+    dialog.restore_defaults()
+
+    assert dialog.bg_combo.currentData() == BACKGROUND_STYLE_DEFAULT
+    assert form.isRowVisible(dialog.solid_color_btn) is (BACKGROUND_STYLE_DEFAULT == "solid")
+    assert form.isRowVisible(dialog.checkerboard_color_btn) is (
+        BACKGROUND_STYLE_DEFAULT == "checkerboard"
+    )
+
+
+def test_each_colour_button_edits_only_its_own_colour(qtbot, monkeypatch):
     dialog = PreferencesDialog()
     qtbot.addWidget(dialog)
     picked = []
+    answers = iter([QColor("#335544"), QColor("#aa2211")])
     monkeypatch.setattr(
         "tarot_canvas.ui.windows.preferences_dialog.QColorDialog.getColor",
-        lambda initial, parent: picked.append(QColor(initial)) or QColor("#335544"),
+        lambda initial, parent: picked.append(QColor(initial)) or next(answers),
     )
 
-    dialog.bg_combo.setCurrentIndex(dialog.bg_combo.findData("checkerboard"))
-    dialog.select_bg_color()
+    dialog.checkerboard_color_btn.click()
     assert picked[-1] == QColor(CHECKERBOARD_COLOR_DEFAULT)
     assert dialog.checkerboard_color == QColor("#335544")
     assert dialog.bg_color == QColor(BACKGROUND_COLOR_DEFAULT)
 
-    # Switching style and back keeps both
-    dialog.bg_combo.setCurrentIndex(dialog.bg_combo.findData("solid"))
-    assert dialog.swatch_color() == QColor(BACKGROUND_COLOR_DEFAULT)
-    dialog.select_bg_color()
+    dialog.solid_color_btn.click()
     assert picked[-1] == QColor(BACKGROUND_COLOR_DEFAULT)
-    assert dialog.bg_color == QColor("#335544")
-    dialog.bg_combo.setCurrentIndex(dialog.bg_combo.findData("checkerboard"))
-    assert dialog.swatch_color() == QColor("#335544")
+    assert dialog.bg_color == QColor("#aa2211")
+    assert dialog.checkerboard_color == QColor("#335544")
+
+    dialog.apply_settings()
+    assert get_settings().value(CHECKERBOARD_COLOR_KEY) == "#335544"
+    assert get_settings().value(BACKGROUND_COLOR_KEY) == "#aa2211"
+
+
+def test_a_cancelled_colour_dialog_changes_nothing(qtbot, monkeypatch):
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+    monkeypatch.setattr(
+        "tarot_canvas.ui.windows.preferences_dialog.QColorDialog.getColor",
+        lambda initial, parent: QColor(),
+    )
+
+    dialog.solid_color_btn.click()
+    dialog.checkerboard_color_btn.click()
+
+    assert dialog.bg_color == QColor(BACKGROUND_COLOR_DEFAULT)
+    assert dialog.checkerboard_color == QColor(CHECKERBOARD_COLOR_DEFAULT)
+    assert not dialog.apply_button.isEnabled()
 
 
 def test_the_checkerboard_colour_is_stored_and_shown_again(qtbot):
@@ -202,6 +260,11 @@ def test_restore_defaults_resets_the_form_and_stores_nothing(qtbot, theme_kept):
         BACKGROUND_STYLE_DEFAULT,
         BACKGROUND_COLOR_DEFAULT,
         CHECKERBOARD_COLOR_DEFAULT,
+        GROUND_HUE_DEFAULT,
+        BACKGROUND_IMAGE_DEFAULT,
+        BACKGROUND_POSITIONING_DEFAULT,
+        BACKGROUND_FILL_DEFAULT,
+        (),
         MOTION_LEVEL_DEFAULT,
         True,
         False,
@@ -466,6 +529,14 @@ def page_keys(dialog):
     return [key for key, _icon, _build in dialog.pages()]
 
 
+def test_the_background_page_follows_the_canvas_page(qtbot):
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+    keys = page_keys(dialog)
+
+    assert keys[keys.index("canvas") + 1] == "background"
+
+
 def test_the_advanced_page_is_linux_only(qtbot, monkeypatch):
     monkeypatch.setattr(sys, "platform", "linux")
     linux = PreferencesDialog()
@@ -513,3 +584,270 @@ def test_turning_hardware_acceleration_back_on_clears_the_marker(qtbot, cleared)
 
     assert get_settings().value(HARDWARE_ACCELERATION_KEY, type=bool) is True
     assert cleared == [True]
+
+
+def write_background(base, name, colour="#c03030"):
+    image = QImage(QSize(48, 32), QImage.Format.Format_RGB32)
+    image.fill(QColor(colour))
+    base.mkdir(parents=True, exist_ok=True)
+    assert image.save(str(base / name))
+    return base / name
+
+
+def choose_type(dialog, key):
+    dialog.bg_combo.setCurrentIndex(dialog.bg_combo.findData(key))
+    dialog.bg_combo.activated.emit(dialog.bg_combo.currentIndex())
+
+
+def test_the_image_type_shows_its_rows_and_the_fill_only_where_it_shows(qtbot):
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+    form = dialog.background_form
+    image_rows = (dialog.positioning_combo, dialog.images_header, dialog.background_grid)
+
+    for key, _label in preferences_dialog.BACKGROUND_STYLE_LABELS:
+        choose_type(dialog, key)
+        for row in image_rows:
+            assert form.isRowVisible(row) is (key == "image")
+
+    choose_type(dialog, "image")
+    for key, _label in preferences_dialog.POSITIONING_LABELS:
+        dialog.positioning_combo.setCurrentIndex(dialog.positioning_combo.findData(key))
+        assert form.isRowVisible(dialog.fill_color_btn) is (key in ("fit", "center"))
+
+
+def test_added_files_are_copied_selected_and_stored_on_apply(
+    qtbot, tmp_path, backgrounds_base, monkeypatch
+):
+    picked = [
+        str(write_background(tmp_path / "picked", "wood.png")),
+        str(write_background(tmp_path / "picked", "felt.png")),
+    ]
+    monkeypatch.setattr(
+        "tarot_canvas.ui.windows.preferences_dialog.QFileDialog.getOpenFileNames",
+        lambda *args: (picked, ""),
+    )
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+
+    dialog.add_image_btn.click()
+
+    assert sorted(path.name for path in backgrounds_base.iterdir()) == ["felt.png", "wood.png"]
+    assert dialog.background_grid.names() == ["felt.png", "wood.png"]
+    assert dialog.background_grid.selected_name() == "felt.png"
+    assert dialog.bg_combo.currentData() == "image"
+    assert dialog.apply_button.isEnabled()
+
+    dialog.apply_settings()
+
+    assert get_settings().value(BACKGROUND_STYLE_KEY) == "image"
+    assert get_settings().value(BACKGROUND_IMAGE_KEY) == "felt.png"
+
+
+def test_files_dropped_on_the_grid_are_added(qtbot, tmp_path, backgrounds_base):
+    source = write_background(tmp_path, "cloth.png")
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+    grid = dialog.background_grid
+    mime = QMimeData()
+    mime.setUrls([QUrl.fromLocalFile(str(source))])
+    position = QPointF(grid.viewport().rect().center())
+    actions = Qt.DropAction.CopyAction
+    buttons, modifiers = Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier
+
+    enter = QDragEnterEvent(position.toPoint(), actions, mime, buttons, modifiers)
+    QApplication.sendEvent(grid.viewport(), enter)
+    assert enter.isAccepted()
+    QApplication.sendEvent(grid.viewport(), QDropEvent(position, actions, mime, buttons, modifiers))
+
+    assert grid.names() == ["cloth.png"]
+    assert grid.selected_name() == "cloth.png"
+
+
+def test_choosing_image_with_none_selected_selects_the_first(qtbot, backgrounds_base):
+    write_background(backgrounds_base, "b.png")
+    write_background(backgrounds_base, "a.png")
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+    assert dialog.background_grid.selected_name() == ""
+
+    choose_type(dialog, "image")
+
+    assert dialog.background_grid.selected_name() == "a.png"
+
+
+def test_the_stored_image_is_shown_selected(qtbot, backgrounds_base):
+    for name in ("a.png", "b.png", "c.png"):
+        write_background(backgrounds_base, name)
+    get_settings().setValue(BACKGROUND_STYLE_KEY, "image")
+    get_settings().setValue(BACKGROUND_IMAGE_KEY, "b.png")
+
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+
+    assert dialog.background_grid.selected_name() == "b.png"
+    assert not dialog.apply_button.isEnabled()
+
+
+def test_an_undecodable_copy_gets_no_tile(qtbot, backgrounds_base):
+    write_background(backgrounds_base, "good.png")
+    (backgrounds_base / "bad.png").write_text("not an image")
+
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+
+    assert dialog.background_grid.names() == ["good.png"]
+
+
+def test_removing_waits_for_apply_and_moves_the_selection_on(qtbot, backgrounds_base):
+    for name in ("a.png", "b.png", "c.png"):
+        write_background(backgrounds_base, name)
+    get_settings().setValue(BACKGROUND_STYLE_KEY, "image")
+    get_settings().setValue(BACKGROUND_IMAGE_KEY, "b.png")
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+    grid = dialog.background_grid
+
+    grid.toggle_removal("b.png")
+
+    assert grid.pending() == ("b.png",)
+    assert grid.selected_name() == "c.png"
+    assert (backgrounds_base / "b.png").exists()
+    assert dialog.apply_button.isEnabled()
+
+    dialog.apply_settings()
+
+    assert not (backgrounds_base / "b.png").exists()
+    assert grid.names() == ["a.png", "c.png"]
+    assert get_settings().value(BACKGROUND_IMAGE_KEY) == "c.png"
+    assert not dialog.apply_button.isEnabled()
+
+
+def test_an_undone_removal_offers_no_apply(qtbot, backgrounds_base):
+    write_background(backgrounds_base, "a.png")
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+
+    dialog.background_grid.toggle_removal("a.png")
+    dialog.background_grid.toggle_removal("a.png")
+
+    assert dialog.background_grid.pending() == ()
+    assert not dialog.apply_button.isEnabled()
+
+
+def test_cancel_removes_nothing(qtbot, backgrounds_base):
+    write_background(backgrounds_base, "a.png")
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+
+    dialog.background_grid.toggle_removal("a.png")
+    dialog.reject()
+
+    assert (backgrounds_base / "a.png").exists()
+
+
+def test_a_tiles_remove_button_marks_it_without_selecting_it(qtbot, backgrounds_base):
+    write_background(backgrounds_base, "a.png")
+    write_background(backgrounds_base, "b.png")
+    get_settings().setValue(BACKGROUND_STYLE_KEY, "image")
+    get_settings().setValue(BACKGROUND_IMAGE_KEY, "a.png")
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+    dialog.show()
+    dialog.page_list.setCurrentRow(page_keys(dialog).index("background"))
+    qtbot.waitExposed(dialog)
+    grid = dialog.background_grid
+    index = grid.model().index(1, 0)
+    cell = grid.visualRect(index)
+    (action, rect), *_ = grid.delegate.action_rects(cell, False)
+    assert action == "remove"
+
+    qtbot.mouseClick(grid.viewport(), Qt.MouseButton.LeftButton, pos=rect.center())
+
+    assert grid.pending() == ("b.png",)
+    assert grid.selected_name() == "a.png"
+
+
+def test_the_background_types_are_offered_in_order(qtbot):
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+    combo = dialog.bg_combo
+    assert [combo.itemData(i) for i in range(combo.count())] == [
+        "gradient",
+        "swirl",
+        "image",
+        "checkerboard",
+        "solid",
+    ]
+
+
+@pytest.fixture
+def no_thumbnails(monkeypatch):
+    from tarot_canvas.ui.windows import background_grid
+
+    monkeypatch.setattr(background_grid, "_thumbnails", {})
+    return background_grid
+
+
+def tile_pixmap(grid, name):
+    return grid.model_.item(grid.names().index(name)).data(Qt.ItemDataRole.DecorationRole)
+
+
+def test_the_dialog_opens_before_a_thumbnail_is_decoded(
+    qtbot, backgrounds_base, monkeypatch, no_thumbnails
+):
+    # A large PNG decodes in full whatever size is asked for: never on the GUI thread
+    write_background(backgrounds_base, "big.png")
+    decodes = []
+    monkeypatch.setattr(
+        no_thumbnails,
+        "art_loader",
+        lambda: type("L", (), {"request": lambda *a: decodes.append(a)}),
+    )
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+
+    grid = dialog.background_grid
+    assert grid.names() == ["big.png"]
+    assert tile_pixmap(grid, "big.png") is None
+    assert grid.is_loading()
+    assert len(decodes) == 1
+
+
+def test_a_thumbnail_lands_cropped_and_a_reopen_takes_it_from_the_cache(
+    qtbot, backgrounds_base, no_thumbnails
+):
+    write_background(backgrounds_base, "a.png", "#c03030")
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+    grid = dialog.background_grid
+    qtbot.waitUntil(lambda: not grid.is_loading())
+
+    pixmap = tile_pixmap(grid, "a.png")
+    tile = grid.delegate.tile
+    ratio = grid.devicePixelRatioF()
+    assert pixmap.size() == QSize(round(tile.width() * ratio), round(tile.height() * ratio))
+    assert pixmap.toImage().pixelColor(2, 2) == QColor("#c03030")
+
+    reopened = PreferencesDialog()
+    qtbot.addWidget(reopened)
+    assert not reopened.background_grid.is_loading()
+    assert tile_pixmap(reopened.background_grid, "a.png").cacheKey() == pixmap.cacheKey()
+
+
+def test_an_edited_image_is_thumbnailed_again(qtbot, backgrounds_base, no_thumbnails):
+    import os
+
+    path = write_background(backgrounds_base, "a.png", "#c03030")
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+    qtbot.waitUntil(lambda: not dialog.background_grid.is_loading())
+
+    write_background(backgrounds_base, "a.png", "#30c030")
+    stat = path.stat()
+    os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000_000))
+    grid = dialog.background_grid
+    grid.reload()
+    assert grid.is_loading()
+    qtbot.waitUntil(lambda: not grid.is_loading())
+    assert tile_pixmap(grid, "a.png").toImage().pixelColor(2, 2) == QColor("#30c030")

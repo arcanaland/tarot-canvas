@@ -10,7 +10,6 @@ from importlib.resources import files
 
 from PyQt6.QtCore import QObject, QRect, QSize, QTimer
 from PyQt6.QtGui import (
-    QColor,
     QOffscreenSurface,
     QOpenGLContext,
     QPainter,
@@ -20,6 +19,7 @@ from PyQt6.QtGui import (
     QVector4D,
 )
 
+from tarot_canvas.ui.canvas.ground import GROUND_HUE_DEFAULT, GROUND_HUES
 from tarot_canvas.ui.canvas.motion import TICK_MS
 from tarot_canvas.ui.canvas.renderer import canvas_renderer_rule
 
@@ -38,9 +38,6 @@ PARAMS = {
     "warp": 0.648,
     "contrast": 0.648,
     "speed": 0.178,
-    "colour_1": QColor("#50396b"),
-    "colour_2": QColor("#301f46"),
-    "colour_3": QColor("#8671a5"),
     "pixel": 4,
     "every": 2,
     "parallax": True,
@@ -99,6 +96,11 @@ STILL_RULES = ("preference off",)
 
 # Every render+readback in ms (for benchmarking)
 render_log = None
+
+
+def colour_values(hue):
+    """The shader's colour uniforms from a GroundHue"""
+    return dict(zip(("colour_1", "colour_2", "colour_3"), hue.swirl, strict=True))
 
 
 def surface_format():
@@ -412,6 +414,8 @@ class SwirlGround(QObject):
         self.field = field
         self.t = STILL_T
         self.ticks = 0
+        # The shader's three colours, from the chosen GroundHue
+        self.colours = colour_values(GROUND_HUES[GROUND_HUE_DEFAULT])
         self.image = None
         self.animating = False
         # The camera moved since the last render
@@ -515,7 +519,8 @@ class SwirlGround(QObject):
         size = self._target_size()
         centre, scale = self._centre_and_scale()
         try:
-            self.image = self.field.render(self.t, size, PARAMS, centre, scale)
+            values = {**PARAMS, **self.colours}
+            self.image = self.field.render(self.t, size, values, centre, scale)
             self._measure = True
         except Exception as error:
             self._failed = True
@@ -532,7 +537,8 @@ class SwirlGround(QObject):
             self.request()
         painter.save()
         painter.resetTransform()
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, False)
+        # Bilinear: nearest-neighbour blocks read as pixelated
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
         painter.drawImage(QRect(0, 0, rect.width(), rect.height()), self.image)
         painter.restore()
         return True

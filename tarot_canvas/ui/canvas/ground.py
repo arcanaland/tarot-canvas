@@ -1,19 +1,85 @@
 import math
+from dataclasses import dataclass
 
 from PyQt6.QtGui import QColor
 
-# The canvas's default radial gradient, center to edge
-GRADIENT_STOPS = (
-    (0.0, QColor(50, 30, 80)),
-    (0.5, QColor(30, 18, 60)),
-    (1.0, QColor(15, 10, 30)),
-)
+from tarot_canvas.settings import GROUND_HUE_KEY, get_settings
+from tarot_canvas.ui.canvas.motion import SHADOW_OPACITY
+
+
+@dataclass(frozen=True)
+class GroundHue:
+    """preset shared by Swirl and Aura"""
+
+    # The swirl shader's colour_1, colour_2, colour_3
+    swirl: tuple
+    # Aura's radial stops: centre, middle, edge
+    aura: tuple
+
+    def aura_stops(self):
+        return tuple(zip((0.0, 0.5, 1.0), self.aura, strict=True))
+
+
+GROUND_HUES = {
+    "violet": GroundHue(
+        swirl=(QColor("#50396b"), QColor("#301f46"), QColor("#8671a5")),
+        aura=(QColor(50, 30, 80), QColor(30, 18, 60), QColor(15, 10, 30)),
+    ),
+    "green": GroundHue(
+        swirl=(QColor("#23512f"), QColor("#0c3217"), QColor("#5d8966")),
+        aura=(QColor("#023514"), QColor("#00230b"), QColor("#031206")),
+    ),
+    "orange": GroundHue(
+        swirl=(QColor("#6e3214"), QColor("#471901"), QColor("#a96b4f")),
+        aura=(QColor("#4a1a01"), QColor("#330f00"), QColor("#1d0700")),
+    ),
+    "blue": GroundHue(
+        swirl=(QColor("#234773"), QColor("#0d294b"), QColor("#5b7fad")),
+        aura=(QColor("#042a56"), QColor("#011b3d"), QColor("#030e1f")),
+    ),
+    "red": GroundHue(
+        swirl=(QColor("#6e302c"), QColor("#471715"), QColor("#aa6863")),
+        aura=(QColor("#501111"), QColor("#390507"), QColor("#1d0605")),
+    ),
+    "cream": GroundHue(
+        swirl=(QColor("#e9ddc4"), QColor("#d7c9ae"), QColor("#fbf4e6")),
+        aura=(QColor("#f6eedc"), QColor("#eae0cb"), QColor("#d2c6ae")),
+    ),
+    "gold": GroundHue(
+        swirl=(QColor("#714a20"), QColor("#4c2e0c"), QColor("#ab835c")),
+        aura=(QColor("#522e01"), QColor("#3c2000"), QColor("#251506")),
+    ),
+    "grey": GroundHue(
+        swirl=(QColor("#464646"), QColor("#292929"), QColor("#7d7d7d")),
+        aura=(QColor("#2b2b2b"), QColor("#1c1c1c"), QColor("#0e0e0e")),
+    ),
+}
+GROUND_HUE_DEFAULT = "violet"
+
+
+def ground_hue_id(settings=None):
+    """The stored preset's id"""
+    stored = (settings or get_settings()).value(GROUND_HUE_KEY)
+    return stored if stored in GROUND_HUES else GROUND_HUE_DEFAULT
+
+
+# The default preset's Aura, center to edge
+GRADIENT_STOPS = GROUND_HUES[GROUND_HUE_DEFAULT].aura_stops()
 
 CHECKERBOARD_CONTRAST = 1.35
 # Each square's side in scene units
 CHECKERBOARD_SQUARE = 80
 CHECKERBOARD_DARKEN_FROM = 0.6
 _BISECTIONS = 40
+
+# A shadow is the ground with less light on it: its own hue, darker and a little richer
+SHADOW_TONE_LIGHTNESS = 0.35
+SHADOW_TONE_CHROMA = 1.5
+# Black at a fixed alpha takes far more off a light ground than a dark one,
+# so the shadow fades between these OKLab lightnesses
+SHADOW_OPACITY_ON_LIGHT = 0.22
+SHADOW_DARK_GROUND = 0.3
+SHADOW_LIGHT_GROUND = 0.9
 _GAMUT_EPSILON = 1e-6
 
 
@@ -41,7 +107,7 @@ def _contrast(y1, y2):
 
 
 # The clanker provided the following citation for this mess of floats:
-# Björn Ottosson, "A perceptual color space for image processing" (2020). The cone_* are its
+# Björn Ottosson, "A perceptual color space for image processing" (2020).
 def _to_oklab(rgb):
     r, g, b = rgb
     cone_l = math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b)
@@ -116,3 +182,23 @@ def checkerboard_partner(color, contrast=CHECKERBOARD_CONTRAST):
 
     partner = _fit((low + high) / 2, chroma, hue)
     return QColor(*(round(_encode(channel) * 255) for channel in partner))
+
+
+def shadow_for_ground(color):
+    """(tone, opacity) for a card's shadow cast on a ground of this colour"""
+    color = QColor(color)
+    rgb = tuple(_decode(channel) for channel in (color.redF(), color.greenF(), color.blueF()))
+    lightness, a, b = _to_oklab(rgb)
+    chroma = math.hypot(a, b)
+    if chroma < 1e-4:
+        chroma = 0.0
+    hue = math.atan2(b, a)
+
+    tone = _fit(lightness * SHADOW_TONE_LIGHTNESS, chroma * SHADOW_TONE_CHROMA, hue)
+    tone = QColor(*(round(_encode(channel) * 255) for channel in tone))
+
+    t = (lightness - SHADOW_DARK_GROUND) / (SHADOW_LIGHT_GROUND - SHADOW_DARK_GROUND)
+    t = min(max(t, 0.0), 1.0)
+    t = t * t * (3.0 - 2.0 * t)
+    opacity = SHADOW_OPACITY + (SHADOW_OPACITY_ON_LIGHT - SHADOW_OPACITY) * t
+    return tone, opacity

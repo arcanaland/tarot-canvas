@@ -103,6 +103,16 @@ def included_base(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def backgrounds_base(tmp_path, monkeypatch):
+    """Background images are copied into a fresh directory."""
+    from tarot_canvas.models import backgrounds
+
+    base = tmp_path / "backgrounds"
+    monkeypatch.setattr(backgrounds, "backgrounds_base", lambda: base)
+    return base
+
+
+@pytest.fixture(autouse=True)
 def flush_closed_widgets(monkeypatch):
     """Keep qtbot's widgets alive until it has closed them, then delete them before
     the next test runs an event loop."""

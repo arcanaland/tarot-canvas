@@ -347,14 +347,14 @@ def build_contact_shadow(pixmap):
     )
 
 
-def shadow_geometry(lift):
+def shadow_geometry(lift, base_opacity=SHADOW_OPACITY):
     """(offset_px, scale, opacity) for shadow under a card at a specific lift value."""
     height = max(0.0, lift - LIFT_REST)
     offset = SHADOW_REST_OFFSET_PX + height * SHADOW_LIFT_OFFSET_PX
     scale = 1.0 + height * SHADOW_LIFT_SPREAD
 
     # Further away is softer and fainter, but never so faint it stops grounding the card.
-    opacity = SHADOW_OPACITY * (1.0 - min(0.45, height * 3.0))
+    opacity = base_opacity * (1.0 - min(0.45, height * 3.0))
     return offset, scale, opacity
 
 
