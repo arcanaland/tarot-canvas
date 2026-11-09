@@ -58,11 +58,12 @@
       <description>
         <p>This version introduces tarot readings from your spreads.</p>
         <ul>
-        <li></li>
+        <li>Read from a spread by drawing cards from any deck.</li>
+        <li>Takes notes for a reading that is saved to your library.</li>
         </ul>
         <p>Other changes:</p>
         <ul>
-          <li></li>
+          <li>Adding a new swirly background for the canvas.</li>
         </ul>
       </description>
     </release>
