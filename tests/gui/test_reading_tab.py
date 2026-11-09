@@ -1,9 +1,10 @@
 import logging
 import random
+from pathlib import Path
 
 import pytest
 from PyQt6.QtCore import QEvent, QPoint, QPointF, Qt
-from PyQt6.QtGui import QHelpEvent, QKeyEvent, QMouseEvent, QWheelEvent
+from PyQt6.QtGui import QColor, QHelpEvent, QKeyEvent, QMouseEvent, QWheelEvent
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
@@ -19,7 +20,10 @@ from tarot_canvas.settings import (
 )
 from tarot_canvas.ui.canvas import placement as placement_module
 from tarot_canvas.ui.canvas import reading_strip as strip_module
+from tarot_canvas.ui.canvas.candle import CANDLE_ALPHA, dim_tone
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
+from tarot_canvas.ui.canvas.halo import STEADY as HALO_STEADY
+from tarot_canvas.ui.canvas.halo import HaloItem
 from tarot_canvas.ui.canvas.placement import (
     FACE_DOWN_GROUND_PACE,
     Phase,
@@ -1216,3 +1220,196 @@ def test_the_pane_reads_the_staged_table_once_per_change(qtbot, deck, off, monke
         deck.get_all_cards()[0], deck, False, first.sceneBoundingRect().center()
     )
     assert tab.card_in(first) is staged
+
+
+# -- the halo, the rim light and the candle
+
+
+def halos(tab):
+    return [item for item in tab.scene.items() if isinstance(item, HaloItem)]
+
+
+def settled(tab):
+    return not tab.halo.pending and tab.halo.is_steady()
+
+
+@pytest.mark.parametrize("level", LEVELS)
+def test_one_halo_moves_to_each_next_card_and_goes_after_the_last(qtbot, deck, level):
+    at_level(level)
+    tab = make_tab(qtbot, three_card())
+    deal(qtbot, tab)
+    qtbot.waitUntil(lambda: settled(tab), timeout=5000)
+
+    for placement in tab.placements:
+        assert len(halos(tab)) == 1
+        assert tab.halo.card is placement.card
+        assert tab.caption.slot is placement.slot
+        card = placement.card
+        tab.turn_next()
+        qtbot.waitUntil(lambda c=card: settled(tab) and not c.is_turning(), timeout=5000)
+
+    assert tab.halo.card is None
+    assert not tab.halo.isVisible()
+    assert tab.caption.slot is None
+
+
+@pytest.mark.parametrize("level", ("Full", "Reactive"))
+def test_a_turn_flares_then_collapses_and_the_caption_fades_with_it(qtbot, deck, level):
+    at_level(level)
+    tab = make_tab(qtbot, three_card())
+    deal(qtbot, tab)
+    qtbot.waitUntil(lambda: settled(tab), timeout=5000)
+    first = tab.halo.card
+    steady = tab.halo.light()
+
+    tab.turn_next()
+    qtbot.waitUntil(lambda: tab.halo.light() > steady, timeout=2000)
+    qtbot.waitUntil(lambda: tab.halo.collapse is not None, timeout=2000)
+    assert tab.halo.card is first
+    qtbot.waitUntil(lambda: 0.0 < tab.caption.opacity < 1.0, timeout=2000)
+    assert tab.caption.opacity == pytest.approx(tab.halo.fade())
+    qtbot.waitUntil(lambda: tab.halo.card is tab.placements[1].card, timeout=2000)
+    assert tab.caption.slot is tab.placements[1].slot
+
+
+@pytest.mark.parametrize("level", LEVELS)
+def test_reveal_all_lets_the_halo_go_once_and_leaves_nothing_lit(qtbot, deck, level, monkeypatch):
+    at_level(level)
+    flares = []
+    real = HaloItem.flare
+    monkeypatch.setattr(HaloItem, "flare", lambda self, *a: (flares.append(a), real(self, *a)))
+    tab = make_tab(qtbot)
+    deal(qtbot, tab)
+
+    read(qtbot, tab)
+    qtbot.waitUntil(lambda: tab.halo.card is None, timeout=5000)
+
+    assert [pending for pending, _animate in flares] == [None]
+    assert tab.halo.light() == 0.0
+    assert tab.caption.slot is None
+    assert tab.patch.alpha == 0 or not tab.patch.isVisible()
+
+
+def test_every_back_catches_the_halos_light_falling_with_distance(qtbot, deck, off):
+    tab = make_tab(qtbot, three_card())
+    deal(qtbot, tab)
+    first, second, third = (p.card for p in tab.placements)
+
+    assert first.rim == pytest.approx(tab.halo.light())
+    assert first.rim > second.rim > third.rim > 0.0
+    tab.view.viewport().grab()
+
+    tab.turn_next()
+    assert second.rim == pytest.approx(tab.halo.light())
+    assert third.rim < second.rim
+
+
+def test_a_decks_own_back_is_rimmed_square_and_the_house_back_round(qtbot, deck, off, monkeypatch):
+    tab = make_tab(qtbot, three_card())
+    deal(qtbot, tab)
+    assert all(p.card._house_back for p in tab.placements)
+    tab.view.viewport().grab()
+
+    own = str(next(iter(sorted(Path(deck.deck_path).rglob("*.png")))))
+    monkeypatch.setattr(type(deck), "get_card_backs", lambda self: ({"default": own}, "default"))
+    tab = make_tab(qtbot, three_card())
+    deal(qtbot, tab)
+    assert not any(p.card._house_back for p in tab.placements)
+    assert tab.placements[0].card.rim > 0.0
+    tab.view.viewport().grab()
+
+
+@pytest.mark.parametrize("level", LEVELS)
+def test_the_candle_dims_while_face_down_and_lifts_once_read(qtbot, deck, level):
+    at_level(level)
+    tab = make_tab(qtbot, three_card())
+    assert tab.candle.level == 0.0
+
+    deal(qtbot, tab)
+    qtbot.waitUntil(lambda: tab.candle.level == 1.0, timeout=3000)
+    assert tab.patch.alpha > 0
+    tab.view.viewport().grab()
+
+    read(qtbot, tab)
+    qtbot.waitUntil(lambda: tab.candle.level == 0.0, timeout=3000)
+
+
+def test_a_light_ground_dims_toward_a_tone_of_itself_not_black(qtbot, deck, off):
+    ground = QColor("#e8dcc8")
+    tab = make_tab(qtbot, three_card())
+    tab.view.setBackgroundBrush(ground)
+    tab.set_ground(ground)
+    deal(qtbot, tab)
+    # Far enough out that the corner is past the candle's reach
+    tab.view.scale(0.1, 0.1)
+
+    corner = tab.view.viewport().grab().toImage().pixelColor(2, 2)
+    dim = dim_tone(ground)
+    for channel in ("red", "green", "blue"):
+        a, b = getattr(ground, channel)(), getattr(dim, channel)()
+        assert getattr(corner, channel)() == pytest.approx(a + (b - a) * CANDLE_ALPHA, abs=3)
+    assert dim.hslHue() == pytest.approx(ground.hslHue(), abs=6)
+    assert dim.lightness() > 40
+
+
+def test_at_full_the_halo_flickers_and_sparks(qtbot, deck):
+    at_level("Full")
+    tab = make_tab(qtbot, three_card())
+    deal(qtbot, tab)
+    qtbot.waitUntil(lambda: len(tab.halo.particles) > 10, timeout=3000)
+    seen = set()
+    qtbot.waitUntil(
+        lambda: (seen.add(round(tab.halo.brightness, 3)), len(seen) > 3)[1], timeout=3000
+    )
+    assert tab._clock_on
+    tab.view.viewport().grab()
+
+
+def test_reactive_marks_the_next_card_with_a_still_bloom(qtbot, deck):
+    at_level("Reactive")
+    tab = make_tab(qtbot, three_card())
+    deal(qtbot, tab)
+    qtbot.waitUntil(lambda: settled(tab) and tab.candle.is_still(), timeout=3000)
+    qtbot.waitUntil(lambda: not tab._clock_on, timeout=1000)
+
+    assert tab.halo.particles == []
+    assert tab.halo.brightness == HALO_STEADY
+    assert tab.halo.light() == pytest.approx(HALO_STEADY)
+
+
+def test_off_lights_everything_at_once_and_runs_no_clock(qtbot, deck, off):
+    tab = make_tab(qtbot, three_card())
+    deal(qtbot, tab)
+
+    assert not tab._clock_on
+    assert tab.halo.fade() == 1.0
+    assert tab.candle.level == 1.0
+    assert tab.caption.opacity == 1.0
+    assert tab.placements[1].card.rim > 0.0
+    tab.turn_next()
+    assert tab.halo.card is tab.placements[1].card
+    assert not tab._clock_on
+
+
+def test_hiding_the_tab_mid_flare_moves_the_halo_on(qtbot, deck):
+    at_level("Full")
+    tab = make_tab(qtbot, three_card())
+    deal(qtbot, tab)
+    tab.turn_next()
+    tab.hide()
+
+    assert tab.halo.card is tab.placements[1].card
+    assert tab.halo.is_steady()
+    assert tab.halo.particles == []
+
+
+def test_home_leaves_out_the_halos_light(qtbot, deck, off):
+    tab = make_tab(qtbot, three_card())
+    deal(qtbot, tab)
+    tab.on_home()
+    lit = tab.view.transform()
+
+    tab.halo.setVisible(False)
+    tab.patch.setVisible(False)
+    tab.on_home()
+    assert tab.view.transform() == lit

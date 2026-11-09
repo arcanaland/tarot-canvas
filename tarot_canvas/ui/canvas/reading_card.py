@@ -3,11 +3,13 @@
 import math
 import random
 from dataclasses import dataclass
+from functools import lru_cache
 
-from PyQt6.QtCore import QPointF, Qt
-from PyQt6.QtGui import QColor
+from PyQt6.QtCore import QPointF, QRectF, Qt
+from PyQt6.QtGui import QColor, QPainter, QPen, QPixmap
 from PyQt6.QtWidgets import QGraphicsItem
 
+from tarot_canvas.ui.canvas.backs import HOUSE_EDGE_PX, HOUSE_RADIUS
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
 from tarot_canvas.ui.canvas.motion import TICK_MS, MotionChannels
 
@@ -16,6 +18,40 @@ TURN_S = 0.5
 TURN_LIFT = 1.10
 # A face-down card's colour on the tab icon
 FACE_DOWN_MARK = QColor(110, 96, 90)
+
+# The halo's light caught by a face-down card's edge, drawn with Plus
+RIM_RGB = (255, 170, 70)
+RIM_ALPHA = 200
+RIM_GLOW_PX = 10.0
+RIM_GLOW_ALPHA = 70
+# The light at which the edge's alpha is whole: the rim is baked at it and drawn at a share
+RIM_FULL = 255 / RIM_ALPHA
+# A change in the rim's light smaller than this is not repainted
+RIM_STEP = 1.0 / 255.0
+
+
+@lru_cache(maxsize=8)
+def rim_pixmap(width, height, dpr, house):
+    """The rim at a light of RIM_FULL, for a back of width by height device px"""
+    pixmap = QPixmap(width, height)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    pixmap.setDevicePixelRatio(dpr)
+    rect = QRectF(0, 0, width / dpr, height / dpr)
+    radius = rect.width() * HOUSE_RADIUS if house else 0.0
+    inset = HOUSE_EDGE_PX / 2.0
+    edge = rect.adjusted(inset, inset, -inset, -inset)
+    r, g, b = RIM_RGB
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+    # A soft glow just inside the edge, then the edge itself
+    painter.setPen(QPen(QColor(r, g, b, round(RIM_GLOW_ALPHA * RIM_FULL)), RIM_GLOW_PX))
+    painter.drawRoundedRect(edge, radius, radius)
+    painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Plus)
+    painter.setPen(QPen(QColor(r, g, b, 255), HOUSE_EDGE_PX))
+    painter.drawRoundedRect(edge, radius, radius)
+    painter.end()
+    return pixmap
 
 
 def is_face_down(item):
@@ -75,11 +111,23 @@ class ReadingCard(DraggableCardItem):
         self.drawn_reversed = reversed
         self.face_down = True
         self._turning = None
+        # The halo's light on the back's edge, 0 to a little over 1
+        self.rim = 0.0
+        self._house_back = False
         self.set_interactive(False)
         self._apply_motion()
 
-    def lie_face_down(self, back):
+    def lie_face_down(self, back, house=False):
+        """Show back until the turn; house says it is the house back, with its rounded corners"""
         self.setPixmap(back)
+        self._house_back = house
+
+    def set_rim(self, light):
+        if abs(light - self.rim) < RIM_STEP and (light > 0.0) == (self.rim > 0.0):
+            return
+        self.rim = light
+        if self.face_down:
+            self.update()
 
     def set_interactive(self, interactive):
         flags = QGraphicsItem.GraphicsItemFlag
@@ -158,6 +206,21 @@ class ReadingCard(DraggableCardItem):
             self._turning = None
             self._turned()
         return super().settle_motion()
+
+    def paint(self, painter, option, widget=None):
+        super().paint(painter, option, widget)
+        if self.face_down and self.rim > 0.0:
+            self._paint_rim(painter)
+
+    def _paint_rim(self, painter):
+        back = self.pixmap()
+        rim = rim_pixmap(back.width(), back.height(), back.devicePixelRatio(), self._house_back)
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Plus)
+        painter.setOpacity(min(1.0, self.rim / RIM_FULL))
+        painter.drawPixmap(self.offset(), rim)
+        painter.restore()
 
     # -- the pointer: face-down, only a turn ------------------------------------------
 

@@ -148,7 +148,7 @@ class PannableGraphicsView(QGraphicsView):
         # create bounding box for visible items
         rect = QRectF()
         for item in self.scene().items():
-            if item.isVisible():
+            if item.isVisible() and getattr(item, "frames_home", True):
                 rect = rect.united(item.sceneBoundingRect())
 
         if rect.isNull():
