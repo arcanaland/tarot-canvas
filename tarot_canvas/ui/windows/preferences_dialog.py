@@ -1,8 +1,17 @@
 import sys
 
 from PyQt6.QtCore import QLocale, QRectF, QSize, Qt, QUrl, pyqtSignal
-from PyQt6.QtGui import QColor, QDesktopServices, QGuiApplication, QIcon, QPainter, QPixmap
+from PyQt6.QtGui import (
+    QColor,
+    QDesktopServices,
+    QGuiApplication,
+    QIcon,
+    QPainter,
+    QPixmap,
+    QRadialGradient,
+)
 from PyQt6.QtWidgets import (
+    QButtonGroup,
     QCheckBox,
     QColorDialog,
     QComboBox,
@@ -37,6 +46,7 @@ from tarot_canvas.settings import (
     CANVAS_TAB_MINIMAP_KEY,
     CHECKERBOARD_COLOR_DEFAULT,
     CHECKERBOARD_COLOR_KEY,
+    GROUND_HUE_KEY,
     HARDWARE_ACCELERATION_DEFAULT,
     HARDWARE_ACCELERATION_KEY,
     MOTION_LEVEL_DEFAULT,
@@ -53,6 +63,7 @@ from tarot_canvas.settings import (
 )
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.canvas.gl_marker import clear_marker
+from tarot_canvas.ui.canvas.ground import GROUND_HUE_DEFAULT, GROUND_HUES, ground_hue_id
 from tarot_canvas.ui.icons import LIBRARY_ICON
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.pane_text import pane_form
@@ -84,6 +95,9 @@ POSITIONING_LABELS = (
     ("center", PREFERENCES["positioning_center"]),
     ("tile", PREFERENCES["positioning_tile"]),
 )
+# The types drawn in a GroundHue, which show the hue row
+HUED_STYLES = ("gradient", "swirl")
+
 # The positionings that can leave the canvas uncovered, where the fill shows
 FILLED_POSITIONINGS = ("fit", "center")
 
@@ -276,6 +290,9 @@ class PreferencesDialog(QDialog):
         self.background_form.addRow(
             PREFERENCES["background_colour_label"], self.checkerboard_color_btn
         )
+        # Swirl and Aura share this row and its key, so the swirl's fallback matches
+        self.hue_row = self.build_hue_row()
+        self.background_form.addRow(PREFERENCES["background_hue_label"], self.hue_row)
 
         self.positioning_combo = keyed_combo(POSITIONING_LABELS)
         self.positioning_combo.currentIndexChanged.connect(self.show_type_rows)
@@ -310,6 +327,7 @@ class PreferencesDialog(QDialog):
             for field in (
                 self.solid_color_btn,
                 self.checkerboard_color_btn,
+                self.hue_row,
                 self.positioning_combo,
                 self.fill_color_btn,
             )
@@ -318,6 +336,60 @@ class PreferencesDialog(QDialog):
 
         page.setLayout(form)
         return page
+
+    def build_hue_row(self):
+        """One checkable round swatch per GroundHue, in GROUND_HUES order"""
+        row = QWidget()
+        layout = QHBoxLayout(row)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(units.SMALL_SPACING)
+        self.hue_group = QButtonGroup(row)
+        self.hue_group.setExclusive(True)
+        self.hue_buttons = {}
+        for hue_id, hue in GROUND_HUES.items():
+            button = QToolButton()
+            button.setCheckable(True)
+            button.setAutoRaise(True)
+            name = PREFERENCES[f"hue_{hue_id}"]
+            button.setToolTip(name)
+            button.setAccessibleName(name)
+            button.setIcon(self.hue_icon(button, hue))
+            self.hue_group.addButton(button)
+            self.hue_buttons[hue_id] = button
+            layout.addWidget(button)
+        layout.addStretch(1)
+        self.hue_group.buttonToggled.connect(self.update_apply_button)
+        return row
+
+    def hue_icon(self, button, hue):
+        """A disc of the preset's swirl colours, light at the centre to dark at the rim"""
+        size = button.iconSize()
+        ratio = self.devicePixelRatioF()
+        pixmap = QPixmap(QSize(round(size.width() * ratio), round(size.height() * ratio)))
+        pixmap.setDevicePixelRatio(ratio)
+        pixmap.fill(Qt.GlobalColor.transparent)
+
+        rect = QRectF(0, 0, size.width(), size.height()).adjusted(0.5, 0.5, -0.5, -0.5)
+        light, mid, dark = hue.swirl[2], hue.swirl[0], hue.swirl[1]
+        gradient = QRadialGradient(rect.center(), rect.width() / 2)
+        gradient.setStops(((0.0, light), (0.6, mid), (1.0, dark)))
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(self.palette().mid().color())
+        painter.setBrush(gradient)
+        painter.drawEllipse(rect)
+        painter.end()
+        return QIcon(pixmap)
+
+    def selected_hue(self):
+        for hue_id, button in self.hue_buttons.items():
+            if button.isChecked():
+                return hue_id
+        return GROUND_HUE_DEFAULT
+
+    def select_hue(self, hue_id):
+        button = self.hue_buttons.get(hue_id) or self.hue_buttons[GROUND_HUE_DEFAULT]
+        button.setChecked(True)
 
     @staticmethod
     def swatch_button(slot):
@@ -341,6 +413,7 @@ class PreferencesDialog(QDialog):
         form = self.background_form
         form.setRowVisible(self.solid_color_btn, style == "solid")
         form.setRowVisible(self.checkerboard_color_btn, style == "checkerboard")
+        form.setRowVisible(self.hue_row, style in HUED_STYLES)
         image = style == "image"
         form.setRowVisible(self.positioning_combo, image)
         filled = self.positioning_combo.currentData() in FILLED_POSITIONINGS
@@ -468,6 +541,7 @@ class PreferencesDialog(QDialog):
             self.bg_combo.currentData(),
             self.bg_color.name(),
             self.checkerboard_color.name(),
+            self.selected_hue(),
             self.background_grid.selected_name(),
             self.positioning_combo.currentData(),
             self.fill_color.name(),
@@ -495,6 +569,7 @@ class PreferencesDialog(QDialog):
         background,
         colour,
         checkerboard_colour,
+        hue,
         image,
         positioning,
         fill,
@@ -510,6 +585,7 @@ class PreferencesDialog(QDialog):
         select_data(self.motion_combo, motion)
         self.set_bg_color(colour)
         self.set_checkerboard_color(checkerboard_colour)
+        self.select_hue(hue)
         self.background_grid.select_name(image)
         select_data(self.positioning_combo, positioning)
         self.set_fill_color(fill)
@@ -530,6 +606,7 @@ class PreferencesDialog(QDialog):
             get_background_style(settings),
             settings.value(BACKGROUND_COLOR_KEY, BACKGROUND_COLOR_DEFAULT),
             settings.value(CHECKERBOARD_COLOR_KEY, CHECKERBOARD_COLOR_DEFAULT),
+            ground_hue_id(settings),
             settings.value(BACKGROUND_IMAGE_KEY, BACKGROUND_IMAGE_DEFAULT),
             get_background_positioning(settings),
             settings.value(BACKGROUND_FILL_KEY, BACKGROUND_FILL_DEFAULT),
@@ -556,6 +633,7 @@ class PreferencesDialog(QDialog):
             BACKGROUND_STYLE_DEFAULT,
             BACKGROUND_COLOR_DEFAULT,
             CHECKERBOARD_COLOR_DEFAULT,
+            GROUND_HUE_DEFAULT,
             BACKGROUND_IMAGE_DEFAULT,
             BACKGROUND_POSITIONING_DEFAULT,
             BACKGROUND_FILL_DEFAULT,
@@ -573,6 +651,7 @@ class PreferencesDialog(QDialog):
         settings.setValue(MOTION_LEVEL_KEY, self.motion_combo.currentData())
         settings.setValue(BACKGROUND_COLOR_KEY, self.bg_color.name())
         settings.setValue(CHECKERBOARD_COLOR_KEY, self.checkerboard_color.name())
+        settings.setValue(GROUND_HUE_KEY, self.selected_hue())
         settings.setValue(BACKGROUND_IMAGE_KEY, self.background_grid.selected_name())
         settings.setValue(BACKGROUND_POSITIONING_KEY, self.positioning_combo.currentData())
         settings.setValue(BACKGROUND_FILL_KEY, self.fill_color.name())

@@ -31,6 +31,7 @@ from tarot_canvas.settings import (
     get_reading_text_scale,
     get_settings,
 )
+from tarot_canvas.ui.canvas.ground import GROUND_HUE_DEFAULT
 from tarot_canvas.ui.library.catalog_client import deck_catalog
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
@@ -259,6 +260,7 @@ def test_restore_defaults_resets_the_form_and_stores_nothing(qtbot, theme_kept):
         BACKGROUND_STYLE_DEFAULT,
         BACKGROUND_COLOR_DEFAULT,
         CHECKERBOARD_COLOR_DEFAULT,
+        GROUND_HUE_DEFAULT,
         BACKGROUND_IMAGE_DEFAULT,
         BACKGROUND_POSITIONING_DEFAULT,
         BACKGROUND_FILL_DEFAULT,

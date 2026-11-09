@@ -17,6 +17,9 @@ LEGACY_BACKGROUND_STYLES = {
     "Solid Color": "solid",
 }
 
+# The preset Swirl and Aura share, an id in ui.canvas.ground.GROUND_HUES
+GROUND_HUE_KEY = "appearance/ground_hue"
+
 BACKGROUND_COLOR_KEY = "appearance/background_color"
 BACKGROUND_COLOR_DEFAULT = "#1e1432"
 

@@ -1,13 +1,73 @@
 import math
+from dataclasses import dataclass
 
 from PyQt6.QtGui import QColor
 
-# The canvas's default radial gradient, center to edge
-GRADIENT_STOPS = (
-    (0.0, QColor(50, 30, 80)),
-    (0.5, QColor(30, 18, 60)),
-    (1.0, QColor(15, 10, 30)),
-)
+from tarot_canvas.settings import GROUND_HUE_KEY, get_settings
+
+
+@dataclass
+class GroundHue:
+    """One preset shared by Swirl and Aura: six hand-tuned colours, none derived.
+
+    Mutable only so the tuning dock can edit one live.
+    """
+
+    # The swirl shader's colour_1, colour_2, colour_3
+    swirl: tuple
+    # Aura's radial stops: centre, middle, edge
+    aura: tuple
+
+    def aura_stops(self):
+        return tuple(zip((0.0, 0.5, 1.0), self.aura, strict=True))
+
+
+# In swatch order. Each id is stored in GROUND_HUE_KEY and named by PREFERENCES["hue_<id>"]
+GROUND_HUES = {
+    "violet": GroundHue(
+        swirl=(QColor("#50396b"), QColor("#301f46"), QColor("#8671a5")),
+        aura=(QColor(50, 30, 80), QColor(30, 18, 60), QColor(15, 10, 30)),
+    ),
+    "green": GroundHue(
+        swirl=(QColor("#23512f"), QColor("#0c3217"), QColor("#5d8966")),
+        aura=(QColor("#023514"), QColor("#00230b"), QColor("#031206")),
+    ),
+    "orange": GroundHue(
+        swirl=(QColor("#6e3214"), QColor("#471901"), QColor("#a96b4f")),
+        aura=(QColor("#4a1a01"), QColor("#330f00"), QColor("#1d0700")),
+    ),
+    "blue": GroundHue(
+        swirl=(QColor("#234773"), QColor("#0d294b"), QColor("#5b7fad")),
+        aura=(QColor("#042a56"), QColor("#011b3d"), QColor("#030e1f")),
+    ),
+    "red": GroundHue(
+        swirl=(QColor("#6e302c"), QColor("#471715"), QColor("#aa6863")),
+        aura=(QColor("#501111"), QColor("#390507"), QColor("#1d0605")),
+    ),
+    "cream": GroundHue(
+        swirl=(QColor("#e9ddc4"), QColor("#d7c9ae"), QColor("#fbf4e6")),
+        aura=(QColor("#f6eedc"), QColor("#eae0cb"), QColor("#d2c6ae")),
+    ),
+    "gold": GroundHue(
+        swirl=(QColor("#714a20"), QColor("#4c2e0c"), QColor("#ab835c")),
+        aura=(QColor("#522e01"), QColor("#3c2000"), QColor("#251506")),
+    ),
+    "grey": GroundHue(
+        swirl=(QColor("#464646"), QColor("#292929"), QColor("#7d7d7d")),
+        aura=(QColor("#2b2b2b"), QColor("#1c1c1c"), QColor("#0e0e0e")),
+    ),
+}
+GROUND_HUE_DEFAULT = "violet"
+
+
+def ground_hue_id(settings=None):
+    """The stored preset's id, or the default's when it names none we have"""
+    stored = (settings or get_settings()).value(GROUND_HUE_KEY)
+    return stored if stored in GROUND_HUES else GROUND_HUE_DEFAULT
+
+
+# The default preset's Aura, center to edge
+GRADIENT_STOPS = GROUND_HUES[GROUND_HUE_DEFAULT].aura_stops()
 
 CHECKERBOARD_CONTRAST = 1.35
 # Each square's side in scene units

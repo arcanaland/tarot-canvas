@@ -1,9 +1,10 @@
 import pytest
 from PyQt6.QtCore import QSize
-from PyQt6.QtGui import QColor, QRadialGradient
+from PyQt6.QtGui import QRadialGradient
 
 from tarot_canvas.settings import BACKGROUND_STYLE_KEY, get_settings
 from tarot_canvas.ui.canvas import swirl
+from tarot_canvas.ui.canvas.ground import GROUND_HUE_DEFAULT, GROUND_HUES
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 
 
@@ -36,7 +37,7 @@ def test_a_failed_render_falls_back_and_never_raises(qtbot, monkeypatch):
     qtbot.wait(20)
     tab.view.viewport().repaint()
     assert tab.view.swirl.image is None
-    assert tab.view.backgroundBrush().color() == QColor(swirl.PARAMS["colour_1"])
+    assert tab.view.backgroundBrush().color() == GROUND_HUES[GROUND_HUE_DEFAULT].swirl[0]
     get_settings().setValue(BACKGROUND_STYLE_KEY, "gradient")
     tab.apply_background_settings()
     assert tab.view.swirl is None

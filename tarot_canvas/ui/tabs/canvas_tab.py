@@ -72,8 +72,10 @@ from tarot_canvas.ui.canvas.detail import (
 )
 from tarot_canvas.ui.canvas.ground import (
     CHECKERBOARD_SQUARE,
-    GRADIENT_STOPS,
+    GROUND_HUE_DEFAULT,
+    GROUND_HUES,
     checkerboard_partner,
+    ground_hue_id,
 )
 from tarot_canvas.ui.canvas.guides import GuideItem
 from tarot_canvas.ui.canvas.motion import (
@@ -112,17 +114,22 @@ GROUNDS = {
     "checkerboard": lambda tab, settings: tab.create_checkerboard_background(
         settings.value(CHECKERBOARD_COLOR_KEY, CHECKERBOARD_COLOR_DEFAULT)
     ),
-    "gradient": lambda tab, settings: tab.create_gradient_background(),
+    "gradient": lambda tab, settings: tab.create_gradient_background(ground_hue(settings)),
     "solid": lambda tab, settings: tab.create_solid_color_background(
         settings.value(BACKGROUND_COLOR_KEY, BACKGROUND_COLOR_DEFAULT)
     ),
-    "swirl": lambda tab, settings: tab.create_swirl_background(),
+    "swirl": lambda tab, settings: tab.create_swirl_background(ground_hue(settings)),
     "image": lambda tab, settings: tab.create_image_background(
         settings.value(BACKGROUND_IMAGE_KEY, BACKGROUND_IMAGE_DEFAULT),
         get_background_positioning(settings),
         settings.value(BACKGROUND_FILL_KEY, BACKGROUND_FILL_DEFAULT),
     ),
 }
+
+
+def ground_hue(settings):
+    """The GroundHue Swirl and Aura draw: the dock's while it tunes one, else the stored"""
+    return GROUND_HUES[swirl.tuned_hue_id(ground_hue_id(settings))]
 
 
 def wheel_turn(orient, notches, fine):
@@ -164,6 +171,7 @@ class CanvasTab(BaseTab):
         self.ambient_gain = 0.0
         # How fast the ground moves on its own
         self.ground_pace = Pace()
+        self._tuning_connected = False
 
         self._cards = []
         self._top_z = 0.0
@@ -387,7 +395,13 @@ class CanvasTab(BaseTab):
         view_scale = abs(self.view.transform().m11())
         for card in self._cards:
             card.advance_motion(t, dt, self.ambient_gain, view_scale)
-        ground_moves = self.ground_motion_is_allowed()
+        # Tuning in the dock takes focus from the window; the swirl keeps moving
+        ground_moves = self.ground_motion_is_allowed() or (
+            swirl.dock_is_active()
+            and self.motion_level == "Full"
+            and self.desktop_wants_animation
+            and self.isVisible()
+        )
         # Held still, the pace is wherever it was going, so nothing resumes mid-ease
         if ground_moves:
             self.ground_pace.advance(dt)
@@ -419,33 +433,50 @@ class CanvasTab(BaseTab):
         self.motion_clock.unsubscribe(self._advance_motion)
         self.settle_motion()
 
-    def create_gradient_background(self):
-        """Create a gradient background for the canvas"""
+    def create_gradient_background(self, hue=None):
+        """Aura: a radial gradient through hue's three stops"""
+        hue = hue or GROUND_HUES[GROUND_HUE_DEFAULT]
         center = QPointF(0, 0)
         radius = 800
         gradient = QRadialGradient(center, radius)
 
-        gradient.setStops(GRADIENT_STOPS)
+        gradient.setStops(hue.aura_stops())
+        self._show_dock()
 
         brush = QBrush(gradient)
         self.scene.setBackgroundBrush(brush)
         self.view.setBackgroundBrush(brush)
         return gradient.stops()[0][1]
 
-    def create_swirl_background(self):
-        """The moving ground, or the gradient where no GL context can draw it"""
+    def create_swirl_background(self, hue=None):
+        """The moving ground, or Aura in the same hue where no GL context can draw it"""
+        hue = hue or GROUND_HUES[GROUND_HUE_DEFAULT]
         field = swirl.field()
         if field is None:
-            return self.create_gradient_background()
+            return self.create_gradient_background(hue)
         if self.view.swirl is None:
             self.view.swirl = swirl.SwirlGround(self.view, field, self)
-            self.view.swirl.request()
+        self.view.swirl.colours = swirl.colour_values(hue)
+        self.view.swirl.request()
+        self._show_dock()
         # A solid colour for everything that reads the brush rather than the field
-        colour = QColor(swirl.PARAMS["colour_1"])
+        colour = QColor(hue.swirl[0])
         brush = QBrush(colour)
         self.scene.setBackgroundBrush(brush)
         self.view.setBackgroundBrush(brush)
         return colour
+
+    def _show_dock(self):
+        """The tuning dock, when asked for by DOCK_ENV; its edits redraw this ground"""
+        if not swirl.dock_wanted() or self._tuning_connected:
+            return
+        self._tuning_connected = True
+        swirl.tuning.changed.connect(self._on_tuned)
+        QTimer.singleShot(0, lambda: swirl.show_dock(self.window()))
+
+    @pyqtSlot()
+    def _on_tuned(self):
+        self.apply_background_settings()
 
     def _drop_swirl(self):
         if self.view.swirl is None:
