@@ -2,7 +2,7 @@ import tomllib
 
 import pytest
 
-from tarot_canvas.models import spreads
+from tarot_canvas.models import spreads, toml_files
 from tarot_canvas.models.spreads import Position, Spread
 
 
@@ -54,7 +54,7 @@ def test_a_failed_save_keeps_the_old_file_and_leaves_no_temporary(tmp_path, monk
     def fail(*_):
         raise OSError("disk full")
 
-    monkeypatch.setattr(spreads.os, "replace", fail)
+    monkeypatch.setattr(toml_files.os, "replace", fail)
     with pytest.raises(OSError):
         spreads.save(tmp_path, sample())
 
@@ -96,7 +96,7 @@ def test_scan_of_a_missing_base_is_empty(tmp_path):
 
 
 def test_a_new_folder_is_named_by_the_time_and_steps_past_a_taken_one(tmp_path, monkeypatch):
-    monkeypatch.setattr(spreads.time, "time", lambda: 1000.5)
+    monkeypatch.setattr(toml_files.time, "time", lambda: 1000.5)
     assert spreads.new_spread_dir(tmp_path) == tmp_path / "1000"
     assert spreads.new_spread_dir(tmp_path) == tmp_path / "1001"
     assert (tmp_path / "1001").is_dir()
@@ -152,7 +152,7 @@ def test_a_file_with_nesting_it_may_keep_survives_a_save(tmp_path):
 
 
 def test_load_accepts_the_largest_numbers_it_allows(tmp_path):
-    limit = spreads.MAX_NUMBER
+    limit = toml_files.MAX_NUMBER
     folder = write_spread(
         tmp_path, f'[[positions]]\nid = "p1"\nx = {limit}\ny = {-limit}\nz = {limit}\n'
     )

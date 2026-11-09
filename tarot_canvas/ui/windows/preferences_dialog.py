@@ -236,7 +236,7 @@ class PreferencesDialog(QDialog):
         pages = [
             ("appearance", "games-config-theme", self.build_appearance_page),
             ("canvas", "draw-rectangle", self.build_canvas_page),
-            ("background", "preferences-desktop-wallpaper", self.build_background_page),
+            ("background", "folder-image-symbolic", self.build_background_page),
             ("library", LIBRARY_ICON, self.build_library_page),
             ("shortcuts", "configure-shortcuts", self.build_shortcuts_page),
         ]
