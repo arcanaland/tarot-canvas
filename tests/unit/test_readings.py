@@ -281,7 +281,7 @@ def test_a_bad_app_table_or_version_is_logged_and_the_reading_still_loads(
 ):
     warnings = []
     monkeypatch.setattr(readings.logger, "warning", warnings.append)
-    write(tmp_path, "date = 2026-11-09\n[[cards]]\nid = 'major_arcana.0'\n" + app)
+    write(tmp_path, "date = 2026-11-09\n" + app + "[[cards]]\nid = 'major_arcana.0'\n")
 
     assert readings.load(tmp_path).cards[0].id == "major_arcana.0"
     assert len(warnings) == 1
