@@ -1,7 +1,7 @@
 import math
 
 from PyQt6.QtCore import QPointF, QRectF, Qt
-from PyQt6.QtGui import QPainterPath, QPixmap
+from PyQt6.QtGui import QColor, QPainterPath, QPixmap
 from PyQt6.QtWidgets import (
     QGraphicsItem,
     QGraphicsPixmapItem,
@@ -32,6 +32,7 @@ from tarot_canvas.ui.canvas.motion import (
     SHADOW_BLUR_PX,
     SHADOW_EPSILON_PX,
     SHADOW_LIFT_EPSILON,
+    SHADOW_OPACITY,
     SHADOW_Z_OFFSET,
     SPIN_RATE,
     AmbientDrift,
@@ -43,7 +44,7 @@ from tarot_canvas.ui.canvas.motion import (
     rest,
     shadow_geometry,
 )
-from tarot_canvas.ui.canvas.selection import GILT_ON_DARK, SelectionMarks
+from tarot_canvas.ui.canvas.selection import GILT_ON_DARK, SelectionMarks, tint_silhouette
 from tarot_canvas.ui.card_colours import card_colour
 
 # Degrees of Z rotation on hover
@@ -90,6 +91,8 @@ class DraggableCardItem(QGraphicsPixmapItem):
         self._registered_tab = None
 
         self.shadow = ContactShadowItem(build_contact_shadow(pixmap))
+        self._shadow_tone = QColor(Qt.GlobalColor.black)
+        self._shadow_opacity = SHADOW_OPACITY
         self._shadow_pad = float(round(SHADOW_BLUR_PX))
         shadow_rect = self.shadow.boundingRect()
         # How far the shadow's corners sit from the centre it turns about
@@ -317,9 +320,20 @@ class DraggableCardItem(QGraphicsPixmapItem):
     def set_gilt(self, color):
         self.marks.set_tone(color)
 
+    def set_shadow_tone(self, color, opacity):
+        """Cast the shadow in this colour, at this opacity when resting."""
+        color = QColor(color)
+        if color != self._shadow_tone:
+            self._shadow_tone = color
+            self.shadow.setPixmap(tint_silhouette(self.shadow.pixmap(), color))
+        if opacity != self._shadow_opacity:
+            self._shadow_opacity = opacity
+            self._shadow_lift = None
+            self._place_shadow()
+
     def _place_shadow(self):
         lift = self.motion.lift
-        offset, scale, opacity = shadow_geometry(lift)
+        offset, scale, opacity = shadow_geometry(lift, self._shadow_opacity)
         rect = self.boundingRect()
         shadow_rect = self.shadow.boundingRect()
         x = self.pos().x() + (rect.width() - shadow_rect.width()) / 2.0 + self.motion.drift_x

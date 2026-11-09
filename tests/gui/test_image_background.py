@@ -1,5 +1,6 @@
+import pytest
 from PyQt6.QtCore import QSize, Qt
-from PyQt6.QtGui import QColor, QImage
+from PyQt6.QtGui import QColor, QImage, QPixmap
 
 from tarot_canvas.settings import (
     BACKGROUND_FILL_KEY,
@@ -8,6 +9,8 @@ from tarot_canvas.settings import (
     BACKGROUND_STYLE_KEY,
     get_settings,
 )
+from tarot_canvas.ui.canvas.card_item import DraggableCardItem
+from tarot_canvas.ui.canvas.ground import shadow_for_ground
 from tarot_canvas.ui.canvas.selection import GILT_ON_DARK, GILT_ON_LIGHT
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 
@@ -69,6 +72,30 @@ def test_the_selection_tone_follows_the_images_colour(qtbot, backgrounds_base):
     store_image_ground(write_image(backgrounds_base, "night.png", "#101018"), "tile")
     tab.apply_background_settings()
     assert tab.gilt == QColor(GILT_ON_DARK)
+
+
+def _shadow_colour(card):
+    image = card.shadow.pixmap().toImage()
+    return image.pixelColor(image.width() // 2, image.height() // 2)
+
+
+def test_the_shadow_takes_the_images_tone_and_follows_it(qtbot, backgrounds_base):
+    store_image_ground(write_image(backgrounds_base, "linen.png", "#f4f0e8"), "crop", "#000000")
+    tab = make_tab(qtbot)
+    pixmap = QPixmap(120, 200)
+    pixmap.fill(Qt.GlobalColor.white)
+    card = DraggableCardItem(pixmap, {"id": "card-0"}, tab)
+    tab.scene.addItem(card)
+
+    tone, opacity = shadow_for_ground(QColor("#f4f0e8"))
+    assert _shadow_colour(card).rgb() == tone.rgb()
+    assert card.shadow.opacity() == pytest.approx(opacity)
+
+    store_image_ground(write_image(backgrounds_base, "night.png", "#101018"), "tile")
+    tab.apply_background_settings()
+    tone, opacity = shadow_for_ground(QColor("#101018"))
+    assert _shadow_colour(card).rgb() == tone.rgb()
+    assert card.shadow.opacity() == pytest.approx(opacity)
 
 
 def test_a_missing_image_draws_the_gradient(qtbot, backgrounds_base):

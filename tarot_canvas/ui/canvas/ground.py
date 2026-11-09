@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from PyQt6.QtGui import QColor
 
 from tarot_canvas.settings import GROUND_HUE_KEY, get_settings
+from tarot_canvas.ui.canvas.motion import SHADOW_OPACITY
 
 
 @dataclass(frozen=True)
@@ -70,6 +71,15 @@ CHECKERBOARD_CONTRAST = 1.35
 CHECKERBOARD_SQUARE = 80
 CHECKERBOARD_DARKEN_FROM = 0.6
 _BISECTIONS = 40
+
+# A shadow is the ground with less light on it: its own hue, darker and a little richer
+SHADOW_TONE_LIGHTNESS = 0.35
+SHADOW_TONE_CHROMA = 1.5
+# Black at a fixed alpha takes far more off a light ground than a dark one,
+# so the shadow fades between these OKLab lightnesses
+SHADOW_OPACITY_ON_LIGHT = 0.22
+SHADOW_DARK_GROUND = 0.3
+SHADOW_LIGHT_GROUND = 0.9
 _GAMUT_EPSILON = 1e-6
 
 
@@ -172,3 +182,23 @@ def checkerboard_partner(color, contrast=CHECKERBOARD_CONTRAST):
 
     partner = _fit((low + high) / 2, chroma, hue)
     return QColor(*(round(_encode(channel) * 255) for channel in partner))
+
+
+def shadow_for_ground(color):
+    """(tone, opacity) for a card's shadow cast on a ground of this colour"""
+    color = QColor(color)
+    rgb = tuple(_decode(channel) for channel in (color.redF(), color.greenF(), color.blueF()))
+    lightness, a, b = _to_oklab(rgb)
+    chroma = math.hypot(a, b)
+    if chroma < 1e-4:
+        chroma = 0.0
+    hue = math.atan2(b, a)
+
+    tone = _fit(lightness * SHADOW_TONE_LIGHTNESS, chroma * SHADOW_TONE_CHROMA, hue)
+    tone = QColor(*(round(_encode(channel) * 255) for channel in tone))
+
+    t = (lightness - SHADOW_DARK_GROUND) / (SHADOW_LIGHT_GROUND - SHADOW_DARK_GROUND)
+    t = min(max(t, 0.0), 1.0)
+    t = t * t * (3.0 - 2.0 * t)
+    opacity = SHADOW_OPACITY + (SHADOW_OPACITY_ON_LIGHT - SHADOW_OPACITY) * t
+    return tone, opacity

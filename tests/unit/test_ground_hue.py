@@ -1,3 +1,5 @@
+import math
+
 import pytest
 from PyQt6.QtGui import QColor
 
@@ -6,8 +8,13 @@ from tarot_canvas.ui.canvas.ground import (
     GRADIENT_STOPS,
     GROUND_HUE_DEFAULT,
     GROUND_HUES,
+    SHADOW_OPACITY_ON_LIGHT,
+    _decode,
+    _to_oklab,
     ground_hue_id,
+    shadow_for_ground,
 )
+from tarot_canvas.ui.canvas.motion import SHADOW_OPACITY
 from tarot_canvas.ui.strings import PREFERENCES
 
 
@@ -46,3 +53,35 @@ def test_a_stored_hue_is_read_back():
 
 def test_aura_is_the_gradients_new_label():
     assert PREFERENCES["background_gradient"] == "Aura"
+
+
+def _oklab(color):
+    rgb = tuple(_decode(c) for c in (color.redF(), color.greenF(), color.blueF()))
+    return _to_oklab(rgb)
+
+
+def test_a_shadow_on_a_warm_ground_keeps_its_hue_and_gains_chroma():
+    ground = QColor("#eae0cb")
+    tone, _ = shadow_for_ground(ground)
+    ground_l, ground_a, ground_b = _oklab(ground)
+    tone_l, tone_a, tone_b = _oklab(tone)
+
+    assert tone_l < ground_l / 2
+    assert math.hypot(tone_a, tone_b) > math.hypot(ground_a, ground_b)
+    hue_shift = math.atan2(tone_b, tone_a) - math.atan2(ground_b, ground_a)
+    assert abs(math.remainder(hue_shift, math.tau)) < 0.1
+
+
+def test_a_shadow_on_grey_stays_grey():
+    tone, _ = shadow_for_ground(QColor("#808080"))
+    assert tone.red() == tone.green() == tone.blue()
+
+
+def test_a_light_ground_takes_a_fainter_shadow_than_a_dark_one():
+    _, on_dark = shadow_for_ground(QColor("#1e123c"))
+    _, on_mid = shadow_for_ground(QColor("#808080"))
+    _, on_light = shadow_for_ground(QColor("#eae0cb"))
+
+    assert on_dark == SHADOW_OPACITY
+    assert on_light == pytest.approx(SHADOW_OPACITY_ON_LIGHT)
+    assert on_light < on_mid < on_dark

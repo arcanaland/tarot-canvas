@@ -76,10 +76,12 @@ from tarot_canvas.ui.canvas.ground import (
     GROUND_HUES,
     checkerboard_partner,
     ground_hue_id,
+    shadow_for_ground,
 )
 from tarot_canvas.ui.canvas.guides import GuideItem
 from tarot_canvas.ui.canvas.motion import (
     AMBIENT_GAIN_FLOOR,
+    SHADOW_OPACITY,
     MotionClock,
     Pace,
     approach,
@@ -183,6 +185,7 @@ class CanvasTab(BaseTab):
         self.guide_item = GuideItem()
         self.desktop_wants_animation = True
         self.gilt = QColor(GILT_ON_DARK)
+        self.shadow_tone = (QColor(Qt.GlobalColor.black), SHADOW_OPACITY)
         # Arrange on Arc starts from the last one this tab made
         self.arc_settings = dict(ARC_DEFAULTS)
         self.arc_popover = None
@@ -331,11 +334,13 @@ class CanvasTab(BaseTab):
         return self.ground_motion_is_allowed()
 
     def set_ground(self, color):
-        """Pick the selection tone that shows up against this background colour."""
+        """Pick the selection and shadow tones that suit this background colour."""
         self.ground = QColor(color)
         self.gilt = gilt_for_ground(color)
+        self.shadow_tone = shadow_for_ground(color)
         for card in self._cards:
             card.set_gilt(self.gilt)
+            card.set_shadow_tone(*self.shadow_tone)
         self.guide_item.set_tone(self.gilt)
 
     def _on_zoom_changed(self, view_scale):
@@ -371,6 +376,7 @@ class CanvasTab(BaseTab):
         """Called by a card when it enters this tab's scene."""
         if card not in self._cards:
             self._cards.append(card)
+            card.set_shadow_tone(*self.shadow_tone)
             self.schedule_detail()
             self.schedule_tab_icon()
             self.update_save_layout_action()
