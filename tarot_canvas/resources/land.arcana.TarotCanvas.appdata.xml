@@ -14,6 +14,7 @@
     <p>Tarot Canvas is a digital home for your personal tarot collection.</p>
     <ul>
       <li>Explore tarot decks and discover card meanings.</li>
+      <li>Perform tarot readings using your library of decks and spreads.</li>
       <li>Create your own spreads and arrange tarot cards from any deck on a virtual canvas.</li>
       <li>Add your own personal decks by following a simple tarot deck format.</li>
     </ul>
@@ -28,11 +29,15 @@
       <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/esoterica-view.webp</image>
     </screenshot>
     <screenshot>
+      <caption>Perform a tarot reading from a spread</caption>
+      <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/reading-view.webp</image>
+    </screenshot>
+    <screenshot>
       <caption>View of an entire deck</caption>
       <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/deck-view.webp</image>
     </screenshot>
     <screenshot>
-      <caption>A canvas of cards</caption>
+      <caption>A sandbox canvas of cards from multiple decks</caption>
       <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/canvas-view.webp</image>
     </screenshot>
     <screenshot>
@@ -40,11 +45,28 @@
       <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/library-view.webp</image>
     </screenshot>
     <screenshot>
+      <caption>Create your own custom spreads</caption>
+      <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/spread-view.webp</image>
+    </screenshot>
+    <screenshot>
       <caption>Take custom notes attached to cards</caption>
       <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/notes-view.webp</image>
     </screenshot>
   </screenshots>
   <releases>
+    <release version="1.9.0" date="2026-11-10" type="development">
+      <description>
+        <p>This version introduces tarot readings from your spreads.</p>
+        <ul>
+        <li>Read from a spread by drawing cards from any deck.</li>
+        <li>Takes notes for a reading that is saved to your library.</li>
+        </ul>
+        <p>Other changes:</p>
+        <ul>
+          <li>Adding a new swirly background for the canvas.</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.8.0" date="2026-11-05" type="stable">
       <description>
         <p>This version introduces tarot spreads as a main feature.</p>

@@ -21,6 +21,8 @@ APP_ID = "land.arcana.TarotCanvas"
 API = "https://flathub.org/api/v2/quality-moderation/{app_id}"
 
 MAX_SHOT = (2000, 1400)
+# Alpha at or above which a screenshot pixel is window, not shadow.
+SHOT_OPAQUE = 250
 FOOTPRINT_MAX = 0.90
 FOOTPRINT_MIN = 0.60
 # "Dark colors near the edges are a problem since shadows don't help on dark backgrounds."
@@ -161,20 +163,20 @@ def check_description(root: ET.Element) -> list[Result]:
     ]
 
 
-def _webp_size(data: bytes) -> tuple[int, int] | None:
-    k = data.find(b"VP8X")
-    if k > 0:
-        w = int.from_bytes(data[k + 12 : k + 15], "little") + 1
-        h = int.from_bytes(data[k + 15 : k + 18], "little") + 1
-        return w, h
-    k = data.find(b"VP8 ")
-    if k > 0:
-        w, h = (
-            int.from_bytes(data[k + 14 : k + 16], "little"),
-            int.from_bytes(data[k + 16 : k + 18], "little"),
-        )
-        return w & 0x3FFF, h & 0x3FFF
-    return None
+def window_size(path: Path) -> tuple[int, int]:
+    """The window's size in a screenshot, without its shadow.
+
+    The guideline limits the window and requires its shadow, so the file is
+    larger than the window by the shadow. The shadow is translucent and the
+    window opaque, so the window is the bounding box of the opaque pixels.
+    """
+    from PIL import Image
+
+    im = Image.open(path)
+    if "A" not in im.getbands():
+        return im.size
+    box = im.getchannel("A").point(lambda a: 255 if a >= SHOT_OPAQUE else 0).getbbox()
+    return (box[2] - box[0], box[3] - box[1]) if box else im.size
 
 
 def check_screenshots(root: ET.Element) -> list[Result]:
@@ -190,19 +192,27 @@ def check_screenshots(root: ET.Element) -> list[Result]:
             f"{len(no_caption)} without a caption" if no_caption else "all captioned",
         ),
     ]
+    try:
+        import PIL  # noqa: F401
+    except ImportError:
+        res.append(
+            Result("screenshots-reasonable-window-size", True, "SKIPPED: Pillow not installed")
+        )
+        return res
     oversized = []
     for path in sorted(SHOTS.glob("*.webp")):
-        size = _webp_size(path.read_bytes())
-        if size and (size[0] > MAX_SHOT[0] or size[1] > MAX_SHOT[1]):
-            oversized.append(f"{path.name} {size[0]}x{size[1]}")
+        w, h = window_size(path)
+        if w > MAX_SHOT[0] or h > MAX_SHOT[1]:
+            oversized.append(f"{path.name} {w}x{h}")
     res.append(
         Result(
             "screenshots-reasonable-window-size",
             not oversized,
             (
-                f"max is {MAX_SHOT[0]}x{MAX_SHOT[1]} (HiDPI); over: " + ", ".join(oversized)
+                f"window max is {MAX_SHOT[0]}x{MAX_SHOT[1]} (HiDPI), shadow excluded; over: "
+                + ", ".join(oversized)
                 if oversized
-                else f"all within {MAX_SHOT[0]}x{MAX_SHOT[1]}"
+                else f"all windows within {MAX_SHOT[0]}x{MAX_SHOT[1]}, shadow excluded"
             ),
         )
     )
