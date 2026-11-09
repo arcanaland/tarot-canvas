@@ -12,7 +12,7 @@ CANDLE_ALPHA = 0.8
 CANDLE_REACH = 1.42
 # (share of the reach, share of the dark): clear over the table, whole at the reach
 CANDLE_STOPS = ((0.0, 0.0), (0.55, 0.12), (0.8, 0.55), (1.0, 1.0))
-# The dim is the ground at a third of its value: a light ground stays a tone of itself
+# The dim is the ground at a third of its value
 DIM_DARKER = 300
 
 # Of the haloed card's longer side
@@ -27,7 +27,7 @@ def dim_tone(ground):
 
 
 class Candle:
-    """A foreground hook darkening the view outside table_rect() toward ground()'s dim tone"""
+    """A foreground hook darkening the view"""
 
     def __init__(self, view, table_rect, ground):
         self._view = view
@@ -81,6 +81,7 @@ class Candle:
             colour.setAlphaF(alpha * share)
             gradient.setColorAt(stop, colour)
         painter.save()
+
         # A unit circle stretched to the table's ellipse
         painter.translate(centre)
         painter.scale(rx, ry)
@@ -128,7 +129,7 @@ class WarmPatch(QGraphicsItem):
         self.setVisible(True)
 
     def set_strength(self, strength):
-        """strength 0 to a little over 1: the halo's glow times the candle's level"""
+        """strength 0 to ~1: the halo's glow times the candle's level"""
         alpha = min(255, round(WARM_PATCH_ALPHA * max(0.0, strength)))
         if alpha != self.alpha:
             self.alpha = alpha
@@ -137,6 +138,7 @@ class WarmPatch(QGraphicsItem):
     def paint(self, painter, option, widget=None):
         if self.alpha <= 0:
             return
+
         reach = self._reach
         gradient = QRadialGradient(QPointF(0, 0), reach)
         inner = QColor(WARM_PATCH_INNER)

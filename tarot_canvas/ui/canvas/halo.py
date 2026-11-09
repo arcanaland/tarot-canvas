@@ -1,9 +1,9 @@
-"""A fire-like light under the next card to turn: a warm bloom and rising sparks"""
+"""A fire-like light under the next card to turn"""
 
 import itertools
 import math
 import random
-from functools import lru_cache
+from functools import cache, lru_cache
 
 from PyQt6.QtCore import QPointF, QRectF, Qt
 from PyQt6.QtGui import QBrush, QColor, QImage, QPainter, QPixmap, QRadialGradient, qAlpha
@@ -17,8 +17,7 @@ FADE_IN_S = 0.35
 # A flare's brightness on top of the steady light, from its peak down to where the collapse starts
 FLARE_PEAK = 1.2
 FLARE_FLOOR = 0.4
-# How much the bloom grows at the flare's peak, per unit of brightness over 1, and shrinks as it
-# collapses
+# How much the bloom grows at the flare's peak, per unit of brightness over 1
 FLARE_GROW = 0.12
 COLLAPSE_SHRINK = 0.5
 # Sparks age this many times faster while the halo collapses
@@ -35,7 +34,7 @@ BLOOM_SPILL = 6
 
 PARTICLES = 60
 LIFE_S = (0.6, 1.0)
-SPRITES = 24
+NUM_SPRITES = 24
 SPRITE_PX = 32
 # In screen px, whatever the zoom
 RISE_PX_S = (30.0, 75.0)
@@ -54,7 +53,7 @@ FLICKER_DEPTH = 0.18
 # The light without flicker: the flicker's mean
 STEADY = 1.0 - FLICKER_DEPTH
 
-# The flame's hot-to-cool ramp: near-white, amber, deep red, gone
+# The flame's hot-to-cool ramp
 RAMP = (
     (0.0, (255, 244, 214)),
     (0.35, (255, 170, 60)),
@@ -71,12 +70,12 @@ def _ramp(u):
     return RAMP[-1][1]
 
 
-@lru_cache(maxsize=1)
+@cache
 def sprites():
-    """One soft round spark per step along the ramp, for drawing with Plus"""
+    """One soft round spark per step along the ramp"""
     baked = []
-    for i in range(SPRITES):
-        u = i / (SPRITES - 1)
+    for i in range(NUM_SPRITES):
+        u = i / (NUM_SPRITES - 1)
         r, g, b = _ramp(u)
         alpha = (1.0 - u) ** 1.2
         image = QImage(SPRITE_PX, SPRITE_PX, QImage.Format.Format_ARGB32_Premultiplied)
@@ -142,7 +141,7 @@ def build_bloom(width, height):
 
 
 class Flicker:
-    """A 1/f sum of sines like the cards' drift, at a candle's rate"""
+    """A 1/f sum of sines at a candle's rate"""
 
     def __init__(self, seed):
         self._phases = drift_phases(seed, FLICKER_OCTAVES)
@@ -159,7 +158,7 @@ class Particle:
     __slots__ = ("age", "life", "size", "sway", "vx", "vy", "x", "y")
 
     def __init__(self, x, y, life, px):
-        # px is scene units per screen pixel: a spark is the same size and speed at any zoom
+        # px is scene units per screen pixel
         self.x = x
         self.y = y
         self.vx = random.uniform(-SWAY_PX_S, SWAY_PX_S) * 0.5 * px
@@ -178,7 +177,7 @@ def _half_extents(width, height, degrees):
 
 
 class HaloItem(QGraphicsItem):
-    """The light under one card. on_move(card) is called whenever it moves to a card or to none"""
+    """The light under one card."""
 
     # A light, not a thing on the table
     frames_home = False
@@ -210,7 +209,7 @@ class HaloItem(QGraphicsItem):
     # -- where it is ----------------------------------------------------------------
 
     def attach(self, card, fade):
-        """Sit under card, fading in or at once, or go with None"""
+        """Fade in under a card"""
         self.card = card
         self.pending = None
         self.particles = []
@@ -388,6 +387,6 @@ class HaloItem(QGraphicsItem):
         source = QRectF(0, 0, SPRITE_PX, SPRITE_PX)
         for p in self.particles:
             u = p.age / p.life
-            sprite = baked[min(SPRITES - 1, int(u * SPRITES))]
+            sprite = baked[min(NUM_SPRITES - 1, int(u * NUM_SPRITES))]
             s = p.size * (1.0 - (1.0 - SPARK_END_SIZE) * u)
             painter.drawPixmap(QRectF(p.x - s, p.y - s, 2 * s, 2 * s), sprite, source)

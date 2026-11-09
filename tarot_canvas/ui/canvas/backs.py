@@ -1,4 +1,4 @@
-from functools import lru_cache
+from functools import cache, lru_cache
 from importlib.resources import files
 
 from PyQt6.QtCore import QPointF, QRectF, QSize, Qt
@@ -22,7 +22,7 @@ def back_path(deck):
     return next(iter(backs.values()), None)
 
 
-@lru_cache(maxsize=1)
+@cache
 def _icon():
     return QImage(str(files("tarot_canvas.resources.icons").joinpath("icon.png")))
 
