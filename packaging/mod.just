@@ -133,6 +133,10 @@ devel-uninstall:
 quality *ARGS:
   ../scripts/flathub_quality.py {{ARGS}}
 
+# Open the window at a specific size
+shot NAME W='998' H='698':
+  ../scripts/flathub_screenshot.py {{NAME}} {{W}} {{H}}
+
 # wipe installs from flathub build bot
 [private]
 buildbot-clean:
