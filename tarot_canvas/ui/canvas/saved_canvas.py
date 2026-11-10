@@ -235,7 +235,7 @@ class SavedCanvasPane(SidePane):
             self.date_text.setFocus()
 
 
-class SavedCanvas(QObject):
+class SavedReading(QObject):
     """Writes the tab's reading to path a moment after anything in it changes"""
 
     # The Question or the Date changed, so the tab's label may have

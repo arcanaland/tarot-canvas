@@ -613,17 +613,17 @@ class MainWindow(QMainWindow):
         """A new tab dealing a reading from spread, and return it"""
         return self.add_canvas_tab(ReadingTab(spread))
 
-    def saved_canvas_tab(self, path):
+    def saved_reading_tab(self, path):
         for index in range(self.tab_widget.count()):
             tab = self.tab_widget.widget(index)
             if isinstance(tab, CanvasTab) and tab.reading_path == path:
                 return tab
         return None
 
-    def open_saved_canvas(self, path):
+    def open_saved_reading(self, path):
         """Raise the tab holding the reading in folder path, or open one, and return it"""
         path = Path(path)
-        tab = self.saved_canvas_tab(path)
+        tab = self.saved_reading_tab(path)
         if tab is not None:
             self.tab_widget.setCurrentWidget(tab)
             return tab

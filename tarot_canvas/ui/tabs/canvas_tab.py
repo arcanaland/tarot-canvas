@@ -89,7 +89,7 @@ from tarot_canvas.ui.canvas.motion import (
     approach,
     system_animations_enabled,
 )
-from tarot_canvas.ui.canvas.saved_canvas import SavedCanvas, new_reading, resolve_deck
+from tarot_canvas.ui.canvas.saved_canvas import SavedReading, new_reading, resolve_deck
 from tarot_canvas.ui.canvas.selection import GILT_ON_DARK, gilt_for_ground
 from tarot_canvas.ui.canvas.tab_icon import (
     MINIMAP,
@@ -168,7 +168,7 @@ class CanvasTab(BaseTab):
     # Whether Save makes this a saved canvas; a tab that saves something else says no
     SAVES_CANVAS = True
     # Set once the canvas is a reading
-    saved_canvas = None
+    saved_reading = None
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1056,8 +1056,8 @@ class CanvasTab(BaseTab):
         self.scene.addItem(replacement)
         replacement.setSelected(True)
         replacement.marks.settle()
-        if self.saved_canvas is not None:
-            self.saved_canvas.schedule()
+        if self.saved_reading is not None:
+            self.saved_reading.schedule()
         return replacement
 
     # -- zoom --------------------------------------------------------------
@@ -1371,20 +1371,20 @@ class CanvasTab(BaseTab):
         return metrics.elidedText(name, Qt.TextElideMode.ElideRight, width)
 
     def tab_title(self):
-        if self.saved_canvas is not None:
-            return self.elided_title(self.saved_canvas.label())
+        if self.saved_reading is not None:
+            return self.elided_title(self.saved_reading.label())
         return self.tab_name
 
     def tab_tooltip(self):
-        if self.saved_canvas is None:
+        if self.saved_reading is None:
             return ""
-        name = self.saved_canvas.label()
+        name = self.saved_reading.label()
         return name if name != self.tab_title() else ""
 
     def rename_text(self):
         """What the rename dialog starts from"""
-        if self.saved_canvas is not None:
-            return self.saved_canvas.question()
+        if self.saved_reading is not None:
+            return self.saved_reading.question()
         return self.tab_name
 
     def rename_dialog_text(self):
@@ -1393,8 +1393,8 @@ class CanvasTab(BaseTab):
 
     def rename(self, name):
         # A reading is named by its Question
-        if self.saved_canvas is not None:
-            self.saved_canvas.set_question(name)
+        if self.saved_reading is not None:
+            self.saved_reading.set_question(name)
             return
         self.tab_name = name
         self.tab_label_changed.emit()
@@ -1404,13 +1404,13 @@ class CanvasTab(BaseTab):
     @property
     def reading_path(self):
         """The reading's folder, or None while the canvas is scratch"""
-        return self.saved_canvas.path if self.saved_canvas is not None else None
+        return self.saved_reading.path if self.saved_reading is not None else None
 
     def save_label(self):
         return READINGS["save_reading"] if self.SAVES_CANVAS else None
 
     def can_save(self):
-        return self.SAVES_CANVAS and self.saved_canvas is None
+        return self.SAVES_CANVAS and self.saved_reading is None
 
     def save(self):
         """Keep this canvas as a new reading, done now"""
@@ -1422,20 +1422,20 @@ class CanvasTab(BaseTab):
             logger.error(f"Could not make a folder for a reading: {error}")
             return False
         self.save_as(path, new_reading())
-        saved = self.saved_canvas.write()
-        self.saved_canvas.pane.question_edit.setFocus()
+        saved = self.saved_reading.write()
+        self.saved_reading.pane.question_edit.setFocus()
         return saved
 
     def save_as(self, path, reading):
         """From now on, this canvas is the reading in folder path, and writes itself there"""
-        self.saved_canvas = SavedCanvas(self, path, reading)
-        self.saved_canvas.label_changed.connect(self.tab_label_changed)
+        self.saved_reading = SavedReading(self, path, reading)
+        self.saved_reading.label_changed.connect(self.tab_label_changed)
 
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.layout.replaceWidget(self.canvas_area, self.splitter)
         self.splitter.addWidget(self.canvas_area)
-        self.saved_canvas.pane.dock(self.splitter)
-        self.pane_action = self.saved_canvas.pane.toggle_action(self, SPREADS["pane_tooltip"])
+        self.saved_reading.pane.dock(self.splitter)
+        self.pane_action = self.saved_reading.pane.toggle_action(self, SPREADS["pane_tooltip"])
         self.toolbar.addAction(self.pane_action)
 
         self.save_reading_action.setEnabled(False)
@@ -1470,8 +1470,8 @@ class CanvasTab(BaseTab):
             return None
 
     def flush_pending_edits(self):
-        if self.saved_canvas is not None:
-            self.saved_canvas.flush()
+        if self.saved_reading is not None:
+            self.saved_reading.flush()
 
     def about_to_close(self):
         self.flush_pending_edits()

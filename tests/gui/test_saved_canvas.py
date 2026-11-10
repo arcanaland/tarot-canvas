@@ -88,13 +88,13 @@ def test_once_saved_save_is_disabled_and_the_pane_is_shown(window, two_cards):
     assert not tab.can_save()
     assert not window.save_action.isEnabled()
     assert not tab.save_reading_action.isEnabled()
-    assert tab.saved_canvas.pane.isVisibleTo(tab)
+    assert tab.saved_reading.pane.isVisibleTo(tab)
 
 
 def test_a_scratch_canvas_has_no_pane(window):
     tab = window.new_canvas_tab()
 
-    assert tab.saved_canvas is None
+    assert tab.saved_reading is None
     assert tab.can_save()
     assert window.save_action.isEnabled()
 
@@ -116,7 +116,7 @@ def test_an_edited_question_is_written_after_a_moment(qtbot, window, two_cards):
     tab = two_cards
     path = saved(window, tab)
 
-    tab.saved_canvas.pane.question_edit.setText("Will the move go well?")
+    tab.saved_reading.pane.question_edit.setText("Will the move go well?")
 
     qtbot.waitUntil(
         lambda: readings.load(path).question == "Will the move go well?",
@@ -139,7 +139,7 @@ def test_closing_the_tab_writes_before_it_goes(window, two_cards):
     tab = two_cards
     path = saved(window, tab)
 
-    tab.saved_canvas.pane.question_edit.setText("Asked at the last moment")
+    tab.saved_reading.pane.question_edit.setText("Asked at the last moment")
     window.close_tab(window.tab_widget.indexOf(tab))
 
     assert readings.load(path).question == "Asked at the last moment"
@@ -151,7 +151,7 @@ def test_closing_the_tab_writes_before_it_goes(window, two_cards):
 def test_the_date_reads_as_a_fact(window, two_cards):
     tab = two_cards
     path = saved(window, tab)
-    pane = tab.saved_canvas.pane
+    pane = tab.saved_reading.pane
 
     when = QDateTime(readings.load(path).date.astimezone().replace(tzinfo=None))
     assert pane.date_text.text() == format_qdatetime(when)
@@ -166,7 +166,7 @@ def date_pane(qtbot, window, two_cards):
     window.activateWindow()
     qtbot.waitActive(window)
     saved(window, two_cards)
-    return two_cards.saved_canvas.pane
+    return two_cards.saved_reading.pane
 
 
 def test_activating_the_date_opens_its_editor_with_the_calendar(qtbot, date_pane):
@@ -219,9 +219,9 @@ def test_the_label_is_the_date_until_there_is_a_question(window, two_cards):
     index = window.tab_widget.indexOf(tab)
     dated = window.tab_widget.tabText(index)
 
-    assert dated and dated == tab.elided_title(tab.saved_canvas.label())
+    assert dated and dated == tab.elided_title(tab.saved_reading.label())
 
-    tab.saved_canvas.pane.question_edit.setText("Which way?")
+    tab.saved_reading.pane.question_edit.setText("Which way?")
 
     assert window.tab_widget.tabText(index) == "Which way?"
 
@@ -229,7 +229,7 @@ def test_the_label_is_the_date_until_there_is_a_question(window, two_cards):
 def test_renaming_a_reading_tab_sets_its_question(window, two_cards, monkeypatch):
     tab = two_cards
     saved(window, tab)
-    tab.saved_canvas.pane.question_edit.setText("Before")
+    tab.saved_reading.pane.question_edit.setText("Before")
     offered = []
 
     def answer(parent, title, prompt, text=""):
@@ -240,7 +240,7 @@ def test_renaming_a_reading_tab_sets_its_question(window, two_cards, monkeypatch
     window.show_tab_rename_dialog(window.tab_widget.indexOf(tab))
 
     assert offered == ["Before"]
-    assert tab.saved_canvas.question() == "After"
+    assert tab.saved_reading.question() == "After"
 
 
 # -- reopening ---------------------------------------------------------------------------
@@ -256,7 +256,7 @@ def test_a_closed_reading_reopens_as_it_was_and_is_not_rewritten(qtbot, window, 
     window.close_tab(window.tab_widget.indexOf(tab))
     written = (path / readings.READING_FILE).stat().st_mtime_ns
 
-    reopened = window.open_saved_canvas(path)
+    reopened = window.open_saved_reading(path)
     qtbot.wait(AUTOSAVE_MS * 2)
 
     assert reopened is not tab
@@ -272,7 +272,7 @@ def test_opening_a_reading_twice_raises_its_tab(window, two_cards):
     path = saved(window, two_cards)
     window.new_canvas_tab()
 
-    assert window.open_saved_canvas(path) is two_cards
+    assert window.open_saved_reading(path) is two_cards
     assert window.tab_widget.currentWidget() is two_cards
 
 
@@ -287,7 +287,7 @@ def test_a_reading_of_an_unknown_deck_opens_in_the_reference_deck(
         Reading(date=when, deck="No Such Deck", cards=(ReadingCard(id=card["id"], x=10, y=20),)),
     )
 
-    tab = window.open_saved_canvas(path)
+    tab = window.open_saved_reading(path)
 
     (item,) = tab.cards()
     assert item.deck is minimal_deck
@@ -300,5 +300,5 @@ def test_an_unreadable_reading_opens_nothing(window, readings_base):
     (path / readings.READING_FILE).write_text("not = [toml", encoding="utf-8")
     count = window.tab_widget.count()
 
-    assert window.open_saved_canvas(path) is None
+    assert window.open_saved_reading(path) is None
     assert window.tab_widget.count() == count
