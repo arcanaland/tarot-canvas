@@ -1,8 +1,4 @@
-"""A panel over a corner of the canvas: the one that hides least of what it changes.
-
-It previews as it changes, and Apply keeps that, while Cancel, Esc or the tab going away puts
-back what was there.
-"""
+"""A panel placed in the canvas (background chooser, arc arranger)"""
 
 from PyQt6.QtCore import QEvent, QPoint, QRect, QRectF, Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QPainter, QPalette
@@ -19,7 +15,7 @@ from PyQt6.QtWidgets import (
 
 from tarot_canvas.ui import typography
 
-# Kirigami's cornerRadius, which Breeze's frames share
+# Kirigami's cornerRadius
 CORNER_RADIUS = 5
 # How far the outline is mixed from the window's colour toward its text's
 OUTLINE_MIX = 0.2
@@ -54,8 +50,6 @@ def plain_label(text):
 
 
 class CanvasPanel(QFrame):
-    """A subclass gives covered_rect, restore and its rows, through lay_out"""
-
     applied = pyqtSignal()
     closed = pyqtSignal()
 

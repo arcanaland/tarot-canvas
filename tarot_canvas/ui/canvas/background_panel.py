@@ -1,4 +1,4 @@
-"""A canvas's own ground: a panel over a corner of it, previewing each change on the canvas"""
+"""A panel to choose the canvas's own background."""
 
 from PyQt6.QtCore import QRectF, pyqtSignal
 from PyQt6.QtGui import QIcon
@@ -55,7 +55,6 @@ class BackgroundPanel(CanvasPanel):
         self.form.set_ground(tab.ground or Ground.from_settings(get_settings()))
         self.form.setRowsEnabled(tab.ground is not None)
 
-        # The two choices and the rows "This canvas" opens, as one group, the rows under its text
         group = QVBoxLayout()
         group.setSpacing(units.SMALL_SPACING)
         group.addWidget(self.follow)
@@ -66,8 +65,6 @@ class BackgroundPanel(CanvasPanel):
         group.addLayout(rows)
         group.addSpacing(units.LARGE_SPACING)
 
-        # Beside Apply and Cancel, at the start of the row as Restore Defaults is in a dialog
-        # Saved as the template every new canvas starts from
         self.default_button = QPushButton(
             QIcon.fromTheme("document-save-as-template"), CANVAS["background_use_as_default"]
         )
@@ -91,7 +88,7 @@ class BackgroundPanel(CanvasPanel):
         return rect
 
     def chosen(self):
-        """The ground the panel says: None to follow the default"""
+        """The option the user selected"""
         return self.form.ground() if self.own.isChecked() else None
 
     def _on_choice_toggled(self, _button, checked):
@@ -110,7 +107,6 @@ class BackgroundPanel(CanvasPanel):
         self.tab.apply_ground()
 
     def use_as_default(self):
-        """The form's ground becomes the default, and this canvas follows it"""
         self.form.ground().to_settings(get_settings())
         self.follow.setChecked(True)
         self.apply()
