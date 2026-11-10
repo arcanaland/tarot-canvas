@@ -628,6 +628,11 @@ class MainWindow(QMainWindow):
         QTimer.singleShot(0, tab.on_home)
         return tab
 
+    def close_saved_reading(self, path):
+        """Close the tab holding the reading in folder path, and return whether none is left"""
+        tab = self.saved_reading_tab(Path(path))
+        return tab is None or self.close_tab(self.tab_widget.indexOf(tab))
+
     def new_spread_menu(self, parent):
         """The spreads a new reading can start from, ending in the Library's Spreads view"""
         return spread_menu(

@@ -26,6 +26,7 @@ class LibraryListPage(QWidget):
         self.empty_label = QLabel()
         self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.empty_label.setEnabled(False)
+        self.empty_label.setWordWrap(True)
 
         column = QVBoxLayout(self)
         column.setContentsMargins(0, 0, 0, 0)

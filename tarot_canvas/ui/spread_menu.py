@@ -4,6 +4,7 @@ from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QMenu
 
 from tarot_canvas.models import spreads
+from tarot_canvas.ui import commands
 from tarot_canvas.ui.canvas.detail import card_unit_size
 from tarot_canvas.ui.icons import LIBRARY_ICON
 from tarot_canvas.ui.library.spreads_model import spread_thumbnail, spread_title
@@ -13,9 +14,10 @@ from tarot_canvas.ui.strings import READINGS
 MAX_OWN = 5
 
 
-def spread_menu(parent, start, browse):
+def spread_menu(parent, start, browse, blank=None):
+    """With blank, a blank canvas leads the menu"""
     menu = QMenu(parent)
-    menu.aboutToShow.connect(lambda: _fill(menu, start, browse))
+    menu.aboutToShow.connect(lambda: _fill(menu, start, browse, blank))
     return menu
 
 
@@ -30,8 +32,14 @@ def sections():
     return [rows for rows in (own[:MAX_OWN], included) if rows]
 
 
-def _fill(menu, start, browse):
+def _fill(menu, start, browse, blank):
     menu.clear()
+    if blank is not None:
+        canvas = commands.by_id("window.new_canvas")
+        action = menu.addAction(QIcon.fromTheme(canvas.icon), canvas.text)
+        commands.set_menu_text(action, canvas.text, canvas.id)
+        action.triggered.connect(blank)
+        menu.addSeparator()
     unit = card_unit_size()
     for rows in sections():
         for path, spread in rows:

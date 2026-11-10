@@ -748,12 +748,12 @@ def esoterica_names(tab):
     return [index.data() for index in indexes if index.data(KindRole) == RowKind.SOURCE]
 
 
-def test_the_third_row_shows_the_esoterica_page_and_its_pane(sources, library):
+def test_the_last_row_shows_the_esoterica_page_and_its_pane(sources, library):
     from tarot_canvas.settings import LIBRARY_VIEW_ESOTERICA, LIBRARY_VIEWS
     from tarot_canvas.ui.strings import label_for
 
     row = LIBRARY_VIEWS.index(LIBRARY_VIEW_ESOTERICA)
-    assert row == 2
+    assert row == len(LIBRARY_VIEWS) - 1
     assert library.sidebar.item(row).text() == label_for("library.view_name")
 
     library.sidebar.setCurrentRow(row)
