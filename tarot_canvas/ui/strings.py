@@ -58,6 +58,7 @@ COMMANDS = {
     "card_image_toggle_details": "Toggle Card Details (Art)",
     # Library
     "library_toggle_details": "Toggle Deck Details",
+    "canvas_background": "Canvas Background…",
 }
 
 # The Preferences dialog
@@ -133,6 +134,7 @@ PREFERENCES = {
     "library_label": "Library:",
     "startup_label": "Startup:",
     "show_available_decks": "Show available decks",
+    "background_default_note": "The default for new canvases.",
 }
 
 # Notes, in a card view and in the Library
@@ -405,6 +407,10 @@ CANVAS = {
     "distribute_horizontal": "Distribute Horizontally",
     "distribute_vertical": "Distribute Vertically",
     "arrange_arc": "Arrange in Circle",
+    # The canvas's own Background panel
+    "background_follow": "Use default",
+    "background_own": "This canvas",
+    "background_use_as_default": "Set as Default",
     # The arc popover
     "arc_bend": "Bend:",
     "arc_turn": "Rotation:",

@@ -5,6 +5,7 @@ from datetime import date as Date
 from datetime import datetime
 from pathlib import Path
 
+from tarot_canvas.models.ground import Ground
 from tarot_canvas.models.spreads import Spread, spread_from_table, spread_table
 from tarot_canvas.models.staged_delete import is_staged
 from tarot_canvas.models.toml_files import (
@@ -54,6 +55,8 @@ class Reading:
     spread: Spread | None = None
     spread_from: str = ""
     cards: tuple = ()
+    # The canvas's own ground, or None while it follows the default
+    ground: Ground | None = None
 
 
 def readings_base():
@@ -174,6 +177,9 @@ def _reading(table, path):
 
     question = table.get("question", "")
     spread, origin = _spread(table, path)
+    ground = None
+    if "ground" in ours:
+        ground = Ground.from_table(ours["ground"], Ground.from_settings())
     return Reading(
         date=_date(table),
         question=question if isinstance(question, str) else "",
@@ -182,6 +188,7 @@ def _reading(table, path):
         spread=spread,
         spread_from=origin,
         cards=tuple(cards),
+        ground=ground,
     )
 
 
@@ -231,7 +238,11 @@ def _table(reading):
     layout = [
         {"x": card.x, "y": card.y, "z": card.z, "rotation": card.rotation} for card in reading.cards
     ]
-    return with_app_table(table, {"version": VERSION, "layout": layout})
+    ours = {"version": VERSION, "layout": layout}
+    # Only a ground of its own: a snapshot of the default would stop it following
+    if reading.ground is not None:
+        ours["ground"] = reading.ground.to_table()
+    return with_app_table(table, ours)
 
 
 def save(path, reading):

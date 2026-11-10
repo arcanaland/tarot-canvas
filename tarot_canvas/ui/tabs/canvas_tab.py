@@ -30,23 +30,14 @@ from PyQt6.QtWidgets import (
 
 from tarot_canvas.models import backgrounds, readings
 from tarot_canvas.models.deck_manager import deck_manager
+from tarot_canvas.models.ground import Ground
 from tarot_canvas.models.spreads import Position, Spread, offsets_from_middle
 from tarot_canvas.settings import (
-    BACKGROUND_COLOR_DEFAULT,
-    BACKGROUND_COLOR_KEY,
-    BACKGROUND_FILL_DEFAULT,
-    BACKGROUND_FILL_KEY,
-    BACKGROUND_IMAGE_DEFAULT,
-    BACKGROUND_IMAGE_KEY,
     CANVAS_GUIDES_DEFAULT,
     CANVAS_GUIDES_KEY,
     CANVAS_TAB_MINIMAP_DEFAULT,
     CANVAS_TAB_MINIMAP_KEY,
-    CHECKERBOARD_COLOR_DEFAULT,
-    CHECKERBOARD_COLOR_KEY,
     MOTION_LEVEL_DEFAULT,
-    get_background_positioning,
-    get_background_style,
     get_motion_level,
     get_settings,
 )
@@ -66,6 +57,8 @@ from tarot_canvas.ui.canvas import (
     swirl,
 )
 from tarot_canvas.ui.canvas.arc_popover import ARC_DEFAULTS, ArcPopover
+from tarot_canvas.ui.canvas.background_panel import COMMAND as BACKGROUND_COMMAND
+from tarot_canvas.ui.canvas.background_panel import BackgroundPanel
 from tarot_canvas.ui.canvas.detail import (
     DETAIL_SETTLE_MS,
     DETAIL_VISIBLE_MARGIN,
@@ -77,7 +70,6 @@ from tarot_canvas.ui.canvas.ground import (
     GROUND_HUE_DEFAULT,
     GROUND_HUES,
     checkerboard_partner,
-    ground_hue_id,
     shadow_for_ground,
 )
 from tarot_canvas.ui.canvas.guides import GuideItem
@@ -117,27 +109,23 @@ TAB_TITLE_CHARS = 32
 WHEEL_TURN_STEP = 15
 WHEEL_TURN_FINE_STEP = 1
 
-# Background factory
+# Background factory: each draws a Ground of its style
 GROUNDS = {
-    "checkerboard": lambda tab, settings: tab.create_checkerboard_background(
-        settings.value(CHECKERBOARD_COLOR_KEY, CHECKERBOARD_COLOR_DEFAULT)
+    "checkerboard": lambda tab, ground: tab.create_checkerboard_background(
+        ground.checkerboard_color
     ),
-    "gradient": lambda tab, settings: tab.create_gradient_background(ground_hue(settings)),
-    "solid": lambda tab, settings: tab.create_solid_color_background(
-        settings.value(BACKGROUND_COLOR_KEY, BACKGROUND_COLOR_DEFAULT)
-    ),
-    "swirl": lambda tab, settings: tab.create_swirl_background(ground_hue(settings)),
-    "image": lambda tab, settings: tab.create_image_background(
-        settings.value(BACKGROUND_IMAGE_KEY, BACKGROUND_IMAGE_DEFAULT),
-        get_background_positioning(settings),
-        settings.value(BACKGROUND_FILL_KEY, BACKGROUND_FILL_DEFAULT),
+    "gradient": lambda tab, ground: tab.create_gradient_background(ground_hue(ground)),
+    "solid": lambda tab, ground: tab.create_solid_color_background(ground.color),
+    "swirl": lambda tab, ground: tab.create_swirl_background(ground_hue(ground)),
+    "image": lambda tab, ground: tab.create_image_background(
+        ground.image, ground.positioning, ground.fill
     ),
 }
 
 
-def ground_hue(settings):
-    """The stored GroundHue, which Swirl and Aura share"""
-    return GROUND_HUES[ground_hue_id(settings)]
+def ground_hue(ground):
+    """The ground's GroundHue, which Swirl and Aura share; the default for an unknown id"""
+    return GROUND_HUES.get(ground.hue, GROUND_HUES[GROUND_HUE_DEFAULT])
 
 
 def wheel_turn(orient, notches, fine):
@@ -160,6 +148,8 @@ class CanvasTab(BaseTab):
     navigation_requested = pyqtSignal(str, object)
     # A card or its place on the canvas changed
     layout_changed = pyqtSignal()
+    # The default ground in Preferences was changed from this tab
+    default_ground_changed = pyqtSignal()
 
     # The heading over the toolbar's first group
     TOOLS_TITLE = CANVAS["section_cards"]
@@ -167,11 +157,16 @@ class CanvasTab(BaseTab):
     SLOT_ITEM = SlotItem
     # Whether Save makes this a saved canvas; a tab that saves something else says no
     SAVES_CANVAS = True
+    # Whether the tab can have a ground of its own, which only a tab that keeps one offers
+    OWN_GROUND = True
     # Set once the canvas is a reading
     saved_reading = None
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        # The tab's own Ground, or None while it follows the default in Preferences
+        self.ground = None
+        self.background_panel = None
         self.id = f"canvas_{id(self)}"
         self.tab_name = CANVAS["tab_name"]
         # Set once the clipboard's card has been pasted here, until the next copy
@@ -275,17 +270,7 @@ class CanvasTab(BaseTab):
     def apply_background_settings(self):
         """Apply background settings from preferences"""
         settings = get_settings()
-
-        bg_style = get_background_style(settings)
-
-        # swirl has an object we need to keep alive
-        if bg_style != "swirl":
-            self._drop_swirl()
-        if self.view.backdrop is not None:
-            self.view.backdrop = None
-            self.view.viewport().update()
-
-        self.set_ground(GROUNDS[bg_style](self, settings))
+        self.apply_ground()
 
         self.refresh_motion_settings()
         if self.motion_is_enabled() and self.isVisible():
@@ -299,6 +284,34 @@ class CanvasTab(BaseTab):
         )
         self.snap_guides = settings.value(CANVAS_GUIDES_KEY, CANVAS_GUIDES_DEFAULT, type=bool)
         self.schedule_tab_icon()
+
+    def drawn_ground(self):
+        """The tab's own ground, else the default; the default too while its image is missing"""
+        default = Ground.from_settings(get_settings())
+        ground = self.ground
+        if ground is None:
+            return default
+        if ground.style == "image":
+            path = backgrounds.background_path(ground.image)
+            if path is None or not path.is_file():
+                logger.info(
+                    f"No background image {ground.image!r}, so the canvas draws the default"
+                )
+                return default
+        return ground
+
+    def apply_ground(self):
+        """Draw the tab's own ground, or the default when it has none"""
+        ground = self.drawn_ground()
+
+        # swirl has an object we need to keep alive
+        if ground.style != "swirl":
+            self._drop_swirl()
+        if self.view.backdrop is not None:
+            self.view.backdrop = None
+            self.view.viewport().update()
+
+        self.set_ground(GROUNDS[ground.style](self, ground))
 
     # Guides
     def begin_guides(self):
@@ -345,7 +358,7 @@ class CanvasTab(BaseTab):
 
     def set_ground(self, color):
         """Pick the selection and shadow tones that suit this background colour."""
-        self.ground = QColor(color)
+        self.ground_colour = QColor(color)
         self.gilt = gilt_for_ground(color)
         self.shadow_tone = shadow_for_ground(color)
         for card in self._cards:
@@ -436,9 +449,9 @@ class CanvasTab(BaseTab):
 
     def hideEvent(self, event):
         super().hideEvent(event)
-        # Switched away from or closed, not minimised: the arc is abandoned
-        if not event.spontaneous() and self.arc_is_open():
-            self.arc_popover.cancel()
+        # Switched away from or closed, not minimised: an open panel is abandoned
+        if not event.spontaneous():
+            self.cancel_panels()
         self.motion_clock.unsubscribe(self._advance_motion)
         self.settle_motion()
 
@@ -606,8 +619,8 @@ class CanvasTab(BaseTab):
 
     def on_escape_pressed(self):
         """Handle Escape key - leave fullscreen if in it, otherwise cancel selection"""
-        if self.arc_is_open():
-            self.arc_popover.cancel()
+        if self.background_is_open() or self.arc_is_open():
+            self.cancel_panels()
             return
         if self.is_fullscreen():
             self.request_fullscreen_toggle()
@@ -997,14 +1010,25 @@ class CanvasTab(BaseTab):
         return self.view.card_at(scene_pos)
 
     def card_menu(self, scene_pos):
-        """The menu for the card at scene_pos, or None. It selects the card if it wasn't."""
+        """The menu for the card at scene_pos, or None. It selects the card if it wasn't.
+        On empty ground, the ground's menu."""
         item = self.card_at(scene_pos)
         if item is None:
-            return None
+            return self.ground_menu()
         if not item.isSelected():
             self.scene.clearSelection()
             item.setSelected(True)
         return self.build_card_menu(item)
+
+    def ground_menu(self):
+        """Background, the command's entry, where the tab can have its own; else None"""
+        if not self.OWN_GROUND:
+            return None
+        command = commands.by_id(BACKGROUND_COMMAND)
+        menu = QMenu(self)
+        action = menu.addAction(QIcon.fromTheme(command.icon), command.text)
+        action.triggered.connect(self.edit_background)
+        return menu
 
     def build_card_menu(self, item):
         menu = QMenu(self)
@@ -1262,6 +1286,9 @@ class CanvasTab(BaseTab):
         items = self.arrange_order(self.selected_cards())
         if len(items) < 2 or self.arc_is_open():
             return None
+        # One panel at a time
+        if self.background_is_open():
+            self.background_panel.cancel()
         if self.arc_popover is not None:
             self.arc_popover.deleteLater()
         self.arc_popover = popover = ArcPopover(
@@ -1278,10 +1305,44 @@ class CanvasTab(BaseTab):
     def arc_is_open(self):
         return self.arc_popover is not None and not self.arc_popover.finished
 
-    def _on_arc_closed(self, settings):
-        self.arc_settings = settings
+    def _on_arc_closed(self):
+        self.arc_settings = self.arc_popover.settings()
         self._arc_following = False
         self.set_arranging(False)
+
+    # -- the tab's own ground ------------------------------------------------
+
+    def edit_background(self):
+        """The Background panel: follow the default, or a ground of the tab's own"""
+        if not self.OWN_GROUND:
+            return None
+        if self.background_is_open():
+            self.background_panel.setFocus()
+            return self.background_panel
+        # One panel at a time
+        if self.arc_is_open():
+            self.arc_popover.cancel()
+        if self.background_panel is not None:
+            self.background_panel.deleteLater()
+        self.background_panel = panel = BackgroundPanel(self, self.canvas_area)
+        panel.applied.connect(self._on_background_applied)
+        panel.default_changed.connect(self.default_ground_changed)
+        panel.open()
+        return panel
+
+    def background_is_open(self):
+        return self.background_panel is not None and not self.background_panel.finished
+
+    def _on_background_applied(self):
+        if self.saved_reading is not None:
+            self.saved_reading.schedule()
+
+    def cancel_panels(self):
+        """Put back whatever an open panel changed"""
+        if self.background_is_open():
+            self.background_panel.cancel()
+        if self.arc_is_open():
+            self.arc_popover.cancel()
 
     def _on_camera_taken(self):
         self._arc_following = False

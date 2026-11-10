@@ -24,6 +24,7 @@ from PyQt6.QtGui import (
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QListView,
+    QSizePolicy,
     QStyle,
     QStyledItemDelegate,
     QToolTip,
@@ -41,6 +42,8 @@ NAME_ROLE = Qt.ItemDataRole.UserRole
 PENDING_ROLE = Qt.ItemDataRole.UserRole + 1
 
 TILE_WIDTH = 8 * units.GRID_UNIT
+# A strip's tiles, small enough that a panel's width shows a few
+STRIP_TILE_WIDTH = 4 * units.GRID_UNIT
 ACTION_SIZE = units.GRID_UNIT + units.SMALL_SPACING
 PENDING_OPACITY = 0.35
 SELECTION_WIDTH = 3
@@ -89,9 +92,11 @@ class _PendingThumbnail(QObject):
 
 
 class BackgroundDelegate(QStyledItemDelegate):
-    def __init__(self, tile, parent=None):
+    def __init__(self, tile, actions=True, parent=None):
         super().__init__(parent)
         self.tile = tile
+        # Whether a tile offers Remove and Open Folder
+        self.actions = actions
 
     def sizeHint(self, option, index):
         return self.tile + QSize(2 * units.SMALL_SPACING, 2 * units.SMALL_SPACING)
@@ -107,6 +112,8 @@ class BackgroundDelegate(QStyledItemDelegate):
         top = tile.top() + units.SMALL_SPACING
         right = tile.right() - units.SMALL_SPACING
         rects = []
+        if not self.actions:
+            return rects
         actions = (REMOVE,) if pending else (REMOVE, OPEN_FOLDER)
         for action in actions:
             rect = QRect(right - ACTION_SIZE + 1, top, ACTION_SIZE, ACTION_SIZE)
@@ -200,9 +207,13 @@ class BackgroundGrid(QListView):
     removal_toggled = pyqtSignal(str)
     open_folder_requested = pyqtSignal()
 
-    def __init__(self, aspect, parent=None):
+    def __init__(self, aspect, tile_actions=True, strip=False, parent=None):
+        """tile_actions: whether the tiles offer Remove and Open Folder.
+        strip: one row of tiles, scrolling sideways, rather than rows that wrap."""
         super().__init__(parent)
-        tile = QSize(TILE_WIDTH, round(TILE_WIDTH / aspect))
+        width = STRIP_TILE_WIDTH if strip else TILE_WIDTH
+        tile = QSize(width, round(width / aspect))
+        self.tile_actions = tile_actions
         self.setViewMode(QListView.ViewMode.IconMode)
         self.setMovement(QListView.Movement.Static)
         self.setResizeMode(QListView.ResizeMode.Adjust)
@@ -218,10 +229,21 @@ class BackgroundGrid(QListView):
 
         self.model_ = QStandardItemModel(self)
         self.setModel(self.model_)
-        self.delegate = BackgroundDelegate(tile, self)
+        self.delegate = BackgroundDelegate(tile, tile_actions, self)
         self.setItemDelegate(self.delegate)
         # Decodes in flight, by name
         self._pending = {}
+        if strip:
+            self.setFlow(QListView.Flow.LeftToRight)
+            self.setWrapping(False)
+            self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+            self.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+            cell = self.delegate.sizeHint(None, None).height() + 2 * self.spacing()
+            scroll = self.horizontalScrollBar().sizeHint().height()
+            self.setFixedHeight(cell + scroll + 2 * self.frameWidth())
+            # As wide as the rows around it, which it scrolls within
+            self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
 
     def reload(self, pending=()):
         """Re-read the backgrounds directory, keeping the selection and the pending removals.
@@ -353,7 +375,7 @@ class BackgroundGrid(QListView):
         return super().selectionCommand(index, event)
 
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key.Key_Delete and self.currentIndex().isValid():
+        if self.tile_actions and event.key() == Qt.Key.Key_Delete and self.currentIndex().isValid():
             self.toggle_removal(self.currentIndex().data(NAME_ROLE))
             event.accept()
             return

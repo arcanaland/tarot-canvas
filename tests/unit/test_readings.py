@@ -3,7 +3,9 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from tarot_canvas.models import ground as ground_model
 from tarot_canvas.models import readings, toml_files
+from tarot_canvas.models.ground import Ground
 from tarot_canvas.models.reading_events import reading_events
 from tarot_canvas.models.readings import Reading, ReadingCard
 from tarot_canvas.models.spreads import Position, Spread
@@ -290,3 +292,45 @@ def test_a_bad_app_table_or_version_is_logged_and_the_reading_still_loads(
 def test_another_apps_table_is_not_written_into_a_reading(tmp_path):
     readings.save(tmp_path, sample())
     assert list(table_of(tmp_path)["app"]) == ["land.arcana.tarotcanvas"]
+
+
+def test_a_reading_with_no_ground_writes_no_ground_table(tmp_path):
+    readings.save(tmp_path, sample())
+    assert "ground" not in table_of(tmp_path)["app"]["land.arcana.tarotcanvas"]
+
+
+@pytest.mark.parametrize(
+    ("positioning", "keys"),
+    [
+        ("crop", {"style", "image", "positioning"}),
+        ("tile", {"style", "image", "positioning"}),
+        ("fit", {"style", "image", "positioning", "fill"}),
+        ("center", {"style", "image", "positioning", "fill"}),
+    ],
+)
+def test_an_image_ground_writes_only_its_keys_and_loads_back(tmp_path, positioning, keys):
+    ground = Ground(style="image", image="wood.png", positioning=positioning)
+    readings.save(tmp_path, sample(ground=ground))
+
+    written = table_of(tmp_path)["app"]["land.arcana.tarotcanvas"]["ground"]
+    assert set(written) == keys
+    assert readings.load(tmp_path) == sample(ground=ground)
+
+
+def test_a_bad_ground_loads_as_none_with_the_rest_intact(tmp_path, monkeypatch):
+    warnings = []
+    monkeypatch.setattr(ground_model.logger, "warning", warnings.append)
+    write(
+        tmp_path,
+        "date = 2026-11-09T21:14:00-08:00\nquestion = 'Kept'\n"
+        "[[cards]]\nid = 'major_arcana.0'\n"
+        "[app.'land.arcana.tarotcanvas']\nversion = 1\n"
+        "[app.'land.arcana.tarotcanvas'.ground]\nstyle = 'plaid'\n",
+    )
+
+    reading = readings.load(tmp_path)
+
+    assert reading.ground is None
+    assert reading.question == "Kept"
+    assert reading.cards[0].id == "major_arcana.0"
+    assert len(warnings) == 1

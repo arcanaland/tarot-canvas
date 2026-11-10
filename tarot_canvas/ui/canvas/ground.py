@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 from PyQt6.QtGui import QColor
 
-from tarot_canvas.settings import GROUND_HUE_KEY, get_settings
+from tarot_canvas.settings import GROUND_HUE_DEFAULT, GROUND_HUE_KEY, get_settings
 from tarot_canvas.ui.canvas.motion import SHADOW_OPACITY
 
 
@@ -54,7 +54,6 @@ GROUND_HUES = {
         aura=(QColor("#2b2b2b"), QColor("#1c1c1c"), QColor("#0e0e0e")),
     ),
 }
-GROUND_HUE_DEFAULT = "violet"
 
 
 def ground_hue_id(settings=None):

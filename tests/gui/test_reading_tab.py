@@ -18,6 +18,7 @@ from tarot_canvas.settings import (
     get_settings,
     set_readings_deck,
 )
+from tarot_canvas.ui import commands
 from tarot_canvas.ui.canvas import placement as placement_module
 from tarot_canvas.ui.canvas import reading_strip as strip_module
 from tarot_canvas.ui.canvas.candle import CANDLE_ALPHA, dim_tone
@@ -445,6 +446,25 @@ def test_a_face_down_card_has_no_menu(qtbot, deck, off):
 
     assert tab.card_menu(card.sceneBoundingRect().center()) is None
     assert tab.build_card_menu(card) is None
+
+
+def test_a_slot_has_no_menu(qtbot, deck, off):
+    tab = make_tab(qtbot)
+    slot = tab._slots[0]
+    assert tab.card_menu(slot.sceneBoundingRect().center()) is None
+
+
+def test_the_empty_ground_offers_the_readings_own_background(qtbot, deck, off):
+    tab = make_tab(qtbot)
+    deal(qtbot, tab)
+
+    menu = tab.card_menu(QPointF(9000, 9000))
+
+    (action,) = menu.actions()
+    assert action.text() == commands.by_id("window.canvas_background").text
+    action.trigger()
+    assert tab.background_is_open()
+    tab.background_panel.cancel()
 
 
 def test_ctrl_wheel_does_not_turn_a_face_down_card(qtbot, deck, off):

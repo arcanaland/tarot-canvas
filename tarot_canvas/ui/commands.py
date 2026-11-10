@@ -103,6 +103,7 @@ COMMANDS = (
     ),
     _command("window.zoom_out", PREFERENCES["zoom_out"], "zoom-out", [StandardKey.ZoomOut], W),
     _command("window.reset_zoom", PREFERENCES["reset_zoom"], "zoom-original", ["Ctrl+0"], W),
+    _command("window.canvas_background", T["canvas_background"], "folder-image-symbolic", [], W),
     # Go: the keys are the art's, so these only show them
     _command(
         "window.go_previous",
