@@ -81,7 +81,6 @@ from tarot_canvas.ui.canvas.ground import (
     shadow_for_ground,
 )
 from tarot_canvas.ui.canvas.guides import GuideItem
-from tarot_canvas.ui.canvas.kept_reading import KeptReading, new_reading, resolve_deck
 from tarot_canvas.ui.canvas.motion import (
     AMBIENT_GAIN_FLOOR,
     SHADOW_OPACITY,
@@ -90,6 +89,7 @@ from tarot_canvas.ui.canvas.motion import (
     approach,
     system_animations_enabled,
 )
+from tarot_canvas.ui.canvas.saved_canvas import SavedCanvas, new_reading, resolve_deck
 from tarot_canvas.ui.canvas.selection import GILT_ON_DARK, gilt_for_ground
 from tarot_canvas.ui.canvas.tab_icon import (
     MINIMAP,
@@ -165,10 +165,10 @@ class CanvasTab(BaseTab):
     TOOLS_TITLE = CANVAS["section_cards"]
     # What add_slot puts on the canvas
     SLOT_ITEM = SlotItem
-    # Whether Save keeps this canvas as a reading; a tab that saves something else says no
-    KEEPS_READINGS = True
+    # Whether Save makes this a saved canvas; a tab that saves something else says no
+    SAVES_CANVAS = True
     # Set once the canvas is a reading
-    kept = None
+    saved_canvas = None
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -684,7 +684,7 @@ class CanvasTab(BaseTab):
             self.toolbar.addAction(save_layout)
             self.update_save_layout_action()
 
-        if self.KEEPS_READINGS:
+        if self.SAVES_CANVAS:
             self.save_reading_action = QAction(
                 QIcon.fromTheme("document-save"), READINGS["save_reading"], self
             )
@@ -1056,8 +1056,8 @@ class CanvasTab(BaseTab):
         self.scene.addItem(replacement)
         replacement.setSelected(True)
         replacement.marks.settle()
-        if self.kept is not None:
-            self.kept.schedule()
+        if self.saved_canvas is not None:
+            self.saved_canvas.schedule()
         return replacement
 
     # -- zoom --------------------------------------------------------------
@@ -1371,20 +1371,20 @@ class CanvasTab(BaseTab):
         return metrics.elidedText(name, Qt.TextElideMode.ElideRight, width)
 
     def tab_title(self):
-        if self.kept is not None:
-            return self.elided_title(self.kept.label())
+        if self.saved_canvas is not None:
+            return self.elided_title(self.saved_canvas.label())
         return self.tab_name
 
     def tab_tooltip(self):
-        if self.kept is None:
+        if self.saved_canvas is None:
             return ""
-        name = self.kept.label()
+        name = self.saved_canvas.label()
         return name if name != self.tab_title() else ""
 
     def rename_text(self):
         """What the rename dialog starts from"""
-        if self.kept is not None:
-            return self.kept.question()
+        if self.saved_canvas is not None:
+            return self.saved_canvas.question()
         return self.tab_name
 
     def rename_dialog_text(self):
@@ -1393,8 +1393,8 @@ class CanvasTab(BaseTab):
 
     def rename(self, name):
         # A reading is named by its Question
-        if self.kept is not None:
-            self.kept.set_question(name)
+        if self.saved_canvas is not None:
+            self.saved_canvas.set_question(name)
             return
         self.tab_name = name
         self.tab_label_changed.emit()
@@ -1404,13 +1404,13 @@ class CanvasTab(BaseTab):
     @property
     def reading_path(self):
         """The reading's folder, or None while the canvas is scratch"""
-        return self.kept.path if self.kept is not None else None
+        return self.saved_canvas.path if self.saved_canvas is not None else None
 
     def save_label(self):
-        return READINGS["save_reading"] if self.KEEPS_READINGS else None
+        return READINGS["save_reading"] if self.SAVES_CANVAS else None
 
     def can_save(self):
-        return self.KEEPS_READINGS and self.kept is None
+        return self.SAVES_CANVAS and self.saved_canvas is None
 
     def save(self):
         """Keep this canvas as a new reading, done now"""
@@ -1421,28 +1421,28 @@ class CanvasTab(BaseTab):
         except OSError as error:
             logger.error(f"Could not make a folder for a reading: {error}")
             return False
-        self.keep_as(path, new_reading())
-        saved = self.kept.write()
-        self.kept.pane.question_edit.setFocus()
+        self.save_as(path, new_reading())
+        saved = self.saved_canvas.write()
+        self.saved_canvas.pane.question_edit.setFocus()
         return saved
 
-    def keep_as(self, path, reading):
+    def save_as(self, path, reading):
         """From now on, this canvas is the reading in folder path, and writes itself there"""
-        self.kept = KeptReading(self, path, reading)
-        self.kept.label_changed.connect(self.tab_label_changed)
+        self.saved_canvas = SavedCanvas(self, path, reading)
+        self.saved_canvas.label_changed.connect(self.tab_label_changed)
 
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.layout.replaceWidget(self.canvas_area, self.splitter)
         self.splitter.addWidget(self.canvas_area)
-        self.kept.pane.dock(self.splitter)
-        self.pane_action = self.kept.pane.toggle_action(self, SPREADS["pane_tooltip"])
+        self.saved_canvas.pane.dock(self.splitter)
+        self.pane_action = self.saved_canvas.pane.toggle_action(self, SPREADS["pane_tooltip"])
         self.toolbar.addAction(self.pane_action)
 
         self.save_reading_action.setEnabled(False)
         self.tab_label_changed.emit()
 
     def restore_cards(self, reading, decks, reference):
-        """Lay reading's cards out exactly as they were kept, each in its deck"""
+        """Lay reading's cards out exactly as they were saved, each in its deck"""
         resolved = {}
         for card in reading.cards:
             if card.deck not in resolved:
@@ -1470,8 +1470,8 @@ class CanvasTab(BaseTab):
             return None
 
     def flush_pending_edits(self):
-        if self.kept is not None:
-            self.kept.flush()
+        if self.saved_canvas is not None:
+            self.saved_canvas.flush()
 
     def about_to_close(self):
         self.flush_pending_edits()

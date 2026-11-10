@@ -1,4 +1,4 @@
-"""A kept reading's one note: always open, written a moment after each edit."""
+"""A saved canvas's one note: always open, written a moment after each edit."""
 
 import re
 
@@ -7,7 +7,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QMessageBox
 
 from tarot_canvas.models import readings
-from tarot_canvas.ui.canvas.kept_reading import AUTOSAVE_MS
+from tarot_canvas.ui.canvas.saved_canvas import AUTOSAVE_MS
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.strings import READINGS
 
@@ -28,7 +28,7 @@ def window(qtbot, stub_deck_manager, spreads_base, notes_base):
     return window
 
 
-def keep_a_canvas(window, deck):
+def save_a_canvas(window, deck):
     """A canvas with a card, just saved as a reading"""
     tab = window.new_canvas_tab()
     card = next(card for card in deck.get_all_cards() if card.get("image"))
@@ -40,18 +40,18 @@ def keep_a_canvas(window, deck):
 
 
 @pytest.fixture
-def kept(window, minimal_deck):
-    return keep_a_canvas(window, minimal_deck)
+def saved_tab(window, minimal_deck):
+    return save_a_canvas(window, minimal_deck)
 
 
 @pytest.fixture
 def focused(qtbot, window, minimal_deck):
-    """A reading kept in a window that has focus, once its pane is showing"""
+    """A canvas saved in a window that has focus, once its pane is showing"""
     window.show()
     window.activateWindow()
     qtbot.waitActive(window)
-    tab = keep_a_canvas(window, minimal_deck)
-    qtbot.waitUntil(tab.kept.pane.isVisible)
+    tab = save_a_canvas(window, minimal_deck)
+    qtbot.waitUntil(tab.saved_canvas.pane.isVisible)
     return tab
 
 
@@ -59,21 +59,21 @@ def notes_in(path):
     return sorted(path.glob("*.md"))
 
 
-def test_a_new_reading_shows_an_empty_editor_and_writes_no_note(kept, notes_base):
-    note = kept.kept.pane.note
+def test_a_new_reading_shows_an_empty_editor_and_writes_no_note(saved_tab, notes_base):
+    note = saved_tab.saved_canvas.pane.note
 
-    assert note.editor.isVisibleTo(kept)
+    assert note.editor.isVisibleTo(saved_tab)
     assert note.editor.placeholderText() == READINGS["notes_hint"]
     assert note.editor.toPlainText() == ""
-    assert notes_in(kept.reading_path) == []
+    assert notes_in(saved_tab.reading_path) == []
 
 
-def test_typing_writes_one_note_and_leaves_the_reading_alone(qtbot, kept, notes_base):
-    path = kept.reading_path
+def test_typing_writes_one_note_and_leaves_the_reading_alone(qtbot, saved_tab, notes_base):
+    path = saved_tab.reading_path
     reading_file = path / readings.READING_FILE
     written = reading_file.stat().st_mtime_ns
 
-    qtbot.keyClicks(kept.kept.pane.note.editor, "The tower, again")
+    qtbot.keyClicks(saved_tab.saved_canvas.pane.note.editor, "The tower, again")
     qtbot.waitUntil(lambda: len(notes_in(path)) == 1, timeout=AUTOSAVE_MS * 3)
 
     (note,) = notes_in(path)
@@ -83,57 +83,57 @@ def test_typing_writes_one_note_and_leaves_the_reading_alone(qtbot, kept, notes_
     assert not notes_base.exists()
 
 
-def test_blank_typing_writes_no_note(qtbot, kept):
-    qtbot.keyClicks(kept.kept.pane.note.editor, "   ")
+def test_blank_typing_writes_no_note(qtbot, saved_tab):
+    qtbot.keyClicks(saved_tab.saved_canvas.pane.note.editor, "   ")
     qtbot.wait(AUTOSAVE_MS * 2)
 
-    assert notes_in(kept.reading_path) == []
+    assert notes_in(saved_tab.reading_path) == []
 
 
-def test_closing_the_tab_at_once_keeps_what_was_typed(qtbot, window, kept):
-    path = kept.reading_path
+def test_closing_the_tab_at_once_keeps_what_was_typed(qtbot, window, saved_tab):
+    path = saved_tab.reading_path
 
-    qtbot.keyClicks(kept.kept.pane.note.editor, "Last thought")
-    window.close_tab(window.tab_widget.indexOf(kept))
+    qtbot.keyClicks(saved_tab.saved_canvas.pane.note.editor, "Last thought")
+    window.close_tab(window.tab_widget.indexOf(saved_tab))
 
     (note,) = notes_in(path)
     assert note.read_text(encoding="utf-8") == "Last thought"
 
 
-def test_emptying_the_note_empties_its_file(qtbot, window, kept):
-    path = kept.reading_path
-    editor = kept.kept.pane.note.editor
+def test_emptying_the_note_empties_its_file(qtbot, window, saved_tab):
+    path = saved_tab.reading_path
+    editor = saved_tab.saved_canvas.pane.note.editor
     qtbot.keyClicks(editor, "Gone soon")
-    kept.flush_pending_edits()
+    saved_tab.flush_pending_edits()
 
     editor.selectAll()
     qtbot.keyClick(editor, Qt.Key.Key_Delete)
-    kept.flush_pending_edits()
+    saved_tab.flush_pending_edits()
 
     (note,) = notes_in(path)
     assert note.read_text(encoding="utf-8") == ""
 
 
-def test_a_reopened_reading_shows_its_note(qtbot, window, kept):
-    path = kept.reading_path
-    qtbot.keyClicks(kept.kept.pane.note.editor, "Written before closing")
-    window.close_tab(window.tab_widget.indexOf(kept))
+def test_a_reopened_reading_shows_its_note(qtbot, window, saved_tab):
+    path = saved_tab.reading_path
+    qtbot.keyClicks(saved_tab.saved_canvas.pane.note.editor, "Written before closing")
+    window.close_tab(window.tab_widget.indexOf(saved_tab))
 
-    reopened = window.open_kept_reading(path)
+    reopened = window.open_saved_canvas(path)
 
-    assert reopened.kept.pane.note.editor.toPlainText() == "Written before closing"
+    assert reopened.saved_canvas.pane.note.editor.toPlainText() == "Written before closing"
 
 
-def test_of_two_notes_the_older_is_shown_and_edited(qtbot, window, kept):
-    path = kept.reading_path
-    window.close_tab(window.tab_widget.indexOf(kept))
+def test_of_two_notes_the_older_is_shown_and_edited(qtbot, window, saved_tab):
+    path = saved_tab.reading_path
+    window.close_tab(window.tab_widget.indexOf(saved_tab))
     older = path / "1700000000_first.md"
     newer = path / "1800000000.md"
     older.write_text("older", encoding="utf-8")
     newer.write_text("newer", encoding="utf-8")
 
-    reopened = window.open_kept_reading(path)
-    editor = reopened.kept.pane.note.editor
+    reopened = window.open_saved_canvas(path)
+    editor = reopened.saved_canvas.pane.note.editor
     editor.moveCursor(editor.textCursor().MoveOperation.End)
     qtbot.keyClicks(editor, "!")
     reopened.flush_pending_edits()
@@ -145,11 +145,11 @@ def test_of_two_notes_the_older_is_shown_and_edited(qtbot, window, kept):
 
 def test_save_as_reading_leaves_the_cursor_in_the_question(qtbot, focused):
     # The pane shows itself once the event loop runs, and takes focus then
-    qtbot.waitUntil(focused.kept.pane.question_edit.hasFocus)
+    qtbot.waitUntil(focused.saved_canvas.pane.question_edit.hasFocus)
 
 
 def test_tab_from_the_question_lands_in_the_note(qtbot, focused):
-    pane = focused.kept.pane
+    pane = focused.saved_canvas.pane
     qtbot.waitUntil(pane.question_edit.hasFocus)
 
     qtbot.keyClick(pane.question_edit, Qt.Key.Key_Tab)

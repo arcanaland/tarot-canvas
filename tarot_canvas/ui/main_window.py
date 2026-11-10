@@ -613,17 +613,17 @@ class MainWindow(QMainWindow):
         """A new tab dealing a reading from spread, and return it"""
         return self.add_canvas_tab(ReadingTab(spread))
 
-    def kept_reading_tab(self, path):
+    def saved_canvas_tab(self, path):
         for index in range(self.tab_widget.count()):
             tab = self.tab_widget.widget(index)
             if isinstance(tab, CanvasTab) and tab.reading_path == path:
                 return tab
         return None
 
-    def open_kept_reading(self, path):
+    def open_saved_canvas(self, path):
         """Raise the tab holding the reading in folder path, or open one, and return it"""
         path = Path(path)
-        tab = self.kept_reading_tab(path)
+        tab = self.saved_canvas_tab(path)
         if tab is not None:
             self.tab_widget.setCurrentWidget(tab)
             return tab
@@ -634,7 +634,7 @@ class MainWindow(QMainWindow):
         tab = CanvasTab()
         tab.tab_name = self.next_canvas_name()
         tab.restore_cards(reading, deck_manager.get_all_decks(), deck_manager.get_reference_deck())
-        tab.keep_as(path, reading)
+        tab.save_as(path, reading)
         self.add_canvas_tab(tab)
         QTimer.singleShot(0, tab.on_home)
         return tab

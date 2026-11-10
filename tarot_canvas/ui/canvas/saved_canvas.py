@@ -1,4 +1,4 @@
-"""A canvas kept as a reading: its pane, and the write that follows every change"""
+"""A saved canvas: its pane, and the write that follows every change"""
 
 from collections import Counter
 from dataclasses import replace
@@ -154,8 +154,8 @@ def open_calendar(edit):
         QApplication.sendEvent(edit, event)
 
 
-class KeptPane(SidePane):
-    """The Question, the Date and the notes of a kept reading"""
+class SavedCanvasPane(SidePane):
+    """The Question, the Date and the note of a saved canvas"""
 
     def __init__(self, tab, path, reading):
         super().__init__()
@@ -235,7 +235,7 @@ class KeptPane(SidePane):
             self.date_text.setFocus()
 
 
-class KeptReading(QObject):
+class SavedCanvas(QObject):
     """Writes the tab's reading to path a moment after anything in it changes"""
 
     # The Question or the Date changed, so the tab's label may have
@@ -249,7 +249,7 @@ class KeptReading(QObject):
         self._base = reading
         self._date = reading.date
 
-        self.pane = KeptPane(tab, self.path, reading)
+        self.pane = SavedCanvasPane(tab, self.path, reading)
 
         self.timer = QTimer(self)
         self.timer.setSingleShot(True)
