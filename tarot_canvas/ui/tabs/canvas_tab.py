@@ -8,6 +8,7 @@ from PyQt6.QtGui import (
     QBrush,
     QColor,
     QCursor,
+    QFontMetrics,
     QGuiApplication,
     QIcon,
     QPainter,
@@ -22,11 +23,12 @@ from PyQt6.QtWidgets import (
     QLabel,
     QMenu,
     QSizePolicy,
+    QSplitter,
     QToolBar,
     QWidget,
 )
 
-from tarot_canvas.models import backgrounds
+from tarot_canvas.models import backgrounds, readings
 from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.models.spreads import Position, Spread, offsets_from_middle
 from tarot_canvas.settings import (
@@ -79,6 +81,7 @@ from tarot_canvas.ui.canvas.ground import (
     shadow_for_ground,
 )
 from tarot_canvas.ui.canvas.guides import GuideItem
+from tarot_canvas.ui.canvas.kept_reading import KeptReading, new_reading, resolve_deck
 from tarot_canvas.ui.canvas.motion import (
     AMBIENT_GAIN_FLOOR,
     SHADOW_OPACITY,
@@ -103,9 +106,12 @@ from tarot_canvas.ui.card_transfer import (
     has_card,
 )
 from tarot_canvas.ui.commands import Scope, set_tooltip_with_keys
-from tarot_canvas.ui.strings import CANVAS, MAIN_WINDOW, SPREADS
+from tarot_canvas.ui.strings import CANVAS, MAIN_WINDOW, READINGS, SPREADS
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.utils.logger import logger
+
+# A tab title longer than this many average characters is cut short
+TAB_TITLE_CHARS = 32
 
 # Degrees a wheel notch turns a card, and with Alt held
 WHEEL_TURN_STEP = 15
@@ -159,6 +165,10 @@ class CanvasTab(BaseTab):
     TOOLS_TITLE = CANVAS["section_cards"]
     # What add_slot puts on the canvas
     SLOT_ITEM = SlotItem
+    # Whether Save keeps this canvas as a reading; a tab that saves something else says no
+    KEEPS_READINGS = True
+    # Set once the canvas is a reading
+    kept = None
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -674,6 +684,14 @@ class CanvasTab(BaseTab):
             self.toolbar.addAction(save_layout)
             self.update_save_layout_action()
 
+        if self.KEEPS_READINGS:
+            self.save_reading_action = QAction(
+                QIcon.fromTheme("document-save"), READINGS["save_reading"], self
+            )
+            set_tooltip_with_keys(self.save_reading_action, READINGS["save_reading"], "window.save")
+            self.save_reading_action.triggered.connect(self.save)
+            self.toolbar.addAction(self.save_reading_action)
+
         # Grey out the arrangement buttons unless you select multiple cards
         self.scene.selectionChanged.connect(self.update_arrange_actions)
         self.scene.selectionChanged.connect(self.edit_state_changed)
@@ -1038,6 +1056,8 @@ class CanvasTab(BaseTab):
         self.scene.addItem(replacement)
         replacement.setSelected(True)
         replacement.marks.settle()
+        if self.kept is not None:
+            self.kept.schedule()
         return replacement
 
     # -- zoom --------------------------------------------------------------
@@ -1344,11 +1364,27 @@ class CanvasTab(BaseTab):
         self._tab_icon = spread_icon(marks) if marks else self.empty_tab_icon()
         self.tab_label_changed.emit()
 
+    def elided_title(self, name):
+        """name, cut short to fit a tab"""
+        metrics = QFontMetrics(self.font())
+        width = metrics.averageCharWidth() * TAB_TITLE_CHARS
+        return metrics.elidedText(name, Qt.TextElideMode.ElideRight, width)
+
     def tab_title(self):
+        if self.kept is not None:
+            return self.elided_title(self.kept.label())
         return self.tab_name
+
+    def tab_tooltip(self):
+        if self.kept is None:
+            return ""
+        name = self.kept.label()
+        return name if name != self.tab_title() else ""
 
     def rename_text(self):
         """What the rename dialog starts from"""
+        if self.kept is not None:
+            return self.kept.question()
         return self.tab_name
 
     def rename_dialog_text(self):
@@ -1356,8 +1392,89 @@ class CanvasTab(BaseTab):
         return MAIN_WINDOW["rename_canvas"], MAIN_WINDOW["rename_canvas_prompt"]
 
     def rename(self, name):
+        # A reading is named by its Question
+        if self.kept is not None:
+            self.kept.set_question(name)
+            return
         self.tab_name = name
         self.tab_label_changed.emit()
+
+    # -- keeping the canvas as a reading -----------------------------------
+
+    @property
+    def reading_path(self):
+        """The reading's folder, or None while the canvas is scratch"""
+        return self.kept.path if self.kept is not None else None
+
+    def save_label(self):
+        return READINGS["save_reading"] if self.KEEPS_READINGS else None
+
+    def can_save(self):
+        return self.KEEPS_READINGS and self.kept is None
+
+    def save(self):
+        """Keep this canvas as a new reading, done now"""
+        if not self.can_save():
+            return False
+        try:
+            path = readings.new_reading_dir()
+        except OSError as error:
+            logger.error(f"Could not make a folder for a reading: {error}")
+            return False
+        self.keep_as(path, new_reading())
+        saved = self.kept.write()
+        self.kept.pane.question_edit.setFocus()
+        return saved
+
+    def keep_as(self, path, reading):
+        """From now on, this canvas is the reading in folder path, and writes itself there"""
+        self.kept = KeptReading(self, path, reading)
+        self.kept.label_changed.connect(self.tab_label_changed)
+
+        self.splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.layout.replaceWidget(self.canvas_area, self.splitter)
+        self.splitter.addWidget(self.canvas_area)
+        self.kept.pane.dock(self.splitter)
+        self.pane_action = self.kept.pane.toggle_action(self, SPREADS["pane_tooltip"])
+        self.toolbar.addAction(self.pane_action)
+
+        self.save_reading_action.setEnabled(False)
+        self.tab_label_changed.emit()
+
+    def restore_cards(self, reading, decks, reference):
+        """Lay reading's cards out exactly as they were kept, each in its deck"""
+        resolved = {}
+        for card in reading.cards:
+            if card.deck not in resolved:
+                resolved[card.deck] = resolve_deck(card.deck, decks, reference)
+            deck = resolved[card.deck]
+            data = self._card_in(deck, card.id)
+            if data is None:
+                logger.warning(f"Skipped card {card.id!r}: its deck has no such card")
+                continue
+            item = self.make_card_item(data, deck, card.reversed)
+            if item is None:
+                continue
+            item.restore(QPointF(card.x, card.y), card.z, card.rotation)
+            self.scene.addItem(item)
+            self._top_z = max(self._top_z, card.z)
+            self._bottom_z = min(self._bottom_z, card.z)
+
+    @staticmethod
+    def _card_in(deck, card_id):
+        if deck is None:
+            return None
+        try:
+            return deck.get_card_by_id(card_id)
+        except Exception:
+            return None
+
+    def flush_pending_edits(self):
+        if self.kept is not None:
+            self.kept.flush()
+
+    def about_to_close(self):
+        self.flush_pending_edits()
 
     def tab_icon(self):
         return self._tab_icon

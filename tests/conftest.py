@@ -155,6 +155,22 @@ class _OfflineTransport:
 
 
 @pytest.fixture(autouse=True)
+def readings_base(tmp_path, monkeypatch):
+    """Readings are kept under a fresh directory."""
+    from tarot_canvas.models import readings
+
+    base = tmp_path / "readings"
+    monkeypatch.setattr(readings, "readings_base", lambda: base)
+    return base
+
+
+@pytest.fixture(autouse=True)
+def fresh_reading_events(monkeypatch):
+    """A ReadingEvents per test, so no test's emit reaches an earlier test's widgets."""
+    monkeypatch.setattr("tarot_canvas.models.reading_events._instance", None)
+
+
+@pytest.fixture(autouse=True)
 def fresh_note_events(monkeypatch):
     """A NoteEvents per test, so no test's emit reaches an earlier test's widgets."""
     monkeypatch.setattr("tarot_canvas.models.note_events._instance", None)

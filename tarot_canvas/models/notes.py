@@ -25,8 +25,20 @@ class Note(NamedTuple):
     first_line_is_heading: bool
 
 
+class NoteAnchor(NamedTuple):
+    """Where a set of notes lives: the directory they are listed from and written to,
+    and the card they are about, if they are about one."""
+
+    directory: Path
+    card_id: str | None = None
+
+
 def notes_base():
     return get_data_directory(NOTES_SUBPATH)
+
+
+def card_anchor(card_id):
+    return NoteAnchor(notes_base() / card_id, card_id)
 
 
 def display_name_from_filename(filename):
@@ -77,13 +89,18 @@ def _body_of(lines):
     return lines
 
 
-def _read_card_notes(card_dir):
+def read_directory(directory):
+    """The notes in one directory, newest first; a missing directory has none.
+
+    Each note's `card_id` is the directory's name, which is the card's for a card's notes.
+    """
+    directory = Path(directory)
     notes = []
 
     try:
-        entries = sorted(card_dir.glob("*.md"))
+        entries = sorted(directory.glob("*.md"))
     except OSError as error:
-        logger.debug(f"Could not list notes in {card_dir}: {error}")
+        logger.debug(f"Could not list notes in {directory}: {error}")
         return notes
 
     for path in entries:
@@ -96,7 +113,7 @@ def _read_card_notes(card_dir):
         lines = _lines(path)
         notes.append(
             Note(
-                card_id=card_dir.name,
+                card_id=directory.name,
                 path=path,
                 title=display_name_from_filename(path.name),
                 modified=modified,
@@ -121,7 +138,7 @@ def scan(base=None):
         return index
 
     for card_dir in card_dirs:
-        notes = _read_card_notes(card_dir)
+        notes = read_directory(card_dir)
         if notes:
             index[card_dir.name] = notes
 

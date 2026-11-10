@@ -25,6 +25,7 @@ class SpreadTab(SpreadSlots, CanvasTab):
     """A canvas of numbered slots"""
 
     TOOLS_TITLE = SPREADS["section_slots"]
+    KEEPS_READINGS = False
 
     def __init__(self, spread=None, path=None, parent=None):
         super().__init__(parent)

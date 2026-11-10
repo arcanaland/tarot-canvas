@@ -30,6 +30,7 @@ from tarot_canvas.ui.library.note_row_delegate import NoteRowDelegate
 from tarot_canvas.ui.library.notes_model import NoteRole, NotesListModel
 from tarot_canvas.ui.strings import NOTES, notes_text
 from tarot_canvas.ui.tabs.card_view.markdown_editor import MarkdownEditor
+from tarot_canvas.ui.tabs.card_view.note_editing import NoteLinks, write_note
 from tarot_canvas.ui.tabs.card_view.notes_list import NotesEmptyPage, NotesListPage
 from tarot_canvas.ui.widgets.heading_edit import heading_edit
 from tarot_canvas.ui.widgets.inline_message import InlineMessage
@@ -49,14 +50,17 @@ def renamed_path(file_path, new_name):
 
 
 class NotesTab(QWidget):
-    """Tab for managing notes associated with a tarot card"""
+    """The notes kept in one directory: a card's, or anything else's with notes of its own."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.parent_tab = parent
-        self.current_card = None
-        self.notes_index = {}  # card_id -> [Note], the whole library
-        self.all_notes = {}  # (card_id, path) -> Note, for linking
+        # Where the listed notes live and new ones are written; see set_anchor
+        self.anchor = None
+        self.anchor_notes = []  # [Note] in the anchor's directory, newest first
+        self.links = NoteLinks(
+            parent, getattr(parent, "deck_manager", None), self.card_id, self.open_note_path
+        )
         self.current_file_path = None
 
         # A note the user asked for but hasn't written yet
@@ -218,7 +222,7 @@ class NotesTab(QWidget):
 
         # Create enhanced markdown editor - no toolbar now
         self.note_editor = MarkdownEditor(self)
-        self.note_editor.linkClicked.connect(self.handle_link_click)
+        self.note_editor.linkClicked.connect(self.links.follow)
         self.note_editor.document().contentsChanged.connect(self.write_pending_note)
         # A save says nothing; Save greys out instead
         self.save_button.setEnabled(False)
@@ -235,21 +239,22 @@ class NotesTab(QWidget):
 
     def load_card_notes(self, card):
         """Load existing notes for a card"""
+        card_id = card.get("id") if card else None
+        self.set_anchor(notes_model.card_anchor(card_id) if card_id else None)
+
+    def set_anchor(self, anchor):
+        """List the notes under `anchor` and write new ones there; None lists nothing new."""
         self.discard_pending_note()
 
-        # Stepping to another card hides the Undo, so the delete it offered is final
+        # Moving to another anchor hides the Undo, so the delete it offered is final
         self.commit_pending_delete()
 
-        # Stepping to another card mustn't leave an edit waiting on the autosave timer
+        # Moving to another anchor mustn't leave an edit waiting on the autosave timer
         self.save_if_modified()
 
-        self.current_card = card
+        self.anchor = anchor
 
-        if not card:
-            return
-
-        card_id = card.get("id")
-        if not card_id:
+        if anchor is None:
             return
 
         # Ensure deck manager reference is passed to editor
@@ -265,11 +270,11 @@ class NotesTab(QWidget):
     # -- the list -----------------------------------------------------------
 
     def refresh_list(self):
-        """Re-read the index and show this card's notes, keeping the open note selected."""
+        """Re-read the index and show the anchor's notes, keeping the open note selected."""
         self.load_all_notes()
 
-        card_id = self.card_id()
-        self.list_model.set_card_notes(card_id, self.notes_index.get(card_id, []))
+        key = self.anchor.directory.name if self.anchor else None
+        self.list_model.set_card_notes(key, self.anchor_notes)
         self.select_path(self.current_file_path)
 
         if self.stack.currentWidget() is not self.editor_page:
@@ -291,7 +296,7 @@ class NotesTab(QWidget):
         return str(note.path) if note else None
 
     def note_at(self, file_path):
-        return self.all_notes.get((self.card_id(), file_path))
+        return next((note for note in self.anchor_notes if str(note.path) == file_path), None)
 
     # -- the actions --------------------------------------------------------
 
@@ -414,7 +419,8 @@ class NotesTab(QWidget):
         return new_file_path
 
     def card_id(self):
-        return self.current_card.get("id") if self.current_card else None
+        """The card the anchor is about, if any."""
+        return self.anchor.card_id if self.anchor else None
 
     def open_note_path(self, file_path):
         if self.select_path(file_path).isValid():
@@ -432,11 +438,7 @@ class NotesTab(QWidget):
 
     def create_new_note(self):
         """Open the editor on a note that doesn't exist yet."""
-        if not self.current_card:
-            return
-
-        card_id = self.current_card.get("id")
-        if not card_id:
+        if self.anchor is None:
             return
 
         # save whatever is open
@@ -444,7 +446,7 @@ class NotesTab(QWidget):
 
         self.current_file_path = None
         self.pending_name = ""
-        self.pending_path = str(notes_model.notes_base() / card_id / f"{int(time.time())}.md")
+        self.pending_path = str(self.anchor.directory / f"{int(time.time())}.md")
 
         self.note_title.setText("")
         self.note_editor.clear()
@@ -561,42 +563,18 @@ class NotesTab(QWidget):
     # Helper methods
 
     def load_all_notes(self):
-        """Re-read every note in the library, for linking"""
-        self.notes_index = notes_model.scan()
-        self.all_notes = {
-            (note.card_id, str(note.path)): note
-            for notes in self.notes_index.values()
-            for note in notes
-        }
+        """Re-read the anchor's notes, and every card's for linking"""
+        self.anchor_notes = notes_model.read_directory(self.anchor.directory) if self.anchor else []
+        self.links.refresh()
+
+    @property
+    def notes_index(self):
+        """card_id -> [Note], the whole card library"""
+        return self.links.notes_index
 
     def get_link_suggestions(self):
-        """Get suggestions for auto-completion when linking"""
-        suggestions = []
-
-        # Add all note names, first occurrence wins so the order is stable
-        seen = set()
-        for note in self.all_notes.values():
-            if note.title and note.title not in seen:
-                seen.add(note.title)
-                suggestions.append(note.title)
-
-        # Add card references if deck manager is available
-        if self.parent_tab and hasattr(self.parent_tab, "deck_manager"):
-            deck_manager = self.parent_tab.deck_manager
-
-            # Add all cards from reference deck
-            ref_deck = deck_manager.get_reference_deck()
-            if ref_deck:
-                # Use _cards directly or get_all_cards() if available
-                cards = getattr(ref_deck, "get_all_cards", lambda: ref_deck._cards)()
-                for card in cards:
-                    suggestions.append(f"card:{card['name']}")
-
-            # Add all decks
-            for deck in deck_manager.get_all_decks():
-                suggestions.append(f"deck:{deck.get_name()}")
-
-        return suggestions
+        """What the editor's link completer offers"""
+        return self.links.suggestions()
 
     def save_current_note(self):
         """Save the current note content"""
@@ -616,34 +594,8 @@ class NotesTab(QWidget):
 
     def save_note_to_file(self, file_path):
         """Save note content to a specific file"""
-        content = self.note_editor.toPlainText()
-
         try:
-            # Ensure the directory exists
-            dir_path = os.path.dirname(file_path)
-            os.makedirs(dir_path, exist_ok=True)
-
-            # Log detailed info about save location and file
-            logger.info(f"Saving note to: {file_path}")
-            logger.info(f"Directory: {dir_path} exists: {os.path.exists(dir_path)}")
-            logger.info(f"Content length: {len(content)} characters")
-
-            # Save the file with explicit encoding
-            with open(file_path, "w", encoding="utf-8") as f:
-                f.write(content)
-                # Flush to disk to ensure it's written while file is still open
-                f.flush()
-                os.fsync(f.fileno())
-
-            # Verify file was saved
-            if os.path.exists(file_path):
-                logger.info(f"File saved successfully: {os.path.getsize(file_path)} bytes")
-            else:
-                logger.error(f"File doesn't exist after save: {file_path}")
-
-            # Update modification time in file metadata
-            os.utime(file_path, None)
-
+            write_note(file_path, self.note_editor.toPlainText())
             self.load_all_notes()
             note_events().notes_changed.emit()
 
@@ -656,102 +608,8 @@ class NotesTab(QWidget):
             logger.error(traceback.format_exc())
             QMessageBox.critical(self, NOTES["error"], error_msg)
 
-    # Link handling
-
-    def handle_link_click(self, link_text):
-        """Handle clicks on wiki links or markdown links"""
-        if link_text.startswith("card:"):
-            # Link to another card
-            card_name = link_text[5:]
-            self.navigate_to_card(card_name)
-        elif link_text.startswith("deck:"):
-            # Link to a deck
-            deck_name = link_text[5:]
-            self.navigate_to_deck(deck_name)
-        else:
-            # Assume it's a note link
-            self.navigate_to_note(link_text)
-
-    def navigate_to_card(self, card_name):
-        """Navigate to a specific card by name"""
-        if self.parent_tab and hasattr(self.parent_tab, "deck_manager"):
-            deck_manager = self.parent_tab.deck_manager
-            ref_deck = deck_manager.get_reference_deck()
-
-            if ref_deck:
-                # Find the card by name
-                cards = getattr(ref_deck, "get_all_cards", lambda: ref_deck._cards)()
-                for card in cards:
-                    if card["name"].lower() == card_name.lower():
-                        # Emit signal to navigate to this card
-                        self.parent_tab.navigation_requested.emit(
-                            "open_card_view", {"card": card, "deck": ref_deck}
-                        )
-                        return
-
-    def navigate_to_deck(self, deck_name):
-        """Navigate to a specific deck by name"""
-        if self.parent_tab and hasattr(self.parent_tab, "deck_manager"):
-            deck_manager = self.parent_tab.deck_manager
-
-            # Find the deck by name
-            for deck in deck_manager.get_all_decks():
-                if deck.get_name().lower() == deck_name.lower():
-                    # Emit signal to navigate to this deck
-                    self.parent_tab.navigation_requested.emit(
-                        "open_deck_view", {"deck_path": deck.deck_path}
-                    )
-                    return
-
     def find_note_by_title(self, note_name):
-        """A title is not unique across cards: prefer this card's, then the newest.
-
-        An empty needle matches nothing: every unnamed note has title "", so `[[]]` would
-        otherwise resolve to all of them at once.
-        """
-        if not note_name:
-            return None
-
-        matches = [note for note in self.all_notes.values() if note.title == note_name]
-        if not matches:
-            return None
-
-        if self.current_card:
-            card_id = self.current_card.get("id")
-            here = [note for note in matches if note.card_id == card_id]
-            if here:
-                return max(here, key=lambda note: note.modified)
-
-        return max(matches, key=lambda note: note.modified)
-
-    def navigate_to_note(self, note_name):
-        """Navigate to a specific note by name"""
-        note_info = self.find_note_by_title(note_name)
-        if note_info:
-            # If it's a note for a different card, navigate to that card first
-            if (
-                self.current_card
-                and note_info.card_id != self.current_card.get("id")
-                and self.parent_tab
-                and hasattr(self.parent_tab, "deck_manager")
-            ):
-                deck_manager = self.parent_tab.deck_manager
-                ref_deck = deck_manager.get_reference_deck()
-
-                if ref_deck:
-                    # Find the card by ID
-                    cards = getattr(ref_deck, "get_all_cards", lambda: ref_deck._cards)()
-                    for card in cards:
-                        if card["id"] == note_info.card_id:
-                            # Emit signal to navigate to this card
-                            self.parent_tab.navigation_requested.emit(
-                                "open_card_view",
-                                {"card": card, "deck": ref_deck, "open_note": note_name},
-                            )
-                            return
-
-            # If it's a note for the current card, just open it
-            self.open_note_path(str(note_info.path))
+        return self.links.find_note_by_title(note_name)
 
     def auto_save(self):
         """Automatically save the current note if modified"""
