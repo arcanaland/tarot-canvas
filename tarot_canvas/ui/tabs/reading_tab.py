@@ -133,7 +133,7 @@ class ReadingTab(SpreadSlots, CanvasTab):
 
         self.badges = Badges(self.view, self._badge_marks)
         self.caption = Caption(self.view)
-        self.candle = Candle(self.view, self._table_rect, lambda: self.ground)
+        self.candle = Candle(self.view, self._table_rect, lambda: self.ground_colour)
         self.patch = WarmPatch()
         self.scene.addItem(self.patch)
         self.halo = HaloItem(self.view, self._halo_moved)
@@ -215,7 +215,7 @@ class ReadingTab(SpreadSlots, CanvasTab):
 
     def card_menu(self, scene_pos):
         item = self.card_at(scene_pos)
-        if item is None or isinstance(item, SlotItem) or is_face_down(item):
+        if item is not None and (isinstance(item, SlotItem) or is_face_down(item)):
             return None
         return super().card_menu(scene_pos)
 

@@ -6,7 +6,7 @@ from tarot_canvas.ui import strings
 from tarot_canvas.ui.canvas import ground, swirl
 from tarot_canvas.ui.canvas.ground import GROUND_HUE_DEFAULT, GroundHue
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
-from tarot_canvas.ui.windows import preferences_dialog
+from tarot_canvas.ui.windows import background_form
 from tarot_canvas.ui.windows.preferences_dialog import PreferencesDialog
 
 GREEN = GroundHue(
@@ -91,22 +91,24 @@ def test_the_swirl_renders_the_stored_hue_and_its_brush_is_colour_1(qtbot, monke
 def test_the_hue_row_shows_for_aura_and_swirl_only(qtbot):
     dialog = PreferencesDialog()
     qtbot.addWidget(dialog)
-    form = dialog.background_form
-    for key, _label in preferences_dialog.BACKGROUND_STYLE_LABELS:
-        dialog.bg_combo.setCurrentIndex(dialog.bg_combo.findData(key))
-        assert form.isRowVisible(dialog.hue_row) is (key in ("gradient", "swirl"))
+    form = dialog.background_form.rows
+    for key, _label in background_form.BACKGROUND_STYLE_LABELS:
+        dialog.background_form.bg_combo.setCurrentIndex(
+            dialog.background_form.bg_combo.findData(key)
+        )
+        assert form.isRowVisible(dialog.background_form.hue_row) is (key in ("gradient", "swirl"))
 
 
 def test_each_swatch_is_named_and_one_is_checked(qtbot, green):
     dialog = PreferencesDialog()
     qtbot.addWidget(dialog)
-    assert next(iter(dialog.hue_buttons)) == GROUND_HUE_DEFAULT
-    assert list(dialog.hue_buttons)[-1] == green
-    assert len(dialog.hue_buttons) == len(ground.GROUND_HUES)
-    assert dialog.hue_buttons[green].toolTip() == "Green"
-    assert dialog.hue_buttons[green].accessibleName() == "Green"
-    assert dialog.selected_hue() == GROUND_HUE_DEFAULT
-    assert sum(b.isChecked() for b in dialog.hue_buttons.values()) == 1
+    assert next(iter(dialog.background_form.hue_buttons)) == GROUND_HUE_DEFAULT
+    assert list(dialog.background_form.hue_buttons)[-1] == green
+    assert len(dialog.background_form.hue_buttons) == len(ground.GROUND_HUES)
+    assert dialog.background_form.hue_buttons[green].toolTip() == "Green"
+    assert dialog.background_form.hue_buttons[green].accessibleName() == "Green"
+    assert dialog.background_form.selected_hue() == GROUND_HUE_DEFAULT
+    assert sum(b.isChecked() for b in dialog.background_form.hue_buttons.values()) == 1
 
 
 def test_a_swatch_offers_apply_stores_its_id_and_reaches_the_canvas(qtbot, green):
@@ -117,7 +119,7 @@ def test_a_swatch_offers_apply_stores_its_id_and_reaches_the_canvas(qtbot, green
     dialog.settings_changed.connect(tab.apply_background_settings)
     assert not dialog.apply_button.isEnabled()
 
-    dialog.hue_buttons[green].click()
+    dialog.background_form.hue_buttons[green].click()
     assert dialog.apply_button.isEnabled()
     dialog.apply_settings()
 
@@ -130,8 +132,8 @@ def test_the_stored_hue_is_shown_and_restore_defaults_goes_back(qtbot, green):
     get_settings().setValue(GROUND_HUE_KEY, green)
     dialog = PreferencesDialog()
     qtbot.addWidget(dialog)
-    assert dialog.selected_hue() == green
+    assert dialog.background_form.selected_hue() == green
 
     dialog.restore_defaults()
-    assert dialog.selected_hue() == GROUND_HUE_DEFAULT
+    assert dialog.background_form.selected_hue() == GROUND_HUE_DEFAULT
     assert get_settings().value(GROUND_HUE_KEY) == green

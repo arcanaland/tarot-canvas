@@ -310,7 +310,12 @@ class SavedReading(QObject):
     def reading(self):
         deck, cards = cards_of(self.tab.cards())
         return replace(
-            self._base, date=self._date, question=self.question(), deck=deck, cards=cards
+            self._base,
+            date=self._date,
+            question=self.question(),
+            deck=deck,
+            cards=cards,
+            ground=self.tab.ground,
         )
 
     @pyqtSlot()

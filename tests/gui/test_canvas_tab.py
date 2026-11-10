@@ -1263,10 +1263,10 @@ def test_right_clicking_inside_a_selection_keeps_it(qtbot):
     assert "swap" not in menu_layout(menu)
 
 
-def test_right_clicking_the_empty_canvas_builds_no_menu(qtbot):
+def test_right_clicking_the_empty_canvas_leaves_the_selection(qtbot):
     tab = make_tab(qtbot)
     add_cards(tab, 1)
-    assert tab.card_menu(QPointF(5000, 5000)) is None
+    tab.card_menu(QPointF(5000, 5000))
     assert len(tab.selected_cards()) == 1
 
 

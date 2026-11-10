@@ -74,7 +74,7 @@ class SocketItem(SlotItem):
         self.redraw()
 
     def _ground(self):
-        return getattr(self.parent_tab, "ground", None) or QColor(Qt.GlobalColor.darkGray)
+        return getattr(self.parent_tab, "ground_colour", None) or QColor(Qt.GlobalColor.darkGray)
 
     def _render(self, scale):
         return render_socket(self, scale, self._ground())

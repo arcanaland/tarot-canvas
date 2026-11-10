@@ -173,6 +173,7 @@ class MainWindow(QMainWindow):
         QGuiApplication.clipboard().dataChanged.connect(self.update_edit_actions)
         self.update_edit_actions()
         self.update_zoom_actions()
+        self.update_canvas_background_action()
 
     def create_menus(self):
         # Create menu bar
@@ -216,6 +217,7 @@ class MainWindow(QMainWindow):
                 "window.zoom_in": partial(self.zoom, "in"),
                 "window.zoom_out": partial(self.zoom, "out"),
                 "window.reset_zoom": partial(self.zoom, "reset"),
+                "window.canvas_background": self.edit_canvas_background,
                 **{f"window.go_{where}": partial(self.go, where) for where in GO_PLACES},
                 "window.find_card": self.show_command_palette,
                 "window.preferences": self.show_preferences,
@@ -296,6 +298,12 @@ class MainWindow(QMainWindow):
         # Which of the two they act on moves with the focus, and the art's zoom with the wheel
         QApplication.instance().focusChanged.connect(self.on_focus_changed)
         view_menu.aboutToShow.connect(self.update_zoom_actions)
+
+        # The current canvas's own ground
+        view_menu.addSeparator()
+        self.canvas_background_action = actions["window.canvas_background"]
+        view_menu.addAction(self.canvas_background_action)
+        view_menu.aboutToShow.connect(self.update_canvas_background_action)
 
         # ------------- Go menu -----------
 
@@ -565,6 +573,7 @@ class MainWindow(QMainWindow):
     def add_canvas_tab(self, canvas_tab):
         canvas_tab.navigation_requested.connect(self.handle_tab_navigation)
         canvas_tab.tab_label_changed.connect(self.update_save_action)
+        canvas_tab.default_ground_changed.connect(self.apply_settings_to_open_canvases)
         self.close_welcome_tab()
         self.tab_widget.addTab(canvas_tab, canvas_tab.tab_title())
         self.tab_widget.setCurrentWidget(canvas_tab)
@@ -623,6 +632,8 @@ class MainWindow(QMainWindow):
         tab = CanvasTab()
         tab.tab_name = self.next_canvas_name()
         tab.restore_cards(reading, deck_manager.get_all_decks(), deck_manager.get_reference_deck())
+        tab.ground = reading.ground
+        tab.apply_ground()
         tab.save_as(path, reading)
         self.add_canvas_tab(tab)
         QTimer.singleShot(0, tab.on_home)
@@ -996,6 +1007,7 @@ class MainWindow(QMainWindow):
         self.update_edit_actions()
         self.update_fullscreen_action()
         self.update_zoom_actions()
+        self.update_canvas_background_action()
         self.update_save_action()
 
     # A real slot, so Qt drops the app-wide connection when the window is deleted
@@ -1010,6 +1022,19 @@ class MainWindow(QMainWindow):
             ("reset", self.reset_zoom_action),
         ):
             action.setEnabled(tab is not None and tab.can_zoom(how))
+
+    def canvas_with_own_ground(self):
+        """The current tab, if it is a canvas that can have its own ground"""
+        tab = self.tab_widget.currentWidget()
+        return tab if isinstance(tab, CanvasTab) and tab.OWN_GROUND else None
+
+    def update_canvas_background_action(self):
+        self.canvas_background_action.setEnabled(self.canvas_with_own_ground() is not None)
+
+    def edit_canvas_background(self):
+        tab = self.canvas_with_own_ground()
+        if tab is not None:
+            tab.edit_background()
 
     @pyqtSlot(QWidget, QWidget)
     def on_focus_changed(self, _old, _new):

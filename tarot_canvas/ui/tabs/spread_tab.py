@@ -26,6 +26,8 @@ class SpreadTab(SpreadSlots, CanvasTab):
 
     TOOLS_TITLE = SPREADS["section_slots"]
     SAVES_CANVAS = False
+    # A spread keeps no ground, so one set here would be gone when it reopened
+    OWN_GROUND = False
 
     def __init__(self, spread=None, path=None, parent=None):
         super().__init__(parent)
