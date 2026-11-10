@@ -5,7 +5,7 @@ from functools import partial
 from importlib.resources import files
 from pathlib import Path
 
-from PyQt6.QtCore import QEvent, QObject, Qt, QTimer, QUrl, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QEvent, QObject, QSize, Qt, QTimer, QUrl, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import (
     QAction,
     QActionGroup,
@@ -68,6 +68,14 @@ from tarot_canvas.utils.theme_manager import ThemeManager, ThemeType
 ICON_PATH = files("tarot_canvas.resources.icons").joinpath("icon.png")
 WELCOME_TAB_ICON = files("tarot_canvas.resources.icons").joinpath("esoterica.svg")
 WELCOME_TAB_NAME = "welcome"  # objectName of its page
+
+# trying to fit a 1366x768 laptop
+FIRST_LAUNCH_SIZE = QSize(1280, 800)
+
+
+def first_launch_size(available):
+    return FIRST_LAUNCH_SIZE.boundedTo(available)
+
 
 # The Go menu's entries, in its groups
 GO_GROUPS = (
@@ -138,10 +146,9 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle(MAIN_WINDOW["app_name"])
         self.setWindowIcon(QIcon(str(ICON_PATH)))
-        self.setGeometry(100, 100, 950, 600)
         geometry = get_settings().value(MAIN_WINDOW_GEOMETRY_KEY)
-        if geometry is not None:
-            self.restoreGeometry(geometry)
+        if geometry is None or not self.restoreGeometry(geometry):
+            self.resize(first_launch_size(self.screen().availableGeometry().size()))
 
         # The tab currently fullscreened, and the chrome state to put back
         self.fullscreen_tab = None

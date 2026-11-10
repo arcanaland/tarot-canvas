@@ -273,3 +273,14 @@ def test_a_reading_mark_is_a_slot_coloured_by_suit_and_face_down_while_unturned(
         Reading(date=NOW, cards=(ReadingCard(id="major_arcana.00"),)), QSize(1, 1)
     )
     assert major[5] == card_colour({"type": "major_arcana"}) != card_colour({})
+
+
+def test_a_first_launch_on_a_small_laptop_shows_the_header(qtbot, window):
+    from tarot_canvas.ui.main_window import first_launch_size
+
+    window.resize(first_launch_size(QSize(1366, 720)))
+    with qtbot.waitExposed(window):
+        window.show()
+    qtbot.wait(50)
+
+    assert welcome(window).header.isVisible()

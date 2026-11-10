@@ -1277,3 +1277,23 @@ def test_the_tab_numbers_use_cmd_on_macos(qtbot):
     shortcuts = [action.shortcut() for action in window.actions()]
     assert QKeySequence("Ctrl+1") in shortcuts
     assert QKeySequence("Ctrl+9") in shortcuts
+
+
+def test_a_first_launch_fits_the_screen_and_a_kept_geometry_comes_back(qtbot):
+    from PyQt6.QtCore import QSize
+
+    from tarot_canvas.settings import MAIN_WINDOW_GEOMETRY_KEY, get_settings
+    from tarot_canvas.ui.main_window import FIRST_LAUNCH_SIZE, first_launch_size
+
+    assert first_launch_size(QSize(3840, 2160)) == FIRST_LAUNCH_SIZE
+    assert first_launch_size(QSize(1366, 720)) == QSize(1280, 720)
+
+    window = MainWindow()
+    qtbot.addWidget(window)
+    assert window.size() == first_launch_size(window.screen().availableGeometry().size())
+
+    window.resize(500, 400)
+    get_settings().setValue(MAIN_WINDOW_GEOMETRY_KEY, window.saveGeometry())
+    again = MainWindow()
+    qtbot.addWidget(again)
+    assert again.size() == QSize(500, 400)
