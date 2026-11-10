@@ -121,11 +121,10 @@ devel: devel-install
   flatpak run land.arcana.TarotCanvas.Devel//master
 
 # Build, install and run the dev build with a fresh config, data or both (all), kept
-# until the next fresh run, the reference deck already in place. Your own config and data
-# are untouched.
+# until the next fresh run, the reference deck already in place.
 devel-fresh WHAT="all": (fresh-what WHAT) devel-install (devel-in "fresh" WHAT "wipe" "seed")
 
-# As devel-fresh, but a fresh data dir downloads the reference deck, as a new user's does
+# As devel-fresh, but a fresh data dir downloads the reference deck
 devel-pristine WHAT="all": (fresh-what WHAT) devel-install (devel-in "pristine" WHAT "wipe")
 
 # Build, install and run the dev build in a profile of its own, made empty if new
@@ -214,7 +213,7 @@ devel-uninstall:
 quality *ARGS:
   ../scripts/flathub_quality.py {{ARGS}}
 
-# Open the window at a specific size
+# Resize the open app to a specific size and take a screenshot
 shot NAME W='998' H='698':
   ../scripts/flathub_screenshot.py {{NAME}} {{W}} {{H}}
 

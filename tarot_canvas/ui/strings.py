@@ -698,7 +698,7 @@ READINGS = {
     "date_tooltip": "When the reading was performed",
     "open_failed": "Cannot open reading",
     "notes_hint": "Enter your notes here...",
-    "welcome_no_readings": "No readings yet",
+    "welcome_no_readings": "No readings yet.",
 }
 
 # The command palette

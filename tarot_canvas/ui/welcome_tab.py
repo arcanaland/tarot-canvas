@@ -1,5 +1,3 @@
-"""The page the window opens on: ways to start beside what can be resumed"""
-
 import html
 
 from PyQt6.QtCore import QEvent, QSize, Qt, pyqtSlot
@@ -48,7 +46,7 @@ from tarot_canvas.ui.strings import COMMANDS, MAIN_WINDOW, READINGS
 from tarot_canvas.ui.windows.about import ICON_PATH
 from tarot_canvas.utils.dates import relative_date
 
-# Kate's welcome view, welcomeview.ui and welcomeview.cpp
+# Cribbing this from Kate (<3)
 SPACING = 20
 ICON_SIZE = 96
 PLACEHOLDER_SCALE = 1.3
@@ -68,24 +66,20 @@ def without_mnemonic(text):
 
 
 def shows_part(visible, room, content, part, spacing):
-    """Whether a part of the page that gives way shows, from what it does now
-
-    It hides once the content no longer fits in the room, and comes back only once the
-    content fits with it, so it does not flicker at the edge.
-    """
+    """Whether a part of the page that gives way shows"""
     if visible:
         return room > content
     return room > content + part + spacing
 
 
 def reading_icon(reading, unit):
-    """What its tab shows: a minimap of its cards, or an empty canvas's icon"""
+    """a minimap of a canvas's cards, or an empty canvas's icon"""
     marks = snapped(layout_marks(reading_marks(reading, unit), MINIMAP.max_fill))
     return spread_icon(marks) if marks else CanvasIcon()
 
 
 class Placeholder(QLabel):
-    """What an empty list says, in the list"""
+    """message inside an empty list"""
 
     def __init__(self, view, text):
         super().__init__(text)
