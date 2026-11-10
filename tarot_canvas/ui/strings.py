@@ -690,7 +690,7 @@ READINGS = {
     "save_reading": "Save as Reading",
     "date_tooltip": "When the reading was performed",
     "open_failed": "Cannot open reading",
-    "notes_hint": "<clankertext>What the cards said to you…</clankertext>",
+    "notes_hint": "Enter your notes here...",
 }
 
 # The command palette
