@@ -548,11 +548,16 @@ MAIN_WINDOW = {
     "search_tooltip": "Search Cards",
     "welcome_tab": "Welcome",
     "welcome_heading": "Welcome to Tarot Canvas!",
-    "welcome_prompt": "Select a card on the left or choose an option below:",
     "welcome_new_reading": "New Reading",
     "welcome_new_canvas": "New Canvas",
     "welcome_open_deck": "Open Standard Deck",
-    "welcome_library": "Library",
+    "welcome_recent_readings": "Recent Readings",
+    "welcome_spreads": "Spreads",
+    "welcome_manage_spreads": "Spread Library",
+    "welcome_no_spreads": "No spreads yet",
+    "welcome_help": "Help",
+    "welcome_faqs": "FAQs",
+    "welcome_get_involved": "Get Involved",
     "canvas_tab": "Canvas",
     "canvas_tab_numbered": "Canvas ({n})",
     "rename_canvas": "Rename Canvas",
@@ -690,6 +695,7 @@ READINGS = {
     "date_tooltip": "When the reading was performed",
     "open_failed": "Cannot open reading",
     "notes_hint": "Enter your notes here...",
+    "welcome_no_readings": "No readings yet",
 }
 
 # The command palette

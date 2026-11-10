@@ -92,11 +92,16 @@ def cards_of(items):
     return default, cards
 
 
-def _qdatetime(when):
+def local_qdatetime(when):
     local = when.astimezone()
     return QDateTime(
         QDate(local.year, local.month, local.day), QTime(local.hour, local.minute, local.second)
     )
+
+
+def reading_label(question, when):
+    """The Question, else the Date"""
+    return question or format_qdatetime(local_qdatetime(when))
 
 
 class FactButton(QLabel):
@@ -171,7 +176,7 @@ class SavedCanvasPane(SidePane):
         self.body.addLayout(heading)
 
         # The Date reads as a fact, and is edited only when asked to be
-        when = _qdatetime(reading.date)
+        when = local_qdatetime(reading.date)
         self.date_text = FactButton()
         self.date_text.setIndent(fact_indent())
         self.date_text.setToolTip(READINGS["date_tooltip"])
@@ -272,8 +277,7 @@ class SavedReading(QObject):
         return self._date
 
     def label(self):
-        """The Question, else the Date"""
-        return self.question() or format_qdatetime(_qdatetime(self._date))
+        return reading_label(self.question(), self._date)
 
     def set_question(self, text):
         self.pane.question_edit.setText(text)

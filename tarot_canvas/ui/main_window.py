@@ -19,11 +19,9 @@ from PyQt6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
     QInputDialog,
-    QLabel,
     QMainWindow,
     QMenu,
     QMessageBox,
-    QPushButton,
     QSplitter,
     QToolButton,
     QVBoxLayout,
@@ -47,7 +45,6 @@ from tarot_canvas.ui.canvas.renderer import canvas_uses_gl, watch_window
 from tarot_canvas.ui.command_palette import CommandPalette
 from tarot_canvas.ui.commands import Scope, set_tooltip_with_keys
 from tarot_canvas.ui.components.card_explorer import CardExplorerPanel
-from tarot_canvas.ui.icons import LIBRARY_ICON, deck_icon
 from tarot_canvas.ui.library.catalog_client import deck_catalog
 from tarot_canvas.ui.library.deck_downloads import deck_downloads
 from tarot_canvas.ui.spread_menu import spread_menu
@@ -59,6 +56,7 @@ from tarot_canvas.ui.tabs.deck_view_tab import DeckViewTab
 from tarot_canvas.ui.tabs.library_tab import LibraryTab
 from tarot_canvas.ui.tabs.reading_tab import ReadingTab
 from tarot_canvas.ui.tabs.spread_tab import SpreadTab
+from tarot_canvas.ui.welcome_tab import WelcomeTab
 from tarot_canvas.ui.widgets.document_tabs import DocumentTabs
 from tarot_canvas.ui.widgets.placeholder_message import tinted_icon
 from tarot_canvas.ui.widgets.toast import Toast
@@ -507,52 +505,19 @@ class MainWindow(QMainWindow):
         self.add_welcome_tab()
 
     def add_welcome_tab(self):
-        welcome_tab = QWidget()
+        welcome_tab = WelcomeTab(
+            new_reading_menu=self.new_spread_menu,
+            new_canvas=self.new_canvas_tab,
+            open_deck=self.open_reference_deck,
+            open_saved_reading=self.open_saved_reading,
+            start_reading=self.open_reading,
+            new_spread=self.new_spread_tab,
+            manage_spreads=partial(self.new_library_tab, LIBRARY_VIEW_SPREADS),
+            show_faqs=self.show_faqs,
+            report_bug=self.report_bug,
+            get_involved=self.get_involved,
+        )
         welcome_tab.setObjectName(WELCOME_TAB_NAME)
-        layout = QVBoxLayout()
-
-        label = QLabel(MAIN_WINDOW["welcome_heading"])
-        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        # Add app icon in the center
-        icon_label = QLabel()
-        icon_pixmap = QIcon(str(ICON_PATH)).pixmap(128, 128)
-        icon_label.setPixmap(icon_pixmap)
-        icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(icon_label)
-
-        # Change label text
-        welcome_label = QLabel(MAIN_WINDOW["welcome_prompt"])
-        welcome_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(welcome_label)
-
-        # Button container
-        button_layout = QHBoxLayout()
-
-        # Buttons for different tab types; the newest first, to be found
-        reading_btn = QPushButton(
-            QIcon.fromTheme("media-playback-start"), MAIN_WINDOW["welcome_new_reading"]
-        )
-        reading_btn.setMenu(self.new_spread_menu(reading_btn))
-        button_layout.addWidget(reading_btn)
-
-        canvas_btn = QPushButton(
-            QIcon.fromTheme("draw-rectangle"), MAIN_WINDOW["welcome_new_canvas"]
-        )
-        canvas_btn.clicked.connect(self.new_canvas_tab)
-        button_layout.addWidget(canvas_btn)
-
-        deck_btn = QPushButton(deck_icon(), MAIN_WINDOW["welcome_open_deck"])
-        deck_btn.clicked.connect(self.open_reference_deck)
-        button_layout.addWidget(deck_btn)
-
-        library_btn = QPushButton(QIcon.fromTheme(LIBRARY_ICON), MAIN_WINDOW["welcome_library"])
-        library_btn.clicked.connect(self.new_library_tab)
-        button_layout.addWidget(library_btn)
-
-        layout.addLayout(button_layout)
-        welcome_tab.setLayout(layout)
-
         self.tab_widget.addTab(
             welcome_tab, tinted_icon(WELCOME_TAB_ICON), MAIN_WINDOW["welcome_tab"]
         )
@@ -1241,6 +1206,12 @@ class MainWindow(QMainWindow):
         bugtracker = load_about_data().bugtracker
         if bugtracker:
             QDesktopServices.openUrl(QUrl(bugtracker))
+
+    def get_involved(self):
+        """Open the contribution page declared in the metainfo XML"""
+        contribute = load_about_data().contribute
+        if contribute:
+            QDesktopServices.openUrl(QUrl(contribute))
 
     def show_about(self):
         dialog = AboutDialog(self)

@@ -1,14 +1,12 @@
-from PyQt6.QtCore import QModelIndex, QPoint, Qt, pyqtSignal
+from PyQt6.QtCore import QModelIndex, QPoint, pyqtSignal
 
-from tarot_canvas.ui.library.note_row_delegate import NoteRowDelegate, RowButton
+from tarot_canvas.ui.library.note_row_delegate import IconRowDelegate, RowButton
 from tarot_canvas.ui.library.section_row import is_section, paint_section, section_size_hint
 from tarot_canvas.ui.strings import READINGS, SPREADS
 
 
-class SpreadRowDelegate(NoteRowDelegate):
+class SpreadRowDelegate(IconRowDelegate):
     """A row in the spread library, or the heading of a section of them"""
-
-    WELL_ASPECT = 1.0
 
     # The row, and where its button is (unused)
     readingRequested = pyqtSignal(QModelIndex, QPoint)
@@ -49,6 +47,3 @@ class SpreadRowDelegate(NoteRowDelegate):
         if is_section(index):
             return False
         return super().helpEvent(event, view, option, index)
-
-    def _paint_well(self, painter, well, palette, index):
-        index.data(Qt.ItemDataRole.DecorationRole).paint(painter, well)
