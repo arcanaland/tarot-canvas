@@ -16,8 +16,9 @@ from PyQt6.QtGui import (
 )
 
 from tarot_canvas.ui.canvas.ground import GRADIENT_STOPS
+from tarot_canvas.ui.canvas.reading_card import FACE_DOWN_MARK
 from tarot_canvas.ui.canvas.slot_item import NUMBER_HEIGHT, paint_number, slot_ink
-from tarot_canvas.ui.card_colours import SLOT_COLOUR
+from tarot_canvas.ui.card_colours import MAJOR_ARCANA, SLOT_COLOUR, card_colour
 
 # Unit-square coordinates: x, y is the mark's centre
 Mark = namedtuple("Mark", "x y w h angle colour z number", defaults=(None,))
@@ -96,6 +97,32 @@ def spread_marks(spread, unit, numbered=False):
             number if numbered else None,
         )
         for number, position in enumerate(spread.positions, start=1)
+    )
+
+
+def _kind_of(card_id):
+    """The type and suit a card id names, as a card dict holds them"""
+    parts = card_id.split(".")
+    if parts[0] == MAJOR_ARCANA:
+        return {"type": MAJOR_ARCANA}
+    if len(parts) == 3:
+        return {"type": parts[0], "suit": parts[1]}
+    return {}
+
+
+def reading_marks(reading, unit):
+    """As card_marks, for a kept reading's cards, each the slot's QSize unit, without its art"""
+    return tuple(
+        (
+            card.x,
+            card.y,
+            unit.width(),
+            unit.height(),
+            card.rotation,
+            card_colour(_kind_of(card.id)) if card.turned else FACE_DOWN_MARK,
+            card.z,
+        )
+        for card in reading.cards
     )
 
 

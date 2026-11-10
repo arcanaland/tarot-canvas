@@ -5,7 +5,7 @@ from functools import partial
 from importlib.resources import files
 from pathlib import Path
 
-from PyQt6.QtCore import QEvent, QObject, Qt, QTimer, QUrl, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QEvent, QObject, QSize, Qt, QTimer, QUrl, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import (
     QAction,
     QActionGroup,
@@ -19,12 +19,11 @@ from PyQt6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
     QInputDialog,
-    QLabel,
     QMainWindow,
     QMenu,
     QMessageBox,
-    QPushButton,
     QSplitter,
+    QTabBar,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -41,13 +40,13 @@ from tarot_canvas.settings import (
     SHOW_AVAILABLE_DECKS_DEFAULT,
     SHOW_AVAILABLE_DECKS_KEY,
     get_settings,
+    get_show_welcome,
 )
 from tarot_canvas.ui import commands, focused_text, typography
 from tarot_canvas.ui.canvas.renderer import canvas_uses_gl, watch_window
 from tarot_canvas.ui.command_palette import CommandPalette
 from tarot_canvas.ui.commands import Scope, set_tooltip_with_keys
 from tarot_canvas.ui.components.card_explorer import CardExplorerPanel
-from tarot_canvas.ui.icons import LIBRARY_ICON, deck_icon
 from tarot_canvas.ui.library.catalog_client import deck_catalog
 from tarot_canvas.ui.library.deck_downloads import deck_downloads
 from tarot_canvas.ui.spread_menu import spread_menu
@@ -59,6 +58,7 @@ from tarot_canvas.ui.tabs.deck_view_tab import DeckViewTab
 from tarot_canvas.ui.tabs.library_tab import LibraryTab
 from tarot_canvas.ui.tabs.reading_tab import ReadingTab
 from tarot_canvas.ui.tabs.spread_tab import SpreadTab
+from tarot_canvas.ui.welcome_tab import WelcomeTab
 from tarot_canvas.ui.widgets.document_tabs import DocumentTabs
 from tarot_canvas.ui.widgets.placeholder_message import tinted_icon
 from tarot_canvas.ui.widgets.toast import Toast
@@ -70,6 +70,14 @@ from tarot_canvas.utils.theme_manager import ThemeManager, ThemeType
 ICON_PATH = files("tarot_canvas.resources.icons").joinpath("icon.png")
 WELCOME_TAB_ICON = files("tarot_canvas.resources.icons").joinpath("esoterica.svg")
 WELCOME_TAB_NAME = "welcome"  # objectName of its page
+
+# trying to fit a 1366x768 laptop
+FIRST_LAUNCH_SIZE = QSize(1280, 800)
+
+
+def first_launch_size(available):
+    return FIRST_LAUNCH_SIZE.boundedTo(available)
+
 
 # The Go menu's entries, in its groups
 GO_GROUPS = (
@@ -140,10 +148,9 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle(MAIN_WINDOW["app_name"])
         self.setWindowIcon(QIcon(str(ICON_PATH)))
-        self.setGeometry(100, 100, 950, 600)
         geometry = get_settings().value(MAIN_WINDOW_GEOMETRY_KEY)
-        if geometry is not None:
-            self.restoreGeometry(geometry)
+        if geometry is None or not self.restoreGeometry(geometry):
+            self.resize(first_launch_size(self.screen().availableGeometry().size()))
 
         # The tab currently fullscreened, and the chrome state to put back
         self.fullscreen_tab = None
@@ -371,6 +378,11 @@ class MainWindow(QMainWindow):
         # Help menu
         help_menu = menu_bar.addMenu(MAIN_WINDOW["menu_help"])
 
+        welcome_action = QAction(MAIN_WINDOW["welcome_page"], self)
+        welcome_action.setIcon(tinted_icon(WELCOME_TAB_ICON))
+        welcome_action.triggered.connect(self.show_welcome_tab)
+        help_menu.addAction(welcome_action)
+
         faq_action = QAction(MAIN_WINDOW["faq"], self)
         faq_action.setIcon(QIcon.fromTheme("help-contents"))
         faq_action.triggered.connect(self.show_faqs)
@@ -417,6 +429,7 @@ class MainWindow(QMainWindow):
         self.tab_widget.setDocumentMode(True)
         self.tab_widget.setTabsClosable(True)
         self.tab_widget.tabCloseRequested.connect(self.close_tab)
+        self.tab_widget.tabs_changed.connect(self.update_close_buttons)
 
         self.tab_bar_filter = TabBarEventFilter(self)
         self.tab_widget.tabBar().installEventFilter(self.tab_bar_filter)
@@ -503,65 +516,45 @@ class MainWindow(QMainWindow):
         central_widget.setLayout(main_layout)
         self.setCentralWidget(central_widget)
 
-        # Add a welcome tab
-        self.add_welcome_tab()
+        if get_show_welcome():
+            self.add_welcome_tab()
+        else:
+            self.new_library_tab()
 
     def add_welcome_tab(self):
-        welcome_tab = QWidget()
+        welcome_tab = WelcomeTab(
+            new_reading_menu=self.new_spread_menu,
+            new_canvas=self.new_canvas_tab,
+            open_deck=self.open_reference_deck,
+            open_saved_reading=self.open_saved_reading,
+            start_reading=self.open_reading,
+            new_spread=self.new_spread_tab,
+            manage_spreads=partial(self.new_library_tab, LIBRARY_VIEW_SPREADS),
+            show_faqs=self.show_faqs,
+            report_bug=self.report_bug,
+            get_involved=self.get_involved,
+        )
         welcome_tab.setObjectName(WELCOME_TAB_NAME)
-        layout = QVBoxLayout()
-
-        label = QLabel(MAIN_WINDOW["welcome_heading"])
-        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        # Add app icon in the center
-        icon_label = QLabel()
-        icon_pixmap = QIcon(str(ICON_PATH)).pixmap(128, 128)
-        icon_label.setPixmap(icon_pixmap)
-        icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(icon_label)
-
-        # Change label text
-        welcome_label = QLabel(MAIN_WINDOW["welcome_prompt"])
-        welcome_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(welcome_label)
-
-        # Button container
-        button_layout = QHBoxLayout()
-
-        # Buttons for different tab types; the newest first, to be found
-        reading_btn = QPushButton(
-            QIcon.fromTheme("media-playback-start"), MAIN_WINDOW["welcome_new_reading"]
-        )
-        reading_btn.setMenu(self.new_spread_menu(reading_btn))
-        button_layout.addWidget(reading_btn)
-
-        canvas_btn = QPushButton(
-            QIcon.fromTheme("draw-rectangle"), MAIN_WINDOW["welcome_new_canvas"]
-        )
-        canvas_btn.clicked.connect(self.new_canvas_tab)
-        button_layout.addWidget(canvas_btn)
-
-        deck_btn = QPushButton(deck_icon(), MAIN_WINDOW["welcome_open_deck"])
-        deck_btn.clicked.connect(self.open_reference_deck)
-        button_layout.addWidget(deck_btn)
-
-        library_btn = QPushButton(QIcon.fromTheme(LIBRARY_ICON), MAIN_WINDOW["welcome_library"])
-        library_btn.clicked.connect(self.new_library_tab)
-        button_layout.addWidget(library_btn)
-
-        layout.addLayout(button_layout)
-        welcome_tab.setLayout(layout)
-
         self.tab_widget.addTab(
             welcome_tab, tinted_icon(WELCOME_TAB_ICON), MAIN_WINDOW["welcome_tab"]
         )
 
+    def show_welcome_tab(self):
+        """Raise the welcome tab, or open it"""
+        for i in range(self.tab_widget.count()):
+            if self.is_welcome_tab(self.tab_widget.widget(i)):
+                self.tab_widget.setCurrentIndex(i)
+                return
+        self.add_welcome_tab()
+        self.tab_widget.setCurrentIndex(self.tab_widget.count() - 1)
+
     def close_welcome_tab(self):
         """Close the welcome tab if it exists"""
         for i in range(self.tab_widget.count()):
-            if self.is_welcome_tab(self.tab_widget.widget(i)):
+            tab = self.tab_widget.widget(i)
+            if self.is_welcome_tab(tab):
                 self.tab_widget.removeTab(i)
+                tab.deleteLater()
                 break
 
     def new_canvas_tab(self):
@@ -707,8 +700,22 @@ class MainWindow(QMainWindow):
             COMMANDS["close_this_tab"],
             partial(self.close_tab, tab_index),
         )
-        close.setEnabled(not self.is_welcome_tab(tab))  # closing it would only reopen it
+        close.setEnabled(not self.is_floor(tab))
         return menu
+
+    def is_floor(self, tab):
+        """The Library, when it is the only tab: the window is never empty"""
+        return isinstance(tab, LibraryTab) and self.tab_widget.count() == 1
+
+    @pyqtSlot()
+    def update_close_buttons(self):
+        tab_bar = self.tab_widget.tabBar()
+        for index in range(self.tab_widget.count()):
+            closable = not self.is_floor(self.tab_widget.widget(index))
+            for side in (QTabBar.ButtonPosition.LeftSide, QTabBar.ButtonPosition.RightSide):
+                button = tab_bar.tabButton(index, side)
+                if button is not None:
+                    button.setVisible(closable)
 
     @staticmethod
     def is_welcome_tab(tab):
@@ -849,17 +856,16 @@ class MainWindow(QMainWindow):
     def close_tab(self, index):
         # removeTab neither deletes the page nor tells it it has gone
         tab = self.tab_widget.widget(index)
-        if not self.confirm_close(tab):
+        if self.is_floor(tab) or not self.confirm_close(tab):
             return False
         if isinstance(tab, BaseTab):
             tab.about_to_close()
 
-        if self.tab_widget.count() > 1:  # Keep at least one tab open
-            self.tab_widget.removeTab(index)
-        else:
-            # If it's the last tab, replace it with welcome
-            self.tab_widget.removeTab(index)
-            self.add_welcome_tab()
+        self.tab_widget.removeTab(index)
+        if self.is_welcome_tab(tab):
+            tab.deleteLater()
+        if self.tab_widget.count() == 0:
+            self.new_library_tab()
         return True
 
     def add_tab_number_shortcuts(self, platform=sys.platform):
@@ -1241,6 +1247,12 @@ class MainWindow(QMainWindow):
         bugtracker = load_about_data().bugtracker
         if bugtracker:
             QDesktopServices.openUrl(QUrl(bugtracker))
+
+    def get_involved(self):
+        """Open the contribution page declared in the metainfo XML"""
+        contribute = load_about_data().contribute
+        if contribute:
+            QDesktopServices.openUrl(QUrl(contribute))
 
     def show_about(self):
         dialog = AboutDialog(self)

@@ -1,14 +1,18 @@
 """The main window's tab widget."""
 
-from PyQt6.QtCore import pyqtSlot
+from PyQt6.QtCore import pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import QTabWidget
 
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 
 
 class DocumentTabs(QTabWidget):
+    # A tab was added or removed
+    tabs_changed = pyqtSignal()
+
     def tabInserted(self, index):
         super().tabInserted(index)
+        self.tabs_changed.emit()
         page = self.widget(index)
         if isinstance(page, BaseTab):
             self._label(index, page)
@@ -25,3 +29,7 @@ class DocumentTabs(QTabWidget):
         self.setTabText(index, page.tab_title())
         self.setTabToolTip(index, page.tab_tooltip())
         self.setTabIcon(index, page.tab_icon())
+
+    def tabRemoved(self, index):
+        super().tabRemoved(index)
+        self.tabs_changed.emit()

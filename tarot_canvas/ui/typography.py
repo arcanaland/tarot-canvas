@@ -36,7 +36,7 @@ SMALL_FALLBACK_SCALE = 0.85
 PROPERTY = "typography"
 
 
-def _scaled(base, scale):
+def scaled(base, scale):
     """A copy of `base` at `scale` times its size, in whatever unit it uses"""
     font = QFont(base)
     if font.pointSizeF() > 0:
@@ -60,7 +60,7 @@ def _small(body):
     small = QFontDatabase.systemFont(QFontDatabase.SystemFont.SmallestReadableFont)
     if QFontInfo(small).pointSizeF() < QFontInfo(body).pointSizeF():
         return small
-    return _scaled(body, SMALL_FALLBACK_SCALE)
+    return scaled(body, SMALL_FALLBACK_SCALE)
 
 
 def font(role, *, primary=False, fixed=False, reading=False):
@@ -74,7 +74,7 @@ def font(role, *, primary=False, fixed=False, reading=False):
     elif role is Role.SMALL:
         result = _small(body)
     else:
-        result = _scaled(body, HEADING_SCALES[role])
+        result = scaled(body, HEADING_SCALES[role])
         result.setWeight(QFont.Weight.Normal)
     if primary:
         result.setWeight(QFont.Weight.DemiBold)
@@ -87,7 +87,7 @@ def font(role, *, primary=False, fixed=False, reading=False):
     if reading:
         scale = get_reading_text_scale()
         if scale != READING_TEXT_SCALE_DEFAULT:
-            result = _scaled(result, scale / 100)
+            result = scaled(result, scale / 100)
     return result
 
 

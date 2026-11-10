@@ -10,6 +10,21 @@ mod bench 'bench/mod.just'
 devel:
   @just flatpak devel
 
+# Build+install+run in the flatpak with a fresh config, data or all
+[group('dev')]
+devel-fresh WHAT="all":
+  @just flatpak devel-fresh {{WHAT}}
+
+# As devel-fresh, but the reference deck is downloaded as on a first launch
+[group('dev')]
+devel-pristine WHAT="all":
+  @just flatpak devel-pristine {{WHAT}}
+
+# Build+install+run in the flatpak in a named profile
+[group('dev')]
+devel-as NAME:
+  @just flatpak devel-as {{NAME}}
+
 [group('dev')]
 run:
   uv run tarot-canvas

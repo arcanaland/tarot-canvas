@@ -192,7 +192,6 @@ def test_the_library_has_one_icon(qtbot):
     expected = drawn(QIcon.fromTheme(LIBRARY_ICON))
 
     assert drawn(window.new_library_action.icon()) == expected
-    assert drawn(welcome_button(window, MAIN_WINDOW["welcome_library"]).icon()) == expected
     assert drawn(library_of(window).tab_icon()) == expected
     dialog = PreferencesDialog()
     qtbot.addWidget(dialog)

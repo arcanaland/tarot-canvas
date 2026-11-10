@@ -4,6 +4,7 @@ import time
 from PyQt6.QtCore import QSettings
 
 from tarot_canvas.models.esoterica_events import esoterica_events
+from tarot_canvas.models.welcome_events import welcome_events
 
 SETTINGS_ORGANIZATION = "ArcanaLand"
 SETTINGS_APPLICATION = "TarotCanvas"
@@ -227,6 +228,25 @@ EXPLORER_VISIBLE_DEFAULT = True
 
 # for the main window's size, and whether it was maximized
 MAIN_WINDOW_GEOMETRY_KEY = "main_window/geometry"
+
+# Whether the window opens on the Welcome tab, else on the Library
+SHOW_WELCOME_KEY = "main_window/show_welcome"
+SHOW_WELCOME_DEFAULT = True
+
+
+def get_show_welcome(settings=None):
+    settings = settings or get_settings()
+    return settings.value(SHOW_WELCOME_KEY, SHOW_WELCOME_DEFAULT, type=bool)
+
+
+def set_show_welcome(shown, settings=None):
+    """Every place that shows the choice follows it"""
+    settings = settings or get_settings()
+    if get_show_welcome(settings) == bool(shown):
+        return
+    settings.setValue(SHOW_WELCOME_KEY, bool(shown))
+    welcome_events().show_at_startup_changed.emit(bool(shown))
+
 
 # for the Preferences window size
 PREFERENCES_GEOMETRY_KEY = "preferences/geometry"

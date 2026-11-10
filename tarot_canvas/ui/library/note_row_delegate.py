@@ -55,9 +55,11 @@ class NoteRowDelegate(QStyledItemDelegate):
         menu_tooltip="",
         reading=False,
         buttons=(),
+        preview=True,
     ):
         super().__init__(parent)
         self._reading = reading
+        self._preview = preview
         self._cover_cache = cover_cache or CoverCache()
         self._thumbnail = thumbnail
         # The menu button, when there is one, comes last
@@ -74,9 +76,13 @@ class NoteRowDelegate(QStyledItemDelegate):
         title, small = self._fonts(option, False)
         return QFontMetrics(title).height(), QFontMetrics(small).height()
 
+    def _text_height(self, option):
+        title_height, small_height = self._line_heights(option)
+        return title_height + (2 if self._preview else 1) * small_height
+
     def _layout(self, option):
         title_height, small_height = self._line_heights(option)
-        text_height = title_height + 2 * small_height
+        text_height = self._text_height(option)
 
         top = option.rect.top() + units.LARGE_SPACING
         well_width = max(1, round(text_height * self.WELL_ASPECT)) if self._thumbnail else 0
@@ -99,7 +105,9 @@ class NoteRowDelegate(QStyledItemDelegate):
         width = max(1, right - left)
         title = QRect(left, top, width, title_height)
         subtitle = QRect(left, title.bottom() + 1, width, small_height)
-        preview = QRect(left, subtitle.bottom() + 1, width, small_height)
+        preview = (
+            QRect(left, subtitle.bottom() + 1, width, small_height) if self._preview else QRect()
+        )
         return NoteRowLayout(
             well=well,
             title=title,
@@ -110,9 +118,7 @@ class NoteRowDelegate(QStyledItemDelegate):
         )
 
     def sizeHint(self, option, index):
-        title_height, small_height = self._line_heights(option)
-        height = title_height + 2 * small_height
-        return QSize(units.GRID_UNIT, height + 2 * units.LARGE_SPACING)
+        return QSize(units.GRID_UNIT, self._text_height(option) + 2 * units.LARGE_SPACING)
 
     def paint(self, painter, option, index):
         painter.save()
@@ -141,7 +147,8 @@ class NoteRowDelegate(QStyledItemDelegate):
         else:
             dim_colour = palette.placeholderText().color()
         _draw(painter, layout.subtitle, index.data(SubtitleRole), small_font, dim_colour)
-        _draw(painter, layout.preview, index.data(PreviewRole), small_font, dim_colour)
+        if self._preview:
+            _draw(painter, layout.preview, index.data(PreviewRole), small_font, dim_colour)
 
         mode = QIcon.Mode.Selected if selected else QIcon.Mode.Normal
         for button, rect in zip(self._buttons, layout.buttons, strict=False):
@@ -251,3 +258,12 @@ def _draw(painter, rect, text, font, colour):
         int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter),
         QFontMetrics(font).elidedText(text or "", Qt.TextElideMode.ElideRight, rect.width()),
     )
+
+
+class IconRowDelegate(NoteRowDelegate):
+    """A row whose well is a square holding its icon"""
+
+    WELL_ASPECT = 1.0
+
+    def _paint_well(self, painter, well, palette, index):
+        index.data(Qt.ItemDataRole.DecorationRole).paint(painter, well)

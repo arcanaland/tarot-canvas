@@ -57,10 +57,13 @@ from tarot_canvas.settings import (
     READING_TEXT_SCALE_STEPS,
     SHOW_AVAILABLE_DECKS_DEFAULT,
     SHOW_AVAILABLE_DECKS_KEY,
+    SHOW_WELCOME_DEFAULT,
     get_background_positioning,
     get_background_style,
     get_motion_level,
     get_settings,
+    get_show_welcome,
+    set_show_welcome,
 )
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.canvas.gl_marker import clear_marker
@@ -68,7 +71,7 @@ from tarot_canvas.ui.canvas.ground import GROUND_HUE_DEFAULT, GROUND_HUES, groun
 from tarot_canvas.ui.icons import LIBRARY_ICON
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.pane_text import pane_form
-from tarot_canvas.ui.strings import PREFERENCES
+from tarot_canvas.ui.strings import MAIN_WINDOW, PREFERENCES
 from tarot_canvas.ui.widgets.places_sidebar import PlacesSidebar
 from tarot_canvas.ui.windows.background_grid import BackgroundGrid
 from tarot_canvas.ui.windows.shortcuts_page import ShortcutsPage
@@ -226,6 +229,7 @@ class PreferencesDialog(QDialog):
         self.background_grid.selectionModel().selectionChanged.connect(self.update_apply_button)
         self.background_grid.removal_toggled.connect(self.update_apply_button)
         self.show_available_decks_check.toggled.connect(self.update_apply_button)
+        self.show_welcome_check.toggled.connect(self.update_apply_button)
         self.canvas_tab_minimap_check.toggled.connect(self.update_apply_button)
         self.canvas_guides_check.toggled.connect(self.update_apply_button)
         self.shortcuts_page.changed.connect(self.update_apply_button)
@@ -265,6 +269,8 @@ class PreferencesDialog(QDialog):
         form.addRow(PREFERENCES["theme"], self.theme_combo)
         self.text_size_combo = keyed_combo(percent_labels(READING_TEXT_SCALE_STEPS))
         form.addRow(PREFERENCES["text_size"], self.text_size_combo)
+        self.show_welcome_check = QCheckBox(MAIN_WINDOW["welcome_show_at_startup"])
+        form.addRow(PREFERENCES["startup_label"], self.show_welcome_check)
         page.setLayout(form)
         return page
 
@@ -560,6 +566,7 @@ class PreferencesDialog(QDialog):
             self.canvas_tab_minimap_check.isChecked(),
             self.canvas_guides_check.isChecked(),
             self.show_available_decks_check.isChecked(),
+            self.show_welcome_check.isChecked(),
             self.hardware_acceleration_check.isChecked()
             if self.hardware_acceleration_check
             else None,
@@ -587,6 +594,7 @@ class PreferencesDialog(QDialog):
         tab_minimap,
         guides,
         show_available,
+        show_welcome,
         hardware_acceleration,
     ):
         select_data(self.theme_combo, theme)
@@ -602,6 +610,7 @@ class PreferencesDialog(QDialog):
         self.canvas_tab_minimap_check.setChecked(tab_minimap)
         self.canvas_guides_check.setChecked(guides)
         self.show_available_decks_check.setChecked(show_available)
+        self.show_welcome_check.setChecked(show_welcome)
         if self.hardware_acceleration_check:
             self.hardware_acceleration_check.setChecked(hardware_acceleration)
         self.show_type_rows()
@@ -624,6 +633,7 @@ class PreferencesDialog(QDialog):
             bool(settings.value(CANVAS_TAB_MINIMAP_KEY, CANVAS_TAB_MINIMAP_DEFAULT, type=bool)),
             bool(settings.value(CANVAS_GUIDES_KEY, CANVAS_GUIDES_DEFAULT, type=bool)),
             bool(settings.value(SHOW_AVAILABLE_DECKS_KEY, SHOW_AVAILABLE_DECKS_DEFAULT, type=bool)),
+            get_show_welcome(settings),
             self.stored_hardware_acceleration(settings),
         )
         self.shortcuts_page.load()
@@ -651,6 +661,7 @@ class PreferencesDialog(QDialog):
             CANVAS_TAB_MINIMAP_DEFAULT,
             CANVAS_GUIDES_DEFAULT,
             SHOW_AVAILABLE_DECKS_DEFAULT,
+            SHOW_WELCOME_DEFAULT,
             HARDWARE_ACCELERATION_DEFAULT,
         )
         self.shortcuts_page.reset()
@@ -673,6 +684,7 @@ class PreferencesDialog(QDialog):
         settings.setValue(CANVAS_TAB_MINIMAP_KEY, self.canvas_tab_minimap_check.isChecked())
         settings.setValue(CANVAS_GUIDES_KEY, self.canvas_guides_check.isChecked())
         settings.setValue(SHOW_AVAILABLE_DECKS_KEY, self.show_available_decks_check.isChecked())
+        set_show_welcome(self.show_welcome_check.isChecked(), settings)
         if self.hardware_acceleration_check:
             enabled = self.hardware_acceleration_check.isChecked()
             if enabled and not self.stored_hardware_acceleration(settings):

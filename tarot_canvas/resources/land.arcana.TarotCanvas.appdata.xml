@@ -65,6 +65,7 @@
         <p>Other changes:</p>
         <ul>
           <li>Introduced several new canvas background options, including a swirled animation and your own images.</li>
+          <li>You can now change the background of a canvas on a per-tab basis by right clicking the empty space.</li>
           <li>Added shortcuts for switching pages in the Library View and Card View (Ctrl+1, Ctrl+2, etc.).</li>
           <li>Reworked the Welcome Screen to provide more options.</li>
         </ul>
@@ -175,6 +176,7 @@
   <url type="homepage">https://github.com/arcanaland/tarot-canvas</url>
   <url type="bugtracker">https://github.com/arcanaland/tarot-canvas/issues</url>
   <url type="faq">https://github.com/arcanaland/tarot-canvas/blob/main/docs/FAQs.md</url>
+  <url type="contribute">https://github.com/arcanaland/tarot-canvas</url>
   <recommends>
     <control>pointing</control>
     <control>keyboard</control>

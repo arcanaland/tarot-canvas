@@ -24,6 +24,7 @@ FALLBACK_URLS = {
     "homepage": "https://github.com/arcanaland/tarot-canvas",
     "bugtracker": "https://github.com/arcanaland/tarot-canvas/issues",
     "faq": "https://github.com/arcanaland/tarot-canvas/blob/main/docs/FAQs.md",
+    "contribute": "https://github.com/arcanaland/tarot-canvas",
 }
 
 ALLOWED_MARKUP = frozenset({"p", "ul", "ol", "li", "em", "code"})
@@ -77,6 +78,10 @@ class AboutData:
     @property
     def faq(self) -> str | None:
         return self.urls.get("faq")
+
+    @property
+    def contribute(self) -> str | None:
+        return self.urls.get("contribute")
 
 
 def _text(root: ET.Element, path: str, default: str) -> str:

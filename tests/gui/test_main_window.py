@@ -721,6 +721,7 @@ def test_a_tabs_context_menu_offers_rename_and_close(qtbot):
 def test_only_a_canvas_tab_can_be_renamed(qtbot):
     window = make_shown_window(qtbot)
     window.new_library_action.trigger()
+    window.new_canvas_tab()
 
     rename, close = window.tab_context_menu(0).actions()
 
@@ -754,14 +755,14 @@ def test_close_tab_closes_the_tab_it_was_opened_on(qtbot):
     assert window.tab_widget.indexOf(survivor) != -1
 
 
-def test_the_welcome_tab_can_be_neither_renamed_nor_closed(qtbot):
+def test_the_welcome_tab_can_be_closed_but_not_renamed(qtbot):
     window = make_shown_window(qtbot)
     assert window.tab_widget.tabText(0) == "Welcome"
 
     rename, close = window.tab_context_menu(0).actions()
 
     assert not rename.isEnabled()
-    assert not close.isEnabled()
+    assert close.isEnabled()
 
 
 def test_a_canvas_renamed_welcome_is_not_taken_for_the_welcome_tab(qtbot, monkeypatch):
@@ -887,6 +888,7 @@ def test_help_menu_offers_a_path_to_the_bug_tracker(qtbot):
     labels = [action.text().replace("&", "") for action in help_menu(window).actions()]
 
     assert labels == [
+        "Welcome",
         "Frequently Asked Questions",
         "Report Bug",
         "",  # separator
@@ -1277,3 +1279,23 @@ def test_the_tab_numbers_use_cmd_on_macos(qtbot):
     shortcuts = [action.shortcut() for action in window.actions()]
     assert QKeySequence("Ctrl+1") in shortcuts
     assert QKeySequence("Ctrl+9") in shortcuts
+
+
+def test_a_first_launch_fits_the_screen_and_a_kept_geometry_comes_back(qtbot):
+    from PyQt6.QtCore import QSize
+
+    from tarot_canvas.settings import MAIN_WINDOW_GEOMETRY_KEY, get_settings
+    from tarot_canvas.ui.main_window import FIRST_LAUNCH_SIZE, first_launch_size
+
+    assert first_launch_size(QSize(3840, 2160)) == FIRST_LAUNCH_SIZE
+    assert first_launch_size(QSize(1366, 720)) == QSize(1280, 720)
+
+    window = MainWindow()
+    qtbot.addWidget(window)
+    assert window.size() == first_launch_size(window.screen().availableGeometry().size())
+
+    window.resize(500, 400)
+    get_settings().setValue(MAIN_WINDOW_GEOMETRY_KEY, window.saveGeometry())
+    again = MainWindow()
+    qtbot.addWidget(again)
+    assert again.size() == QSize(500, 400)
