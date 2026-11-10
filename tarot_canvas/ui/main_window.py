@@ -550,10 +550,6 @@ class MainWindow(QMainWindow):
         library_btn.clicked.connect(self.new_library_tab)
         button_layout.addWidget(library_btn)
 
-        card_btn = QPushButton(QIcon.fromTheme("roll"), MAIN_WINDOW["welcome_random_card"])
-        card_btn.clicked.connect(self.new_card_view_tab)
-        button_layout.addWidget(card_btn)
-
         layout.addLayout(button_layout)
         welcome_tab.setLayout(layout)
 

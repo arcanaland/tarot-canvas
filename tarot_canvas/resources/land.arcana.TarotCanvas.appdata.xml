@@ -54,16 +54,19 @@
     </screenshot>
   </screenshots>
   <releases>
-    <release version="1.9.0" date="2026-11-10" type="development">
+    <release version="1.9.0" date="2026-11-11" type="development">
       <description>
         <p>This version introduces tarot readings from your spreads.</p>
         <ul>
         <li>Read from a spread by drawing cards from any deck.</li>
-        <li>Takes notes for a reading that is saved to your library.</li>
+        <li>Take notes for a reading and store them in a journal.</li>
+        <li>Save any open Canvas as a tarot reading.</li>
         </ul>
         <p>Other changes:</p>
         <ul>
-          <li>Adding a new swirly background for the canvas.</li>
+          <li>Introduced several new canvas background options, including a swirled animation and your own images.</li>
+          <li>Added shortcuts for switching pages in the Library View and Card View (Ctrl+1, Ctrl+2, etc.).</li>
+          <li>Reworked the Welcome Screen to provide more options.</li>
         </ul>
       </description>
     </release>
