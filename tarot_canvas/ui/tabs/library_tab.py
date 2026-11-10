@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from functools import partial
 from importlib.resources import files
 
 from PyQt6.QtCore import QItemSelectionModel, QSignalBlocker, QSize, Qt, pyqtSignal, pyqtSlot
@@ -66,7 +67,8 @@ from tarot_canvas.ui.library.esoterica_page import EsotericaPage
 from tarot_canvas.ui.library.notes_page import NotesPage
 from tarot_canvas.ui.library.readings_page import ReadingsPage
 from tarot_canvas.ui.library.spreads_page import SpreadsPage
-from tarot_canvas.ui.strings import LIBRARY, READINGS, SPREADS, label_for, notes_text
+from tarot_canvas.ui.spread_menu import spread_menu
+from tarot_canvas.ui.strings import LIBRARY, MAIN_WINDOW, READINGS, SPREADS, label_for, notes_text
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.ui.widgets.placeholder_message import tinted_icon
 from tarot_canvas.ui.widgets.places_sidebar import PlacesSidebar
@@ -273,6 +275,21 @@ class LibraryTab(BaseTab):
         self.new_spread_button.clicked.connect(self.on_new_spread)
         row.addWidget(self.new_spread_button)
 
+        self.new_reading_button = QToolButton()
+        self.new_reading_button.setText(MAIN_WINDOW["new_reading_from_spread"])
+        self.new_reading_button.setIcon(QIcon.fromTheme("media-playback-start"))
+        self.new_reading_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.new_reading_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.new_reading_button.setMenu(
+            spread_menu(
+                self.new_reading_button,
+                self.on_spread_reading_requested,
+                partial(self.show_view, LIBRARY_VIEW_SPREADS),
+                blank=self.on_new_canvas,
+            )
+        )
+        row.addWidget(self.new_reading_button)
+
         self.details_toggle = QToolButton()
         self.details_toggle.setCheckable(True)
         self.details_toggle.clicked.connect(self.toggle_details_pane)
@@ -442,6 +459,7 @@ class LibraryTab(BaseTab):
         self.zoom_slider.setVisible(decks)
         self.open_deck_button.setVisible(decks)
         self.new_spread_button.setVisible(view == LIBRARY_VIEW_SPREADS)
+        self.new_reading_button.setVisible(view == LIBRARY_VIEW_READINGS)
         self.search_field.setPlaceholderText(
             LIBRARY["search_decks"] if decks else page.search_placeholder()
         )
@@ -546,6 +564,11 @@ class LibraryTab(BaseTab):
         main_window = self.window()
         if hasattr(main_window, "new_spread_tab"):
             main_window.new_spread_tab()
+
+    def on_new_canvas(self):
+        main_window = self.window()
+        if hasattr(main_window, "new_canvas_tab"):
+            main_window.new_canvas_tab()
 
     def on_spread_delete_requested(self, path):
         """Delete a spread once any tab holding it has closed, which may ask the user"""

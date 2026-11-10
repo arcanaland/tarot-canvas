@@ -24,6 +24,11 @@ def format_qdatetime(datetime):
     return READINGS["date_and_time"].format(date=format_qdate(datetime.date()), time=time)
 
 
+def format_month(date):
+    """`date`'s month and year in the system locale"""
+    return QLocale.system().toString(date, "MMMM yyyy")
+
+
 def format_date(text):
     """An ISO date in the system locale's long form, or `text` if it isn't one."""
     date = QDate.fromString(text, Qt.DateFormat.ISODate)

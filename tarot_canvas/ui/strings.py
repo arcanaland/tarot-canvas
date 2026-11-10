@@ -700,7 +700,7 @@ READINGS = {
     "notes_hint": "Enter your notes here...",
     "welcome_no_readings": "No readings yet.",
     "library_view_name": "Journal",
-    "library_search_placeholder": "Search readings...",
+    "library_search_placeholder": "Search journal entries...",
     "library_empty": "No entries yet.",
     "library_empty_no_match": "No matches.",
     "library_details_toggle_show": "Show details",
@@ -712,6 +712,8 @@ READINGS = {
     "library_restore_failed": "Cannot restore entry",
     "library_cards": "Cards",
     "library_note": "Notes",
+    "sort_oldest": "Oldest",
+    "sort_tooltip": "Sort entries",
 }
 
 # The command palette

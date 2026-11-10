@@ -5,6 +5,7 @@ from PyQt6.QtGui import QFontMetrics
 
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.library import units
+from tarot_canvas.ui.library.note_row_delegate import IconRowDelegate
 
 # True on a heading row. A model answers it and gives the row no flags, so it is never selected
 SectionRole = Qt.ItemDataRole.UserRole + 40
@@ -39,3 +40,28 @@ def paint_section(painter, option, index):
         QFontMetrics(font).elidedText(text, Qt.TextElideMode.ElideRight, rect.width()),
     )
     painter.restore()
+
+
+class SectionedRowDelegate(IconRowDelegate):
+    """An icon row, or the heading of a section of them"""
+
+    def sizeHint(self, option, index):
+        if is_section(index):
+            return section_size_hint()
+        return super().sizeHint(option, index)
+
+    def paint(self, painter, option, index):
+        if is_section(index):
+            paint_section(painter, option, index)
+            return
+        super().paint(painter, option, index)
+
+    def editorEvent(self, event, model, option, index):
+        if is_section(index):
+            return False
+        return super().editorEvent(event, model, option, index)
+
+    def helpEvent(self, event, view, option, index):
+        if is_section(index):
+            return False
+        return super().helpEvent(event, view, option, index)

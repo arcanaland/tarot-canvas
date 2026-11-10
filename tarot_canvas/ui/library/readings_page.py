@@ -5,15 +5,29 @@ from PyQt6.QtWidgets import QMenu
 from tarot_canvas.models import readings
 from tarot_canvas.models.deck_events import deck_events
 from tarot_canvas.models.reading_events import reading_events
+from tarot_canvas.settings import (
+    LIBRARY_READINGS_SORT_DEFAULT,
+    LIBRARY_READINGS_SORT_KEY,
+    get_settings,
+)
 from tarot_canvas.ui.library.deletable_page import DeletableListPage
-from tarot_canvas.ui.library.note_row_delegate import IconRowDelegate
 from tarot_canvas.ui.library.reading_details_pane import ReadingDetailsPane
 from tarot_canvas.ui.library.readings_model import (
+    SORT_EDITED,
+    SORT_NEWEST,
+    SORT_OLDEST,
     ReadingPathRole,
     ReadingRole,
     ReadingsListModel,
 )
-from tarot_canvas.ui.strings import READINGS
+from tarot_canvas.ui.library.section_row import SectionedRowDelegate
+from tarot_canvas.ui.strings import READINGS, SPREADS
+
+SORT_CHOICES = [
+    (SPREADS["sort_newest"], SORT_NEWEST),
+    (READINGS["sort_oldest"], SORT_OLDEST),
+    (SPREADS["sort_edited"], SORT_EDITED),
+]
 
 
 class ReadingsPage(DeletableListPage):
@@ -30,7 +44,7 @@ class ReadingsPage(DeletableListPage):
         self._reference = reference
         super().__init__(
             ReadingsListModel(readings.scan(base), decks(), reference()),
-            IconRowDelegate,
+            SectionedRowDelegate,
             ReadingDetailsPane(),
             parent,
             changed=reading_events().readings_changed,
@@ -41,6 +55,9 @@ class ReadingsPage(DeletableListPage):
             },
         )
         self._programmatic = 0  # nesting depth of selection the user didn't make
+        self.list_model.set_sort(
+            get_settings().value(LIBRARY_READINGS_SORT_KEY, LIBRARY_READINGS_SORT_DEFAULT, type=str)
+        )
         self.list_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.list_view.customContextMenuRequested.connect(self._on_context_menu)
         self.list_view.clicked.connect(self._on_clicked)
@@ -60,6 +77,22 @@ class ReadingsPage(DeletableListPage):
 
     def details_toggle_tooltip(self, is_open):
         return READINGS["library_details_toggle_hide" if is_open else "library_details_toggle_show"]
+
+    def sort_choices(self):
+        return SORT_CHOICES
+
+    def sort_tooltip(self):
+        return READINGS["sort_tooltip"]
+
+    def sort_key(self):
+        return self.list_model.sort()
+
+    def set_sort_key(self, key):
+        selected = self._selected_path()
+        self.list_model.set_sort(key)
+        if selected is not None:
+            self.select(selected)
+        get_settings().setValue(LIBRARY_READINGS_SORT_KEY, self.sort_key())
 
     @pyqtSlot()
     def refresh(self):
@@ -92,13 +125,13 @@ class ReadingsPage(DeletableListPage):
             self.open_requested.emit(path)
 
     def _on_clicked(self, index):
-        if index.isValid():
+        if index.data(ReadingRole) is not None:
             self.row_chosen.emit()
 
     def _on_keyboard_current(self, current, _previous):
         # A press makes the row current before it selects it, so this is the keyboard alone
         if (
-            current.isValid()
+            current.data(ReadingRole) is not None
             and self.list_view.hasFocus()
             and self.list_view.selectionModel().isSelected(current)
             and not self._programmatic
@@ -112,7 +145,7 @@ class ReadingsPage(DeletableListPage):
         return index.data(ReadingPathRole)
 
     def _details_for(self, index):
-        return index.data(ReadingRole) if index.isValid() else None
+        return index.data(ReadingRole)
 
     def _refresh_details(self):
         shown = self.details_pane.details()
