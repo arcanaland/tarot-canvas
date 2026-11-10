@@ -28,6 +28,7 @@ from tarot_canvas.settings import (
     READING_TEXT_SCALE_KEY,
     READING_TEXT_SCALE_STEPS,
     SHOW_AVAILABLE_DECKS_KEY,
+    SHOW_WELCOME_KEY,
     THEME_KEY,
     get_reading_text_scale,
     get_settings,
@@ -270,6 +271,7 @@ def test_restore_defaults_resets_the_form_and_stores_nothing(qtbot, theme_kept):
     settings.setValue(CANVAS_TAB_MINIMAP_KEY, False)
     settings.setValue(CANVAS_GUIDES_KEY, True)
     settings.setValue(SHOW_AVAILABLE_DECKS_KEY, False)
+    settings.setValue(SHOW_WELCOME_KEY, False)
     settings.setValue(READING_TEXT_SCALE_KEY, 150)
     settings.setValue(HARDWARE_ACCELERATION_KEY, False)
     dialog = PreferencesDialog()
@@ -292,6 +294,7 @@ def test_restore_defaults_resets_the_form_and_stores_nothing(qtbot, theme_kept):
         MOTION_LEVEL_DEFAULT,
         True,
         False,
+        True,
         True,
         True,
     )

@@ -721,6 +721,7 @@ def test_a_tabs_context_menu_offers_rename_and_close(qtbot):
 def test_only_a_canvas_tab_can_be_renamed(qtbot):
     window = make_shown_window(qtbot)
     window.new_library_action.trigger()
+    window.new_canvas_tab()
 
     rename, close = window.tab_context_menu(0).actions()
 
@@ -754,14 +755,14 @@ def test_close_tab_closes_the_tab_it_was_opened_on(qtbot):
     assert window.tab_widget.indexOf(survivor) != -1
 
 
-def test_the_welcome_tab_can_be_neither_renamed_nor_closed(qtbot):
+def test_the_welcome_tab_can_be_closed_but_not_renamed(qtbot):
     window = make_shown_window(qtbot)
     assert window.tab_widget.tabText(0) == "Welcome"
 
     rename, close = window.tab_context_menu(0).actions()
 
     assert not rename.isEnabled()
-    assert not close.isEnabled()
+    assert close.isEnabled()
 
 
 def test_a_canvas_renamed_welcome_is_not_taken_for_the_welcome_tab(qtbot, monkeypatch):
@@ -887,6 +888,7 @@ def test_help_menu_offers_a_path_to_the_bug_tracker(qtbot):
     labels = [action.text().replace("&", "") for action in help_menu(window).actions()]
 
     assert labels == [
+        "Welcome",
         "Frequently Asked Questions",
         "Report Bug",
         "",  # separator

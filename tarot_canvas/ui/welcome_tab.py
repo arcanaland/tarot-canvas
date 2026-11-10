@@ -6,6 +6,7 @@ from PyQt6.QtCore import QEvent, QSize, Qt, pyqtSlot
 from PyQt6.QtGui import QIcon, QPalette, QStandardItem, QStandardItemModel
 from PyQt6.QtWidgets import (
     QAbstractItemView,
+    QCheckBox,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -24,6 +25,8 @@ from tarot_canvas.about import load_about_data
 from tarot_canvas.models import readings
 from tarot_canvas.models.reading_events import reading_events
 from tarot_canvas.models.spread_events import spread_events
+from tarot_canvas.models.welcome_events import welcome_events
+from tarot_canvas.settings import get_show_welcome, set_show_welcome
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.activate_on_return import activate_on_return
 from tarot_canvas.ui.canvas.detail import card_unit_size
@@ -249,6 +252,11 @@ class WelcomeTab(QScrollArea):
         self.content_column.addWidget(self.header)
         self.content_column.addLayout(self.panels, 1)
 
+        self.show_at_startup = QCheckBox(MAIN_WINDOW["welcome_show_at_startup"])
+        self.show_at_startup.setChecked(get_show_welcome())
+        self.show_at_startup.toggled.connect(set_show_welcome)
+        self.content_column.addWidget(self.show_at_startup, 0, Qt.AlignmentFlag.AlignHCenter)
+
         page = QWidget()
         root = QGridLayout(page)
         root.setContentsMargins(0, 0, 0, 0)
@@ -264,6 +272,11 @@ class WelcomeTab(QScrollArea):
         self._update_button_widths()
         reading_events().readings_changed.connect(self.refresh_readings)
         spread_events().spreads_changed.connect(self.refresh_spreads)
+        welcome_events().show_at_startup_changed.connect(self.follow_show_at_startup)
+
+    @pyqtSlot(bool)
+    def follow_show_at_startup(self, shown):
+        self.show_at_startup.setChecked(shown)
 
     @pyqtSlot()
     def refresh_readings(self):
