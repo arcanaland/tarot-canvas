@@ -35,6 +35,7 @@ from tarot_canvas.settings import (
     LIBRARY_VIEW_ESOTERICA,
     LIBRARY_VIEW_KEY,
     LIBRARY_VIEW_NOTES,
+    LIBRARY_VIEW_READINGS,
     LIBRARY_VIEW_SPREADS,
     LIBRARY_VIEWS,
     get_settings,
@@ -63,8 +64,9 @@ from tarot_canvas.ui.library.deck_model import (
 from tarot_canvas.ui.library.deselect import deselect_on_empty_click_or_escape
 from tarot_canvas.ui.library.esoterica_page import EsotericaPage
 from tarot_canvas.ui.library.notes_page import NotesPage
+from tarot_canvas.ui.library.readings_page import ReadingsPage
 from tarot_canvas.ui.library.spreads_page import SpreadsPage
-from tarot_canvas.ui.strings import LIBRARY, SPREADS, label_for, notes_text
+from tarot_canvas.ui.strings import LIBRARY, READINGS, SPREADS, label_for, notes_text
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.ui.widgets.placeholder_message import tinted_icon
 from tarot_canvas.ui.widgets.places_sidebar import PlacesSidebar
@@ -140,6 +142,14 @@ class LibraryTab(BaseTab):
         self.notes_page.note_activated.connect(self.on_note_activated)
         self.notes_page.details_changed.connect(self._sync_details_toggle)
 
+        self.readings_page = ReadingsPage(
+            lambda: deck_manager.get_all_decks(), lambda: deck_manager.get_reference_deck()
+        )
+        self.readings_page.row_chosen.connect(self._open_details_for_selection)
+        self.readings_page.open_requested.connect(self.on_reading_open_requested)
+        self.readings_page.delete_requested.connect(self.on_reading_delete_requested)
+        self.readings_page.details_changed.connect(self._on_list_details_changed)
+
         self.esoterica_page = EsotericaPage(deck=deck_manager.get_reference_deck())
         self.esoterica_page.card_activated.connect(self.on_esoterica_card_activated)
         self.esoterica_page.details_changed.connect(self._sync_details_toggle)
@@ -152,11 +162,12 @@ class LibraryTab(BaseTab):
         self.spreads_page.reading_requested.connect(self.on_spread_reading_requested)
         self.spreads_page.duplicate_requested.connect(self.on_spread_duplicate_requested)
         self.spreads_page.delete_requested.connect(self.on_spread_delete_requested)
-        self.spreads_page.details_changed.connect(self._on_spread_details_changed)
+        self.spreads_page.details_changed.connect(self._on_list_details_changed)
 
         # Every view but the deck grid is a list, with its pane below it
         self.list_pages = {
             LIBRARY_VIEW_NOTES: self.notes_page,
+            LIBRARY_VIEW_READINGS: self.readings_page,
             LIBRARY_VIEW_ESOTERICA: self.esoterica_page,
             LIBRARY_VIEW_SPREADS: self.spreads_page,
         }
@@ -271,17 +282,21 @@ class LibraryTab(BaseTab):
 
     def _view_rows(self):
         """(icon, name, view) per sidebar row, in LIBRARY_VIEWS order"""
-        return [
-            (deck_icon(), LIBRARY["decks_view"], LIBRARY_VIEW_DECKS),
-            (QIcon.fromTheme("story-editor"), notes_text("view_name"), LIBRARY_VIEW_NOTES),
+        rows = {
+            LIBRARY_VIEW_DECKS: (deck_icon(), LIBRARY["decks_view"]),
+            LIBRARY_VIEW_READINGS: (
+                QIcon.fromTheme("view-calendar-list"),
+                READINGS["library_view_name"],
+            ),
+            LIBRARY_VIEW_NOTES: (QIcon.fromTheme("story-editor"), notes_text("view_name")),
+            LIBRARY_VIEW_SPREADS: (QIcon.fromTheme(SPREAD_ICON), SPREADS["view_name"]),
             # The app's own file, not a theme name
-            (
+            LIBRARY_VIEW_ESOTERICA: (
                 tinted_icon(ESOTERICA_VIEW_ICON),
                 label_for("library.view_name"),
-                LIBRARY_VIEW_ESOTERICA,
             ),
-            (QIcon.fromTheme(SPREAD_ICON), SPREADS["view_name"], LIBRARY_VIEW_SPREADS),
-        ]
+        }
+        return [(*rows[view], view) for view in LIBRARY_VIEWS]
 
     def _build_sidebar(self):
         """One row per view"""
@@ -542,7 +557,22 @@ class LibraryTab(BaseTab):
             main_window.tab_widget.setCurrentWidget(self)
         self.spreads_page.delete(path)
 
-    def _on_spread_details_changed(self):
+    def on_reading_open_requested(self, path):
+        main_window = self.window()
+        if hasattr(main_window, "open_saved_reading"):
+            main_window.open_saved_reading(path)
+
+    def on_reading_delete_requested(self, path):
+        """Delete a reading once any tab holding it has closed and written itself"""
+        main_window = self.window()
+        if hasattr(main_window, "close_saved_reading"):
+            if not main_window.close_saved_reading(path):
+                return
+            # Where the Undo is
+            main_window.tab_widget.setCurrentWidget(self)
+        self.readings_page.delete(path)
+
+    def _on_list_details_changed(self):
         if self.current_details_pane().details() is None:
             self._set_details_open(False)
         self._sync_details_toggle()
@@ -550,6 +580,7 @@ class LibraryTab(BaseTab):
     def about_to_close(self):
         # Its Undo goes with the tab
         self.spreads_page.commit_pending_delete()
+        self.readings_page.commit_pending_delete()
 
     def on_sort_changed(self):
         key = self.sort_combo.currentData()

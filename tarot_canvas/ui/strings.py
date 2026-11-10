@@ -699,6 +699,19 @@ READINGS = {
     "open_failed": "Cannot open reading",
     "notes_hint": "Enter your notes here...",
     "welcome_no_readings": "No readings yet.",
+    "library_view_name": "Journal",
+    "library_search_placeholder": "Search readings...",
+    "library_empty": "No entries yet.",
+    "library_empty_no_match": "No matches.",
+    "library_details_toggle_show": "Show details",
+    "library_details_toggle_hide": "Hide details",
+    "library_open": "Open Canvas",
+    "library_delete": "Delete Entry",
+    "library_deleted_message": "Entry deleted.",
+    "library_delete_failed": "Cannot delete entry",
+    "library_restore_failed": "Cannot restore entry",
+    "library_cards": "Cards",
+    "library_note": "Notes",
 }
 
 # The command palette

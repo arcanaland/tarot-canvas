@@ -52,6 +52,10 @@
       <caption>Take custom notes attached to cards</caption>
       <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/notes-view.webp</image>
     </screenshot>
+    <screenshot>
+      <caption>Welcome page showing overview of recent readings and spreads.</caption>
+      <image type="source">https://raw.githubusercontent.com/arcanaland/tarot-canvas/main/packaging/screenshots/welcome-view.webp</image>
+    </screenshot>
   </screenshots>
   <releases>
     <release version="1.9.0" date="2026-11-11" type="development">
@@ -60,7 +64,7 @@
         <ul>
         <li>Read from a spread by drawing cards from any deck.</li>
         <li>Take notes for a reading and store them in a journal.</li>
-        <li>Save any open Canvas as a tarot reading.</li>
+        <li>Save any open canvas as a tarot reading.</li>
         </ul>
         <p>Other changes:</p>
         <ul>

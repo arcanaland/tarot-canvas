@@ -123,6 +123,7 @@ def test_every_key_is_bound_as_it_was(qtbot):
         ("library", "Esc", WS, "QListView"),
         ("library", "Esc", WS, "QListView"),
         ("library", "Esc", WS, "QListView"),
+        ("library", "Esc", WS, "QListView"),
         ("notes", "F2", WC, "QListView"),
         ("window", "Alt+1", W, "MainWindow"),
         ("window", "Alt+2", W, "MainWindow"),

@@ -28,18 +28,11 @@ from tarot_canvas.settings import get_show_welcome, set_show_welcome
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.activate_on_return import activate_on_return
 from tarot_canvas.ui.canvas.detail import card_unit_size
-from tarot_canvas.ui.canvas.icons import CanvasIcon
 from tarot_canvas.ui.canvas.saved_canvas import local_qdatetime, reading_label
-from tarot_canvas.ui.canvas.tab_icon import (
-    MINIMAP,
-    layout_marks,
-    reading_marks,
-    snapped,
-    spread_icon,
-)
 from tarot_canvas.ui.icons import LIBRARY_ICON, SPREAD_ICON, deck_icon
 from tarot_canvas.ui.library.deck_model import SubtitleRole
 from tarot_canvas.ui.library.note_row_delegate import IconRowDelegate
+from tarot_canvas.ui.library.readings_model import reading_icon
 from tarot_canvas.ui.library.spreads_model import spread_thumbnail, spread_title
 from tarot_canvas.ui.spread_menu import sections
 from tarot_canvas.ui.strings import COMMANDS, MAIN_WINDOW, READINGS
@@ -70,12 +63,6 @@ def shows_part(visible, room, content, part, spacing):
     if visible:
         return room > content
     return room > content + part + spacing
-
-
-def reading_icon(reading, unit):
-    """a minimap of a canvas's cards, or an empty canvas's icon"""
-    marks = snapped(layout_marks(reading_marks(reading, unit), MINIMAP.max_fill))
-    return spread_icon(marks) if marks else CanvasIcon()
 
 
 class Placeholder(QLabel):

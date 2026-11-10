@@ -57,17 +57,25 @@ def deck_key(deck):
     return deck.get_identifier() or deck.get_name()
 
 
+def find_deck(key, decks):
+    """The deck a reading names, by identifier, then by name, or None"""
+    if not key:
+        return None
+    for deck in decks:
+        if deck.get_identifier() == key:
+            return deck
+    return next((deck for deck in decks if deck.get_name() == key), None)
+
+
 def resolve_deck(key, decks, reference):
-    """The deck a reading names: by identifier, then by name, then the reference deck"""
-    for deck in decks:
-        if key and deck.get_identifier() == key:
-            return deck
-    for deck in decks:
-        if key and deck.get_name() == key:
-            logger.info(f"Reading deck {key!r} matched by name")
-            return deck
-    logger.warning(f"No deck {key!r} is installed, so the reading shows the reference deck")
-    return reference
+    """The deck a reading names, else the reference deck"""
+    deck = find_deck(key, decks)
+    if deck is None:
+        logger.warning(f"No deck {key!r} is installed, so the reading shows the reference deck")
+        return reference
+    if deck.get_identifier() != key:
+        logger.info(f"Reading deck {key!r} matched by name")
+    return deck
 
 
 def cards_of(items):
