@@ -686,7 +686,11 @@ READINGS = {
     "reversals_without": "Without reversals",
     "card_reversed": "{card} (reversed)",
     "date_and_time": "{date} · {time}",
-    "short_deal": ("No more cards (dealt all {dealt})"),
+    "short_deal": "No more cards (dealt all {dealt})",
+    "save_reading": "Save as Reading",
+    "date_tooltip": "When the reading was performed",
+    "open_failed": "Cannot open reading",
+    "notes_hint": "Enter your notes here...",
 }
 
 # The command palette

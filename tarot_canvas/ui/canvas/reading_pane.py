@@ -41,6 +41,7 @@ from tarot_canvas.utils.dates import format_qdatetime
 QUESTION_LINES = 3
 # The info lines' icons
 INFO_ICON_PX = 16
+DATE_ICON = "view-calendar-day"
 # A row's card, as its width over its height
 THUMB_RATIO = 0.58
 # The next row's wash of gilt, and the bar at its leading edge
@@ -49,6 +50,56 @@ NEXT_BAR_PX = 3
 SELECTED_ALPHA = 70
 # The list's share of the pane's height against the filler under it, which gets only the rest
 LIST_STRETCH = 1000
+
+
+def fact_indent():
+    """Where a fact's plain text starts: where a frameless menu's text does"""
+    combo = QComboBox()
+    combo.setFrame(False)
+    combo.ensurePolished()
+    option = QStyleOptionComboBox()
+    combo.initStyleOption(option)
+    field = combo.style().subControlRect(
+        QStyle.ComplexControl.CC_ComboBox,
+        option,
+        QStyle.SubControl.SC_ComboBoxEditField,
+        combo,
+    )
+    return field.left()
+
+
+class FactLines(QWidget):
+    """A pane's facts, one per line, each after its icon"""
+
+    def __init__(self):
+        super().__init__()
+        self._grid = grid = QGridLayout(self)
+        margin = units.LARGE_SPACING
+        grid.setContentsMargins(margin, 0, margin, margin)
+        grid.setHorizontalSpacing(units.LARGE_SPACING)
+        grid.setVerticalSpacing(units.SMALL_SPACING)
+        grid.setColumnStretch(1, 1)
+
+    def add(self, icon, *widgets, control=False):
+        """A line of icon and widgets, None stretching; returns the icon's label"""
+        grid = self._grid
+        row = grid.rowCount()
+        mark = QLabel()
+        mark.setPixmap(icon.pixmap(INFO_ICON_PX))
+        mark.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        mark.setFixedHeight(self.fontMetrics().height())
+        centre = Qt.AlignmentFlag.AlignVCenter if control else Qt.AlignmentFlag.AlignTop
+        grid.addWidget(mark, row, 0, centre)
+        line = QHBoxLayout()
+        line.setContentsMargins(0, 0, 0, 0)
+        line.setSpacing(units.SMALL_SPACING)
+        for widget in widgets:
+            if widget is None:
+                line.addStretch(1)
+            else:
+                line.addWidget(widget)
+        grid.addLayout(line, row, 1)
+        return mark
 
 
 class QuestionBox(DescriptionBox):
@@ -338,20 +389,13 @@ class ReadingPane(SidePane):
         self.body.addWidget(filler, 1)
 
     def _build_facts(self, spread_name, spread_description, decks, deck):
-        form = QWidget()
-        self._grid = grid = QGridLayout(form)
-        margin = units.LARGE_SPACING
-        grid.setContentsMargins(margin, 0, margin, margin)
-        grid.setHorizontalSpacing(units.LARGE_SPACING)
-        grid.setVerticalSpacing(units.SMALL_SPACING)
-        grid.setColumnStretch(1, 1)
-        self._form = form
+        self.facts = facts = FactLines()
 
         # The spread.
         self.spread_label = QLabel(spread_name)
         self.spread_label.setWordWrap(True)
         self.spread_label.setToolTip(spread_description.strip())
-        self._info_line(QIcon.fromTheme(SPREAD_ICON), self.spread_label)
+        facts.add(QIcon.fromTheme(SPREAD_ICON), self.spread_label)
 
         # The deck
         self.deck_combo = QComboBox()
@@ -363,12 +407,12 @@ class ReadingPane(SidePane):
                 self.deck_combo.setCurrentIndex(self.deck_combo.count() - 1)
         self.deck_label = QLabel()
         self.deck_label.setWordWrap(True)
-        self._info_line(deck_icon(), self.deck_combo, self.deck_label, None, control=True)
+        facts.add(deck_icon(), self.deck_combo, self.deck_label, None, control=True)
 
         # Reversals
         self.reversals_check = QCheckBox(READINGS["reversals"])
         self.reversals_label = QLabel()
-        self.reversals_mark = self._info_line(
+        self.reversals_mark = facts.add(
             QIcon.fromTheme("object-flip-vertical"),
             self.reversals_check,
             self.reversals_label,
@@ -378,42 +422,13 @@ class ReadingPane(SidePane):
 
         # The date
         self.date_label = QLabel()
-        self.date_mark = self._info_line(QIcon.fromTheme("view-calendar-day"), self.date_label)
+        self.date_mark = facts.add(QIcon.fromTheme(DATE_ICON), self.date_label)
 
         # Plain text starts where the deck menu's text does, so the facts line up in a column
-        self.deck_combo.ensurePolished()
-        option = QStyleOptionComboBox()
-        self.deck_combo.initStyleOption(option)
-        field = self.deck_combo.style().subControlRect(
-            QStyle.ComplexControl.CC_ComboBox,
-            option,
-            QStyle.SubControl.SC_ComboBoxEditField,
-            self.deck_combo,
-        )
+        indent = fact_indent()
         for label in (self.spread_label, self.deck_label, self.reversals_label, self.date_label):
-            label.setIndent(field.left())
-        self.body.addWidget(form)
-
-    def _info_line(self, icon, *widgets, control=False):
-        """An icon and its fact"""
-        grid = self._grid
-        row = grid.rowCount()
-        mark = QLabel()
-        mark.setPixmap(icon.pixmap(INFO_ICON_PX))
-        mark.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        mark.setFixedHeight(self._form.fontMetrics().height())
-        centre = Qt.AlignmentFlag.AlignVCenter if control else Qt.AlignmentFlag.AlignTop
-        grid.addWidget(mark, row, 0, centre)
-        line = QHBoxLayout()
-        line.setContentsMargins(0, 0, 0, 0)
-        line.setSpacing(units.SMALL_SPACING)
-        for widget in widgets:
-            if widget is None:
-                line.addStretch(1)
-            else:
-                line.addWidget(widget)
-        grid.addLayout(line, row, 1)
-        return mark
+            label.setIndent(indent)
+        self.body.addWidget(facts)
 
     def _build_list(self, positions):
         view = QListView()

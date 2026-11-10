@@ -4,7 +4,7 @@ import os
 import random
 
 from PyQt6.QtCore import QDateTime, QItemSelectionModel, QLineF, QRectF, QSignalBlocker, Qt, QTimer
-from PyQt6.QtGui import QFontMetrics, QIcon
+from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QSplitter, QVBoxLayout, QWidget
 
 from tarot_canvas.models.deck_manager import deck_manager
@@ -52,9 +52,6 @@ FLIGHT_Z = 30000.0
 NEXT_Z = 40000.0
 TURNING_Z = 40001.0
 
-# About how many characters of the Question the tab shows
-TAB_TITLE_CHARS = 32
-
 # A face-down neighbour's share of the next card's light, at no distance, and how far away in
 # position heights it has none
 RIM_NEIGHBOUR = 0.45
@@ -83,6 +80,7 @@ class ReadingTab(SpreadSlots, CanvasTab):
 
     TOOLS_TITLE = CANVAS["section_cards"]
     SLOT_ITEM = SocketItem
+    SAVES_CANVAS = False
 
     phase = Phase.STAGED
     _flights = None
@@ -396,9 +394,7 @@ class ReadingTab(SpreadSlots, CanvasTab):
         return self.question() or self.spread.name or SPREADS["untitled"]
 
     def tab_title(self):
-        metrics = QFontMetrics(self.font())
-        width = metrics.averageCharWidth() * TAB_TITLE_CHARS
-        return metrics.elidedText(self.display_name(), Qt.TextElideMode.ElideRight, width)
+        return self.elided_title(self.display_name())
 
     def tab_tooltip(self):
         name = self.display_name()

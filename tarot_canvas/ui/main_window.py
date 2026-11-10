@@ -5,7 +5,7 @@ from functools import partial
 from importlib.resources import files
 from pathlib import Path
 
-from PyQt6.QtCore import QEvent, QObject, Qt, QUrl, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QEvent, QObject, Qt, QTimer, QUrl, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import (
     QAction,
     QActionGroup,
@@ -31,7 +31,7 @@ from PyQt6.QtWidgets import (
 )
 
 from tarot_canvas.about import load_about_data
-from tarot_canvas.models import spreads
+from tarot_canvas.models import readings, spreads
 from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.settings import (
     EXPLORER_VISIBLE_DEFAULT,
@@ -51,7 +51,7 @@ from tarot_canvas.ui.icons import LIBRARY_ICON, deck_icon
 from tarot_canvas.ui.library.catalog_client import deck_catalog
 from tarot_canvas.ui.library.deck_downloads import deck_downloads
 from tarot_canvas.ui.spread_menu import spread_menu
-from tarot_canvas.ui.strings import COMMANDS, DOWNLOAD, LIBRARY, MAIN_WINDOW, SPREADS
+from tarot_canvas.ui.strings import COMMANDS, DOWNLOAD, LIBRARY, MAIN_WINDOW, READINGS, SPREADS
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
@@ -613,6 +613,32 @@ class MainWindow(QMainWindow):
         """A new tab dealing a reading from spread, and return it"""
         return self.add_canvas_tab(ReadingTab(spread))
 
+    def saved_reading_tab(self, path):
+        for index in range(self.tab_widget.count()):
+            tab = self.tab_widget.widget(index)
+            if isinstance(tab, CanvasTab) and tab.reading_path == path:
+                return tab
+        return None
+
+    def open_saved_reading(self, path):
+        """Raise the tab holding the reading in folder path, or open one, and return it"""
+        path = Path(path)
+        tab = self.saved_reading_tab(path)
+        if tab is not None:
+            self.tab_widget.setCurrentWidget(tab)
+            return tab
+        reading = readings.load(path)
+        if reading is None:
+            self.toast.show_message(READINGS["open_failed"])
+            return None
+        tab = CanvasTab()
+        tab.tab_name = self.next_canvas_name()
+        tab.restore_cards(reading, deck_manager.get_all_decks(), deck_manager.get_reference_deck())
+        tab.save_as(path, reading)
+        self.add_canvas_tab(tab)
+        QTimer.singleShot(0, tab.on_home)
+        return tab
+
     def new_spread_menu(self, parent):
         """The spreads a new reading can start from, ending in the Library's Spreads view"""
         return spread_menu(
@@ -885,6 +911,8 @@ class MainWindow(QMainWindow):
     def update_save_action(self):
         tab = self.current_base_tab()
         self.save_action.setEnabled(tab is not None and tab.can_save())
+        label = tab.save_label() if tab is not None else None
+        self.save_action.setText(label or commands.by_id("window.save").text)
 
     def open_deck(self):
         """Open a deck by selecting the directory containing deck.toml"""

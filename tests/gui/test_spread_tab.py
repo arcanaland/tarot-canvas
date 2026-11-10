@@ -757,7 +757,7 @@ def test_save_starts_disabled(window):
 
 
 def test_save_is_enabled_only_when_there_is_something_to_save(window, spreads_base):
-    window.new_canvas_tab()
+    window.new_library_tab()
     assert not window.save_action.isEnabled()
 
     tab = window.new_spread_tab()

@@ -38,6 +38,10 @@ class BaseTab(QWidget):
         """Save, and return whether that worked"""
         return False
 
+    def save_label(self):
+        """What File > Save says here, or None for its usual words"""
+        return None
+
     def has_unsaved_changes(self):
         """Whether closing this tab would lose work"""
         return False

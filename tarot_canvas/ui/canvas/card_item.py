@@ -172,6 +172,15 @@ class DraggableCardItem(QGraphicsPixmapItem):
         self._lift.snap(other._lift.value, other._lift.velocity)
         self._apply_motion()
 
+    def restore(self, pos, z, orient):
+        """Put the card exactly where it was kept: no pop-in, no turn to catch up on"""
+        self.setPos(pos)
+        self.setZValue(z)
+        self._visual_pos = QPointF(self.pos())
+        self.motion.orient = float(orient) % 360
+        self.motion.orient_lag = 0.0
+        self._apply_motion()
+
     def place_and_settle(self):
         """Pop in and spring back"""
         if not self._reactive_allowed():
