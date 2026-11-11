@@ -17,7 +17,7 @@ from tarot_canvas.ui.canvas.tab_icon import (
 )
 from tarot_canvas.ui.library.cards import card_name
 from tarot_canvas.ui.library.roles import PreviewRole, SectionRole, SubtitleRole
-from tarot_canvas.ui.strings import READINGS
+from tarot_canvas.ui.strings import READINGS, SPREADS
 from tarot_canvas.utils.dates import format_month, relative_date
 
 ReadingPathRole = Qt.ItemDataRole.UserRole + 31
@@ -29,13 +29,33 @@ SORT_EDITED = "edited"
 SORTS = (SORT_NEWEST, SORT_OLDEST, SORT_EDITED)
 
 
+class CardRow(NamedTuple):
+    number: int  # 1-based, in reading.cards, as the diagram numbers it
+    position: str  # the spread position's label, or ""
+    name: str  # "" while the card is face down
+    reversed: bool  # False while the card is face down: a reversal gives it away too
+
+
+def card_row_text(card_row):
+    """One card's row in the pane"""
+    if not card_row.name:
+        card = READINGS["library_face_down"]
+    elif card_row.reversed:
+        card = READINGS["card_reversed"].format(card=card_row.name)
+    else:
+        card = card_row.name
+    if card_row.position:
+        card = READINGS["library_card_position"].format(position=card_row.position, card=card)
+    return SPREADS["slot_row"].format(number=card_row.number, label=card).strip()
+
+
 class ReadingRow(NamedTuple):
     path: Path
     reading: Reading
     notes: list  # of models.notes.Note, newest first
     icon: object  # a QIcon
-    card_lines: tuple  # each card's name, marked when reversed
-    # The spread's, decks' and cards' names, for search
+    card_rows: tuple  # of CardRow, in reading.cards order
+    # The spread's, decks' and turned cards' names, for search
     names: tuple
     edited: float  # the latest write to the reading or its notes
 
@@ -46,25 +66,34 @@ def reading_icon(reading, unit):
     return spread_icon(marks) if marks else CanvasIcon()
 
 
+def _position_labels(reading):
+    if reading.spread is None:
+        return {}
+    return {position.id: position.label for position in reading.spread.positions}
+
+
 def _row(path, reading, decks, reference, unit):
-    resolved = {}
-    card_lines, names = [], [reading.spread.name] if reading.spread is not None else []
-    for card in reading.cards:
+    resolved, labels = {}, _position_labels(reading)
+    card_rows, names = [], [reading.spread.name] if reading.spread is not None else []
+    for number, card in enumerate(reading.cards, start=1):
         if card.deck not in resolved:
             # As the reading opens: a deck that isn't installed shows as the reference deck
             deck = resolved[card.deck] = find_deck(card.deck, decks) or reference
             if deck is not None:
                 names.append(deck.get_name())
-        name = card_name(resolved[card.deck], card.id)
-        names.append(name)
-        card_lines.append(READINGS["card_reversed"].format(card=name) if card.reversed else name)
+        # A face-down card is neither named nor found
+        name = card_name(resolved[card.deck], card.id) if card.turned else ""
+        if name:
+            names.append(name)
+        position = labels.get(card.position, "") if card.position else ""
+        card_rows.append(CardRow(number, position, name, card.reversed and card.turned))
     notes = notes_model.read_directory(path)
     return ReadingRow(
         path,
         reading,
         notes,
         reading_icon(reading, unit),
-        tuple(card_lines),
+        tuple(card_rows),
         tuple(names),
         max([_modified(path / READING_FILE), *(note.modified for note in notes)]),
     )

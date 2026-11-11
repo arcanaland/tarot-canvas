@@ -1,10 +1,14 @@
 from datetime import datetime, timedelta
 
 import pytest
+from PyQt6.QtCore import QSize
+from PyQt6.QtGui import QColor, QImage
 from PyQt6.QtWidgets import QMessageBox
 
 from tarot_canvas.models import readings
+from tarot_canvas.models.ground import Ground
 from tarot_canvas.models.readings import Reading, ReadingCard
+from tarot_canvas.models.spreads import Position, Spread
 from tarot_canvas.settings import (
     LIBRARY_VIEW_DECKS,
     LIBRARY_VIEW_NOTES,
@@ -15,16 +19,19 @@ from tarot_canvas.settings import (
 )
 from tarot_canvas.ui import commands
 from tarot_canvas.ui.canvas.saved_canvas import AUTOSAVE_MS, local_qdatetime
+from tarot_canvas.ui.library import diagram as diagram_module
 from tarot_canvas.ui.library.readings.model import (
     SORT_EDITED,
     SORT_NEWEST,
     SORT_OLDEST,
+    CardRow,
     ReadingPathRole,
+    card_row_text,
 )
 from tarot_canvas.ui.library.readings.page import ReadingsPage
 from tarot_canvas.ui.library.section_row import is_section
 from tarot_canvas.ui.main_window import MainWindow
-from tarot_canvas.ui.strings import READINGS
+from tarot_canvas.ui.strings import READINGS, SPREADS
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.utils.dates import format_month, format_qdatetime
 
@@ -39,9 +46,9 @@ def discard_on_teardown(monkeypatch):
     )
 
 
-def keep(base, folder, when, question="", cards=(), note=None):
+def keep(base, folder, when, question="", cards=(), note=None, **fields):
     path = base / folder
-    readings.save(path, Reading(date=when, question=question, cards=tuple(cards)))
+    readings.save(path, Reading(date=when, question=question, cards=tuple(cards), **fields))
     if note is not None:
         (path / "1700000000.md").write_text(note, encoding="utf-8")
     return path
@@ -244,7 +251,9 @@ def test_a_search_with_no_match_says_so(three, page):
 # -- details and open -----------------------------------------------------------------------
 
 
-def test_the_pane_shows_the_question_date_cards_and_newest_note(readings_base, page, minimal_deck):
+def test_the_pane_shows_the_question_date_numbered_cards_and_note(
+    readings_base, page, minimal_deck
+):
     first, second = (card["id"] for card in minimal_deck.get_all_cards()[:2])
     keep(
         readings_base,
@@ -261,8 +270,183 @@ def test_the_pane_shows_the_question_date_cards_and_newest_note(readings_base, p
     names = [minimal_deck.get_card_by_id(card)["name"] for card in (first, second)]
     assert pane.heading_label.text() == "Should I?"
     assert pane.date_label.text() == format_qdatetime(local_qdatetime(NOW))
-    assert pane.card_lines() == [names[0], READINGS["card_reversed"].format(card=names[1])]
-    assert pane.note_label.text() == "Morning"
+    assert pane.card_lines() == [
+        card_row_text(CardRow(1, "", names[0], False)),
+        card_row_text(CardRow(2, "", names[1], True)),
+    ]
+    assert pane.card_lines()[1] == SPREADS["slot_row"].format(
+        number=2, label=READINGS["card_reversed"].format(card=names[1])
+    )
+    # The whole note, under the pane's own title rather than its heading
+    assert pane.note_view.toPlainText() == "clear skies"
+    assert pane.note_view.isVisibleTo(pane)
+
+
+def test_the_pane_shows_the_note_the_readings_tab_edits(readings_base, page):
+    path = keep(readings_base, "1", NOW, "Two notes")
+    (path / "1700000000.md").write_text("# Older\n\nfirst words", encoding="utf-8")
+    (path / "1800000000.md").write_text("# Newer\n\nlater words", encoding="utf-8")
+    page.refresh()
+    page.list_view.clicked.emit(first_reading(page))
+
+    assert page.details_pane.note_view.toPlainText() == "first words"
+
+
+def test_a_reading_without_a_note_shows_no_note_section(readings_base, page):
+    keep(readings_base, "1", NOW, "Quiet")
+    page.refresh()
+    page.list_view.clicked.emit(first_reading(page))
+
+    pane = page.details_pane
+    assert not pane.note_title.isVisibleTo(pane)
+    assert not pane.note_view.isVisibleTo(pane)
+
+
+PAST_PRESENT_FUTURE = Spread(
+    name="Three ways",
+    positions=tuple(
+        Position(id=key, label=key.title(), x=float(n))
+        for n, key in enumerate(("past", "present", "future"))
+    ),
+)
+
+
+@pytest.fixture
+def mid_deal(readings_base, minimal_deck):
+    """A kept spread reading with its third card still face down, and reversed"""
+    first, second = (card["id"] for card in minimal_deck.get_all_cards()[:2])
+    keep(
+        readings_base,
+        "1",
+        NOW,
+        "Mid-deal",
+        spread=PAST_PRESENT_FUTURE,
+        cards=[
+            ReadingCard(id=first, position="past"),
+            ReadingCard(id=first, position="present", reversed=True),
+            ReadingCard(id=second, position="future", reversed=True, turned=False),
+        ],
+    )
+    return [minimal_deck.get_card_by_id(card)["name"] for card in (first, second)]
+
+
+def test_a_face_down_card_is_numbered_and_placed_but_not_named(mid_deal, page):
+    page.refresh()
+    page.list_view.clicked.emit(first_reading(page))
+
+    lines = page.details_pane.card_lines()
+    face_down = READINGS["library_card_position"].format(
+        position="Future", card=READINGS["library_face_down"]
+    )
+    assert lines[2] == SPREADS["slot_row"].format(number=3, label=face_down)
+    assert mid_deal[1] not in lines[2]
+    # No reversal mark either: that gives it away too
+    assert READINGS["card_reversed"].format(card="") not in lines[2]
+    assert lines[1] == SPREADS["slot_row"].format(
+        number=2,
+        label=READINGS["library_card_position"].format(
+            position="Present", card=READINGS["card_reversed"].format(card=mid_deal[0])
+        ),
+    )
+
+
+def test_searching_a_face_down_cards_name_finds_nothing(mid_deal, page):
+    page.refresh()
+    page.set_search(mid_deal[1])
+    assert labels(page) == []
+    page.set_search(mid_deal[0])
+    assert labels(page) == ["Mid-deal"]
+
+
+def test_a_plain_canvas_numbers_its_cards_without_positions(readings_base, page, minimal_deck):
+    card = minimal_deck.get_all_cards()[0]
+    keep(readings_base, "1", NOW, "Plain", cards=[ReadingCard(id=card["id"], position="past")])
+    page.refresh()
+    page.list_view.clicked.emit(first_reading(page))
+
+    assert page.details_pane.card_lines() == [
+        SPREADS["slot_row"].format(number=1, label=card["name"])
+    ]
+
+
+# -- the diagram's ground -------------------------------------------------------------------
+
+
+@pytest.fixture
+def fresh_sources(monkeypatch):
+    monkeypatch.setattr(diagram_module, "_sources", {})
+
+
+def shown_pane(qtbot, page):
+    page.resize(900, 600)
+    page.show()
+    qtbot.waitExposed(page)
+    page.list_view.clicked.emit(first_reading(page))
+    return page.details_pane
+
+
+def ground_corner(pane):
+    """The diagram's ground just inside its top left, clear of every mark"""
+    diagram = pane.diagram
+    image = diagram.grab().toImage()
+    square = diagram.square()
+    ratio = image.devicePixelRatio()
+    return image.pixelColor(round((square.x() + 8) * ratio), round((square.y() + 8) * ratio))
+
+
+def test_the_diagram_draws_the_readings_own_ground(
+    qtbot, readings_base, page, minimal_deck, fresh_sources
+):
+    card = minimal_deck.get_all_cards()[0]
+    keep(
+        readings_base,
+        "1",
+        NOW,
+        "Grounded",
+        cards=[ReadingCard(id=card["id"])],
+        ground=Ground(style="solid", color="#336699"),
+    )
+    page.refresh()
+    pane = shown_pane(qtbot, page)
+
+    assert pane.diagram.isVisibleTo(pane)
+    assert ground_corner(pane) == QColor("#336699")
+
+
+def test_a_reading_without_a_ground_draws_the_default(
+    qtbot, readings_base, page, minimal_deck, fresh_sources
+):
+    Ground(style="solid", color="#654321").to_settings()
+    card = minimal_deck.get_all_cards()[0]
+    keep(readings_base, "1", NOW, "Default", cards=[ReadingCard(id=card["id"])])
+    page.refresh()
+    pane = shown_pane(qtbot, page)
+
+    assert ground_corner(pane) == QColor("#654321")
+
+
+def test_an_image_ground_shows_its_fill_until_the_picture_is_decoded(
+    qtbot, readings_base, backgrounds_base, page, minimal_deck, fresh_sources
+):
+    picture = QImage(QSize(64, 32), QImage.Format.Format_RGB32)
+    picture.fill(QColor("#c03030"))
+    backgrounds_base.mkdir(parents=True)
+    assert picture.save(str(backgrounds_base / "felt.png"))
+    card = minimal_deck.get_all_cards()[0]
+    keep(
+        readings_base,
+        "1",
+        NOW,
+        "Pictured",
+        cards=[ReadingCard(id=card["id"])],
+        # Center keeps its fill in reading.toml, and the pane paints it as crop
+        ground=Ground(style="image", image="felt.png", positioning="center", fill="#204060"),
+    )
+    page.refresh()
+    pane = shown_pane(qtbot, page)
+
+    assert ground_corner(pane) == QColor("#204060")
+    qtbot.waitUntil(lambda: ground_corner(pane) == QColor("#c03030"))
 
 
 def test_activating_a_row_opens_its_reading_in_a_tab(three, window):

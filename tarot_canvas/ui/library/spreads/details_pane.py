@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from PyQt6.QtCore import QRect, Qt, pyqtSignal
-from PyQt6.QtGui import QIcon, QPainter, QPalette
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QIcon, QPalette
 from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -16,9 +16,10 @@ from PyQt6.QtWidgets import (
 from tarot_canvas.models.spreads import Spread
 from tarot_canvas.ui import typography, units
 from tarot_canvas.ui.canvas.detail import card_unit_size
-from tarot_canvas.ui.canvas.tab_icon import DIAGRAM, layout_marks, spread_icon, spread_marks
+from tarot_canvas.ui.canvas.tab_icon import DIAGRAM, layout_marks, spread_marks
 from tarot_canvas.ui.commands import set_tooltip_with_keys
 from tarot_canvas.ui.library.decks.menu import deck_menu
+from tarot_canvas.ui.library.diagram import LayoutDiagram
 from tarot_canvas.ui.passage_metrics import body_html
 from tarot_canvas.ui.strings import READINGS, SPREADS
 from tarot_canvas.ui.widgets.pane_text import is_link, link_html, pane_text
@@ -100,32 +101,6 @@ def _position_widgets(number, position):
         yield meaning
 
 
-class SpreadDiagram(QWidget):
-    """A spread's shape with its numbers, as large as its width and the pane's height allow"""
-
-    WIDTH = 14 * units.GRID_UNIT
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._icon = None
-        self.setFixedWidth(self.WIDTH)
-        self.hide()
-
-    def show_spread(self, spread):
-        marks = layout_marks(
-            spread_marks(spread, card_unit_size(), numbered=True), DIAGRAM.max_fill
-        )
-        self._icon = spread_icon(marks, DIAGRAM) if marks else None
-        self.setVisible(self._icon is not None)
-        self.update()
-
-    def paintEvent(self, event):
-        if self._icon is not None:
-            painter = QPainter(self)
-            self._icon.paint(painter, QRect(0, 0, self.width(), min(self.width(), self.height())))
-            painter.end()
-
-
 class SpreadDetailsPane(QWidget):
     edit_requested = pyqtSignal(object)  # the shown spread's folder
     reading_requested = pyqtSignal(object)  # the shown spread's folder
@@ -177,7 +152,7 @@ class SpreadDetailsPane(QWidget):
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.scroll_area.setWidget(content)
 
-        self.diagram = SpreadDiagram()
+        self.diagram = LayoutDiagram()
 
         body = QHBoxLayout()
         body.setSpacing(units.GRID_UNIT)
@@ -202,7 +177,9 @@ class SpreadDetailsPane(QWidget):
             return
 
         spread = details.spread
-        self.diagram.show_spread(spread)
+        self.diagram.show_marks(
+            layout_marks(spread_marks(spread, card_unit_size(), numbered=True), DIAGRAM.max_fill)
+        )
         self.heading_label.setText(spread.name or SPREADS["untitled"])
 
         if spread.description:

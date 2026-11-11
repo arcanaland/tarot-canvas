@@ -723,6 +723,8 @@ READINGS = {
     "library_restore_failed": "Cannot restore entry",
     "library_cards": "Cards",
     "library_note": "Notes",
+    "library_face_down": "(hidden)",
+    "library_card_position": "{position}: {card}",
     "sort_oldest": "Oldest",
     "sort_tooltip": "Sort entries",
 }

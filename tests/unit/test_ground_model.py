@@ -2,7 +2,7 @@ import logging
 
 import pytest
 
-from tarot_canvas.models.ground import Ground
+from tarot_canvas.models.ground import Ground, drawn
 from tarot_canvas.settings import (
     BACKGROUND_COLOR_KEY,
     BACKGROUND_FILL_KEY,
@@ -156,3 +156,33 @@ def test_a_hue_id_is_kept_as_written():
     assert (
         Ground.from_table({"style": "swirl", "hue": "ultraviolet"}, Ground()).hue == "ultraviolet"
     )
+
+
+# -- which ground draws ----------------------------------------------------
+
+
+def store_default(ground):
+    ground.to_settings()
+    get_settings().sync()
+
+
+def test_no_ground_draws_the_default():
+    store_default(OWN["gradient"])
+    assert drawn(None) == OWN["gradient"]
+
+
+def test_an_own_ground_draws_itself():
+    store_default(OWN["gradient"])
+    assert drawn(OWN["solid"]) == OWN["solid"]
+
+
+def test_an_image_ground_whose_file_is_missing_draws_the_default(backgrounds_base):
+    store_default(OWN["checkerboard"])
+    assert drawn(Ground(style="image", image="gone.png")) == OWN["checkerboard"]
+
+
+def test_an_image_ground_whose_file_is_there_draws_itself(backgrounds_base):
+    backgrounds_base.mkdir(parents=True)
+    (backgrounds_base / "felt.png").write_bytes(b"")
+    ground = Ground(style="image", image="felt.png")
+    assert drawn(ground) == ground

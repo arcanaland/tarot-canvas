@@ -56,6 +56,11 @@ GROUND_HUES = {
 }
 
 
+def ground_hue(ground):
+    """The ground's GroundHue, which Swirl and Aura share; the default for an unknown id"""
+    return GROUND_HUES.get(ground.hue, GROUND_HUES[GROUND_HUE_DEFAULT])
+
+
 def ground_hue_id(settings=None):
     """The stored preset's id"""
     stored = (settings or get_settings()).value(GROUND_HUE_KEY)
