@@ -43,7 +43,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from tarot_canvas.ui import typography
+from tarot_canvas.ui import typography, units
 from tarot_canvas.ui.canvas.placement import Phase
 from tarot_canvas.ui.canvas.reading_card import is_face_down
 from tarot_canvas.ui.canvas.reading_marks import next_gilt
@@ -58,7 +58,6 @@ from tarot_canvas.ui.canvas.spread_pane import (
     _draw,
 )
 from tarot_canvas.ui.icons import SPREAD_ICON, deck_icon
-from tarot_canvas.ui.library import units
 from tarot_canvas.ui.strings import READINGS
 from tarot_canvas.ui.widgets.reorder_list import GRIP_WIDTH
 from tarot_canvas.utils.dates import format_qdatetime

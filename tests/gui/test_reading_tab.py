@@ -1007,7 +1007,7 @@ def test_a_spread_that_wont_load_opens_no_reading(qtbot, deck, tmp_path):
 
 
 def test_start_reading_on_a_library_row_opens_one(qtbot, deck, spreads_base):
-    from tarot_canvas.ui.tabs.library_tab import LibraryTab
+    from tarot_canvas.ui.library.tab import LibraryTab
 
     window = MainWindow()
     qtbot.addWidget(window)

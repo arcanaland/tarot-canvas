@@ -2,8 +2,8 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFontMetrics
 from PyQt6.QtWidgets import QAbstractItemView
 
+from tarot_canvas.ui.card_explorer import CardExplorerPanel
 from tarot_canvas.ui.card_transfer import CARD_MIME, card_from_mime
-from tarot_canvas.ui.components.card_explorer import CardExplorerPanel
 
 
 def panel(qtbot, platform="linux"):

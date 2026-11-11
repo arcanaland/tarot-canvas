@@ -1,4 +1,4 @@
-from tarot_canvas.ui.widgets.deck_header import (
+from tarot_canvas.ui.library.decks.header import (
     DETAIL_FIELDS,
     buy_link,
     deck_links,

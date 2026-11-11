@@ -11,8 +11,9 @@ from tarot_canvas.settings import (
     LIBRARY_VIEWS,
     get_settings,
 )
-from tarot_canvas.ui.library.notes_model import CardIdRole, PreviewRole
-from tarot_canvas.ui.tabs.library_tab import LibraryTab
+from tarot_canvas.ui.library.notes.model import CardIdRole
+from tarot_canvas.ui.library.roles import PreviewRole
+from tarot_canvas.ui.library.tab import LibraryTab
 
 FOOL = "major_arcana.00"
 MAGICIAN = "major_arcana.01"
@@ -144,7 +145,7 @@ def test_search_in_this_view_leaves_the_deck_grid_alone(library, notes_base):
     assert [
         page.list_model.index(row, 0).data(CardIdRole) for row in range(page.list_model.rowCount())
     ] == [FOOL]
-    assert library.proxy_model.filterRegularExpression().pattern() == ""
+    assert library.decks_page.list_model.filterRegularExpression().pattern() == ""
 
 
 def test_select_card_selects_its_newest_note(library, notes_base):

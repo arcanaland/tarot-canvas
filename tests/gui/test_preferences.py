@@ -31,7 +31,7 @@ from tarot_canvas.settings import (
     get_reading_text_scale,
     get_settings,
 )
-from tarot_canvas.ui.library.catalog_client import deck_catalog
+from tarot_canvas.ui.catalog.client import deck_catalog
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.widgets.places_sidebar import PlacesSidebar

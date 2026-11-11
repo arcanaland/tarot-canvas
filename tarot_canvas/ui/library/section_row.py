@@ -3,12 +3,9 @@
 from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtGui import QFontMetrics
 
-from tarot_canvas.ui import typography
-from tarot_canvas.ui.library import units
-from tarot_canvas.ui.library.note_row_delegate import IconRowDelegate
-
-# True on a heading row. A model answers it and gives the row no flags, so it is never selected
-SectionRole = Qt.ItemDataRole.UserRole + 40
+from tarot_canvas.ui import typography, units
+from tarot_canvas.ui.library.roles import SectionRole
+from tarot_canvas.ui.library.row_delegate import IconRowDelegate
 
 
 def is_section(index):

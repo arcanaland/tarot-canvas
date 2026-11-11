@@ -14,20 +14,21 @@ from tarot_canvas.settings import (
     SHOW_AVAILABLE_DECKS_KEY,
     get_settings,
 )
-from tarot_canvas.ui.library import catalog_client, units
-from tarot_canvas.ui.library.catalog_client import DeckCatalog, deck_catalog
-from tarot_canvas.ui.library.deck_downloads import DeckState, deck_downloads
-from tarot_canvas.ui.library.deck_model import (
+from tarot_canvas.ui import units
+from tarot_canvas.ui.catalog import client as catalog_client
+from tarot_canvas.ui.catalog.client import DeckCatalog, deck_catalog
+from tarot_canvas.ui.catalog.downloads import DeckState, deck_downloads
+from tarot_canvas.ui.library.decks.model import (
     SORT_AUTHOR,
-    CoverPathRole,
     DeckRole,
     EntryRole,
     ProgressRole,
     StateRole,
 )
-from tarot_canvas.ui.library.spreads_model import SpreadPathRole
+from tarot_canvas.ui.library.roles import CoverPathRole
+from tarot_canvas.ui.library.spreads.model import SpreadPathRole
+from tarot_canvas.ui.library.tab import LibraryTab
 from tarot_canvas.ui.strings import DOWNLOAD
-from tarot_canvas.ui.tabs.library_tab import LibraryTab
 from tests.gui.test_catalog_client import FakeTransport
 from tests.gui.test_spreads_view import index_of, menu_button_centre, store, two_slots
 from tests.unit.test_catalog import index, raw_entry
@@ -55,37 +56,43 @@ def deck_manager_stub(decks):
     )
 
 
+def stub_deck_manager(monkeypatch, stub):
+    """The tab reads the reference deck, its Decks page every deck"""
+    for module in ("tarot_canvas.ui.library.tab", "tarot_canvas.ui.library.decks.page"):
+        monkeypatch.setattr(f"{module}.deck_manager", stub)
+
+
 @pytest.fixture
 def library(qtbot, monkeypatch):
-    monkeypatch.setattr(
-        "tarot_canvas.ui.tabs.library_tab.deck_manager",
-        deck_manager_stub(DECKS),
-    )
+    stub_deck_manager(monkeypatch, deck_manager_stub(DECKS))
     tab = LibraryTab()
     qtbot.addWidget(tab)
     return tab
 
 
 def names(tab):
-    return [tab.proxy_model.index(row, 0).data() for row in range(tab.proxy_model.rowCount())]
+    return [
+        tab.decks_page.list_model.index(row, 0).data()
+        for row in range(tab.decks_page.list_model.rowCount())
+    ]
 
 
 def test_the_view_draws_no_frame_of_its_own(library):
-    assert library.view.frameShape() == QFrame.Shape.NoFrame
-    assert library.view.viewMode() == QListView.ViewMode.IconMode
+    assert library.decks_page.list_view.frameShape() == QFrame.Shape.NoFrame
+    assert library.decks_page.list_view.viewMode() == QListView.ViewMode.IconMode
 
 
 def test_no_stylesheet_hardcodes_colours(library):
     assert library.styleSheet() == ""
-    assert library.view.styleSheet() == ""
+    assert library.decks_page.list_view.styleSheet() == ""
     assert library.sidebar.styleSheet() == ""
     assert library.notes_page.list_view.styleSheet() == ""
     assert library.notes_page.details_pane.styleSheet() == ""
 
 
 def test_the_grid_is_not_capped_at_four_columns(library):
-    assert library.view.resizeMode() == QListView.ResizeMode.Adjust
-    assert library.view.isWrapping()
+    assert library.decks_page.list_view.resizeMode() == QListView.ResizeMode.Adjust
+    assert library.decks_page.list_view.isWrapping()
 
 
 def test_search_filters_the_view(library, qtbot):
@@ -101,17 +108,17 @@ def test_search_filters_the_view(library, qtbot):
 
 def test_empty_search_result_shows_a_message_instead_of_a_blank_grid(library):
     library.search_field.setText("nothing matches this")
-    assert library.empty_label.isVisibleTo(library)
-    assert not library.view.isVisibleTo(library)
+    assert library.decks_page.empty_label.isVisibleTo(library)
+    assert not library.decks_page.list_view.isVisibleTo(library)
 
     library.search_field.clear()
-    assert not library.empty_label.isVisibleTo(library)
+    assert not library.decks_page.empty_label.isVisibleTo(library)
 
 
 def test_selection_emits_deck_selected(library, qtbot):
-    index = library.proxy_model.index(0, 0)
-    with qtbot.waitSignal(library.deck_selected, timeout=1000) as blocker:
-        library.view.selectionModel().setCurrentIndex(
+    index = library.decks_page.list_model.index(0, 0)
+    with qtbot.waitSignal(library.decks_page.deck_selected, timeout=1000) as blocker:
+        library.decks_page.list_view.selectionModel().setCurrentIndex(
             index, QItemSelectionModel.SelectionFlag.ClearAndSelect
         )
     assert blocker.args[0] is index.data(DeckRole)
@@ -125,8 +132,8 @@ def test_activation_opens_the_deck_in_a_tab(library, monkeypatch):
         lambda: SimpleNamespace(new_deck_view_tab=lambda deck_path: opened.append(deck_path)),
     )
 
-    index = library.proxy_model.index(0, 0)
-    library.view.activated.emit(index)
+    index = library.decks_page.list_model.index(0, 0)
+    library.decks_page.list_view.activated.emit(index)
     assert opened == [index.data(DeckRole).deck_path]
 
 
@@ -134,8 +141,8 @@ def test_activation_records_recency(library, monkeypatch):
     from tarot_canvas.settings import get_recent_decks
 
     monkeypatch.setattr(library, "window", lambda: SimpleNamespace())
-    index = library.proxy_model.index(0, 0)
-    library.view.activated.emit(index)
+    index = library.decks_page.list_model.index(0, 0)
+    library.decks_page.list_view.activated.emit(index)
 
     assert index.data(DeckRole).deck_path in get_recent_decks()
 
@@ -148,53 +155,47 @@ def test_sort_and_density_persist(library, qtbot):
     settings = get_settings()
     assert settings.value(LIBRARY_SORT_KEY, type=str) == SORT_AUTHOR
     assert settings.value(LIBRARY_DENSITY_KEY, type=str) == units.DENSITY_MEDIUM
-    assert library.delegate.density == units.DENSITY_MEDIUM
+    assert library.decks_page.row_delegate.density == units.DENSITY_MEDIUM
     assert names(library) == ["Zodiac", "Aurora"]
 
 
 def test_saved_density_is_restored_on_a_new_tab(library, qtbot, monkeypatch):
     library.zoom_slider.slider.setValue(units.DENSITIES.index(units.DENSITY_SMALL))
 
-    monkeypatch.setattr(
-        "tarot_canvas.ui.tabs.library_tab.deck_manager",
-        deck_manager_stub(DECKS),
-    )
+    stub_deck_manager(monkeypatch, deck_manager_stub(DECKS))
     reopened = LibraryTab()
     qtbot.addWidget(reopened)
-    assert reopened.delegate.density == units.DENSITY_SMALL
+    assert reopened.decks_page.row_delegate.density == units.DENSITY_SMALL
 
 
 def test_refresh_keeps_the_selected_deck_selected(library):
-    index = library.proxy_model.index(0, 0)
-    library.view.selectionModel().setCurrentIndex(
+    index = library.decks_page.list_model.index(0, 0)
+    library.decks_page.list_view.selectionModel().setCurrentIndex(
         index, QItemSelectionModel.SelectionFlag.ClearAndSelect
     )
-    selected = library.current_deck()
+    selected = library.decks_page.current_deck()
 
-    library.refresh()
-    assert library.current_deck() is selected
+    library.decks_page.refresh()
+    assert library.decks_page.current_deck() is selected
 
 
 def test_keyboard_navigation_reaches_the_grid(library, qtbot):
     library.show()
     qtbot.waitExposed(library)
-    library.view.setFocus()
-    library.view.setCurrentIndex(library.proxy_model.index(0, 0))
-    qtbot.keyClick(library.view, Qt.Key.Key_Right)
-    assert library.view.currentIndex().row() == 1
+    library.decks_page.list_view.setFocus()
+    library.decks_page.list_view.setCurrentIndex(library.decks_page.list_model.index(0, 0))
+    qtbot.keyClick(library.decks_page.list_view, Qt.Key.Key_Right)
+    assert library.decks_page.list_view.currentIndex().row() == 1
 
 
 def test_decks_changed_refreshes_an_open_library(qtbot, monkeypatch):
     from tarot_canvas.models.deck_events import deck_events
 
     decks = list(DECKS)
-    monkeypatch.setattr(
-        "tarot_canvas.ui.tabs.library_tab.deck_manager",
-        deck_manager_stub(decks),
-    )
+    stub_deck_manager(monkeypatch, deck_manager_stub(decks))
     tab = LibraryTab()
     qtbot.addWidget(tab)
-    assert tab.proxy_model.rowCount() == 2
+    assert tab.decks_page.list_model.rowCount() == 2
 
     decks.append(fake_deck("Aquatic", author="Andreas", majors=22, minors=56))
     deck_events().decks_changed.emit()
@@ -208,10 +209,7 @@ def test_decks_changed_after_a_library_is_deleted_does_not_crash(qtbot, monkeypa
 
     from tarot_canvas.models.deck_events import deck_events
 
-    monkeypatch.setattr(
-        "tarot_canvas.ui.tabs.library_tab.deck_manager",
-        deck_manager_stub(DECKS),
-    )
+    stub_deck_manager(monkeypatch, deck_manager_stub(DECKS))
     tab = LibraryTab()
     tab.show()
     tab.close()
@@ -227,17 +225,14 @@ def test_decks_changed_after_a_library_is_closed_does_not_crash(qtbot, monkeypat
     """A closed tab is removeTab'd, not deleted, so it lives on hidden and refreshes."""
     from tarot_canvas.models.deck_events import deck_events
 
-    monkeypatch.setattr(
-        "tarot_canvas.ui.tabs.library_tab.deck_manager",
-        deck_manager_stub(DECKS),
-    )
+    stub_deck_manager(monkeypatch, deck_manager_stub(DECKS))
     tab = LibraryTab()
     qtbot.addWidget(tab)
     tab.show()
     tab.close()
 
     deck_events().decks_changed.emit()
-    assert tab.proxy_model.rowCount() == 2
+    assert tab.decks_page.list_model.rowCount() == 2
 
 
 # -- ghosts --------------------------------------------------------------
@@ -259,10 +254,7 @@ def switches_unset(qapp):
 @pytest.fixture
 def installed(monkeypatch):
     decks = list(DECKS)
-    monkeypatch.setattr(
-        "tarot_canvas.ui.tabs.library_tab.deck_manager",
-        deck_manager_stub(decks),
-    )
+    stub_deck_manager(monkeypatch, deck_manager_stub(decks))
     return decks
 
 
@@ -284,8 +276,8 @@ def ghost_library(qtbot, installed, transport):
 
 
 def ghost_of(tab):
-    for row in range(tab.proxy_model.rowCount()):
-        index = tab.proxy_model.index(row, 0)
+    for row in range(tab.decks_page.list_model.rowCount()):
+        index = tab.decks_page.list_model.index(row, 0)
         if index.data(EntryRole) is not None:
             return index
     return None
@@ -302,19 +294,21 @@ def delete(tab):
 
 
 def shown(tab):
-    return tab.details_pane.details()
+    return tab.decks_page.details_pane.details()
 
 
 def select(tab, row):
     """Make a row current the way code does, not the way a user does"""
-    tab.view.selectionModel().setCurrentIndex(
-        tab.proxy_model.index(row, 0), QItemSelectionModel.SelectionFlag.ClearAndSelect
+    tab.decks_page.list_view.selectionModel().setCurrentIndex(
+        tab.decks_page.list_model.index(row, 0), QItemSelectionModel.SelectionFlag.ClearAndSelect
     )
 
 
 def click(tab, qtbot, row):
-    rect = tab.view.visualRect(tab.proxy_model.index(row, 0))
-    qtbot.mouseClick(tab.view.viewport(), Qt.MouseButton.LeftButton, pos=rect.center())
+    rect = tab.decks_page.list_view.visualRect(tab.decks_page.list_model.index(row, 0))
+    qtbot.mouseClick(
+        tab.decks_page.list_view.viewport(), Qt.MouseButton.LeftButton, pos=rect.center()
+    )
 
 
 @pytest.fixture
@@ -338,17 +332,17 @@ def test_the_pane_starts_hidden_with_its_toggle_disabled(library):
 def test_a_click_opens_the_pane_on_the_clicked_deck(shown_library, qtbot):
     click(shown_library, qtbot, 1)
     assert shown_library.details_pane_is_open()
-    assert shown(shown_library).deck is shown_library.current_deck()
+    assert shown(shown_library).deck is shown_library.decks_page.current_deck()
     assert shown_library.details_toggle.isChecked()
 
 
 def test_a_keyboard_move_opens_the_pane(shown_library, qtbot):
-    shown_library.view.setFocus()
+    shown_library.decks_page.list_view.setFocus()
     # Zodiac, which the default name sort puts second, so Left has somewhere to go
-    shown_library.select_deck_path(DECKS[0].deck_path)
+    shown_library.decks_page.select_deck_path(DECKS[0].deck_path)
     assert not shown_library.details_pane_is_open()
 
-    qtbot.keyClick(shown_library.view, Qt.Key.Key_Left)
+    qtbot.keyClick(shown_library.decks_page.list_view, Qt.Key.Key_Left)
     assert shown_library.details_pane_is_open()
 
 
@@ -356,13 +350,13 @@ def test_focusing_the_grid_does_not_open_the_pane(shown_library, qtbot):
     """The view makes its first deck current on focus in, which selects nothing"""
     shown_library.search_field.setFocus()
     qtbot.keyClick(shown_library.search_field, Qt.Key.Key_Tab)
-    shown_library.view.setFocus(Qt.FocusReason.TabFocusReason)
+    shown_library.decks_page.list_view.setFocus(Qt.FocusReason.TabFocusReason)
     assert not shown_library.details_pane_is_open()
 
 
 def test_selection_by_code_never_opens_the_pane(library):
-    library.select_deck_path(DECKS[1].deck_path)
-    library.refresh()
+    library.decks_page.select_deck_path(DECKS[1].deck_path)
+    library.decks_page.refresh()
     assert not library.details_pane_is_open()
     # but it does fill it, and enables the toggle
     assert shown(library).deck is DECKS[1]
@@ -372,7 +366,7 @@ def test_selection_by_code_never_opens_the_pane(library):
 def test_the_pane_follows_the_selection_once_open(shown_library, qtbot):
     click(shown_library, qtbot, 0)
     select(shown_library, 1)
-    assert shown(shown_library).deck is shown_library.current_deck()
+    assert shown(shown_library).deck is shown_library.decks_page.current_deck()
 
 
 def test_a_close_is_remembered_and_selection_stops_opening_the_pane(
@@ -386,10 +380,7 @@ def test_a_close_is_remembered_and_selection_stops_opening_the_pane(
     click(shown_library, qtbot, 1)
     assert not shown_library.details_pane_is_open()
 
-    monkeypatch.setattr(
-        "tarot_canvas.ui.tabs.library_tab.deck_manager",
-        deck_manager_stub(DECKS),
-    )
+    stub_deck_manager(monkeypatch, deck_manager_stub(DECKS))
     reopened = LibraryTab()
     qtbot.addWidget(reopened)
     with qtbot.waitExposed(reopened):
@@ -408,11 +399,15 @@ def test_opening_through_the_toggle_is_remembered(shown_library, qtbot):
 
 def test_ctrl_i_toggles_the_pane(shown_library, qtbot):
     select(shown_library, 0)
-    shown_library.view.setFocus()
+    shown_library.decks_page.list_view.setFocus()
 
-    qtbot.keyClick(shown_library.view, Qt.Key.Key_I, Qt.KeyboardModifier.ControlModifier)
+    qtbot.keyClick(
+        shown_library.decks_page.list_view, Qt.Key.Key_I, Qt.KeyboardModifier.ControlModifier
+    )
     assert shown_library.details_pane_is_open()
-    qtbot.keyClick(shown_library.view, Qt.Key.Key_I, Qt.KeyboardModifier.ControlModifier)
+    qtbot.keyClick(
+        shown_library.decks_page.list_view, Qt.Key.Key_I, Qt.KeyboardModifier.ControlModifier
+    )
     assert not shown_library.details_pane_is_open()
 
 
@@ -437,20 +432,20 @@ def test_ctrl_i_does_nothing_with_nothing_to_show(shown_library, qtbot):
 
 
 def click_nowhere(tab, qtbot):
-    viewport = tab.view.viewport()
+    viewport = tab.decks_page.list_view.viewport()
     spot = QPoint(viewport.width() - 5, viewport.height() - 5)
-    assert not tab.view.indexAt(spot).isValid()
+    assert not tab.decks_page.list_view.indexAt(spot).isValid()
     qtbot.mouseClick(viewport, Qt.MouseButton.LeftButton, pos=spot)
 
 
 def test_a_click_on_no_deck_deselects_and_the_pane_keeps_the_deck(shown_library, qtbot):
     click(shown_library, qtbot, 0)
-    deck = shown_library.current_deck()
+    deck = shown_library.decks_page.current_deck()
 
     click_nowhere(shown_library, qtbot)
 
-    assert shown_library.view.selectionModel().selectedIndexes() == []
-    assert shown_library.current_deck() is None
+    assert shown_library.decks_page.list_view.selectionModel().selectedIndexes() == []
+    assert shown_library.decks_page.current_deck() is None
     assert shown_library.details_pane_is_open()
     assert shown(shown_library).deck is deck
     assert shown_library.details_toggle.isEnabled()
@@ -458,17 +453,17 @@ def test_a_click_on_no_deck_deselects_and_the_pane_keeps_the_deck(shown_library,
 
 def test_esc_deselects(shown_library, qtbot):
     click(shown_library, qtbot, 0)
-    qtbot.keyClick(shown_library.view, Qt.Key.Key_Escape)
+    qtbot.keyClick(shown_library.decks_page.list_view, Qt.Key.Key_Escape)
 
-    assert shown_library.current_deck() is None
+    assert shown_library.decks_page.current_deck() is None
     assert shown_library.details_pane_is_open()
 
 
 def test_a_deselected_library_stays_deselected_through_a_refresh(shown_library, qtbot):
     click(shown_library, qtbot, 0)
     click_nowhere(shown_library, qtbot)
-    shown_library.refresh()
-    assert shown_library.current_deck() is None
+    shown_library.decks_page.refresh()
+    assert shown_library.decks_page.current_deck() is None
 
 
 def test_the_pane_opens_at_a_share_of_the_width_and_keeps_a_resized_width(shown_library):
@@ -494,7 +489,7 @@ def test_the_pane_keeps_its_minimum_width(shown_library):
 
 def test_a_deck_the_search_hides_stays_shown(library):
     select(library, 0)
-    deck = library.current_deck()
+    deck = library.decks_page.current_deck()
     library.search_field.setText("nothing matches this")
     assert shown(library).deck is deck
     assert library.details_toggle.isEnabled()
@@ -516,12 +511,12 @@ def test_activating_a_ghost_shows_it_with_download_focused_and_starts_nothing(
     with qtbot.waitActive(ghost_library):
         ghost_library.show()
         ghost_library.activateWindow()
-    ghost_library.view.activated.emit(ghost_of(ghost_library))
+    ghost_library.decks_page.list_view.activated.emit(ghost_of(ghost_library))
 
     assert ghost_library.details_pane_is_open()
     assert shown(ghost_library).entry == AQUATIC
-    assert ghost_library.details_pane.action_button.text() == "Download"
-    assert ghost_library.details_pane.action_button.hasFocus()
+    assert ghost_library.decks_page.details_pane.action_button.text() == "Download"
+    assert ghost_library.decks_page.details_pane.action_button.hasFocus()
     assert fake_downloads == []
 
 
@@ -531,19 +526,19 @@ def test_activating_a_ghost_opens_the_pane_the_user_closed(ghost_library, fake_d
     ghost_library.toggle_details_pane()  # and closed, remembered
     assert not ghost_library.details_pane_is_open()
 
-    ghost_library.view.activated.emit(ghost_of(ghost_library))
+    ghost_library.decks_page.list_view.activated.emit(ghost_of(ghost_library))
     assert ghost_library.details_pane_is_open()
     assert fake_downloads == []
 
 
 def test_download_starts_the_shown_deck(ghost_library, fake_downloads):
-    ghost_library.view.activated.emit(ghost_of(ghost_library))
-    ghost_library.details_pane.action_button.click()
+    ghost_library.decks_page.list_view.activated.emit(ghost_of(ghost_library))
+    ghost_library.decks_page.details_pane.action_button.click()
 
     (job,) = fake_downloads
     assert job.dest.name == "aquatic-tarot"
     assert ghost_of(ghost_library).data(StateRole) is DeckState.DOWNLOADING
-    assert ghost_library.details_pane.action_button.text() == "Cancel"
+    assert ghost_library.decks_page.details_pane.action_button.text() == "Cancel"
 
 
 def test_cancel_asks_nothing(ghost_library, fake_downloads, monkeypatch):
@@ -552,24 +547,24 @@ def test_cancel_asks_nothing(ghost_library, fake_downloads, monkeypatch):
 
     for name in ("question", "warning", "information", "critical", "exec"):
         monkeypatch.setattr(f"PyQt6.QtWidgets.QMessageBox.{name}", no_questions)
-    ghost_library.view.activated.emit(ghost_of(ghost_library))
-    ghost_library.details_pane.action_button.click()
+    ghost_library.decks_page.list_view.activated.emit(ghost_of(ghost_library))
+    ghost_library.decks_page.details_pane.action_button.click()
 
-    ghost_library.details_pane.action_button.click()
+    ghost_library.decks_page.details_pane.action_button.click()
 
     assert fake_downloads[0].cancelled
     assert ghost_of(ghost_library).data(StateRole) is DeckState.AVAILABLE
-    assert ghost_library.details_pane.action_button.text() == "Download"
+    assert ghost_library.decks_page.details_pane.action_button.text() == "Download"
 
 
 def test_try_again_restarts_a_failed_download(ghost_library, fake_downloads):
     from tarot_canvas.utils.package_download import DownloadFailure, FailureKind
 
-    ghost_library.view.activated.emit(ghost_of(ghost_library))
-    ghost_library.details_pane.action_button.click()
+    ghost_library.decks_page.list_view.activated.emit(ghost_of(ghost_library))
+    ghost_library.decks_page.details_pane.action_button.click()
     fake_downloads[0].failed.emit(DownloadFailure(FailureKind.NETWORK, "offline"))
 
-    pane = ghost_library.details_pane
+    pane = ghost_library.decks_page.details_pane
     assert pane.action_button.text() == "Try Again"
     assert pane.failure_label.text() == DOWNLOAD["failed: network"]
 
@@ -587,49 +582,49 @@ def test_open_opens_the_deck_tab(library, monkeypatch):
     )
     select(library, 0)
 
-    assert library.details_pane.action_button.text() == "Open"
-    library.details_pane.action_button.click()
-    assert opened == [library.current_deck().deck_path]
+    assert library.decks_page.details_pane.action_button.text() == "Open"
+    library.decks_page.details_pane.action_button.click()
+    assert opened == [library.decks_page.current_deck().deck_path]
 
 
 def test_progress_moves_the_pane_bar(ghost_library, fake_downloads):
-    ghost_library.view.activated.emit(ghost_of(ghost_library))
-    ghost_library.details_pane.action_button.click()
-    cancel = ghost_library.details_pane.action_button
+    ghost_library.decks_page.list_view.activated.emit(ghost_of(ghost_library))
+    ghost_library.decks_page.details_pane.action_button.click()
+    cancel = ghost_library.decks_page.details_pane.action_button
 
     fake_downloads[0].progress.emit(40, 100)
 
-    assert ghost_library.details_pane.progress_bar.value() == 40
-    assert ghost_library.details_pane.action_button is cancel
+    assert ghost_library.decks_page.details_pane.progress_bar.value() == 40
+    assert ghost_library.decks_page.details_pane.action_button is cancel
 
 
 def test_a_shown_ghost_that_installs_becomes_its_deck(ghost_library, installed, fake_downloads):
     from tarot_canvas.models.deck_events import deck_events
 
     select(ghost_library, ghost_of(ghost_library).row())
-    ghost_library.details_pane.action_button.click()
+    ghost_library.decks_page.details_pane.action_button.click()
 
     installed.append(fake_deck("Aquatic Tarot", identifier=AQUATIC.identifier))
     fake_downloads[0].succeeded.emit(str(fake_downloads[0].dest))
     deck_events().decks_changed.emit()  # the stub deck_manager's rescan emits nothing
 
     assert ghost_of(ghost_library) is None
-    assert ghost_library.current_deck() is installed[-1]
+    assert ghost_library.decks_page.current_deck() is installed[-1]
     assert shown(ghost_library).deck is installed[-1]
-    assert ghost_library.details_pane.action_button.text() == "Open"
+    assert ghost_library.decks_page.details_pane.action_button.text() == "Open"
 
 
 def test_a_ghost_the_search_hides_stays_shown_and_downloadable(ghost_library, fake_downloads):
-    ghost_library.view.activated.emit(ghost_of(ghost_library))
+    ghost_library.decks_page.list_view.activated.emit(ghost_of(ghost_library))
     ghost_library.search_field.setText("Zodiac")
     assert ghost_of(ghost_library) is None
 
     assert shown(ghost_library).entry == AQUATIC
-    ghost_library.details_pane.action_button.click()
+    ghost_library.decks_page.details_pane.action_button.click()
     assert len(fake_downloads) == 1
     # The source model's row still reaches the pane
     fake_downloads[0].progress.emit(40, 100)
-    assert ghost_library.details_pane.progress_bar.value() == 40
+    assert ghost_library.decks_page.details_pane.progress_bar.value() == 40
 
 
 def test_the_switch_off_shows_no_ghosts_and_asks_nothing(qtbot, installed, transport):
@@ -681,8 +676,8 @@ def test_a_download_outlives_the_library_that_started_it(
 ):
     first = LibraryTab()  # not qtbot's: it would close the deleted tab at teardown
     transport.reply(INDEX_URL, body=INDEX_BODY)
-    first.view.activated.emit(ghost_of(first))
-    first.details_pane.action_button.click()
+    first.decks_page.list_view.activated.emit(ghost_of(first))
+    first.decks_page.details_pane.action_button.click()
     fake_downloads[0].progress.emit(40, 100)
     delete(first)
 
@@ -695,7 +690,9 @@ def test_a_download_outlives_the_library_that_started_it(
 
 def test_a_fetched_cover_repaints_the_ghost(ghost_library, transport):
     changed = []
-    ghost_library.proxy_model.dataChanged.connect(lambda top, *_: changed.append(top.row()))
+    ghost_library.decks_page.list_model.dataChanged.connect(
+        lambda top, *_: changed.append(top.row())
+    )
     assert ghost_of(ghost_library).data(CoverPathRole) is None
 
     transport.reply(AQUATIC.cover, body=b"jpeg bytes")
@@ -712,8 +709,8 @@ def test_every_app_wide_signal_is_safe_after_a_library_is_deleted(
     tab = LibraryTab()
     tab.show()
     transport.reply(INDEX_URL, body=INDEX_BODY)
-    tab.view.activated.emit(ghost_of(tab))  # a ghost in the pane, to be updated
-    tab.details_pane.action_button.click()
+    tab.decks_page.list_view.activated.emit(ghost_of(tab))  # a ghost in the pane, to be updated
+    tab.decks_page.details_pane.action_button.click()
     delete(tab)
 
     deck_events().decks_changed.emit()
@@ -743,7 +740,7 @@ def test_a_finished_download_raises_the_main_window_toast(qtbot, fake_downloads)
 def sources(monkeypatch, tmp_path):
     """The esoterica view reads a manager over a fixture root"""
     from tarot_canvas.models.esoterica import EsotericaManager
-    from tarot_canvas.ui.library import esoterica_page
+    from tarot_canvas.ui.library.esoterica import page as esoterica_page
     from tests.unit.test_esoterica import THREE_LINES, write
 
     root = tmp_path / "esoterica"
@@ -755,7 +752,7 @@ def sources(monkeypatch, tmp_path):
 
 
 def esoterica_names(tab):
-    from tarot_canvas.ui.library.esoterica_list_model import KindRole, RowKind
+    from tarot_canvas.ui.library.esoterica.model import KindRole, RowKind
 
     model = tab.esoterica_page.list_model
     indexes = [model.index(row, 0) for row in range(model.rowCount())]
@@ -794,7 +791,7 @@ def test_the_esoterica_view_hides_sort_size_and_open_deck(sources, library, qtbo
 def test_the_esoterica_view_is_restored(qtbot, monkeypatch, sources):
     from tarot_canvas.settings import LIBRARY_VIEW_ESOTERICA, LIBRARY_VIEW_KEY
 
-    monkeypatch.setattr("tarot_canvas.ui.tabs.library_tab.deck_manager", deck_manager_stub(DECKS))
+    stub_deck_manager(monkeypatch, deck_manager_stub(DECKS))
     get_settings().setValue(LIBRARY_VIEW_KEY, LIBRARY_VIEW_ESOTERICA)
 
     tab = LibraryTab()
@@ -988,7 +985,7 @@ def test_the_share_below_is_saved_for_the_next_library(sources, shown_library, q
 def test_a_share_below_out_of_range_opens_at_the_default(sources, qtbot, monkeypatch, saved):
     from tarot_canvas.settings import LIBRARY_DETAILS_BELOW_SHARE_KEY
 
-    monkeypatch.setattr("tarot_canvas.ui.tabs.library_tab.deck_manager", deck_manager_stub(DECKS))
+    stub_deck_manager(monkeypatch, deck_manager_stub(DECKS))
     get_settings().setValue(LIBRARY_DETAILS_BELOW_SHARE_KEY, saved)
 
     tab = LibraryTab()
@@ -1019,17 +1016,17 @@ def test_view_zoom_sizes_the_covers_and_resets_to_large(library):
     assert not library.can_zoom("reset")
 
     library.zoom("in")
-    assert library.delegate.density == units.DENSITY_EXTRA_LARGE
+    assert library.decks_page.row_delegate.density == units.DENSITY_EXTRA_LARGE
     assert not library.can_zoom("in")
     library.zoom("reset")
 
     library.zoom("out")
     library.zoom("out")
-    assert library.delegate.density == units.DENSITY_SMALL
+    assert library.decks_page.row_delegate.density == units.DENSITY_SMALL
     assert not library.can_zoom("out")
 
     library.zoom("reset")
-    assert library.delegate.density == units.DENSITY_LARGE
+    assert library.decks_page.row_delegate.density == units.DENSITY_LARGE
 
 
 def test_ctrl_wheel_over_the_grid_sizes_the_covers(library, qtbot):
@@ -1039,7 +1036,7 @@ def test_ctrl_wheel_over_the_grid_sizes_the_covers(library, qtbot):
 
     library.show()
     qtbot.waitExposed(library)
-    viewport = library.view.viewport()
+    viewport = library.decks_page.list_view.viewport()
     centre = viewport.rect().center()
     event = QWheelEvent(
         QPointF(centre),
@@ -1053,7 +1050,7 @@ def test_ctrl_wheel_over_the_grid_sizes_the_covers(library, qtbot):
     )
     QApplication.sendEvent(viewport, event)
 
-    assert library.delegate.density == units.DENSITY_MEDIUM
+    assert library.decks_page.row_delegate.density == units.DENSITY_MEDIUM
 
 
 def test_view_zoom_is_off_where_there_are_no_covers(library, qtbot):

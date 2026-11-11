@@ -12,9 +12,9 @@ from tarot_canvas.models.esoterica_registry import PASSAGES, Role
 from tarot_canvas.settings import get_reading_text_scale
 from tarot_canvas.ui import strings, typography
 from tarot_canvas.ui.main_window import MainWindow
+from tarot_canvas.ui.passage_metrics import column_width
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.card_view import esoterica_tab, overview_tab
-from tarot_canvas.ui.tabs.card_view.passage_metrics import column_width
 
 PROSE = "The source's prose about the card."
 

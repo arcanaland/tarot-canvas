@@ -2,7 +2,7 @@ from PyQt6.QtCore import QRectF, QSize, Qt
 from PyQt6.QtGui import QFontMetrics, QPainter, QPalette, QPen
 from PyQt6.QtWidgets import QSizePolicy, QWidget
 
-from tarot_canvas.ui.library import units
+from tarot_canvas.ui import units
 
 CHIP_PADDING_H = units.LARGE_SPACING
 CHIP_PADDING_V = units.SMALL_SPACING

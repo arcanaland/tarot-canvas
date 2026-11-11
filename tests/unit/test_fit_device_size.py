@@ -5,7 +5,7 @@ from PyQt6.QtCore import QBuffer, QIODevice, QSize
 from PyQt6.QtGui import QColor, QImage
 
 from tarot_canvas.ui.canvas.detail import art_size, fit_device_size, load_card_art, read_art
-from tarot_canvas.ui.library.cover_cache import CoverCache
+from tarot_canvas.ui.covers.cache import CoverCache
 
 
 @pytest.mark.parametrize(

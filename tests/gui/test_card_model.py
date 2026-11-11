@@ -10,6 +10,7 @@ from PyQt6.QtGui import QColor, QImage
 from PyQt6.QtWidgets import QApplication
 
 from tarot_canvas.models.card_ids import COURTS, PIPS
+from tarot_canvas.ui import units
 from tarot_canvas.ui.canvas import detail
 from tarot_canvas.ui.deck_view import card_delegate
 from tarot_canvas.ui.deck_view.card_delegate import CardDelegate
@@ -23,7 +24,6 @@ from tarot_canvas.ui.deck_view.card_model import (
     KindRole,
 )
 from tarot_canvas.ui.deck_view.sections_view import SectionsView
-from tarot_canvas.ui.library import units
 from tarot_canvas.ui.tabs.deck_view_tab import DeckViewTab
 
 # Some aspect ratios from my personal decks

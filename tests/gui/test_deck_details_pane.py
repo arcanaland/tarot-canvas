@@ -6,11 +6,11 @@ from PyQt6.QtCore import QLocale, QSize, Qt
 from PyQt6.QtGui import QPalette
 from PyQt6.QtWidgets import QPushButton
 
-from tarot_canvas.ui.library import units
-from tarot_canvas.ui.library.deck_details import DeckDetails
-from tarot_canvas.ui.library.deck_details_pane import DeckDetailsPane
-from tarot_canvas.ui.library.deck_downloads import DeckState
-from tarot_canvas.ui.library.deck_model import deck_cover_path
+from tarot_canvas.ui import units
+from tarot_canvas.ui.catalog.downloads import DeckState
+from tarot_canvas.ui.library.decks.details import DeckDetails
+from tarot_canvas.ui.library.decks.details_pane import DeckDetailsPane
+from tarot_canvas.ui.library.decks.model import deck_cover_path
 from tarot_canvas.ui.strings import failure_text
 from tarot_canvas.ui.widgets.cover_banner import BANNER_TEXT
 from tarot_canvas.utils.package_download import DownloadFailure, FailureKind

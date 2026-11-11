@@ -266,7 +266,7 @@ def test_a_card_image_key_wears_the_icon_of_the_go_entry_showing_it(qapp):
 
 def test_a_library_view_key_wears_its_sidebar_row_s_icon(qtbot):
     from tarot_canvas.ui.commands import command_icon
-    from tarot_canvas.ui.tabs.library_tab import LibraryTab
+    from tarot_canvas.ui.library.tab import LibraryTab
 
     tab = LibraryTab()
     qtbot.addWidget(tab)

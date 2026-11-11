@@ -93,7 +93,7 @@ def test_a_switch_makes_the_style_anew(manager, first, second):
 def test_the_card_explorer_header_follows_the_theme(qtbot, manager):
     from PyQt6.QtWidgets import QLabel
 
-    from tarot_canvas.ui.components.card_explorer import CardExplorerPanel
+    from tarot_canvas.ui.card_explorer import CardExplorerPanel
 
     apply(manager, ThemeType.DARK)
     explorer = CardExplorerPanel()

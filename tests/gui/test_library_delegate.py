@@ -3,12 +3,13 @@ from PyQt6.QtCore import QRect, QSize, Qt
 from PyQt6.QtGui import QColor, QIcon, QImage, QPainter, QPalette
 from PyQt6.QtWidgets import QStyle, QStyleOptionViewItem
 
-from tarot_canvas.ui.library import deck_delegate, units
-from tarot_canvas.ui.library.catalog_client import deck_catalog
-from tarot_canvas.ui.library.cover_cache import CoverCache
-from tarot_canvas.ui.library.deck_delegate import DeckDelegate
-from tarot_canvas.ui.library.deck_downloads import deck_downloads
-from tarot_canvas.ui.library.deck_model import DeckListModel
+from tarot_canvas.ui import units
+from tarot_canvas.ui.catalog.client import deck_catalog
+from tarot_canvas.ui.catalog.downloads import deck_downloads
+from tarot_canvas.ui.covers.cache import CoverCache
+from tarot_canvas.ui.library.decks import delegate as deck_delegate
+from tarot_canvas.ui.library.decks.delegate import DeckDelegate
+from tarot_canvas.ui.library.decks.model import DeckListModel
 from tarot_canvas.utils.package_download import DownloadFailure, FailureKind
 from tests.unit.test_library_model import catalog_entry, fake_deck
 

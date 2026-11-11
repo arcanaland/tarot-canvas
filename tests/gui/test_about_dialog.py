@@ -3,7 +3,7 @@ from PyQt6.QtCore import QDate, QLocale, Qt
 
 from tarot_canvas._version import __version__
 from tarot_canvas.about import AboutData, Release, load_about_data
-from tarot_canvas.ui.widgets.deck_header import format_date
+from tarot_canvas.ui.library.decks.header import format_date
 from tarot_canvas.ui.windows.about import AboutDialog, _release_date
 
 

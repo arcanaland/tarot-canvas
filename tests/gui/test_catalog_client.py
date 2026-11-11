@@ -11,8 +11,8 @@ import pytest
 from tarot_canvas._version import __version__
 from tarot_canvas.models.catalog import INDEX_URL, IndexMeta, parse_index
 from tarot_canvas.settings import SHOW_AVAILABLE_DECKS_KEY, get_settings
-from tarot_canvas.ui.library import catalog_client
-from tarot_canvas.ui.library.catalog_client import DeckCatalog, deck_catalog
+from tarot_canvas.ui.catalog import client as catalog_client
+from tarot_canvas.ui.catalog.client import DeckCatalog, deck_catalog
 from tests.unit.test_catalog import index, raw_entry, slugs
 
 NOW = datetime(2026, 9, 12, 12, 0, tzinfo=UTC)
@@ -415,7 +415,7 @@ def test_importing_creates_no_object_file_or_request(tmp_path):
         [
             "from PyQt6.QtCore import QCoreApplication",
             "from tarot_canvas.models import catalog",
-            "from tarot_canvas.ui.library import catalog_client",
+            "from tarot_canvas.ui.catalog import client as catalog_client",
             "assert catalog_client._instance is None",
             "assert QCoreApplication.instance() is None",
         ]

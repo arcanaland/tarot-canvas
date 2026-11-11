@@ -4,9 +4,9 @@ from PyQt6.QtCore import QRect, Qt
 from PyQt6.QtGui import QColor, QImage, QPainter
 from PyQt6.QtWidgets import QStyle, QStyleOptionViewItem
 
-from tarot_canvas.ui.library import units
-from tarot_canvas.ui.library.note_row_delegate import NoteRowDelegate
-from tarot_canvas.ui.library.notes_model import NotesListModel
+from tarot_canvas.ui import units
+from tarot_canvas.ui.library.notes.model import NotesListModel
+from tarot_canvas.ui.library.row_delegate import NoteRowDelegate
 from tests.gui.test_library_delegate import write_card
 from tests.unit.test_notes_model import note
 

@@ -9,10 +9,10 @@ from tarot_canvas.models import spreads
 from tarot_canvas.models.spreads import Position, Spread
 from tarot_canvas.settings import LIBRARY_VIEW_SPREADS
 from tarot_canvas.ui.canvas.placement import Phase
+from tarot_canvas.ui.library.tab import LibraryTab
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.spread_menu import MAX_OWN
 from tarot_canvas.ui.strings import MAIN_WINDOW, READINGS
-from tarot_canvas.ui.tabs.library_tab import LibraryTab
 from tarot_canvas.ui.tabs.reading_tab import ReadingTab
 from tarot_canvas.ui.tabs.spread_tab import SpreadTab
 

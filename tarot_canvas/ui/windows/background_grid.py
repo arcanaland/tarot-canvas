@@ -31,9 +31,9 @@ from PyQt6.QtWidgets import (
 )
 
 from tarot_canvas.models import backgrounds
+from tarot_canvas.ui import units
 from tarot_canvas.ui.canvas.detail import art_loader, art_size
-from tarot_canvas.ui.library import units
-from tarot_canvas.ui.library.ghost_paint import paint_placeholder_well
+from tarot_canvas.ui.covers.ghost import paint_placeholder_well
 from tarot_canvas.ui.palette import muted_text
 from tarot_canvas.ui.strings import PREFERENCES
 from tarot_canvas.utils.logger import logger

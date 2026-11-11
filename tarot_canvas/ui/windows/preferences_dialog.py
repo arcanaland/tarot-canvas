@@ -36,12 +36,11 @@ from tarot_canvas.settings import (
     get_show_welcome,
     set_show_welcome,
 )
-from tarot_canvas.ui import typography
+from tarot_canvas.ui import typography, units
 from tarot_canvas.ui.canvas.gl_marker import clear_marker
 from tarot_canvas.ui.icons import LIBRARY_ICON
-from tarot_canvas.ui.library import units
-from tarot_canvas.ui.library.pane_text import pane_form
 from tarot_canvas.ui.strings import MAIN_WINDOW, PREFERENCES
+from tarot_canvas.ui.widgets.pane_text import pane_form
 from tarot_canvas.ui.widgets.places_sidebar import PlacesSidebar
 from tarot_canvas.ui.windows.background_form import (
     BackgroundForm,

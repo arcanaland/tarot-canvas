@@ -4,25 +4,22 @@ import pytest
 from PyQt6.QtCore import QLocale, Qt
 
 from tarot_canvas.models.catalog import parse_index
-from tarot_canvas.ui.library.deck_downloads import DeckState, deck_downloads
-from tarot_canvas.ui.library.deck_model import (
+from tarot_canvas.ui.catalog.downloads import DeckState, deck_downloads
+from tarot_canvas.ui.library.decks.model import (
     SORT_AUTHOR,
-    SORT_COUNT,
-    SORT_NAME,
     SORT_RECENT,
     AuthorRole,
     CardCountRole,
-    CoverPathRole,
     DeckFilterProxyModel,
     DeckListModel,
     DeckPathRole,
     DeckRole,
     EntryRole,
     StateRole,
-    SubtitleRole,
     deck_subtitle,
     is_majors_only,
 )
+from tarot_canvas.ui.library.roles import SORT_COUNT, SORT_NAME, CoverPathRole, SubtitleRole
 from tarot_canvas.ui.strings import failure_text
 from tarot_canvas.utils.package_download import DownloadFailure, FailureKind
 from tests.unit.test_catalog import index, raw_entry

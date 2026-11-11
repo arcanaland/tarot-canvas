@@ -12,7 +12,6 @@ from tarot_canvas.models import readings
 from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.models.readings import Reading
 from tarot_canvas.settings import (
-    get_readings_deck,
     get_readings_reversals,
     set_readings_deck,
     set_readings_reversals,
@@ -52,8 +51,8 @@ from tarot_canvas.ui.canvas.saved_canvas import (
 )
 from tarot_canvas.ui.canvas.saved_reading import SavedReading
 from tarot_canvas.ui.canvas.slot_item import SlotItem
-from tarot_canvas.ui.card_transfer import deck_path_key
 from tarot_canvas.ui.icons import SPREAD_ICON
+from tarot_canvas.ui.library.decks.menu import remembered_deck
 from tarot_canvas.ui.strings import CANVAS, READINGS, SPREADS
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.spread_slots import SpreadSlots
@@ -78,16 +77,6 @@ TABLE_PAD = 0.05
 
 def _centre(item):
     return item.pos() + item.boundingRect().center()
-
-
-def remembered_deck():
-    """The deck the user last read with"""
-    wanted = deck_path_key(get_readings_deck())
-    if wanted is not None:
-        for deck in deck_manager.get_all_decks():
-            if deck_path_key(deck.deck_path) == wanted:
-                return deck
-    return deck_manager.get_reference_deck()
 
 
 class ReadingTab(SpreadSlots, CanvasTab):

@@ -13,14 +13,13 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from tarot_canvas.ui import typography
+from tarot_canvas.ui import typography, units
 from tarot_canvas.ui.activate_on_return import activate_on_return
-from tarot_canvas.ui.library import units
-from tarot_canvas.ui.library.note_row_delegate import NoteRowDelegate
-from tarot_canvas.ui.library.notes_model import NoteRole, NotesListModel
+from tarot_canvas.ui.library.notes.model import NoteRole, NotesListModel
+from tarot_canvas.ui.library.row_delegate import NoteRowDelegate
 from tarot_canvas.ui.palette import ghost_bar, muted_text, subtle_fill, with_text_colour
+from tarot_canvas.ui.passage_metrics import CORNER_RADIUS
 from tarot_canvas.ui.strings import notes_text
-from tarot_canvas.ui.tabs.card_view.passage_metrics import CORNER_RADIUS
 
 MAX_ROWS = 3
 

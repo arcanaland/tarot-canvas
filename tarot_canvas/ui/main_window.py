@@ -44,22 +44,22 @@ from tarot_canvas.settings import (
 )
 from tarot_canvas.ui import commands, focused_text, typography
 from tarot_canvas.ui.canvas.renderer import canvas_uses_gl, watch_window
+from tarot_canvas.ui.card_explorer import CardExplorerPanel
+from tarot_canvas.ui.catalog.client import deck_catalog
+from tarot_canvas.ui.catalog.downloads import deck_downloads
 from tarot_canvas.ui.command_palette import CommandPalette
 from tarot_canvas.ui.commands import Scope, set_tooltip_with_keys
-from tarot_canvas.ui.components.card_explorer import CardExplorerPanel
-from tarot_canvas.ui.library.catalog_client import deck_catalog
-from tarot_canvas.ui.library.deck_downloads import deck_downloads
+from tarot_canvas.ui.document_tabs import DocumentTabs
+from tarot_canvas.ui.library.tab import LibraryTab
 from tarot_canvas.ui.spread_menu import spread_menu
 from tarot_canvas.ui.strings import COMMANDS, DOWNLOAD, LIBRARY, MAIN_WINDOW, READINGS, SPREADS
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tarot_canvas.ui.tabs.deck_view_tab import DeckViewTab
-from tarot_canvas.ui.tabs.library_tab import LibraryTab
 from tarot_canvas.ui.tabs.reading_tab import ReadingTab
 from tarot_canvas.ui.tabs.spread_tab import SpreadTab
 from tarot_canvas.ui.welcome_tab import WelcomeTab
-from tarot_canvas.ui.widgets.document_tabs import DocumentTabs
 from tarot_canvas.ui.widgets.placeholder_message import tinted_icon
 from tarot_canvas.ui.widgets.toast import Toast
 from tarot_canvas.ui.windows.about import AboutDialog, app_icon

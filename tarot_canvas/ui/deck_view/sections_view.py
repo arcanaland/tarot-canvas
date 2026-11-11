@@ -3,7 +3,7 @@
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QAbstractItemView, QFrame, QListView
 
-from tarot_canvas.ui.library import units
+from tarot_canvas.ui import units
 
 Cursor = QAbstractItemView.CursorAction
 

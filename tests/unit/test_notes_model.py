@@ -6,13 +6,8 @@ import pytest
 
 from tarot_canvas.models import notes as notes_model
 from tarot_canvas.models.notes import Note
-from tarot_canvas.ui.library.deck_model import SubtitleRole
-from tarot_canvas.ui.library.notes_model import (
-    CardIdRole,
-    NoteRole,
-    NotesListModel,
-    PreviewRole,
-)
+from tarot_canvas.ui.library.notes.model import CardIdRole, NoteRole, NotesListModel
+from tarot_canvas.ui.library.roles import PreviewRole, SubtitleRole
 
 FOOL = "major_arcana.00"
 MAGICIAN = "major_arcana.01"

@@ -7,7 +7,7 @@ from tarot_canvas.models import spreads
 from tarot_canvas.ui import commands
 from tarot_canvas.ui.canvas.detail import card_unit_size
 from tarot_canvas.ui.icons import LIBRARY_ICON
-from tarot_canvas.ui.library.spreads_model import spread_thumbnail, spread_title
+from tarot_canvas.ui.library.spreads.model import spread_thumbnail, spread_title
 from tarot_canvas.ui.strings import READINGS
 
 # Blender's splash shows five templates; the rest are one click away in the Library

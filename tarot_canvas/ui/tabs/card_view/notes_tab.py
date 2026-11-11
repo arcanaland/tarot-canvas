@@ -22,12 +22,11 @@ from PyQt6.QtWidgets import (
 from tarot_canvas.models import notes as notes_model
 from tarot_canvas.models import staged_delete
 from tarot_canvas.models.note_events import note_events
-from tarot_canvas.ui import commands, typography
+from tarot_canvas.ui import commands, typography, units
 from tarot_canvas.ui.activate_on_return import activate_on_return
 from tarot_canvas.ui.commands import Scope
-from tarot_canvas.ui.library import units
-from tarot_canvas.ui.library.note_row_delegate import NoteRowDelegate
-from tarot_canvas.ui.library.notes_model import NoteRole, NotesListModel
+from tarot_canvas.ui.library.notes.model import NoteRole, NotesListModel
+from tarot_canvas.ui.library.row_delegate import NoteRowDelegate
 from tarot_canvas.ui.strings import NOTES, notes_text
 from tarot_canvas.ui.tabs.card_view.markdown_editor import MarkdownEditor
 from tarot_canvas.ui.tabs.card_view.note_editing import NoteLinks, write_note

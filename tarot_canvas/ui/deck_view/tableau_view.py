@@ -1,8 +1,8 @@
 from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtWidgets import QAbstractItemView, QFrame, QStyleOptionViewItem, QTableView
 
+from tarot_canvas.ui import units
 from tarot_canvas.ui.deck_view.tableau_model import ROW_GAP
-from tarot_canvas.ui.library import units
 
 Cursor = QAbstractItemView.CursorAction
 

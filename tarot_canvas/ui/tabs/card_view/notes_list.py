@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from tarot_canvas.ui.library import units
+from tarot_canvas.ui import units
 from tarot_canvas.ui.strings import notes_text
 from tarot_canvas.ui.widgets.placeholder_message import PlaceholderMessage
 

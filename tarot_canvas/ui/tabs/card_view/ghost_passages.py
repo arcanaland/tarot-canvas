@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import QSizePolicy, QWidget
 
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.palette import ghost_bar, subtle_fill
-from tarot_canvas.ui.tabs.card_view.passage_metrics import (
+from tarot_canvas.ui.passage_metrics import (
     BODY_LINE_HEIGHT,
     CORNER_RADIUS,
     HEADER_TO_ROWS,
