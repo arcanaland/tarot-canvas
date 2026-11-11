@@ -27,14 +27,7 @@ def canvas_with_cards(qtbot, deck, count=2, reversed_=False):
     return window, canvas
 
 
-@pytest.fixture
-def no_timers(qtbot):
-    yield
-    # The canvas's timers must not outlive it
-    qtbot.wait(1100)
-
-
-def test_ctrl_a_selects_every_card_and_ctrl_shift_a_clears(qtbot, minimal_deck, no_timers):
+def test_ctrl_a_selects_every_card_and_ctrl_shift_a_clears(qtbot, minimal_deck):
     window, canvas = canvas_with_cards(qtbot, minimal_deck)
     canvas.scene.clearSelection()
 
@@ -46,9 +39,7 @@ def test_ctrl_a_selects_every_card_and_ctrl_shift_a_clears(qtbot, minimal_deck, 
     assert not window.edit_actions["deselect"].isEnabled()
 
 
-def test_a_copied_canvas_card_keeps_its_deck_and_orientation(
-    qtbot, clipboard, other_deck, no_timers
-):
+def test_a_copied_canvas_card_keeps_its_deck_and_orientation(qtbot, clipboard, other_deck):
     window, canvas = canvas_with_cards(qtbot, other_deck, count=1, reversed_=True)
     (item,) = cards_on(canvas)
     assert window.copy_card_action.isEnabled()
@@ -67,7 +58,7 @@ def test_a_copied_canvas_card_keeps_its_deck_and_orientation(
     assert pasted.is_reversed()
 
 
-def test_ctrl_x_moves_the_card_onto_the_clipboard(qtbot, clipboard, minimal_deck, no_timers):
+def test_ctrl_x_moves_the_card_onto_the_clipboard(qtbot, clipboard, minimal_deck):
     window, canvas = canvas_with_cards(qtbot, minimal_deck, count=1)
 
     qtbot.keyClick(canvas.view, Qt.Key.Key_X, CTRL)
@@ -76,7 +67,7 @@ def test_ctrl_x_moves_the_card_onto_the_clipboard(qtbot, clipboard, minimal_deck
     assert clipboard.mimeData().hasFormat(CARD_MIME)
 
 
-def test_copy_and_cut_take_one_card_and_not_two(qtbot, minimal_deck, no_timers):
+def test_copy_and_cut_take_one_card_and_not_two(qtbot, minimal_deck):
     window, canvas = canvas_with_cards(qtbot, minimal_deck)
     for item in cards_on(canvas):
         item.setSelected(True)
@@ -87,7 +78,7 @@ def test_copy_and_cut_take_one_card_and_not_two(qtbot, minimal_deck, no_timers):
 
 
 @pytest.mark.parametrize("key", [Qt.Key.Key_Delete, Qt.Key.Key_Backspace])
-def test_del_and_backspace_remove_the_selected_cards(qtbot, minimal_deck, key, no_timers):
+def test_del_and_backspace_remove_the_selected_cards(qtbot, minimal_deck, key):
     window, canvas = canvas_with_cards(qtbot, minimal_deck)
     first, second = cards_on(canvas)
     canvas.scene.clearSelection()
@@ -98,7 +89,7 @@ def test_del_and_backspace_remove_the_selected_cards(qtbot, minimal_deck, key, n
     assert cards_on(canvas) == [second]
 
 
-def test_align_and_fit_have_their_new_keys(qtbot, minimal_deck, monkeypatch, no_timers):
+def test_align_and_fit_have_their_new_keys(qtbot, minimal_deck, monkeypatch):
     window, canvas = canvas_with_cards(qtbot, minimal_deck)
     shown = []
     monkeypatch.setattr(QMenu, "exec", lambda menu, *args: shown.append(menu))
@@ -115,7 +106,7 @@ def test_align_and_fit_have_their_new_keys(qtbot, minimal_deck, monkeypatch, no_
     assert len(canvas.scene.selectedItems()) == 2, "Ctrl+Alt+A is not Select All"
 
 
-def test_the_edit_keys_work_with_the_menu_bar_hidden(qtbot, minimal_deck, no_timers):
+def test_the_edit_keys_work_with_the_menu_bar_hidden(qtbot, minimal_deck):
     window, canvas = canvas_with_cards(qtbot, minimal_deck)
     window.toggle_tab_fullscreen()
     assert not window.menuBar().isVisible()
@@ -181,7 +172,7 @@ def test_ctrl_f_in_a_deck_view_goes_to_its_find_field(qtbot, full_deck):
     assert QApplication.focusWidget() is tab.search_field
 
 
-def test_ctrl_f_on_a_canvas_opens_find_card(qtbot, minimal_deck, monkeypatch, no_timers):
+def test_ctrl_f_on_a_canvas_opens_find_card(qtbot, minimal_deck, monkeypatch):
     opened = []
     monkeypatch.setattr(CommandPalette, "exec", lambda palette: opened.append(palette))
     window, canvas = canvas_with_cards(qtbot, minimal_deck, count=0)

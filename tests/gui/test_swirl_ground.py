@@ -23,7 +23,6 @@ def test_without_gl_the_swirl_draws_the_gradient(qtbot, monkeypatch):
     assert tab.view.swirl is None
     assert isinstance(tab.view.backgroundBrush().gradient(), QRadialGradient)
     tab.view.viewport().repaint()
-    qtbot.wait(1100)
 
 
 def test_a_failed_render_falls_back_and_never_raises(qtbot, monkeypatch):
@@ -41,7 +40,6 @@ def test_a_failed_render_falls_back_and_never_raises(qtbot, monkeypatch):
     get_settings().setValue(BACKGROUND_STYLE_KEY, "gradient")
     tab.apply_background_settings()
     assert tab.view.swirl is None
-    qtbot.wait(1100)
 
 
 def test_the_field_is_a_pixel_factor_of_the_device_size():

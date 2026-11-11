@@ -117,7 +117,6 @@ def test_an_arc_goes_round_in_z_order_whatever_the_selection_order(qtbot):
     # The default is a rainbow, numbered left to right
     centres = [card.pos() + card.boundingRect().center() for card in cards]
     assert [c.x() for c in centres] == sorted(c.x() for c in centres)
-    qtbot.wait(1100)
 
 
 def hover_canvas(tab, viewport_pos):
@@ -573,7 +572,6 @@ def test_a_dropped_card_lands_centred_under_the_drop(qtbot, minimal_deck):
     expected = tab.view.mapToScene(spot)
     assert abs(centre.x() - expected.x()) <= 1
     assert abs(centre.y() - expected.y()) <= 1
-    qtbot.wait(1100)
 
 
 def test_a_drop_ignores_the_stale_pointer(qtbot, minimal_deck):
@@ -586,7 +584,6 @@ def test_a_drop_ignores_the_stale_pointer(qtbot, minimal_deck):
 
     centre = only_card(tab).sceneBoundingRect().center()
     assert abs(centre.x() - tab.view.mapToScene(QPoint(260, 200)).x()) <= 1
-    qtbot.wait(1100)
 
 
 def test_a_drop_that_is_not_a_card_places_nothing(qtbot):
@@ -600,7 +597,6 @@ def test_a_drop_that_is_not_a_card_places_nothing(qtbot):
     # real one shows the forbidden cursor and never gets as far as a drop
     assert not move.isAccepted()
     assert [i for i in tab.scene.items() if isinstance(i, DraggableCardItem)] == []
-    qtbot.wait(1100)
 
 
 def test_the_toolbar_paste_button_follows_the_clipboard(qtbot, clipboard, minimal_deck):
@@ -613,7 +609,6 @@ def test_the_toolbar_paste_button_follows_the_clipboard(qtbot, clipboard, minima
 
     tab.paste_action.trigger()
     assert only_card(tab).card_data["id"] == "major_arcana.00"
-    qtbot.wait(1100)
 
 
 def test_a_copy_pastes_once(qtbot, clipboard, minimal_deck):
@@ -630,7 +625,6 @@ def test_a_copy_pastes_once(qtbot, clipboard, minimal_deck):
 
     copy_card_to_clipboard(card, minimal_deck)
     assert tab.paste_action.isEnabled(), "a new copy is a new paste"
-    qtbot.wait(1100)
 
 
 def test_pasting_once_does_not_stop_a_drop(qtbot, clipboard, minimal_deck):
@@ -642,7 +636,6 @@ def test_pasting_once_does_not_stop_a_drop(qtbot, clipboard, minimal_deck):
     drag_over(tab, card_mime_data(card, minimal_deck), QPoint(260, 200))
 
     assert len([i for i in tab.scene.items() if isinstance(i, DraggableCardItem)]) == 2
-    qtbot.wait(1100)
 
 
 def test_a_paste_naming_a_removed_deck_places_nothing(qtbot, clipboard, minimal_deck, tmp_path):
@@ -657,7 +650,6 @@ def test_a_paste_naming_a_removed_deck_places_nothing(qtbot, clipboard, minimal_
 
     assert tab.paste_card(card_mime_data(gone.get_random_card(), gone)) is None
     assert [i for i in tab.scene.items() if isinstance(i, DraggableCardItem)] == []
-    qtbot.wait(1100)
 
 
 def test_pasting_three_cards_places_three_at_distinct_positions(
@@ -674,7 +666,6 @@ def test_pasting_three_cards_places_three_at_distinct_positions(
     assert first.card_data["id"] == ids[0]
     assert len({(item.pos().x(), item.pos().y()) for item in placed}) == 3
     assert all(item.isSelected() for item in placed)
-    qtbot.wait(1100)
 
 
 def canvas_cards(tab):
@@ -1129,7 +1120,6 @@ def test_zooming_in_sharpens_the_cards_on_screen_and_only_those(qtbot, tmp_path)
 
     assert far.detail() <= max(1, round(dpr))
     QThreadPool.globalInstance().waitForDone()
-    qtbot.wait(1100)
 
 
 class CountingTabWidget(DocumentTabs):
@@ -1171,7 +1161,6 @@ def test_the_tab_icon_maps_the_spread(qtbot):
     tab.scene.removeItem(card)
     qtbot.waitUntil(lambda: tabs.icons_set == 3)
     assert is_plain(tabs)
-    qtbot.wait(1100)
 
 
 @pytest.fixture
@@ -1195,7 +1184,6 @@ def test_the_minimap_setting_turns_the_tab_icon_plain(qtbot, minimap_unset):
     get_settings().setValue(CANVAS_TAB_MINIMAP_KEY, True)
     tab.apply_background_settings()
     qtbot.waitUntil(lambda: not is_plain(tabs))
-    qtbot.wait(1100)
 
 
 def test_the_rotate_command_turns_a_card_and_leaves_it_upright(qtbot):
@@ -1422,13 +1410,11 @@ def test_add_slot_puts_slots_among_the_cards(qtbot):
         "Before",
         None,
     )
-    qtbot.wait(1100)
 
 
 def test_a_slot_given_a_place_does_not_pop_in(qtbot):
     tab = make_tab(qtbot)
     assert tab.add_slot(1, "p1", at=QPointF(0, 0)).motion.lift == LIFT_REST
-    qtbot.wait(1100)
 
 
 @pytest.mark.parametrize(
@@ -1451,7 +1437,6 @@ def test_a_slot_arranges_exactly_as_a_card_does(qtbot, arrange):
     assert [s.pos() for s in slots] == [c.pos() for c in cards]
     assert [s.orient for s in slots] == [c.orient for c in cards]
     assert slots[0].zValue() < slots[1].zValue()
-    qtbot.wait(1100)
 
 
 def test_flip_leaves_a_slot_alone(qtbot):
@@ -1461,7 +1446,6 @@ def test_flip_leaves_a_slot_alone(qtbot):
     tab.on_flip_card()
     assert not slot.is_reversed()
     assert slot.transform() == before
-    qtbot.wait(1100)
 
 
 def test_a_selection_with_a_slot_in_it_cannot_be_copied_or_cut(qtbot):
@@ -1475,7 +1459,6 @@ def test_a_selection_with_a_slot_in_it_cannot_be_copied_or_cut(qtbot):
         select_only(tab, selection)
         assert not tab.can_copy_card()
         assert not tab.can_cut_card()
-    qtbot.wait(1100)
 
 
 def test_a_slot_opens_nothing(qtbot):
@@ -1486,7 +1469,6 @@ def test_a_slot_opens_nothing(qtbot):
     double_click(tab, tab.view.mapFromScene(slot.sceneBoundingRect().center()))
     tab.open_card_view(slot)
     assert requests == []
-    qtbot.wait(1100)
 
 
 def test_a_slots_menu_offers_no_deck_to_swap_to(qtbot):
@@ -1496,7 +1478,6 @@ def test_a_slots_menu_offers_no_deck_to_swap_to(qtbot):
     qtbot.addWidget(menu)
     _, rows = swap_rows(menu)
     assert rows == []
-    qtbot.wait(1100)
 
 
 def test_zooming_sharpens_a_slot_without_the_loader(qtbot, monkeypatch):
@@ -1514,7 +1495,6 @@ def test_zooming_sharpens_a_slot_without_the_loader(qtbot, monkeypatch):
 
     assert slot.pixmap().devicePixelRatio() == slot.detail()
     assert slot.boundingRect().size() == size
-    qtbot.wait(1100)
 
 
 def test_renumbering_a_slot_repaints_it_at_its_level(qtbot):
@@ -1525,7 +1505,6 @@ def test_renumbering_a_slot_repaints_it_at_its_level(qtbot):
     slot.set_number(2)
     assert slot.pixmap().devicePixelRatio() == 3
     assert slot.pixmap().toImage() != before
-    qtbot.wait(1100)
 
 
 def test_the_tab_icon_paints_a_slot_in_its_colour(qtbot):
@@ -1537,7 +1516,6 @@ def test_the_tab_icon_paints_a_slot_in_its_colour(qtbot):
     (card, slot) = sorted(tab._tab_marks, key=lambda mark: mark.x)
     assert card.colour == CARD_COLOURS["default"]
     assert slot.colour == SLOT_COLOUR
-    qtbot.wait(1100)
 
 
 # -- turning by the wheel

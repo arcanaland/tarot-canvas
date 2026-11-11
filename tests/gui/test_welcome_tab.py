@@ -119,7 +119,6 @@ def test_activating_a_recent_row_opens_that_reading(window, readings_base, qtbot
 
     opened = window.tab_widget.currentWidget()
     assert opened.saved_reading.path == path
-    qtbot.wait(1100)
 
 
 def test_a_new_reading_appears_and_the_placeholder_goes(window, readings_base):

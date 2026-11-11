@@ -31,13 +31,13 @@ run:
 
 [group('dev')]
 test *ARGS:
-  QT_QPA_PLATFORM=offscreen uv run pytest {{ARGS}}
+  QT_QPA_PLATFORM=offscreen uv run pytest -n auto {{ARGS}}
 
 # Run the suite under coverage
 [group('dev')]
 coverage *ARGS:
   QT_QPA_PLATFORM=offscreen UV_PROJECT_ENVIRONMENT=.venv-3.14 COVERAGE_FILE=.coverage.suite \
-    uv run --python 3.14 pytest --cov --cov-report= {{ARGS}}
+    uv run --python 3.14 pytest -n auto --cov --cov-report= {{ARGS}}
   @just _coverage-report
 
 # Record a session of the real app under coverage

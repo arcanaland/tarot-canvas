@@ -411,7 +411,6 @@ def test_switching_tabs_leaves_card_view_fullscreen(qtbot):
     window.tab_widget.setCurrentWidget(other)
     assert window.fullscreen_tab is None
     assert tab.card_bar.isVisibleTo(tab)
-    qtbot.wait(1100)  # the canvas's startup timers
 
 
 def test_the_bar_fullscreen_button_tracks_the_state(qtbot):
@@ -1034,7 +1033,6 @@ def test_ctrl_c_and_ctrl_v_are_bound_exactly_once(qtbot):
         bound = [a for a in window.findChildren(QAction) if sequence in a.shortcuts()]
         bound += [s for s in window.findChildren(QShortcut) if s.key() == sequence]
         assert len(bound) == 1, key
-    qtbot.wait(1100)
 
 
 def test_copy_card_is_offered_by_a_card_view_and_not_an_empty_canvas(qtbot):
@@ -1046,7 +1044,6 @@ def test_copy_card_is_offered_by_a_card_view_and_not_an_empty_canvas(qtbot):
 
     window.tab_widget.setCurrentWidget(card_view)
     assert window.copy_card_action.isEnabled()
-    qtbot.wait(1100)
 
 
 def test_a_card_copied_in_one_deck_is_pasted_from_that_deck(qtbot, clipboard, other_deck):
@@ -1062,7 +1059,6 @@ def test_a_card_copied_in_one_deck_is_pasted_from_that_deck(qtbot, clipboard, ot
     assert len(cards) == 1
     assert cards[0].card_data["id"] == "major_arcana.01"
     assert cards[0].card_data["image"].startswith(str(other_deck.deck_path))
-    qtbot.wait(1100)
 
 
 def test_a_canvas_card_opens_from_its_own_deck(qtbot, other_deck):
@@ -1084,7 +1080,6 @@ def test_a_canvas_card_opens_from_its_own_deck(qtbot, other_deck):
     card_view = window.tab_widget.currentWidget()
     assert isinstance(card_view, CardViewTab)
     assert card_view.deck is other_deck
-    qtbot.wait(1100)
 
 
 def test_paste_waits_for_a_card_on_the_clipboard(qtbot, clipboard):
@@ -1102,7 +1097,6 @@ def test_paste_waits_for_a_card_on_the_clipboard(qtbot, clipboard):
     window.tab_widget.setCurrentWidget(canvas)
     assert window.paste_card_action.isEnabled()
     assert canvas.paste_action.isEnabled()
-    qtbot.wait(1100)
 
 
 def test_ctrl_c_copies_the_card_and_ctrl_v_places_it(qtbot, clipboard):
@@ -1122,7 +1116,6 @@ def test_ctrl_c_copies_the_card_and_ctrl_v_places_it(qtbot, clipboard):
     ctrl(qtbot, canvas.view, Qt.Key.Key_V)
     cards = [item for item in canvas.scene.items() if isinstance(item, DraggableCardItem)]
     assert len(cards) == 1
-    qtbot.wait(1100)
 
 
 def test_one_paste_per_canvas_per_copy(qtbot, clipboard):
@@ -1137,7 +1130,6 @@ def test_one_paste_per_canvas_per_copy(qtbot, clipboard):
 
     window.tab_widget.setCurrentWidget(first)
     assert not window.paste_card_action.isEnabled()
-    qtbot.wait(1100)
 
 
 def test_ctrl_c_still_copies_in_fullscreen(qtbot, clipboard):

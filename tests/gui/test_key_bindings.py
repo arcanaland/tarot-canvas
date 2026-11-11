@@ -182,6 +182,3 @@ def test_every_key_is_bound_as_it_was(qtbot):
     # And every command the registry binds is bound, the Go entries' included
     bound = {action.objectName() for action in window.findChildren(QAction)}
     assert {command.id for command in COMMANDS if not command.fixed} <= bound
-
-    # The canvas's timers must not outlive it
-    qtbot.wait(1100)

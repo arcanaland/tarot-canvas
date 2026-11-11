@@ -365,8 +365,6 @@ def test_apply_updates_open_canvas_background(qtbot):
     # The canvas tab's brush must reflect the new choice
     assert canvas_tab.view.backgroundBrush().color() == dialog.background_form.bg_color
 
-    qtbot.wait(1100)
-
 
 def test_motion_level_control_shows_what_the_canvas_is_doing(qtbot):
     settings = get_settings()
@@ -486,7 +484,6 @@ def test_applying_the_minimap_switch_reaches_an_open_canvas(qtbot, minimap_unset
     dialog.apply_settings()
 
     assert not canvas_tab.tab_minimap
-    qtbot.wait(1100)
 
 
 def test_the_snap_switch_round_trips(qtbot):
@@ -517,7 +514,6 @@ def test_applying_the_snap_switch_reaches_an_open_canvas(qtbot):
     dialog.apply_settings()
 
     assert canvas_tab.snap_guides
-    qtbot.wait(1100)
 
 
 def test_the_text_size_sits_with_the_theme_and_offers_every_step_as_a_percentage(qtbot):
