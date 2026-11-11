@@ -91,6 +91,15 @@ def test_once_saved_save_is_disabled_and_the_pane_is_shown(window, two_cards):
     assert tab.saved_reading.pane.isVisibleTo(tab)
 
 
+def test_a_saved_canvas_names_itself_where_a_spread_reading_names_its_spread(window, two_cards):
+    tab = two_cards
+    saved(window, tab)
+
+    pane = tab.saved_reading.pane
+    assert pane.spread_label.text() == READINGS["sandbox_canvas"]
+    assert pane.spread_label.isVisibleTo(pane)
+
+
 def test_a_scratch_canvas_has_no_pane(window):
     tab = window.new_canvas_tab()
 
@@ -241,6 +250,25 @@ def test_renaming_a_reading_tab_sets_its_question(window, two_cards, monkeypatch
 
     assert offered == ["Before"]
     assert tab.saved_reading.question() == "After"
+
+
+def test_a_canvas_renamed_by_hand_keeps_its_name_as_the_question(window, two_cards, monkeypatch):
+    tab = two_cards
+    monkeypatch.setattr(QInputDialog, "getText", staticmethod(lambda *_a, **_k: ("Mine", True)))
+    window.show_tab_rename_dialog(window.tab_widget.indexOf(tab))
+
+    path = saved(window, tab)
+
+    assert window.tab_widget.tabText(window.tab_widget.indexOf(tab)) == "Mine"
+    assert tab.saved_reading.question() == "Mine"
+    assert readings.load(path).question == "Mine"
+
+
+def test_a_canvas_never_renamed_is_saved_with_no_question(window, two_cards):
+    path = saved(window, two_cards)
+
+    assert two_cards.saved_reading.question() == ""
+    assert readings.load(path).question == ""
 
 
 # -- reopening ---------------------------------------------------------------------------

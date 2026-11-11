@@ -97,6 +97,20 @@ class DescriptionBox(QTextEdit):
             self.overflow_changed.emit()
 
 
+class ExpandButton(QToolButton):
+    def __init__(self, expand_tip, restore_tip):
+        super().__init__()
+        self.setAutoRaise(True)
+        self._tips = (expand_tip, restore_tip)
+
+    def sync(self, shown, expanded):
+        self.setVisible(shown)
+        self.setIcon(QIcon.fromTheme("view-restore" if expanded else "view-fullscreen"))
+        tooltip = self._tips[1] if expanded else self._tips[0]
+        self.setToolTip(tooltip)
+        self.setAccessibleName(tooltip)
+
+
 class PositionModel(QAbstractListModel):
     """A spread's slots as rows"""
 
@@ -424,8 +438,9 @@ class SpreadPane(SidePane):
             lambda: self.set_description_open(not self.description_open())
         )
 
-        self.expand_button = QToolButton()
-        self.expand_button.setAutoRaise(True)
+        self.expand_button = ExpandButton(
+            SPREADS["description_expand"], SPREADS["description_collapse"]
+        )
         self.expand_button.clicked.connect(
             lambda: self.set_description_expanded(not self.description_expanded())
         )
@@ -472,15 +487,9 @@ class SpreadPane(SidePane):
     def _sync_expand_button(self):
         # Only text that doesn't fit needs it, so an empty description never shows it
         expanded = self.description_expanded()
-        self.expand_button.setVisible(
-            self.description_open() and (expanded or self.description_edit.overflowing)
+        self.expand_button.sync(
+            self.description_open() and (expanded or self.description_edit.overflowing), expanded
         )
-        self.expand_button.setIcon(
-            QIcon.fromTheme("view-restore" if expanded else "view-fullscreen")
-        )
-        tooltip = SPREADS["description_collapse" if expanded else "description_expand"]
-        self.expand_button.setToolTip(tooltip)
-        self.expand_button.setAccessibleName(tooltip)
 
     def description(self):
         return self.description_edit.toPlainText()

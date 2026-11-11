@@ -1,6 +1,8 @@
 import math
 import os
 import random
+from dataclasses import replace
+from pathlib import Path
 
 from PyQt6.QtCore import QPoint, QPointF, QRectF, QSize, Qt, QTimer, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import (
@@ -16,7 +18,6 @@ from PyQt6.QtGui import (
     QRadialGradient,
 )
 from PyQt6.QtWidgets import (
-    QApplication,
     QGraphicsScene,
     QGraphicsView,
     QHBoxLayout,
@@ -81,7 +82,13 @@ from tarot_canvas.ui.canvas.motion import (
     approach,
     system_animations_enabled,
 )
-from tarot_canvas.ui.canvas.saved_canvas import SavedReading, new_reading, resolve_deck
+from tarot_canvas.ui.canvas.saved_canvas import (
+    SavedCanvasPane,
+    cards_of,
+    new_reading,
+    resolve_decks,
+)
+from tarot_canvas.ui.canvas.saved_reading import SavedReading
 from tarot_canvas.ui.canvas.selection import GILT_ON_DARK, gilt_for_ground
 from tarot_canvas.ui.canvas.tab_icon import (
     MINIMAP,
@@ -169,6 +176,8 @@ class CanvasTab(BaseTab):
         self.background_panel = None
         self.id = f"canvas_{id(self)}"
         self.tab_name = CANVAS["tab_name"]
+        # Whether the user manually named the tab
+        self.named_by_hand = False
         # Set once the clipboard's card has been pasted here, until the next copy
         self._clipboard_pasted = False
 
@@ -209,13 +218,6 @@ class CanvasTab(BaseTab):
 
         self.setup_ui()
         self.deck = deck_manager.get_reference_deck()
-
-        # Add multiple staggered calls to ensure window bounds
-        # This creates a sequence of enforcement that is harder to override
-        # TODO: another stinky code smell
-        QTimer.singleShot(100, self.ensure_window_bounds)
-        QTimer.singleShot(500, self.ensure_window_bounds)
-        QTimer.singleShot(1000, self.ensure_window_bounds)
 
     def setup_ui(self):
         self.canvas_area = container = QWidget()
@@ -547,47 +549,6 @@ class CanvasTab(BaseTab):
         pattern_brush = QBrush(pixmap)
         self.view.setBackgroundBrush(pattern_brush)
         return color
-
-    def ensure_window_bounds(self):
-        """Ensure the window stays within screen boundaries"""
-        window = self.window()
-        if window:
-            # Get screen geometry
-            screen = QApplication.primaryScreen().availableGeometry()
-
-            # Get window geometry
-            window_geometry = window.geometry()
-
-            # Check if window extends below screen
-            if window_geometry.height() > screen.height() - 50:  # Leave 50px margin
-                # Force a hard resize
-                new_height = screen.height() - 100  # 100px margin for safety
-
-                # Block signals temporarily to prevent resize events from triggering cascading changes
-                window.blockSignals(True)
-                window.resize(window_geometry.width(), new_height)
-                window.blockSignals(False)
-
-                print(f"Window height exceeds screen height - forcing resize to {new_height}")
-
-                # Process events immediately to apply resize
-                QApplication.processEvents()
-
-            # Do a second check after processing events
-            window_geometry = window.geometry()
-            if window_geometry.bottom() > screen.bottom() - 50:
-                # If still too tall, try a different approach - move to visible area
-                print("Window still too tall, applying stronger constraints")
-
-                # Move window to ensure it's within screen bounds
-                new_y = max(screen.top(), screen.bottom() - window_geometry.height() - 50)
-                window.move(window_geometry.x(), new_y)
-
-                # Force immediate processing
-                QApplication.processEvents()
-
-                # As a last resort, modify maximum size of main window
-                window.setMaximumHeight(screen.height() - 100)
 
     def bind_commands(self):
         self.commands = commands.bind(self, Scope.CANVAS, self.command_handlers())
@@ -1458,6 +1419,7 @@ class CanvasTab(BaseTab):
             self.saved_reading.set_question(name)
             return
         self.tab_name = name
+        self.named_by_hand = True
         self.tab_label_changed.emit()
 
     # -- keeping the canvas as a reading -----------------------------------
@@ -1482,14 +1444,20 @@ class CanvasTab(BaseTab):
         except OSError as error:
             logger.error(f"Could not make a folder for a reading: {error}")
             return False
-        self.save_as(path, new_reading())
+        reading = new_reading()
+
+        if self.named_by_hand:
+            reading = replace(reading, question=self.tab_name)
+
+        self.save_as(path, reading)
         saved = self.saved_reading.write()
         self.saved_reading.pane.question_edit.setFocus()
         return saved
 
     def save_as(self, path, reading):
         """From now on, this canvas is the reading in folder path, and writes itself there"""
-        self.saved_reading = SavedReading(self, path, reading)
+        pane = SavedCanvasPane(self, Path(path), reading)
+        self.saved_reading = SavedReading(self, path, reading, pane)
         self.saved_reading.label_changed.connect(self.tab_label_changed)
 
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -1502,24 +1470,32 @@ class CanvasTab(BaseTab):
         self.save_reading_action.setEnabled(False)
         self.tab_label_changed.emit()
 
+    def reading_contents(self, base):
+        """base, holding this canvas's cards and ground as they are now"""
+        deck, cards = cards_of(self.cards())
+        return replace(base, deck=deck, cards=cards, ground=self.ground)
+
     def restore_cards(self, reading, decks, reference):
         """Lay reading's cards out exactly as they were saved, each in its deck"""
-        resolved = {}
+        resolved = resolve_decks(reading.cards, decks, reference)
         for card in reading.cards:
-            if card.deck not in resolved:
-                resolved[card.deck] = resolve_deck(card.deck, decks, reference)
-            deck = resolved[card.deck]
-            data = self._card_in(deck, card.id)
-            if data is None:
-                logger.warning(f"Skipped card {card.id!r}: its deck has no such card")
-                continue
-            item = self.make_card_item(data, deck, card.reversed)
-            if item is None:
-                continue
-            item.restore(QPointF(card.x, card.y), card.z, card.rotation)
-            self.scene.addItem(item)
-            self._top_z = max(self._top_z, card.z)
-            self._bottom_z = min(self._bottom_z, card.z)
+            self.restore_card(card, resolved[card.deck])
+
+    def restore_card(self, card, deck, item_type=DraggableCardItem):
+        """Lay ReadingCard card out in deck exactly as it was saved, and return its item, or None
+        if deck has no such card or its art won't load"""
+        data = self._card_in(deck, card.id)
+        if data is None:
+            logger.warning(f"Skipped card {card.id!r}: its deck has no such card")
+            return None
+        item = self.make_card_item(data, deck, card.reversed, item_type=item_type)
+        if item is None:
+            return None
+        item.restore(QPointF(card.x, card.y), card.z, card.rotation)
+        self.scene.addItem(item)
+        self._top_z = max(self._top_z, card.z)
+        self._bottom_z = min(self._bottom_z, card.z)
+        return item
 
     @staticmethod
     def _card_in(deck, card_id):

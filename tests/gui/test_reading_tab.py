@@ -206,7 +206,7 @@ def test_the_pane_offers_the_deck_and_reversals_until_the_deal(qtbot, deck, off)
 
     assert not pane.deck_combo.isHidden()
     assert not pane.reversals_check.isHidden()
-    assert pane.date_label.isHidden()
+    assert pane.date_text.isHidden()
     assert pane.deck_combo.currentData() is deck
 
     deal(qtbot, tab)
@@ -215,8 +215,8 @@ def test_the_pane_offers_the_deck_and_reversals_until_the_deal(qtbot, deck, off)
     assert pane.deck_label.text() == deck.get_name()
     assert pane.reversals_check.isHidden()
     assert pane.reversals_label.text() == READINGS["reversals_with"]
-    assert not pane.date_label.isHidden()
-    assert pane.date_label.text()
+    assert not pane.date_text.isHidden()
+    assert pane.date_text.text()
 
 
 def test_reversals_is_the_users_last_choice(qtbot, deck, off):

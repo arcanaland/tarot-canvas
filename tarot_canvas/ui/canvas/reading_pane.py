@@ -1,11 +1,33 @@
 """Pane on the side of a reading"""
 
-from PyQt6.QtCore import QEvent, QObject, QRect, QRectF, QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QFontMetrics, QFontMetricsF, QIcon, QPainter, QPen
+from PyQt6.QtCore import (
+    QDateTime,
+    QEvent,
+    QObject,
+    QPointF,
+    QRect,
+    QRectF,
+    QSignalBlocker,
+    QSize,
+    Qt,
+    pyqtSignal,
+    pyqtSlot,
+)
+from PyQt6.QtGui import (
+    QColor,
+    QFontMetrics,
+    QFontMetricsF,
+    QIcon,
+    QMouseEvent,
+    QPainter,
+    QPen,
+)
 from PyQt6.QtWidgets import (
     QAbstractItemView,
+    QApplication,
     QCheckBox,
     QComboBox,
+    QDateTimeEdit,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -14,6 +36,8 @@ from PyQt6.QtWidgets import (
     QSizePolicy,
     QStyle,
     QStyleOptionComboBox,
+    QStyleOptionFocusRect,
+    QStylePainter,
     QTextEdit,
     QToolTip,
     QWidget,
@@ -23,9 +47,11 @@ from tarot_canvas.ui import typography
 from tarot_canvas.ui.canvas.placement import Phase
 from tarot_canvas.ui.canvas.reading_card import is_face_down
 from tarot_canvas.ui.canvas.reading_marks import next_gilt
+from tarot_canvas.ui.canvas.reading_note import ReadingNote
 from tarot_canvas.ui.canvas.side_pane import SidePane
 from tarot_canvas.ui.canvas.spread_pane import (
     DescriptionBox,
+    ExpandButton,
     MeaningRole,
     NumberRole,
     PositionDelegate,
@@ -50,6 +76,8 @@ NEXT_BAR_PX = 3
 SELECTED_ALPHA = 70
 # The list's share of the pane's height against the filler under it, which gets only the rest
 LIST_STRETCH = 1000
+# The Notes editor is never shorter than this many lines: the list gives way first
+NOTES_MIN_LINES = 4
 
 
 def fact_indent():
@@ -100,6 +128,128 @@ class FactLines(QWidget):
                 line.addWidget(widget)
         grid.addLayout(line, row, 1)
         return mark
+
+
+class FactButton(QLabel):
+    """A fact that is also a button: a click, Return or Space activates it"""
+
+    activated = pyqtSignal()
+
+    def __init__(self):
+        super().__init__()
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton and self.rect().contains(
+            event.position().toPoint()
+        ):
+            self.activated.emit()
+            return
+        super().mouseReleaseEvent(event)
+
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
+            self.activated.emit()
+            return
+        super().keyPressEvent(event)
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if self.hasFocus():
+            painter = QStylePainter(self)
+            option = QStyleOptionFocusRect()
+            option.initFrom(self)
+            option.backgroundColor = self.palette().window().color()
+            painter.drawPrimitive(QStyle.PrimitiveElement.PE_FrameFocusRect, option)
+
+
+def open_calendar(edit):
+    """Open edit's calendar as a click on its arrow does, which is the only way Qt has"""
+    option = QStyleOptionComboBox()
+    option.initFrom(edit)
+    option.editable = True
+    option.subControls = QStyle.SubControl.SC_All
+    arrow = edit.style().subControlRect(
+        QStyle.ComplexControl.CC_ComboBox, option, QStyle.SubControl.SC_ComboBoxArrow, edit
+    )
+    at = QPointF(arrow.center())
+    left = Qt.MouseButton.LeftButton
+    for kind, held in (
+        (QEvent.Type.MouseButtonPress, left),
+        (QEvent.Type.MouseButtonRelease, Qt.MouseButton.NoButton),
+    ):
+        event = QMouseEvent(
+            kind, at, edit.mapToGlobal(at), left, held, Qt.KeyboardModifier.NoModifier
+        )
+        QApplication.sendEvent(edit, event)
+
+
+class DateLine(QObject):
+    """A reading's Date: text that reads as a fact, swapped for its editor only when activated"""
+
+    def __init__(self, parent, when):
+        super().__init__(parent)
+        self.text = FactButton()
+        self.text.setIndent(fact_indent())
+        self.text.setToolTip(READINGS["date_tooltip"])
+        self.text.activated.connect(self.edit)
+        self.editor = QDateTimeEdit(when)
+        self.editor.setCalendarPopup(True)
+        self.editor.setToolTip(READINGS["date_tooltip"])
+        self.editor.hide()
+        self.editor.dateTimeChanged.connect(self._show)
+        self.editor.editingFinished.connect(self._edited)
+        QApplication.instance().focusChanged.connect(self._focus_moved)
+        self._show(when)
+
+    def set_date(self, when):
+        """Show when, without it counting as an edit"""
+        with QSignalBlocker(self.editor):
+            self.editor.setDateTime(when)
+        self._show(when)
+
+    @pyqtSlot(QDateTime)
+    def _show(self, when):
+        text = format_qdatetime(when)
+        self.text.setText(text)
+        self.text.setAccessibleName(text)
+
+    @pyqtSlot()
+    def edit(self):
+        """Swap the text for its editor, with the calendar open"""
+        self.text.hide()
+        self.editor.show()
+        layout = self.editor.parentWidget().layout()
+        if layout is not None:
+            layout.activate()
+        self.editor.setFocus()
+        open_calendar(self.editor)
+
+    @pyqtSlot()
+    def _edited(self):
+        # The calendar taking focus ends an edit too, but the user isn't done
+        if QApplication.activePopupWidget() is None:
+            self._close()
+
+    @pyqtSlot(QWidget, QWidget)
+    def _focus_moved(self, _old, new):
+        """Focus leaving the editor and its calendar for another widget closes it"""
+        if new is None:
+            return
+        for inside in (self.editor, self.editor.calendarWidget()):
+            if new is inside or inside.isAncestorOf(new):
+                return
+        self._close()
+
+    def _close(self):
+        if self.editor.isHidden():
+            return
+        refocus = self.editor.hasFocus()
+        self.editor.hide()
+        self.text.show()
+        if refocus:
+            self.text.setFocus()
 
 
 class QuestionBox(DescriptionBox):
@@ -164,11 +314,12 @@ class RowOpener(QObject):
 
 
 class ListFit(QObject):
-    """Keeps the list as tall as its rows"""
+    """Keeps the list as tall as its rows, or as room() says, if that is less"""
 
-    def __init__(self, view):
+    def __init__(self, view, room=None):
         super().__init__(view)
         self._view = view
+        self._room = room
         view.viewport().installEventFilter(self)
         model = view.model()
         model.rowsInserted.connect(self.fit)
@@ -179,7 +330,11 @@ class ListFit(QObject):
     def fit(self, *_):
         view = self._view
         rows = sum(view.sizeHintForRow(row) for row in range(view.model().rowCount()))
-        view.setMaximumHeight(max(rows + 2 * view.frameWidth(), 1))
+        height = rows + 2 * view.frameWidth()
+        room = self._room() if self._room is not None else None
+        if room is not None:
+            height = min(height, room)
+        view.setMaximumHeight(max(height, 1))
 
     def eventFilter(self, watched, event):
         if event.type() == QEvent.Type.Resize:
@@ -369,11 +524,14 @@ class ReadingPane(SidePane):
     def __init__(self, reading, positions, spread_name, spread_description, decks, deck):
         super().__init__()
         self.reading = reading
+        # The reading's note, from the deal on
+        self.note = None
+        self._notes_expanded = False
         self.body.setContentsMargins(0, 0, 0, 0)
         self.body.setSpacing(0)
 
         self.question_edit = QuestionBox(READINGS["question_hint"])
-        heading = QHBoxLayout()
+        self._heading = heading = QHBoxLayout()
         margin = units.LARGE_SPACING
         heading.setContentsMargins(margin, margin, margin, margin)
         heading.addWidget(self.question_edit, 1)
@@ -384,9 +542,16 @@ class ReadingPane(SidePane):
 
         # The list takes room first
         self.body.addWidget(self.list_view, LIST_STRETCH)
-        filler = QWidget()
-        filler.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
-        self.body.addWidget(filler, 1)
+        self.filler = QWidget()
+        self.filler.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
+        self.body.addWidget(self.filler, 1)
+
+        self.expand_button = ExpandButton(READINGS["notes_expand"], READINGS["notes_restore"])
+        self.expand_button.clicked.connect(self._on_expand_clicked)
+        self.expand_button.hide()
+        # What sits above the list changes height, and the list's room with it
+        for above in (self.question_edit, self.facts):
+            above.installEventFilter(self)
 
     def _build_facts(self, spread_name, spread_description, decks, deck):
         self.facts = facts = FactLines()
@@ -421,12 +586,14 @@ class ReadingPane(SidePane):
         )
 
         # The date
-        self.date_label = QLabel()
-        self.date_mark = facts.add(QIcon.fromTheme(DATE_ICON), self.date_label)
+        self.date_line = DateLine(self, QDateTime.currentDateTime())
+        self.date_text = self.date_line.text
+        self.date_edit = self.date_line.editor
+        self.date_mark = facts.add(QIcon.fromTheme(DATE_ICON), self.date_text, self.date_edit, None)
 
         # Plain text starts where the deck menu's text does, so the facts line up in a column
         indent = fact_indent()
-        for label in (self.spread_label, self.deck_label, self.reversals_label, self.date_label):
+        for label in (self.spread_label, self.deck_label, self.reversals_label):
             label.setIndent(indent)
         self.body.addWidget(facts)
 
@@ -441,7 +608,7 @@ class ReadingPane(SidePane):
         view.setFrameShape(QFrame.Shape.NoFrame)
         view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         view.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
-        self._list_fit = ListFit(view)
+        self._list_fit = ListFit(view, self._list_room)
         return view
 
     def chosen_deck(self):
@@ -467,6 +634,88 @@ class ReadingPane(SidePane):
         )
         dealt = dealt_at is not None and not staged
         self.date_mark.setVisible(dealt)
-        self.date_label.setVisible(dealt)
         if dealt:
-            self.date_label.setText(format_qdatetime(dealt_at))
+            self.date_line.set_date(dealt_at)
+            # Text until it is activated
+            if self.date_edit.isHidden():
+                self.date_text.show()
+        else:
+            self.date_text.hide()
+            self.date_edit.hide()
+        self._list_fit.fit()
+
+    # -- the note ---------------------------------------------------------------------
+
+    def add_note(self, tab, folder, interval):
+        """The reading's note under the last row, always open from now on"""
+        if self.note is not None:
+            return
+        self.note = ReadingNote(tab, folder, interval)
+        editor = self.note.editor
+        document = editor.document()
+        lines = editor.fontMetrics().lineSpacing() * NOTES_MIN_LINES
+        editor.setMinimumHeight(
+            round(lines + 2 * document.documentMargin()) + 2 * editor.frameWidth()
+        )
+        editor.verticalScrollBar().rangeChanged.connect(self._sync_expand_button)
+        self.note.header_row.addWidget(self.expand_button)
+        self.filler.hide()
+        self.body.addWidget(self.note, 1)
+        # As a last resort, under the editor's minimum, the pane scrolls: it shows one row
+        first = self.list_view.sizeHintForRow(0) if self.positions_count() else 0
+        self.list_view.setMinimumHeight(max(first, 1))
+        self._list_fit.fit()
+        self._sync_expand_button()
+
+    def positions_count(self):
+        return self.list_view.model().rowCount()
+
+    def _on_expand_clicked(self):
+        self.set_notes_expanded(not self.notes_expanded())
+        # Typing goes on in the note, not to the button, nor to the canvas's keys behind it
+        self.note.editor.setFocus(Qt.FocusReason.OtherFocusReason)
+
+    def notes_expanded(self):
+        return self._notes_expanded
+
+    def set_notes_expanded(self, wanted):
+        """Give the Notes the room of the facts and the list, or give it back"""
+        wanted = wanted and self.note is not None
+        if wanted == self._notes_expanded:
+            return
+        self._notes_expanded = wanted
+        self.facts.setHidden(wanted)
+        self.list_view.setHidden(wanted)
+        self._list_fit.fit()
+        self._sync_expand_button()
+
+    def _sync_expand_button(self, *_):
+        # Only a note that doesn't fit needs it, so an empty one never shows it
+        if self.note is None:
+            self.expand_button.hide()
+            return
+        expanded = self._notes_expanded
+        overflowing = self.note.editor.verticalScrollBar().maximum() > 0
+        self.expand_button.sync(expanded or overflowing, expanded)
+
+    # -- the list gives way to the note -------------------------------------------------
+
+    def _list_room(self):
+        """The height left for the list once the Question, the facts and the note's minimum
+        are laid out, but never less than one row; None while there is no note"""
+        if self.note is None:
+            return None
+        used = self._heading.sizeHint().height() + self.note.minimumSizeHint().height()
+        if not self.facts.isHidden():
+            used += self.facts.sizeHint().height()
+        room = self.viewport().height() - used
+        return max(room, self.list_view.minimumHeight())
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._list_fit.fit()
+
+    def eventFilter(self, watched, event):
+        if event.type() == QEvent.Type.Resize and watched in (self.question_edit, self.facts):
+            self._list_fit.fit()
+        return super().eventFilter(watched, event)
