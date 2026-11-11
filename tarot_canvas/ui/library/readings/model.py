@@ -1,3 +1,4 @@
+import html
 from pathlib import Path
 from typing import NamedTuple
 
@@ -35,21 +36,35 @@ class CardRow(NamedTuple):
     position: str  # the spread position's label, or ""
     name: str  # "" while the card is face down
     reversed: bool  # False while the card is face down: a reversal gives it away too
+    # The card's id and the deck it opens in, as the reading opens; "" and None face down
+    card_id: str = ""
+    deck: object = None
 
 
-def card_row_text(card_row):
-    """One card's row in the pane"""
+def card_row_text(card_row, name=None):
+    """One card's row in the pane; name stands in for the card's name when given"""
     if not card_row.name:
         card = READINGS["library_face_down"]
     elif card_row.reversed:
-        card = READINGS["card_reversed"].format(card=card_row.name)
+        card = READINGS["card_reversed"].format(card=card_row.name if name is None else name)
     else:
-        card = card_row.name
+        card = card_row.name if name is None else name
     if card_row.position:
         card = READINGS["library_card_position"].format(position=card_row.position, card=card)
     if card_row.number is None:
         return card
     return SPREADS["slot_row"].format(number=card_row.number, label=card).strip()
+
+
+_NAME = "\x00"  # where the name goes; nothing a string holds, and untouched by escaping
+
+
+def card_row_html(card_row, href):
+    """card_row_text as rich text, its card's name a link to href; a face-down card has none"""
+    if not card_row.name or card_row.deck is None:
+        return html.escape(card_row_text(card_row))
+    link = f'<a href="{html.escape(href)}">{html.escape(card_row.name)}</a>'
+    return html.escape(card_row_text(card_row, name=_NAME)).replace(_NAME, link)
 
 
 class ReadingRow(NamedTuple):
@@ -111,7 +126,8 @@ def _row(path, reading, decks, reference, unit):
             names.append(name)
         position = labels.get(card.position, "") if card.position else ""
         number = None if sandbox else numbers[id(card)]
-        card_rows.append(CardRow(number, position, name, card.reversed and card.turned))
+        opens = (card.id, resolved[card.deck]) if name else ("", None)
+        card_rows.append(CardRow(number, position, name, card.reversed and card.turned, *opens))
     notes = notes_model.read_directory(path)
     return ReadingRow(
         path,

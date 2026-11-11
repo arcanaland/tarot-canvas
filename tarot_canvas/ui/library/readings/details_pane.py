@@ -17,8 +17,10 @@ from tarot_canvas.ui import typography, units
 from tarot_canvas.ui.canvas.detail import card_unit_size
 from tarot_canvas.ui.canvas.reading_note import note_path
 from tarot_canvas.ui.canvas.tab_icon import DIAGRAM, layout_marks, reading_marks
+from tarot_canvas.ui.library.cards import card_in
 from tarot_canvas.ui.library.diagram import LayoutDiagram
 from tarot_canvas.ui.library.readings.model import (
+    card_row_html,
     card_row_text,
     is_sandbox,
     label,
@@ -45,14 +47,21 @@ def _note_text(folder):
         return ""
 
 
+CARD_LINK = "card:"
+
+
 class _CardColumns(QWidget):
-    """Card rows down a column, flowing into the next past ROWS_PER_COLUMN"""
+    """Card rows down a column, flowing into the next past ROWS_PER_COLUMN, each turned card's
+    name a link that says which row it is"""
 
     ROWS_PER_COLUMN = 6
+
+    link_activated = pyqtSignal(int)  # the row's index
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._labels = []
+        self._texts = []
         self._columns = 0
         self._grid = None
         self._new_grid()
@@ -67,23 +76,43 @@ class _CardColumns(QWidget):
         self._grid.setVerticalSpacing(units.SMALL_SPACING)
         self._grid.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
 
-    def show_lines(self, lines):
+    def show_rows(self, card_rows):
         for line in self._labels:
             line.deleteLater()
         self._new_grid()
-        self._labels = [pane_text(line) for line in lines]
-        for line in self._labels:
+        self._texts = [card_row_text(card_row) for card_row in card_rows]
+        self._labels = []
+        for number, card_row in enumerate(card_rows):
+            line = pane_text()
+            line.setTextFormat(Qt.TextFormat.RichText)
+            line.setText(card_row_html(card_row, f"{CARD_LINK}{number}"))
             # Wrapped, a label in a left-packed grid takes its narrowest width and clips
             line.setWordWrap(False)
-        self._columns = math.ceil(len(lines) / self.ROWS_PER_COLUMN)
-        if not lines:
+            line.setTextInteractionFlags(
+                Qt.TextInteractionFlag.TextSelectableByMouse
+                | Qt.TextInteractionFlag.LinksAccessibleByMouse
+                | Qt.TextInteractionFlag.LinksAccessibleByKeyboard
+            )
+            line.linkActivated.connect(self._on_link)
+            self._labels.append(line)
+        count = len(self._labels)
+        self._columns = math.ceil(count / self.ROWS_PER_COLUMN)
+        if not count:
             return
-        rows = math.ceil(len(lines) / self._columns)
+        rows = math.ceil(count / self._columns)
         for number, line in enumerate(self._labels):
             self._grid.addWidget(line, number % rows, number // rows)
 
     def lines(self):
-        return [line.text() for line in self._labels]
+        """Each row as plain text"""
+        return list(self._texts)
+
+    def labels(self):
+        return list(self._labels)
+
+    def _on_link(self, href):
+        if href.startswith(CARD_LINK):
+            self.link_activated.emit(int(href.removeprefix(CARD_LINK)))
 
     def columns(self):
         return self._columns
@@ -93,6 +122,7 @@ class ReadingDetailsPane(QWidget):
     """A reading's Question, what it was, its layout on its ground beside its cards, its note"""
 
     open_requested = pyqtSignal(object)  # the reading's folder
+    card_requested = pyqtSignal(object, object)  # a turned card's dict, and its deck
     # The expand button was clicked, or Esc pressed while expanded: whether to expand
     expand_requested = pyqtSignal(bool)
 
@@ -137,6 +167,7 @@ class ReadingDetailsPane(QWidget):
 
         self.diagram = LayoutDiagram(strip=self.DIAGRAM_STRIP)
         self.cards = _CardColumns()
+        self.cards.link_activated.connect(self._on_card_link)
 
         strip = QHBoxLayout()
         strip.setContentsMargins(0, 0, 0, 0)
@@ -222,7 +253,7 @@ class ReadingDetailsPane(QWidget):
         marks = reading_marks(reading, card_unit_size(), numbered=numbered)
         self.diagram.show_marks(layout_marks(marks, DIAGRAM.max_fill), drawn(reading.ground))
 
-        self.cards.show_lines([card_row_text(card_row) for card_row in row.card_rows])
+        self.cards.show_rows(row.card_rows)
 
         note = _note_text(row.path)
         self.note_view.set_markdown(note, base=row.path)
@@ -232,6 +263,14 @@ class ReadingDetailsPane(QWidget):
         if previous is None or previous.path != row.path:
             self.scroll_area.verticalScrollBar().setValue(0)
         self._sync_expand_button()
+
+    def _on_card_link(self, number):
+        if self._details is None or not 0 <= number < len(self._details.card_rows):
+            return
+        card_row = self._details.card_rows[number]
+        card = card_in(card_row.deck, card_row.card_id)
+        if card is not None:
+            self.card_requested.emit(card, card_row.deck)
 
     def _on_open(self):
         if self._details is not None:

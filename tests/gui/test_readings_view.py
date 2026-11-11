@@ -28,6 +28,7 @@ from tarot_canvas.ui.library.readings.model import (
     SORT_OLDEST,
     CardRow,
     ReadingPathRole,
+    card_row_html,
     card_row_text,
     spatial_order,
 )
@@ -37,6 +38,7 @@ from tarot_canvas.ui.library.section_row import is_section
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.strings import READINGS, SPREADS
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
+from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tarot_canvas.utils.dates import format_month, format_qdatetime, format_recent
 
 NOW = datetime.now().astimezone().replace(microsecond=0)
@@ -729,6 +731,51 @@ def test_f2_edits_the_selected_rows_question(qtbot, three, window):
     page.select(three[1])
     assert page.rename_selected()
     assert page.list_view.state() == page.list_view.State.EditingState
+
+
+# -- a card's name opens the card ------------------------------------------------------------
+
+
+def test_a_turned_cards_name_links_and_a_face_down_one_does_not(mid_deal, page):
+    page.refresh()
+    page.list_view.clicked.emit(first_reading(page))
+
+    labels_ = page.details_pane.cards.labels()
+    assert labels_[0].text().count("<a href=") == 1
+    assert f">{mid_deal[0]}</a>" in labels_[1].text()
+    # The reversed mark and the position stay outside the link
+    assert "Present" in labels_[1].text().split("<a")[0]
+    assert "<a" not in labels_[2].text()
+    assert mid_deal[1] not in labels_[2].text()
+
+
+def test_a_row_escapes_what_isnt_its_link():
+    row = CardRow(1, "<Past & gone>", "Ace", False, "major_arcana.ace", object())
+    html_text = card_row_html(row, "card:0")
+    assert "&lt;Past &amp; gone&gt;" in html_text
+    assert '<a href="card:0">Ace</a>' in html_text
+
+
+def test_clicking_a_cards_name_opens_it_in_the_readings_deck(mid_deal, window, minimal_deck):
+    _library, page = readings_view(window)
+    page.list_view.clicked.emit(first_reading(page))
+
+    page.details_pane.cards.labels()[1].linkActivated.emit("card:1")
+
+    tab = window.tab_widget.currentWidget()
+    assert isinstance(tab, CardViewTab)
+    assert tab.card["name"] == mid_deal[0]
+    assert tab.deck is minimal_deck
+
+
+def test_a_face_down_link_opens_nothing(mid_deal, window):
+    _library, page = readings_view(window)
+    page.list_view.clicked.emit(first_reading(page))
+    before = window.tab_widget.count()
+
+    page.details_pane.cards.link_activated.emit(2)
+
+    assert window.tab_widget.count() == before
 
 
 # -- expanding the pane ---------------------------------------------------------------------

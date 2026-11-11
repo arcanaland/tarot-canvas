@@ -96,6 +96,7 @@ class LibraryTab(BaseTab):
         self.readings_page.delete_requested.connect(self.on_reading_delete_requested)
         self.readings_page.rename_requested.connect(self.on_reading_rename_requested)
         self.readings_page.details_pane.expand_requested.connect(self.set_details_expanded)
+        self.readings_page.details_pane.card_requested.connect(self.on_reading_card_requested)
         self.readings_page.details_changed.connect(self._on_list_details_changed)
 
         self.esoterica_page = EsotericaPage(deck=deck_manager.get_reference_deck())
@@ -455,6 +456,12 @@ class LibraryTab(BaseTab):
         main_window = self.window()
         if hasattr(main_window, "open_saved_reading"):
             main_window.open_saved_reading(path)
+
+    def on_reading_card_requested(self, card, deck):
+        """A card the reading names, in the deck the reading opens it in"""
+        main_window = self.window()
+        if hasattr(main_window, "open_card_view_tab"):
+            main_window.open_card_view_tab(card, deck)
 
     def on_reading_rename_requested(self, path, question):
         main_window = self.window()
