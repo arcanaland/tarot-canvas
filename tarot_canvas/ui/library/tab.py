@@ -1,12 +1,13 @@
 from functools import partial
 
 from PyQt6.QtCore import QSignalBlocker, Qt
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QActionGroup, QIcon
 from PyQt6.QtWidgets import (
     QBoxLayout,
     QComboBox,
     QFrame,
     QHBoxLayout,
+    QMenu,
     QSplitter,
     QStackedWidget,
     QToolButton,
@@ -241,6 +242,17 @@ class LibraryTab(BaseTab):
         )
         row.addWidget(self.new_reading_button)
 
+        # The current view's filters, filled by _sync_filter_button; checked while one narrows
+        self.filter_button = QToolButton()
+        self.filter_button.setIcon(QIcon.fromTheme("view-filter"))
+        self.filter_button.setCheckable(True)
+        self.filter_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.filter_button.setMenu(QMenu(self.filter_button))
+        self._filter_group = None
+        # A press opens the menu; only a choice in it changes what is checked
+        self.filter_button.clicked.connect(self._sync_filter_state)
+        row.addWidget(self.filter_button)
+
         self.details_toggle = QToolButton()
         self.details_toggle.setCheckable(True)
         self.details_toggle.clicked.connect(self.toggle_details_pane)
@@ -348,6 +360,7 @@ class LibraryTab(BaseTab):
             self._set_details_open(True)
 
         self._sync_sort_combo(page)
+        self._sync_filter_button(page)
         self.zoom_slider.setVisible(decks)
         self.open_deck_button.setVisible(decks)
         self.new_spread_button.setVisible(view == LIBRARY_VIEW_SPREADS)
@@ -371,6 +384,36 @@ class LibraryTab(BaseTab):
             self.sort_combo.setCurrentIndex(self.sort_combo.findData(current))
         self.sort_combo.setToolTip(tooltip)
         self.sort_combo.setVisible(bool(choices))
+
+    def _sync_filter_button(self, page):
+        choices = page.filter_choices()
+        menu = self.filter_button.menu()
+        menu.clear()
+        if self._filter_group is not None:
+            self._filter_group.deleteLater()
+        self._filter_group = QActionGroup(menu)
+        self._filter_group.setExclusive(True)
+        current = page.filter_key() if choices else None
+        for label, key in choices:
+            action = menu.addAction(label)
+            action.setCheckable(True)
+            action.setChecked(key == current)
+            action.setData(key)
+            self._filter_group.addAction(action)
+        self._filter_group.triggered.connect(self.on_filter_changed)
+        self.filter_button.setVisible(bool(choices))
+        self._sync_filter_state()
+
+    def _sync_filter_state(self):
+        page = self.current_list_page()
+        if not page.filter_choices():
+            self.filter_button.setChecked(False)
+            return
+        key = page.filter_key()
+        default = page.filter_choices()[0][1]
+        self.filter_button.setChecked(key != default)
+        self.filter_button.setToolTip(page.filter_tooltip(key))
+        self.filter_button.setAccessibleName(page.filter_name())
 
     # -- slots ------------------------------------------------------------
 
@@ -490,6 +533,10 @@ class LibraryTab(BaseTab):
 
     def on_sort_changed(self):
         self.current_list_page().set_sort_key(self.sort_combo.currentData())
+
+    def on_filter_changed(self, action):
+        self.current_list_page().set_filter_key(action.data())
+        self._sync_filter_state()
 
     def on_density_changed(self, density):
         self.decks_page.set_density(density)

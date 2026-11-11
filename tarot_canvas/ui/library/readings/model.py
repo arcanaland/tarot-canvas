@@ -29,6 +29,11 @@ SORT_OLDEST = "oldest"
 SORT_EDITED = "edited"
 SORTS = (SORT_NEWEST, SORT_OLDEST, SORT_EDITED)
 
+FILTER_ALL = "all"
+FILTER_READINGS = "readings"
+FILTER_CANVASES = "canvases"
+FILTERS = (FILTER_ALL, FILTER_READINGS, FILTER_CANVASES)
+
 
 class CardRow(NamedTuple):
     # 1-based, in reading.cards, as the diagram numbers it; None on a sandbox canvas
@@ -109,10 +114,12 @@ def _position_labels(reading):
 
 def _row(path, reading, decks, reference, unit):
     resolved, labels = {}, _position_labels(reading)
-    card_rows, names = [], [reading.spread.name] if reading.spread is not None else []
+    # A sandbox is found by the caption its row shows in place of a spread's name
+    sandbox = is_sandbox(reading)
+    card_rows = []
+    names = [READINGS["sandbox_canvas"] if sandbox else reading.spread.name]
     numbers = {id(card): number for number, card in enumerate(reading.cards, start=1)}
     # A sandbox's order is only the order its cards were put down, so it is read by place
-    sandbox = is_sandbox(reading)
     ordered = spatial_order(reading.cards, unit) if sandbox else reading.cards
     for card in ordered:
         if card.deck not in resolved:
@@ -198,6 +205,15 @@ def _match(row, search):
     return False, None
 
 
+def _kept(row, kind):
+    """Whether the filter kind lets row show"""
+    if kind == FILTER_READINGS:
+        return not is_sandbox(row.reading)
+    if kind == FILTER_CANVASES:
+        return is_sandbox(row.reading)
+    return True
+
+
 def _month(row):
     date = local_qdatetime(row.reading.date).date()
     return date.year(), date.month()
@@ -227,6 +243,8 @@ class ReadingsListModel(QAbstractListModel):
         super().__init__(parent)
         self._search = ""
         self._sort = SORT_NEWEST
+        self._filter = FILTER_ALL
+        self._hidden = False  # whether the filter hides a row the search would show
         self._all = []
         self._rows = []  # (ReadingRow, preview line), or a month's heading
         self._hold(scanned, decks, reference)
@@ -266,18 +284,39 @@ class ReadingsListModel(QAbstractListModel):
     def sort(self):
         return self._sort
 
+    def set_filter(self, kind):
+        kind = kind if kind in FILTERS else FILTER_ALL
+        if kind == self._filter:
+            return
+        self.beginResetModel()
+        self._filter = kind
+        self._rebuild()
+        self.endResetModel()
+
+    def filter(self):
+        return self._filter
+
+    def is_hiding(self):
+        """Whether the filter hides a row the search alone would show"""
+        return self._hidden
+
     def has_items(self):
         return any(not isinstance(row, str) for row in self._rows)
 
     def _rebuild(self):
-        shown = []
+        # Filtered before sorting, so a month the filter empties loses its heading too
+        shown, self._hidden = [], False
         for row in self._all:
             if not self._search:
-                shown.append((row, newest_note_line(row)))
+                matched, line = True, None
+            else:
+                matched, line = _match(row, self._search)
+            if not matched:
                 continue
-            matched, line = _match(row, self._search)
-            if matched:
-                shown.append((row, line if line is not None else newest_note_line(row)))
+            if not _kept(row, self._filter):
+                self._hidden = True
+                continue
+            shown.append((row, line if line is not None else newest_note_line(row)))
         self._rows = _sorted(shown, self._sort)
 
     def row_at(self, path):

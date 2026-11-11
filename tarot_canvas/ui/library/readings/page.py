@@ -6,6 +6,8 @@ from tarot_canvas.models import readings
 from tarot_canvas.models.deck_events import deck_events
 from tarot_canvas.models.reading_events import reading_events
 from tarot_canvas.settings import (
+    LIBRARY_READINGS_FILTER_DEFAULT,
+    LIBRARY_READINGS_FILTER_KEY,
     LIBRARY_READINGS_SORT_DEFAULT,
     LIBRARY_READINGS_SORT_KEY,
     get_settings,
@@ -14,6 +16,9 @@ from tarot_canvas.ui.commands import set_menu_text
 from tarot_canvas.ui.library.deletable_page import DeletableListPage
 from tarot_canvas.ui.library.readings.details_pane import ReadingDetailsPane
 from tarot_canvas.ui.library.readings.model import (
+    FILTER_ALL,
+    FILTER_CANVASES,
+    FILTER_READINGS,
     SORT_EDITED,
     SORT_NEWEST,
     SORT_OLDEST,
@@ -30,6 +35,12 @@ SORT_CHOICES = [
     (SPREADS["sort_newest"], SORT_NEWEST),
     (READINGS["sort_oldest"], SORT_OLDEST),
     (SPREADS["sort_edited"], SORT_EDITED),
+]
+
+FILTER_CHOICES = [
+    (READINGS["filter_all"], FILTER_ALL),
+    (READINGS["filter_readings"], FILTER_READINGS),
+    (READINGS["filter_canvases"], FILTER_CANVASES),
 ]
 
 
@@ -63,6 +74,11 @@ class ReadingsPage(DeletableListPage):
         self._button_click = False
         self.list_model.set_sort(
             get_settings().value(LIBRARY_READINGS_SORT_KEY, LIBRARY_READINGS_SORT_DEFAULT, type=str)
+        )
+        self.list_model.set_filter(
+            get_settings().value(
+                LIBRARY_READINGS_FILTER_KEY, LIBRARY_READINGS_FILTER_DEFAULT, type=str
+            )
         )
         self.list_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.list_view.customContextMenuRequested.connect(self._on_context_menu)
@@ -108,6 +124,29 @@ class ReadingsPage(DeletableListPage):
             self.select(selected)
         get_settings().setValue(LIBRARY_READINGS_SORT_KEY, self.sort_key())
 
+    def filter_choices(self):
+        return FILTER_CHOICES
+
+    def filter_name(self):
+        return READINGS["filter_name"]
+
+    def filter_key(self):
+        return self.list_model.filter()
+
+    def filter_tooltip(self, key):
+        if key == FILTER_ALL:
+            return READINGS["filter_tooltip"]
+        label = next(label for label, choice in FILTER_CHOICES if choice == key)
+        return READINGS["filter_tooltip_narrowed"].format(filter=label)
+
+    def set_filter_key(self, key):
+        selected = self._selected_path()
+        self.list_model.set_filter(key)
+        if selected is not None:
+            self.select(selected)
+        self._update_empty_state()
+        get_settings().setValue(LIBRARY_READINGS_FILTER_KEY, self.filter_key())
+
     @pyqtSlot()
     def refresh(self):
         """Re-read every reading, keeping the selected one selected if it survives"""
@@ -124,6 +163,9 @@ class ReadingsPage(DeletableListPage):
     # -- selection --------------------------------------------------------
 
     def _empty_text(self, searching):
+        # A remembered filter must not make a kept entry look lost
+        if self.list_model.is_hiding():
+            return READINGS["library_empty_filtered"]
         return READINGS["library_empty_no_match" if searching else "library_empty"]
 
     def _select_index(self, index):

@@ -734,6 +734,13 @@ READINGS = {
     "library_revealed": "{turned} of {total} revealed",
     "sort_oldest": "Oldest",
     "sort_tooltip": "Sort entries",
+    "filter_all": "Readings and canvases",
+    "filter_readings": "Readings only",
+    "filter_canvases": "Canvases only",
+    "filter_name": "Filter entries",
+    "filter_tooltip": "Filter journal entries",
+    "filter_tooltip_narrowed": "Showing {filter}",
+    "library_empty_filtered": "Nothing found.",
 }
 
 # The command palette

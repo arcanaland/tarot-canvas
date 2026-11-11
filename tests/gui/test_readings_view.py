@@ -23,6 +23,9 @@ from tarot_canvas.ui.canvas.saved_canvas import AUTOSAVE_MS, local_qdatetime
 from tarot_canvas.ui.library import diagram as diagram_module
 from tarot_canvas.ui.library.readings.details_pane import ReadingDetailsPane
 from tarot_canvas.ui.library.readings.model import (
+    FILTER_ALL,
+    FILTER_CANVASES,
+    FILTER_READINGS,
     SORT_EDITED,
     SORT_NEWEST,
     SORT_OLDEST,
@@ -233,7 +236,134 @@ def test_the_library_offers_the_readings_sorts(window):
     assert library.sort_combo.isVisibleTo(library)
 
 
+# -- the filter -----------------------------------------------------------------------------
+
+
+@pytest.fixture
+def mixed(readings_base, page):
+    keep(readings_base, "1", month(2026, 10), "Dealt in October", spread=PAST_PRESENT_FUTURE)
+    keep(readings_base, "2", month(2026, 11), "Laid out in November")
+    keep(
+        readings_base,
+        "3",
+        month(2026, 11) + timedelta(days=1),
+        "Dealt in November",
+        spread=PAST_PRESENT_FUTURE,
+    )
+    page.refresh()
+
+
+def test_the_filter_shows_readings_or_canvases_or_both(mixed, page):
+    assert page.filter_key() == FILTER_ALL
+    assert len(labels(page)) == 3
+    page.set_filter_key(FILTER_READINGS)
+    assert labels(page) == ["Dealt in November", "Dealt in October"]
+    page.set_filter_key(FILTER_CANVASES)
+    assert labels(page) == ["Laid out in November"]
+
+
+def test_a_month_the_filter_empties_loses_its_heading(mixed, page):
+    page.set_filter_key(FILTER_CANVASES)
+    assert shown(page) == [heading(2026, 11), "Laid out in November"]
+
+
+def test_the_filter_and_search_both_narrow(mixed, page):
+    page.set_filter_key(FILTER_READINGS)
+    page.set_search("november")
+    assert labels(page) == ["Dealt in November"]
+
+
+def test_an_unknown_filter_shows_everything(mixed, page):
+    page.set_filter_key("bogus")
+    assert page.filter_key() == FILTER_ALL
+
+
+def test_the_filter_keeps_a_selection_that_survives_it(mixed, page, readings_base):
+    assert page.select(readings_base / "3")
+    page.set_filter_key(FILTER_READINGS)
+    assert page._selected_path() == readings_base / "3"
+
+
+def test_the_filter_is_remembered(mixed, page, qtbot, minimal_deck):
+    page.set_filter_key(FILTER_CANVASES)
+    again = ReadingsPage(lambda: [minimal_deck], lambda: minimal_deck)
+    qtbot.addWidget(again)
+    assert again.filter_key() == FILTER_CANVASES
+    assert labels(again) == ["Laid out in November"]
+
+
+def test_a_filter_hiding_everything_says_so(readings_base, page):
+    keep(readings_base, "1", NOW, "Laid out")
+    page.refresh()
+    page.set_filter_key(FILTER_READINGS)
+    assert page.empty_label.isVisibleTo(page)
+    assert page.empty_label.text() == READINGS["library_empty_filtered"]
+    page.set_filter_key(FILTER_ALL)
+    assert not page.empty_label.isVisibleTo(page)
+
+
+def test_with_nothing_kept_a_filter_says_there_are_no_entries(page):
+    page.set_filter_key(FILTER_READINGS)
+    assert page.empty_label.text() == READINGS["library_empty"]
+
+
+def test_a_search_matching_nothing_says_no_match_under_a_filter(mixed, page):
+    page.set_filter_key(FILTER_READINGS)
+    page.set_search("nowhere at all")
+    assert page.empty_label.text() == READINGS["library_empty_no_match"]
+
+
+def test_the_filter_button_shows_only_on_the_journal(window):
+    library, _page = readings_view(window)
+    assert library.filter_button.isVisibleTo(library)
+    for view in LIBRARY_VIEWS:
+        if view != LIBRARY_VIEW_READINGS:
+            library.show_view(view)
+            assert not library.filter_button.isVisibleTo(library), view
+
+
+def test_the_filter_button_is_checked_while_it_narrows(window):
+    library, page = readings_view(window)
+    actions = library.filter_button.menu().actions()
+    assert [action.data() for action in actions] == [FILTER_ALL, FILTER_READINGS, FILTER_CANVASES]
+    assert not library.filter_button.isChecked()
+    assert library.filter_button.toolTip() == READINGS["filter_tooltip"]
+
+    actions[2].trigger()
+
+    assert page.filter_key() == FILTER_CANVASES
+    assert library.filter_button.isChecked()
+    assert actions[2].isChecked() and not actions[0].isChecked()
+    assert library.filter_button.toolTip() == READINGS["filter_tooltip_narrowed"].format(
+        filter=READINGS["filter_canvases"]
+    )
+
+
+def test_the_filter_stays_on_across_a_view_switch(window):
+    library, page = readings_view(window)
+    library.filter_button.menu().actions()[1].trigger()
+    library.show_view(LIBRARY_VIEW_SPREADS)
+    library.show_view(LIBRARY_VIEW_READINGS)
+    assert page.filter_key() == FILTER_READINGS
+    assert library.filter_button.isChecked()
+    assert library.filter_button.menu().actions()[1].isChecked()
+
+
+def test_pressing_the_filter_button_changes_nothing(window):
+    library, page = readings_view(window)
+    # As a key press toggling it would; click() itself would open the menu and wait
+    library.filter_button.setChecked(True)
+    library.filter_button.clicked.emit(True)
+    assert not library.filter_button.isChecked()
+    assert page.filter_key() == FILTER_ALL
+
+
 # -- search ---------------------------------------------------------------------------------
+
+
+def test_sandbox_canvas_finds_the_sandboxes(mixed, page):
+    page.set_search(READINGS["sandbox_canvas"])
+    assert labels(page) == ["Laid out in November"]
 
 
 def test_a_term_only_in_a_note_matches_that_reading_alone(three, page):
