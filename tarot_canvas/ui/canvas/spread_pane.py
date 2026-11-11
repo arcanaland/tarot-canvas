@@ -98,8 +98,6 @@ class DescriptionBox(QTextEdit):
 
 
 class ExpandButton(QToolButton):
-    """⤢: gives a text box the room of what sits above it, or gives it back"""
-
     def __init__(self, expand_tip, restore_tip):
         super().__init__()
         self.setAutoRaise(True)
