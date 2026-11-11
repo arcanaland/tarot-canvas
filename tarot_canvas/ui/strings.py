@@ -56,8 +56,10 @@ COMMANDS = {
     "card_toggle_details": "Toggle Card Details",
     "card_cancel": "Leave Fullscreen",
     "card_image_toggle_details": "Toggle Card Details (Art)",
+    "card_view_n": "Switch to Pane {n}",
     # Library
     "library_toggle_details": "Toggle Deck Details",
+    "library_view_n": "Switch to Page {n}",
     "canvas_background": "Canvas Background",
 }
 

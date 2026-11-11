@@ -1021,6 +1021,35 @@ def test_start_reading_on_a_library_row_opens_one(qtbot, deck, spreads_base):
     assert len(tab.slots()) == 3
 
 
+def test_the_keyboard_alone_starts_a_celtic_cross_from_any_library_view(
+    qtbot, deck, spreads_base, monkeypatch
+):
+    from tarot_canvas.settings import LIBRARY_VIEW_KEY, LIBRARY_VIEW_NOTES
+
+    monkeypatch.setattr(spreads, "included_base", lambda: BUNDLED_SPREADS_PATH)
+    get_settings().setValue(LIBRARY_VIEW_KEY, LIBRARY_VIEW_NOTES)
+    window = MainWindow()
+    qtbot.addWidget(window)
+    with qtbot.waitActive(window):
+        window.show()
+        window.activateWindow()
+    ctrl = Qt.KeyboardModifier.ControlModifier
+
+    def press(key, modifiers=Qt.KeyboardModifier.NoModifier):
+        qtbot.keyClick(QApplication.focusWidget() or window, key, modifiers)
+
+    press(Qt.Key.Key_L, ctrl)
+    press(Qt.Key.Key_4, ctrl)
+    press(Qt.Key.Key_F, ctrl)
+    qtbot.keyClicks(QApplication.focusWidget(), "Cross")
+    press(Qt.Key.Key_Down)
+    press(Qt.Key.Key_Return, ctrl)
+
+    tab = window.tab_widget.currentWidget()
+    assert isinstance(tab, ReadingTab)
+    assert len(tab.slots()) == 10
+
+
 # -- every position filled by hand
 
 

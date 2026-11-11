@@ -2,15 +2,17 @@
 
 import re
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
+from functools import partial
 
 from PyQt6.QtCore import QKeyCombination, QObject, Qt
 from PyQt6.QtGui import QAction, QIcon, QKeySequence
 from PyQt6.QtWidgets import QApplication
 
-from tarot_canvas.settings import get_shortcut_keys, set_shortcut_keys
-from tarot_canvas.ui.icons import LIBRARY_ICON, SPREAD_ICON
+from tarot_canvas.settings import LIBRARY_VIEWS, get_shortcut_keys, set_shortcut_keys
+from tarot_canvas.ui.icons import LIBRARY_ICON, SPREAD_ICON, library_view_icon
 from tarot_canvas.ui.strings import COMMANDS, NOTES, PREFERENCES, READINGS
 
 StandardKey = QKeySequence.StandardKey
@@ -47,7 +49,8 @@ ACTIVE_TOGETHER = (
 class Command:
     id: str
     text: str | None
-    icon: str | None
+    # A theme name, or a function returning a QIcon for one drawn from a file
+    icon: str | Callable[[], QIcon] | None
     defaults: tuple[str | StandardKey, ...]
     scope: Scope
     # Handled in a keyPressEvent not by an action
@@ -194,11 +197,24 @@ COMMANDS = (
     ),
     _command("canvas.cancel", T["cancel_selection"], None, ["Esc"], CV),
     # Card view
-    _command("card.toggle_details", T["card_toggle_details"], None, ["Ctrl+I"], C),
+    _command(
+        "card.toggle_details", T["card_toggle_details"], "sidebar-expand-right", ["Ctrl+I"], C
+    ),
     _command("card.cancel", T["card_cancel"], None, ["Esc"], C),
+    # Ctrl+1 to Ctrl+3 pick an info tab by position, as Alt+digit picks a window tab
+    *(
+        _command(f"card.view_{n}", T["card_view_n"].format(n=n), None, [f"Ctrl+{n}"], C)
+        for n in range(1, 4)
+    ),
     # Card art: bare keys, so typing in the details pane is left alone
-    _command("card_image.fullscreen", T["fullscreen"], None, ["F"], CI),
-    _command("card_image.toggle_details", T["card_image_toggle_details"], None, ["I"], CI),
+    _command("card_image.fullscreen", T["fullscreen"], "view-fullscreen", ["F"], CI),
+    _command(
+        "card_image.toggle_details",
+        T["card_image_toggle_details"],
+        "sidebar-expand-right",
+        ["I"],
+        CI,
+    ),
     _command("card_image.previous", T["go_previous"], None, ["PgUp", "Backspace"], CI),
     _command("card_image.next", T["go_next"], None, ["PgDown", "Space"], CI),
     _command("card_image.first", T["go_first"], None, ["Home"], CI),
@@ -213,7 +229,24 @@ COMMANDS = (
     _command("notes.rename", NOTES["rename"], "edit-rename", ["F2"], N),
     _command("notes.delete", NOTES["delete"], "edit-delete", [], N, shows="window.delete"),
     # Library
-    _command("library.toggle_details", T["library_toggle_details"], None, ["Ctrl+I"], L),
+    _command(
+        "library.toggle_details",
+        T["library_toggle_details"],
+        "sidebar-expand-right",
+        ["Ctrl+I"],
+        L,
+    ),
+    # Ctrl+1 to Ctrl+5 pick a view by its row in the sidebar
+    *(
+        _command(
+            f"library.view_{n}",
+            T["library_view_n"].format(n=n),
+            partial(library_view_icon, view),
+            [f"Ctrl+{n}"],
+            L,
+        )
+        for n, view in enumerate(LIBRARY_VIEWS, 1)
+    ),
     _command(
         "library.start_reading",
         READINGS["open"],
@@ -224,20 +257,50 @@ COMMANDS = (
 )
 
 _BY_ID = {command.id: command for command in COMMANDS}
+_SHOWN_BY = {command.shows: command for command in COMMANDS if command.shows}
 
 
 def by_id(command_id):
     return _BY_ID[command_id]
 
 
+def _shown_by(command):
+    """The entry showing this command's key, or one with its words in its scope: PgUp and Left
+    are both Previous Card, and the menu can show only one of them"""
+    if command.id in _SHOWN_BY:
+        return _SHOWN_BY[command.id]
+    for shown_id, shower in _SHOWN_BY.items():
+        shown = by_id(shown_id)
+        if shown.scope is command.scope and shown.text == command.text:
+            return shower
+    return None
+
+
+def command_icon(command):
+    """A command's icon: its own, else that of the entry showing its key; null if neither"""
+    if isinstance(command, str):
+        command = by_id(command)
+    icon = command.icon
+    if icon is None and (shower := _shown_by(command)) is not None:
+        icon = shower.icon
+    if icon is None:
+        return QIcon()
+    return icon() if callable(icon) else QIcon.fromTheme(icon)
+
+
 # On macOS Option+digit types a character, so it is Cmd there
 _OPTION_DIGIT = re.compile(r"^Alt\+(\d)$")
+# Which takes Cmd+digit from the views inside a tab, so they are Cmd+Option, as in Xcode.
+# Ctrl+0, reset zoom, stays Cmd+0
+_VIEW_DIGIT = re.compile(r"^Ctrl\+([1-9])$")
 
 
 def _expand(default, platform):
     if isinstance(default, StandardKey):
         return list(QKeySequence.keyBindings(default))
     if platform == "darwin":
+        # The view digits first, so the window's own are not moved twice
+        default = _VIEW_DIGIT.sub(r"Ctrl+Alt+\1", default)
         default = _OPTION_DIGIT.sub(r"Ctrl+\1", default)
     return [QKeySequence(default)]
 
@@ -393,8 +456,8 @@ def bind(owner, scope, handlers, *, detached=(), platform=sys.platform):
         action.setObjectName(command.id)
         if command.shows:
             set_menu_text(action, command.text or "", command.shows)
-        if command.icon:
-            action.setIcon(QIcon.fromTheme(command.icon))
+        if not (icon := command_icon(command)).isNull():
+            action.setIcon(icon)
         action.setShortcuts(keys_for(command_id, platform))
         action.setShortcutContext(command.context or CONTEXTS[scope])
         # Handlers take nothing

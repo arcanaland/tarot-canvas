@@ -221,3 +221,55 @@ def test_a_spread_has_one_icon(qtbot):
     assert drawn(canvas.commands["canvas.save_layout_as_spread"].icon()) == expected
     assert drawn(sidebar_row(library_of(window), LIBRARY_VIEW_SPREADS).icon()) == expected
     assert drawn(SpreadTab().tab_icon()) == expected
+
+
+# No surface shows an icon for these: a tab has no fixed one, the wheel and Esc are shown nowhere,
+# and the card view's info tabs have none
+NO_ICON_ANYWHERE = {
+    *(f"window.tab_{n}" for n in range(1, 10)),
+    *(f"card.view_{n}" for n in range(1, 4)),
+    "canvas.turn",
+    "canvas.turn_fine",
+    "canvas.cancel",
+    "card.cancel",
+}
+
+
+def test_every_shortcut_shows_the_icon_it_has_elsewhere(qtbot):
+    from tarot_canvas.ui.windows.shortcuts_page import COMMAND_ROLE
+
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+    model = dialog.shortcuts_page.model
+    blank, shown = set(), set()
+    for group_row in range(model.rowCount()):
+        group = model.index(group_row, 0)
+        for row in range(model.rowCount(group)):
+            item = model.itemFromIndex(model.index(row, 0, group))
+            command_id = item.data(COMMAND_ROLE)
+            (blank if item.icon().isNull() else shown).add(command_id)
+    assert blank == NO_ICON_ANYWHERE
+
+
+def test_a_card_image_key_wears_the_icon_of_the_go_entry_showing_it(qapp):
+    from tarot_canvas.ui.commands import command_icon
+
+    for art, entry in [
+        ("card_image.previous_or_pan", "window.go_previous"),
+        ("card_image.previous", "window.go_previous"),
+        ("card_image.next", "window.go_next"),
+        ("card_image.random", "window.go_random"),
+        ("card_image.next_deck", "window.go_next_deck"),
+    ]:
+        assert drawn(command_icon(art)) == drawn(command_icon(entry)), art
+
+
+def test_a_library_view_key_wears_its_sidebar_row_s_icon(qtbot):
+    from tarot_canvas.ui.commands import command_icon
+    from tarot_canvas.ui.tabs.library_tab import LibraryTab
+
+    tab = LibraryTab()
+    qtbot.addWidget(tab)
+    for n, view in enumerate(LIBRARY_VIEWS, 1):
+        row = tab.sidebar.item(n - 1)
+        assert drawn(command_icon(f"library.view_{n}")) == drawn(row.icon()), view

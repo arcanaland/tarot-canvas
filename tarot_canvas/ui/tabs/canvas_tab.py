@@ -987,7 +987,7 @@ class CanvasTab(BaseTab):
             return None
         command = commands.by_id(BACKGROUND_COMMAND)
         menu = QMenu(self)
-        action = menu.addAction(QIcon.fromTheme(command.icon), command.text)
+        action = menu.addAction(commands.command_icon(command), command.text)
         action.triggered.connect(self.edit_background)
         return menu
 

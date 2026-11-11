@@ -764,8 +764,14 @@ class MainWindow(QMainWindow):
         card_tab.navigation_requested.connect(self.handle_tab_navigation)
         self.close_welcome_tab()
         self.tab_widget.addTab(card_tab, "")
-        self.tab_widget.setCurrentWidget(card_tab)
+        self.raise_tab_into(card_tab, card_tab)
         return card_tab
+
+    def raise_tab_into(self, tab, widget):
+        """Raise a tab and focus a specific widget"""
+        self.tab_widget.setCurrentWidget(tab)
+        if not tab.isAncestorOf(QApplication.focusWidget()):
+            widget.setFocus(Qt.FocusReason.OtherFocusReason)
 
     def handle_tab_navigation(self, action, data):
         """Handle navigation between tabs"""
@@ -784,7 +790,7 @@ class MainWindow(QMainWindow):
                     and tab.card.get("id") == card.get("id")
                 ):
                     # Tab exists, just select it
-                    self.tab_widget.setCurrentWidget(tab)
+                    self.raise_tab_into(tab, tab)
                     return
 
             # Create a new card view tab
@@ -862,7 +868,7 @@ class MainWindow(QMainWindow):
 
         if view:
             library_tab.show_view(view)
-        self.tab_widget.setCurrentWidget(library_tab)
+        self.raise_tab_into(library_tab, library_tab.sidebar)
 
         return library_tab
 
@@ -1224,7 +1230,7 @@ class MainWindow(QMainWindow):
                 and tab.card.get("id") == card.get("id")
             ):
                 # Tab exists, just select it
-                self.tab_widget.setCurrentWidget(tab)
+                self.raise_tab_into(tab, tab)
                 return
 
         # Create a new card view tab
@@ -1261,7 +1267,7 @@ class MainWindow(QMainWindow):
                 and tab.card.get("id") == card.get("id")
             ):
                 # Tab exists, just select it
-                self.tab_widget.setCurrentWidget(tab)
+                self.raise_tab_into(tab, tab)
                 if show_notes and hasattr(tab, "show_notes_tab"):
                     tab.show_notes_tab()
                 return tab
