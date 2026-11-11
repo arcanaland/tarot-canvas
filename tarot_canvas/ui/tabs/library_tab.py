@@ -1,6 +1,5 @@
 from contextlib import contextmanager
 from functools import partial
-from importlib.resources import files
 
 from PyQt6.QtCore import QItemSelectionModel, QSignalBlocker, QSize, Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QIcon
@@ -45,7 +44,7 @@ from tarot_canvas.settings import (
 from tarot_canvas.ui import commands
 from tarot_canvas.ui.activate_on_return import activate_on_return
 from tarot_canvas.ui.commands import Scope, set_tooltip_with_keys
-from tarot_canvas.ui.icons import LIBRARY_ICON, SPREAD_ICON, deck_icon
+from tarot_canvas.ui.icons import LIBRARY_ICON, library_view_icon
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.library.catalog_client import deck_catalog
 from tarot_canvas.ui.library.deck_delegate import DeckDelegate
@@ -70,12 +69,9 @@ from tarot_canvas.ui.library.spreads_page import SpreadsPage
 from tarot_canvas.ui.spread_menu import spread_menu
 from tarot_canvas.ui.strings import LIBRARY, MAIN_WINDOW, READINGS, SPREADS, label_for, notes_text
 from tarot_canvas.ui.tabs.base_tab import BaseTab
-from tarot_canvas.ui.widgets.placeholder_message import tinted_icon
 from tarot_canvas.ui.widgets.places_sidebar import PlacesSidebar
 from tarot_canvas.ui.widgets.search_field import search_field, step_into_results
 from tarot_canvas.ui.widgets.zoom_slider import ZoomSlider
-
-ESOTERICA_VIEW_ICON = files("tarot_canvas.resources.icons").joinpath("esoterica.svg")
 
 SORT_CHOICES = [
     (LIBRARY["sort_name"], SORT_NAME),
@@ -226,6 +222,10 @@ class LibraryTab(BaseTab):
             {
                 "library.toggle_details": self.details_toggle.click,
                 "library.start_reading": self._start_reading,
+                **{
+                    f"library.view_{n}": partial(self.show_view, view)
+                    for n, view in enumerate(LIBRARY_VIEWS, 1)
+                },
             },
         )
 
@@ -269,7 +269,7 @@ class LibraryTab(BaseTab):
         new_spread = commands.by_id("window.new_spread")
         self.new_spread_button = QToolButton()
         self.new_spread_button.setText(new_spread.text)
-        self.new_spread_button.setIcon(QIcon.fromTheme(new_spread.icon))
+        self.new_spread_button.setIcon(commands.command_icon(new_spread))
         self.new_spread_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         set_tooltip_with_keys(self.new_spread_button, new_spread.text, new_spread.id)
         self.new_spread_button.clicked.connect(self.on_new_spread)
@@ -299,21 +299,14 @@ class LibraryTab(BaseTab):
 
     def _view_rows(self):
         """(icon, name, view) per sidebar row, in LIBRARY_VIEWS order"""
-        rows = {
-            LIBRARY_VIEW_DECKS: (deck_icon(), LIBRARY["decks_view"]),
-            LIBRARY_VIEW_READINGS: (
-                QIcon.fromTheme("view-calendar-list"),
-                READINGS["library_view_name"],
-            ),
-            LIBRARY_VIEW_NOTES: (QIcon.fromTheme("story-editor"), notes_text("view_name")),
-            LIBRARY_VIEW_SPREADS: (QIcon.fromTheme(SPREAD_ICON), SPREADS["view_name"]),
-            # The app's own file, not a theme name
-            LIBRARY_VIEW_ESOTERICA: (
-                tinted_icon(ESOTERICA_VIEW_ICON),
-                label_for("library.view_name"),
-            ),
+        names = {
+            LIBRARY_VIEW_DECKS: LIBRARY["decks_view"],
+            LIBRARY_VIEW_READINGS: READINGS["library_view_name"],
+            LIBRARY_VIEW_NOTES: notes_text("view_name"),
+            LIBRARY_VIEW_SPREADS: SPREADS["view_name"],
+            LIBRARY_VIEW_ESOTERICA: label_for("library.view_name"),
         }
-        return [(*rows[view], view) for view in LIBRARY_VIEWS]
+        return [(library_view_icon(view), names[view], view) for view in LIBRARY_VIEWS]
 
     def _build_sidebar(self):
         """One row per view"""

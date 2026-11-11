@@ -1,7 +1,7 @@
 """The Preferences page that lists keyboard shortcuts"""
 
 from PyQt6.QtCore import QEvent, QSortFilterProxyModel, Qt, pyqtSignal
-from PyQt6.QtGui import QIcon, QKeySequence, QStandardItem, QStandardItemModel
+from PyQt6.QtGui import QKeySequence, QStandardItem, QStandardItemModel
 from PyQt6.QtWidgets import (
     QHeaderView,
     QKeySequenceEdit,
@@ -166,8 +166,7 @@ class ShortcutsPage(QWidget):
 
     def _command_row(self, command):
         name = QStandardItem(label(command))
-        if command.icon:
-            name.setIcon(QIcon.fromTheme(command.icon))
+        name.setIcon(commands.command_icon(command))
         name.setData(command.id, COMMAND_ROLE)
         name.setEditable(False)
         cells = [QStandardItem() for _ in range(CELLS)]

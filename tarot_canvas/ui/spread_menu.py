@@ -36,7 +36,7 @@ def _fill(menu, start, browse, blank):
     menu.clear()
     if blank is not None:
         canvas = commands.by_id("window.new_canvas")
-        action = menu.addAction(QIcon.fromTheme(canvas.icon), canvas.text)
+        action = menu.addAction(commands.command_icon(canvas), canvas.text)
         commands.set_menu_text(action, canvas.text, canvas.id)
         action.triggered.connect(blank)
         menu.addSeparator()

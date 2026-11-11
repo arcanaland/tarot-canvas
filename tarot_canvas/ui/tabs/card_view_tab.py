@@ -193,6 +193,14 @@ class CardViewTab(BaseTab):
         # Set the main layout
         self.layout.addLayout(main_layout)
 
+    def show_info_tab(self, index):
+        """Raise the info tab at this position, opening the pane to show it"""
+        if not 0 <= index < self.info_tabs.count():
+            return
+        if not self.info_pane_is_open():
+            self.toggle_info_pane()
+        self.info_tabs.setCurrentIndex(index)
+
     def show_notes_tab(self):
         """Raise the Notes tab, whichever position it sits in."""
         self.info_tabs.setCurrentWidget(self.notes_tab)
@@ -239,6 +247,7 @@ class CardViewTab(BaseTab):
             {
                 "card.toggle_details": self.toggle_info_pane,
                 "card.cancel": self.on_escape_pressed,
+                **{f"card.view_{n}": partial(self.show_info_tab, n - 1) for n in range(1, 4)},
             },
         )
 

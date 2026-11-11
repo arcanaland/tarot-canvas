@@ -219,6 +219,21 @@ def test_the_bar_toggles_the_card_details(qtbot, big_image_deck):
     assert "Show" in action.toolTip()
 
 
+def test_ctrl_digit_raises_an_info_tab_and_opens_a_hidden_pane(qtbot, big_image_deck):
+    tab = make_tab(qtbot, big_image_deck, 1200, 900)
+    tab.toggle_info_pane()
+    assert not tab.info_pane_is_open()
+
+    press(qtbot, tab, Qt.Key.Key_2, Qt.KeyboardModifier.ControlModifier)
+    assert tab.info_pane_is_open()
+    assert tab.info_tabs.currentWidget() is tab.esoterica_tab
+
+    press(qtbot, tab, Qt.Key.Key_3, Qt.KeyboardModifier.ControlModifier)
+    assert tab.info_tabs.currentWidget() is tab.notes_tab
+    press(qtbot, tab, Qt.Key.Key_1, Qt.KeyboardModifier.ControlModifier)
+    assert tab.info_tabs.currentIndex() == 0
+
+
 def test_copying_from_the_bar_says_so(qtbot, big_image_deck, clipboard):
     from tarot_canvas.ui.card_transfer import CARD_MIME
 
@@ -235,13 +250,13 @@ def test_copying_from_the_bar_says_so(qtbot, big_image_deck, clipboard):
 # The minimal deck has two cards, major_arcana.00 and .01; make_tab opens the first.
 
 
-def press(qtbot, tab, key):
+def press(qtbot, tab, key, modifiers=Qt.KeyboardModifier.NoModifier):
     """A QShortcut only fires in the active window; keyPressEvent doesn't care."""
     if not tab.isActiveWindow():
         with qtbot.waitActive(tab):
             tab.activateWindow()
     tab.image_view.setFocus()
-    qtbot.keyClick(tab.image_view, key)
+    qtbot.keyClick(tab.image_view, key, modifiers)
 
 
 def test_arrows_step_through_the_deck(qtbot, big_image_deck):
@@ -547,3 +562,24 @@ def test_fullscreen_restores_the_document_mode_the_platform_chose(
 
     assert tab.info_tabs.tabPosition() == QTabWidget.TabPosition.East
     assert tab.info_tabs.documentMode()
+
+
+def test_a_card_found_with_ctrl_p_takes_ctrl_digit_straight_away(qtbot, big_image_deck):
+    from PyQt6.QtWidgets import QApplication
+
+    from tarot_canvas.ui.main_window import MainWindow
+
+    window = MainWindow()
+    qtbot.addWidget(window)
+    with qtbot.waitActive(window):
+        window.show()
+        window.activateWindow()
+    card = next(c for c in big_image_deck.get_all_cards() if c.get("image"))
+    # What the palette does with the card picked
+    window.handle_command_palette_selection(card, big_image_deck)
+    tab = window.tab_widget.currentWidget()
+    assert isinstance(tab, CardViewTab)
+
+    focus = QApplication.focusWidget() or window
+    qtbot.keyClick(focus, Qt.Key.Key_2, Qt.KeyboardModifier.ControlModifier)
+    assert tab.info_tabs.currentWidget() is tab.esoterica_tab

@@ -56,6 +56,27 @@ def test_option_and_a_digit_is_cmd_on_macos(qapp):
     assert keys_for("window.tab_1", platform="linux") == [QKeySequence("Alt+1")]
 
 
+def test_a_view_digit_is_cmd_option_on_macos_and_the_window_keeps_its_own(qapp):
+    assert default_keys("library.view_1", platform="darwin") == [QKeySequence("Ctrl+Alt+1")]
+    assert default_keys("card.view_3", platform="darwin") == [QKeySequence("Ctrl+Alt+3")]
+    assert default_keys("library.view_1", platform="linux") == [QKeySequence("Ctrl+1")]
+    assert default_keys("window.tab_1", platform="darwin") == [QKeySequence("Ctrl+1")]
+    assert default_keys("window.reset_zoom", platform="darwin") == [QKeySequence("Ctrl+0")]
+
+
+@pytest.mark.parametrize("platform", ["linux", "darwin"])
+def test_no_default_key_clashes_on_either_platform(qapp, platform):
+    keys = {command.id: default_keys(command.id, platform=platform) for command in COMMANDS}
+    assert conflicts(keys) == []
+
+
+def test_a_library_view_key_is_there_for_every_view_in_sidebar_order(qapp):
+    from tarot_canvas.settings import LIBRARY_VIEWS
+
+    view_keys = [c.id for c in COMMANDS if c.id.startswith("library.view_")]
+    assert view_keys == [f"library.view_{n}" for n in range(1, len(LIBRARY_VIEWS) + 1)]
+
+
 def test_a_tooltip_takes_its_key_from_the_command(qapp):
     assert tooltip_with_keys("Summon", "canvas.summon") == "Summon (D)"
     assert tooltip_with_keys("Nothing", "window.go_next") == "Nothing"

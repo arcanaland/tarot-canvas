@@ -416,6 +416,20 @@ def test_ctrl_i_toggles_the_pane(shown_library, qtbot):
     assert not shown_library.details_pane_is_open()
 
 
+def test_ctrl_digit_picks_a_view_by_its_row_and_remembers_it(shown_library, qtbot):
+    shown_library.search_field.setFocus()
+    qtbot.keyClick(shown_library.search_field, Qt.Key.Key_4, Qt.KeyboardModifier.ControlModifier)
+    assert shown_library.current_view() == LIBRARY_VIEW_SPREADS
+    assert shown_library.search_field.hasFocus()
+
+    qtbot.keyClick(shown_library.search_field, Qt.Key.Key_9, Qt.KeyboardModifier.ControlModifier)
+    assert shown_library.current_view() == LIBRARY_VIEW_SPREADS
+
+    again = LibraryTab()
+    qtbot.addWidget(again)
+    assert again.current_view() == LIBRARY_VIEW_SPREADS
+
+
 def test_ctrl_i_does_nothing_with_nothing_to_show(shown_library, qtbot):
     shown_library.search_field.setFocus()
     qtbot.keyClick(shown_library.search_field, Qt.Key.Key_I, Qt.KeyboardModifier.ControlModifier)
