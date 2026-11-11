@@ -18,7 +18,6 @@ from PyQt6.QtGui import (
     QRadialGradient,
 )
 from PyQt6.QtWidgets import (
-    QApplication,
     QGraphicsScene,
     QGraphicsView,
     QHBoxLayout,
@@ -219,13 +218,6 @@ class CanvasTab(BaseTab):
 
         self.setup_ui()
         self.deck = deck_manager.get_reference_deck()
-
-        # Add multiple staggered calls to ensure window bounds
-        # This creates a sequence of enforcement that is harder to override
-        # TODO: another stinky code smell
-        QTimer.singleShot(100, self.ensure_window_bounds)
-        QTimer.singleShot(500, self.ensure_window_bounds)
-        QTimer.singleShot(1000, self.ensure_window_bounds)
 
     def setup_ui(self):
         self.canvas_area = container = QWidget()
@@ -557,47 +549,6 @@ class CanvasTab(BaseTab):
         pattern_brush = QBrush(pixmap)
         self.view.setBackgroundBrush(pattern_brush)
         return color
-
-    def ensure_window_bounds(self):
-        """Ensure the window stays within screen boundaries"""
-        window = self.window()
-        if window:
-            # Get screen geometry
-            screen = QApplication.primaryScreen().availableGeometry()
-
-            # Get window geometry
-            window_geometry = window.geometry()
-
-            # Check if window extends below screen
-            if window_geometry.height() > screen.height() - 50:  # Leave 50px margin
-                # Force a hard resize
-                new_height = screen.height() - 100  # 100px margin for safety
-
-                # Block signals temporarily to prevent resize events from triggering cascading changes
-                window.blockSignals(True)
-                window.resize(window_geometry.width(), new_height)
-                window.blockSignals(False)
-
-                print(f"Window height exceeds screen height - forcing resize to {new_height}")
-
-                # Process events immediately to apply resize
-                QApplication.processEvents()
-
-            # Do a second check after processing events
-            window_geometry = window.geometry()
-            if window_geometry.bottom() > screen.bottom() - 50:
-                # If still too tall, try a different approach - move to visible area
-                print("Window still too tall, applying stronger constraints")
-
-                # Move window to ensure it's within screen bounds
-                new_y = max(screen.top(), screen.bottom() - window_geometry.height() - 50)
-                window.move(window_geometry.x(), new_y)
-
-                # Force immediate processing
-                QApplication.processEvents()
-
-                # As a last resort, modify maximum size of main window
-                window.setMaximumHeight(screen.height() - 100)
 
     def bind_commands(self):
         self.commands = commands.bind(self, Scope.CANVAS, self.command_handlers())

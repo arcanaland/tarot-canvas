@@ -403,7 +403,7 @@ def test_the_editor_has_four_lines_at_least(qtbot, deck, readings_base):
 
 
 def test_a_long_spread_caps_its_list_and_the_pane_does_not_scroll(qtbot, deck, readings_base):
-    tab = shown(qtbot, celtic_cross())
+    tab = shown(qtbot, celtic_cross(), height=600)
     tab.deal()
     settle(qtbot)
 
@@ -427,7 +427,7 @@ def test_a_short_spread_shows_every_row(qtbot, deck, readings_base):
 
 
 def test_turning_keeps_the_next_row_in_the_capped_list(qtbot, deck, readings_base):
-    tab = shown(qtbot, celtic_cross())
+    tab = shown(qtbot, celtic_cross(), height=600)
     tab.deal()
     for _ in range(7):
         tab.turn_next()
