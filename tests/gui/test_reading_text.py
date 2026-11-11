@@ -310,8 +310,6 @@ def test_the_zoom_keys_zoom_the_canvas_and_not_the_reading_text(qtbot):
 
     assert canvas.view.transform().m11() > scale
     assert get_reading_text_scale() == 100
-    # The canvas's timers must not outlive it
-    qtbot.wait(1100)
 
 
 def big_art(view):

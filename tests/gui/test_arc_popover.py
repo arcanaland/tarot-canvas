@@ -51,7 +51,6 @@ def tab(qtbot):
     yield tab
     if tab.arc_popover is not None:
         tab.arc_popover.close()
-    qtbot.wait(1100)
 
 
 def test_opening_previews_the_arc(tab):

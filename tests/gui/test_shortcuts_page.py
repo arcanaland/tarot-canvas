@@ -248,5 +248,3 @@ def test_applying_a_key_rekeys_an_open_window_and_its_tooltips(qtbot):
     assert summoned == [True]
     assert tab.commands["canvas.summon"].toolTip() == "Summon a random card (S)"
     assert window.go_actions["first"].text() == "&First Card\tG"
-
-    qtbot.wait(1100)
