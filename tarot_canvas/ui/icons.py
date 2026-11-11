@@ -27,11 +27,10 @@ def deck_icon():
 
 
 def library_view_icon(view):
-    """A Library view's icon, wherever the view is named: its sidebar row, its key"""
+    """A Library view's icon for a specific page"""
     if view == LIBRARY_VIEW_DECKS:
         return deck_icon()
     if view == LIBRARY_VIEW_ESOTERICA:
-        # The app's own file, not a theme name
         return tinted_icon(ESOTERICA_VIEW_ICON)
     return QIcon.fromTheme(
         {

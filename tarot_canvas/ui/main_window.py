@@ -768,8 +768,7 @@ class MainWindow(QMainWindow):
         return card_tab
 
     def raise_tab_into(self, tab, widget):
-        """Raise a tab and, unless focus is already in it, give it to widget, so the tab's own
-        keys work straight away: Ctrl+L then Ctrl+digit picks a view"""
+        """Raise a tab and focus a specific widget"""
         self.tab_widget.setCurrentWidget(tab)
         if not tab.isAncestorOf(QApplication.focusWidget()):
             widget.setFocus(Qt.FocusReason.OtherFocusReason)
