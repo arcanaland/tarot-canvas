@@ -1,4 +1,4 @@
-"""A kept reading's tab, written to its folder a moment after anything in it changes"""
+"""Tab for a saved reading"""
 
 from dataclasses import replace
 from pathlib import Path
@@ -13,10 +13,7 @@ from tarot_canvas.utils.logger import logger
 
 
 class SavedReading(QObject):
-    """Writes the tab's reading to path a moment after anything in it changes.
-
-    The tab supplies what it holds, as reading_contents(base); the pane, its Question in
-    question_edit, and its date_edit and note when it has them"""
+    """Writes the tab's reading to path a moment after anything in it changes."""
 
     # The Question or the Date changed, so the tab's label may have
     label_changed = pyqtSignal()
