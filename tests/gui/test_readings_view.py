@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 
 import pytest
-from PyQt6.QtCore import QSize
+from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtGui import QColor, QImage
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
@@ -729,6 +729,91 @@ def test_f2_edits_the_selected_rows_question(qtbot, three, window):
     page.select(three[1])
     assert page.rename_selected()
     assert page.list_view.state() == page.list_view.State.EditingState
+
+
+# -- expanding the pane ---------------------------------------------------------------------
+
+
+@pytest.fixture
+def long_and_short(readings_base):
+    return [
+        keep(readings_base, "1", NOW, "Long", note="words\n\n" + "A long line of words. " * 400),
+        keep(readings_base, "2", NOW - timedelta(days=1), "Short", note="brief"),
+    ]
+
+
+def expanded_view(qtbot, window, question):
+    window.resize(1000, 700)
+    with qtbot.waitActive(window):
+        window.show()
+        window.activateWindow()
+    library, page = readings_view(window)
+    page.list_view.clicked.emit(row_for(page, question))
+    page.list_view.selectionModel().setCurrentIndex(
+        row_for(page, question), page.list_view.selectionModel().SelectionFlag.ClearAndSelect
+    )
+    qtbot.waitUntil(library.details_pane_is_open)
+    return library, page, page.details_pane
+
+
+def test_only_an_entry_too_long_for_the_pane_offers_to_expand(qtbot, long_and_short, window):
+    library, page, pane = expanded_view(qtbot, window, "Short")
+    qtbot.wait(20)
+    assert not pane.expand_button.isVisible()
+
+    page.list_view.clicked.emit(row_for(page, "Long"))
+    qtbot.waitUntil(pane.expand_button.isVisible)
+
+
+def test_expanding_hides_the_list_and_restoring_puts_the_divider_back(
+    qtbot, long_and_short, window
+):
+    library, page, pane = expanded_view(qtbot, window, "Long")
+    qtbot.waitUntil(pane.expand_button.isVisible)
+    before = library.splitter.sizes()
+
+    pane.expand_button.click()
+    assert library.details_pane_is_expanded()
+    assert not library.pages.isVisible()
+    assert pane.is_expanded()
+    assert pane.expand_button.toolTip() == READINGS["library_details_restore"]
+
+    pane.expand_button.click()
+    assert not library.details_pane_is_expanded()
+    assert library.pages.isVisible()
+    assert library.splitter.sizes() == before
+    assert pane.expand_button.toolTip() == READINGS["library_details_expand"]
+
+
+def test_escape_in_the_expanded_pane_gives_the_list_back(qtbot, long_and_short, window):
+    library, _page, pane = expanded_view(qtbot, window, "Long")
+    qtbot.waitUntil(pane.expand_button.isVisible)
+    pane.expand_button.click()
+
+    qtbot.keyClick(pane.note_view, Qt.Key.Key_Escape)
+    assert not library.details_pane_is_expanded()
+
+
+def test_another_view_a_search_or_closing_the_pane_gives_the_list_back(
+    qtbot, long_and_short, window
+):
+    library, _page, pane = expanded_view(qtbot, window, "Long")
+    qtbot.waitUntil(pane.expand_button.isVisible)
+
+    pane.expand_button.click()
+    library.show_view(LIBRARY_VIEW_NOTES)
+    assert not library.details_pane_is_expanded()
+    assert library.pages.isVisible()
+
+    library.show_view(LIBRARY_VIEW_READINGS)
+    pane.expand_button.click()
+    library.search_field.setText("Long")
+    assert not library.details_pane_is_expanded()
+
+    pane.expand_button.click()
+    library.toggle_details_pane()
+    assert not library.details_pane_is_expanded()
+    assert library.pages.isVisible()
 
 
 # -- live refresh ---------------------------------------------------------------------------

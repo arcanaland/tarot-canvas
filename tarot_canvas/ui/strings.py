@@ -716,6 +716,8 @@ READINGS = {
     "library_empty_no_match": "No matches.",
     "library_details_toggle_show": "Show details",
     "library_details_toggle_hide": "Hide details",
+    "library_details_expand": "<clankertext>Expand entry</clankertext>",
+    "library_details_restore": "<clankertext>Show the list again</clankertext>",
     "library_open": "Open Canvas",
     "library_delete": "Delete Entry",
     "library_deleted_message": "Entry deleted.",

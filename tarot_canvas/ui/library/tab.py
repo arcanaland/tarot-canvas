@@ -69,6 +69,8 @@ class LibraryTab(BaseTab):
         # alone: the next view with something reopens it
         self._details_held = False
         self._below_share = self._saved_below_share()
+        # The splitter's sizes while the pane has the list's room, or None while it hasn't
+        self._sizes_before_expand = None
         self.setup_ui()
 
     def setup_ui(self):
@@ -93,6 +95,7 @@ class LibraryTab(BaseTab):
         self.readings_page.open_requested.connect(self.on_reading_open_requested)
         self.readings_page.delete_requested.connect(self.on_reading_delete_requested)
         self.readings_page.rename_requested.connect(self.on_reading_rename_requested)
+        self.readings_page.details_pane.expand_requested.connect(self.set_details_expanded)
         self.readings_page.details_changed.connect(self._on_list_details_changed)
 
         self.esoterica_page = EsotericaPage(deck=deck_manager.get_reference_deck())
@@ -323,6 +326,8 @@ class LibraryTab(BaseTab):
         self.settings.setValue(LIBRARY_VIEW_KEY, view)
 
     def _apply_view(self, view):
+        # Expanding is for reading one entry; another view gets its list back
+        self.set_details_expanded(False)
         page = self.list_pages[view]
         decks = view == LIBRARY_VIEW_DECKS
         was_open = self.details_pane_is_open() or self._details_held
@@ -380,6 +385,8 @@ class LibraryTab(BaseTab):
         return self.current_list_page().focus_first_row()
 
     def on_search_changed(self, text):
+        # A search is for the list, so the list comes back
+        self.set_details_expanded(False)
         self.current_list_page().set_search(text)
 
     def on_card_activated(self, card_id):
@@ -531,7 +538,31 @@ class LibraryTab(BaseTab):
         if self._details_wanted:
             self._set_details_open(True)
 
+    def details_pane_is_expanded(self):
+        return self._sizes_before_expand is not None
+
+    def set_details_expanded(self, want):
+        """Give the open pane the list's room, or give it back where the divider was"""
+        pane = self.current_details_pane()
+        want = want and self.details_pane_is_open() and hasattr(pane, "set_expanded")
+        if want == self.details_pane_is_expanded():
+            return
+        if want:
+            # The list can't collapse to nothing, so it goes, and its divider is kept
+            self._sizes_before_expand = self.splitter.sizes()
+            self.pages.hide()
+        else:
+            sizes, self._sizes_before_expand = self._sizes_before_expand, None
+            self.pages.show()
+            self.splitter.setSizes(sizes)
+        for each in self.list_pages.values():
+            if hasattr(each.details_pane, "set_expanded"):
+                each.details_pane.set_expanded(want and each.details_pane is pane)
+
     def _set_details_open(self, want):
+        if not want:
+            # Before its extent is kept, so the extent is the one beside the list
+            self.set_details_expanded(False)
         if want != self.details_pane_is_open():
             if want:
                 self.details_container.show()

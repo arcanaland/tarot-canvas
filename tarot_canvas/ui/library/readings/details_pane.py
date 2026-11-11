@@ -27,6 +27,7 @@ from tarot_canvas.ui.library.readings.model import (
     open_text,
 )
 from tarot_canvas.ui.strings import READINGS
+from tarot_canvas.ui.widgets.expand_button import ExpandButton
 from tarot_canvas.ui.widgets.markdown_view import MarkdownView
 from tarot_canvas.ui.widgets.pane_text import pane_text
 from tarot_canvas.utils.logger import logger
@@ -92,6 +93,8 @@ class ReadingDetailsPane(QWidget):
     """A reading's Question, what it was, its layout on its ground beside its cards, its note"""
 
     open_requested = pyqtSignal(object)  # the reading's folder
+    # The expand button was clicked, or Esc pressed while expanded: whether to expand
+    expand_requested = pyqtSignal(bool)
 
     # The diagram's largest strip: as wide as the spread pane's, a short band tall
     DIAGRAM_STRIP = QSize(14 * units.GRID_UNIT, 8 * units.GRID_UNIT)
@@ -120,6 +123,17 @@ class ReadingDetailsPane(QWidget):
         heading_row.setSpacing(units.LARGE_SPACING)
         heading_row.addLayout(heading_column, 1)
         heading_row.addWidget(self.open_button, 0, Qt.AlignmentFlag.AlignTop)
+
+        # In the corner, after Open; its room is kept while hidden, so Open never shifts
+        self._expanded = False
+        self.expand_button = ExpandButton(
+            READINGS["library_details_expand"], READINGS["library_details_restore"]
+        )
+        policy = self.expand_button.sizePolicy()
+        policy.setRetainSizeWhenHidden(True)
+        self.expand_button.setSizePolicy(policy)
+        self.expand_button.clicked.connect(lambda: self.expand_requested.emit(not self._expanded))
+        heading_row.addWidget(self.expand_button, 0, Qt.AlignmentFlag.AlignTop)
 
         self.diagram = LayoutDiagram(strip=self.DIAGRAM_STRIP)
         self.cards = _CardColumns()
@@ -152,6 +166,7 @@ class ReadingDetailsPane(QWidget):
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.scroll_area.setWidget(content)
+        self.scroll_area.verticalScrollBar().rangeChanged.connect(self._sync_expand_button)
 
         margin = units.GRID_UNIT
         layout = QVBoxLayout(self)
@@ -163,6 +178,25 @@ class ReadingDetailsPane(QWidget):
     def details(self):
         """The ReadingRow shown, or None"""
         return self._details
+
+    def is_expanded(self):
+        return self._expanded
+
+    def set_expanded(self, expanded):
+        """Say whether the pane has the list's room; the Library tab gives it"""
+        self._expanded = expanded
+        self._sync_expand_button()
+
+    def _sync_expand_button(self, *_):
+        # Only a pane that doesn't fit needs it, so a short entry never shows it
+        overflowing = self.scroll_area.verticalScrollBar().maximum() > 0
+        self.expand_button.sync(self._expanded or overflowing, self._expanded)
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Escape and self._expanded:
+            self.expand_requested.emit(False)
+            return
+        super().keyPressEvent(event)
 
     def card_lines(self):
         """The card rows' text, in reading order: down each column, then the next"""
@@ -197,6 +231,7 @@ class ReadingDetailsPane(QWidget):
 
         if previous is None or previous.path != row.path:
             self.scroll_area.verticalScrollBar().setValue(0)
+        self._sync_expand_button()
 
     def _on_open(self):
         if self._details is not None:
