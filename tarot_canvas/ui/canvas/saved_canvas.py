@@ -1,19 +1,15 @@
-"""A saved canvas: its pane, and the write that follows every change"""
+"""A saved canvas's pane, and what any kept reading needs to name its cards and decks"""
 
 from collections import Counter
-from dataclasses import replace
 from datetime import datetime
-from pathlib import Path
 
 from PyQt6.QtCore import (
     QDate,
     QDateTime,
     QEvent,
-    QObject,
     QPointF,
     Qt,
     QTime,
-    QTimer,
     pyqtSignal,
     pyqtSlot,
 )
@@ -30,8 +26,6 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from tarot_canvas.models import readings
-from tarot_canvas.models.reading_events import reading_events
 from tarot_canvas.models.readings import Reading, ReadingCard
 from tarot_canvas.ui.canvas.reading_note import ReadingNote
 from tarot_canvas.ui.canvas.reading_pane import DATE_ICON, FactLines, QuestionBox, fact_indent
@@ -41,7 +35,7 @@ from tarot_canvas.ui.strings import READINGS
 from tarot_canvas.utils.dates import format_qdatetime
 from tarot_canvas.utils.logger import logger
 
-# How long the canvas stays still before it is written
+# How long a kept reading stays still before it is written
 AUTOSAVE_MS = 1000
 
 
@@ -78,26 +72,39 @@ def resolve_deck(key, decks, reference):
     return deck
 
 
+def default_deck(keys):
+    """The deck most of a reading's cards name: the one the rest are told apart from"""
+    return Counter(keys).most_common(1)[0][0] if keys else ""
+
+
+def reading_card(item, key, reversed=None, **fields):
+    """A ReadingCard for canvas item, from deck key, where it lies now"""
+    return ReadingCard(
+        id=item.card_data["id"],
+        reversed=item.is_reversed() if reversed is None else reversed,
+        deck=key,
+        x=item.pos().x(),
+        y=item.pos().y(),
+        z=item.zValue(),
+        rotation=item.orient,
+        **fields,
+    )
+
+
+def resolve_decks(cards, decks, reference):
+    """{key: deck} for every deck ReadingCards cards name"""
+    keys = dict.fromkeys(card.deck for card in cards)
+    return {key: resolve_deck(key, decks, reference) for key in keys}
+
+
 def cards_of(items):
     """(default deck, ReadingCards) for canvas items, in stacking order"""
     ordered = [
         item for item in sorted(items, key=lambda item: item.zValue()) if item.card_data.get("id")
     ]
     keys = [deck_key(item.deck) for item in ordered]
-    default = Counter(keys).most_common(1)[0][0] if keys else ""
-    cards = tuple(
-        ReadingCard(
-            id=item.card_data["id"],
-            reversed=item.is_reversed(),
-            deck=key,
-            x=item.pos().x(),
-            y=item.pos().y(),
-            z=item.zValue(),
-            rotation=item.orient,
-        )
-        for item, key in zip(ordered, keys, strict=True)
-    )
-    return default, cards
+    cards = tuple(reading_card(item, key) for item, key in zip(ordered, keys, strict=True))
+    return default_deck(keys), cards
 
 
 def local_qdatetime(when):
@@ -246,89 +253,6 @@ class SavedCanvasPane(SidePane):
         self.date_text.show()
         if refocus:
             self.date_text.setFocus()
-
-
-class SavedReading(QObject):
-    """Writes the tab's reading to path a moment after anything in it changes"""
-
-    # The Question or the Date changed, so the tab's label may have
-    label_changed = pyqtSignal()
-
-    def __init__(self, tab, path, reading):
-        super().__init__(tab)
-        self.tab = tab
-        self.path = Path(path)
-        # Carries what the canvas does not hold
-        self._base = reading
-        self._date = reading.date
-
-        self.pane = SavedCanvasPane(tab, self.path, reading)
-
-        self.timer = QTimer(self)
-        self.timer.setSingleShot(True)
-        self.timer.setInterval(AUTOSAVE_MS)
-        self.timer.timeout.connect(self.write)
-
-        tab.layout_changed.connect(self.schedule)
-        self.pane.question_edit.textChanged.connect(self.schedule)
-        self.pane.question_edit.textChanged.connect(self.label_changed)
-        self.pane.date_edit.dateTimeChanged.connect(self._on_date_edited)
-
-        app = QApplication.instance()
-        if app is not None:
-            app.aboutToQuit.connect(self.flush)
-
-    def question(self):
-        return self.pane.question_edit.text().strip()
-
-    def date(self):
-        return self._date
-
-    def label(self):
-        return reading_label(self.question(), self._date)
-
-    def set_question(self, text):
-        self.pane.question_edit.setText(text)
-
-    @pyqtSlot(QDateTime)
-    def _on_date_edited(self, edited):
-        self._date = edited.toPyDateTime().astimezone()
-        self.schedule()
-        self.label_changed.emit()
-
-    @pyqtSlot()
-    def schedule(self):
-        self.timer.start()
-
-    @pyqtSlot()
-    def flush(self):
-        """Write now if a write is waiting"""
-        if self.timer.isActive():
-            self.write()
-        self.pane.note.flush()
-
-    def reading(self):
-        deck, cards = cards_of(self.tab.cards())
-        return replace(
-            self._base,
-            date=self._date,
-            question=self.question(),
-            deck=deck,
-            cards=cards,
-            ground=self.tab.ground,
-        )
-
-    @pyqtSlot()
-    def write(self):
-        """Write the reading, and return whether that worked"""
-        self.timer.stop()
-        try:
-            readings.save(self.path, self.reading())
-        except OSError as error:
-            logger.error(f"Could not save reading {self.path}: {error}")
-            return False
-        reading_events().readings_changed.emit()
-        return True
 
 
 def new_reading():

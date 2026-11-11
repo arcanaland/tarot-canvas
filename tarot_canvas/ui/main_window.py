@@ -605,11 +605,11 @@ class MainWindow(QMainWindow):
             logger.error(f"Could not open spread {path}: {error}")
             self.toast.show_message(SPREADS["open_failed"])
             return None
-        return self.open_reading_of(spread)
+        return self.open_reading_of(spread, Path(path).name)
 
-    def open_reading_of(self, spread):
-        """A new tab dealing a reading from spread, and return it"""
-        return self.add_canvas_tab(ReadingTab(spread))
+    def open_reading_of(self, spread, spread_from=""):
+        """A new tab dealing a reading from spread, opened from folder spread_from, and return it"""
+        return self.add_canvas_tab(ReadingTab(spread, spread_from=spread_from))
 
     def saved_reading_tab(self, path):
         for index in range(self.tab_widget.count()):
@@ -629,9 +629,15 @@ class MainWindow(QMainWindow):
         if reading is None:
             self.toast.show_message(READINGS["open_failed"])
             return None
-        tab = CanvasTab()
-        tab.tab_name = self.next_canvas_name()
-        tab.restore_cards(reading, deck_manager.get_all_decks(), deck_manager.get_reference_deck())
+        decks = deck_manager.get_all_decks()
+        reference = deck_manager.get_reference_deck()
+        if reading.spread is None:
+            tab = CanvasTab()
+            tab.tab_name = self.next_canvas_name()
+            tab.restore_cards(reading, decks, reference)
+        else:
+            tab = ReadingTab(reading.spread, spread_from=reading.spread_from)
+            tab.restore_reading(reading, decks, reference)
         tab.ground = reading.ground
         tab.apply_ground()
         tab.save_as(path, reading)
@@ -793,7 +799,8 @@ class MainWindow(QMainWindow):
             self.open_unsaved_spread(data)
 
         elif action == "open_reading_of":
-            self.open_reading_of(data)
+            spread, spread_from = data
+            self.open_reading_of(spread, spread_from)
 
     @staticmethod
     def _deck_path_key(deck_path):

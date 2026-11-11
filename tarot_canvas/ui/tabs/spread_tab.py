@@ -1,4 +1,5 @@
 from contextlib import suppress
+from pathlib import Path
 
 from PyQt6.QtCore import QSignalBlocker, Qt, QTimer, QUrl, pyqtSlot
 from PyQt6.QtGui import QAction, QDesktopServices, QIcon
@@ -305,7 +306,10 @@ class SpreadTab(SpreadSlots, CanvasTab):
     def start_reading(self):
         """A reading of the spread as it stands, saved or not"""
         if self._slots:
-            self.navigation_requested.emit("open_reading_of", self.current_spread())
+            # A reading names the folder only of a spread it was dealt from as saved
+            saved = self.spread_path is not None and not self._modified
+            origin = Path(self.spread_path).name if saved else ""
+            self.navigation_requested.emit("open_reading_of", (self.current_spread(), origin))
 
     @pyqtSlot()
     def duplicate(self):

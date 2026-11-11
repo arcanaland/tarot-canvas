@@ -2,12 +2,15 @@
 
 import os
 import random
+from dataclasses import replace
 
-from PyQt6.QtCore import QDateTime, QItemSelectionModel, QLineF, QRectF, QSignalBlocker, Qt, QTimer
+from PyQt6.QtCore import QItemSelectionModel, QLineF, QRectF, QSignalBlocker, Qt, QTimer
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QSplitter, QVBoxLayout, QWidget
 
+from tarot_canvas.models import readings
 from tarot_canvas.models.deck_manager import deck_manager
+from tarot_canvas.models.readings import Reading
 from tarot_canvas.settings import (
     get_readings_deck,
     get_readings_reversals,
@@ -16,6 +19,7 @@ from tarot_canvas.settings import (
 )
 from tarot_canvas.ui.canvas.backs import back_pixmap
 from tarot_canvas.ui.canvas.candle import Candle, WarmPatch
+from tarot_canvas.ui.canvas.card_item import DraggableCardItem
 from tarot_canvas.ui.canvas.detail import card_unit_size
 from tarot_canvas.ui.canvas.halo import HaloItem
 from tarot_canvas.ui.canvas.placement import (
@@ -36,6 +40,16 @@ from tarot_canvas.ui.canvas.reading_card import (
 from tarot_canvas.ui.canvas.reading_marks import Badges, Caption
 from tarot_canvas.ui.canvas.reading_pane import ReadingPane, RowOpener
 from tarot_canvas.ui.canvas.reading_strip import ReadingStrip, RevealKeys
+from tarot_canvas.ui.canvas.saved_canvas import (
+    deck_key,
+    default_deck,
+    local_qdatetime,
+    now,
+    reading_card,
+    resolve_deck,
+    resolve_decks,
+)
+from tarot_canvas.ui.canvas.saved_reading import SavedReading
 from tarot_canvas.ui.canvas.slot_item import SlotItem
 from tarot_canvas.ui.card_transfer import deck_path_key
 from tarot_canvas.ui.icons import SPREAD_ICON
@@ -90,12 +104,16 @@ class ReadingTab(SpreadSlots, CanvasTab):
     # {socket: card} filled by hand, until the table next changes
     _by_hand = None
 
-    def __init__(self, spread, parent=None):
+    def __init__(self, spread, parent=None, spread_from=""):
         super().__init__(parent)
         self.init_slots()
         self.spread = spread
+        # The folder the spread was opened from, or "" for one not saved as it is
+        self.spread_from = spread_from
         self.phase = Phase.STAGED
         self.dealt_at = None
+        # Whether the deal could draw reversed cards, or None until it drew any
+        self.dealt_reversals = None
         # Every card that fills a position, in number order: the order they turn and are stepped
         self._order = []
         # The cards dealt face-down, and those still to turn, in number order
@@ -381,7 +399,10 @@ class ReadingTab(SpreadSlots, CanvasTab):
         return self.pane.reversals_check.isChecked()
 
     def _draw_reversed(self):
-        return self.reversals() and random.random() < 0.5
+        reversals = self.dealt_reversals
+        if reversals is None:
+            reversals = self.reversals()
+        return reversals and random.random() < 0.5
 
     def _on_deck_chosen(self):
         if self.phase is Phase.STAGED:
@@ -440,10 +461,9 @@ class ReadingTab(SpreadSlots, CanvasTab):
         for card in self._order:
             if card.deck is not None and card.deck not in decks:
                 decks.append(card.deck)
-        reversals = self.reversals() if self._dealt else None
         if not decks and self.deck is not None:
             decks.append(self.deck)
-        self.pane.sync(self.phase, decks, reversals, self.dealt_at)
+        self.pane.sync(self.phase, decks, self.dealt_reversals, self.dealt_at)
 
     def _sync_staging(self):
         if self.phase is Phase.STAGED:
@@ -515,7 +535,8 @@ class ReadingTab(SpreadSlots, CanvasTab):
         if self.phase is not Phase.STAGED or self.deck is None:
             return
         self.refresh_motion_settings()
-        self.dealt_at = QDateTime.currentDateTime()
+        when = now()
+        self.dealt_at = local_qdatetime(when)
         self.scene.clearSelection()
 
         by_hand = self._filled_by_hand()
@@ -541,9 +562,11 @@ class ReadingTab(SpreadSlots, CanvasTab):
             logger.info(f"Short deal: {len(self._dealt)} cards for {len(empty)} positions")
             filled = len(self.placements) - len(empty) + len(self._dealt)
             self._toast(READINGS["short_deal"].format(dealt=filled, positions=len(self.placements)))
+        self.dealt_reversals = self.reversals() if self._dealt else None
         self._turn_queue = list(self._dealt)
         self._order = [p.card for p in self.placements if p.card is not None]
         self.set_phase(Phase.DEALT)
+        self._keep(when)
         # The keys that turn are the canvas's, and the Deal button is about to go
         self.view.setFocus(Qt.FocusReason.OtherFocusReason)
 
@@ -609,15 +632,117 @@ class ReadingTab(SpreadSlots, CanvasTab):
         self.bar.sync()
         self.view.viewport().update()
 
-    def _finish_deal(self):
+    def _finish_deal(self, fade=True):
         self._flights.clear()
         self._top_z = max([self._top_z] + [card.zValue() for card in self._dealt])
         if not self._turn_queue:
             self._read()
             return
         self._sync_next()
-        self.halo.attach(self.next_card(), fade=self.motion_level != "Off")
+        self.halo.attach(self.next_card(), fade=fade and self.motion_level != "Off")
         self._wake()
+
+    # -- keeping ----------------------------------------------------------------------------
+
+    def _keep(self, when):
+        """Keep the reading, dealt at when, in a new folder, and write it there from now on"""
+        try:
+            path = readings.new_reading_dir()
+        except OSError as error:
+            logger.error(f"Could not make a folder for a reading: {error}")
+            return
+        self.save_as(path, Reading(date=when))
+        self.saved_reading.write()
+
+    def save_as(self, path, reading):
+        """From now on, this is the reading in folder path, and writes itself there"""
+        self.saved_reading = SavedReading(self, path, reading, self.pane)
+
+    def reading_contents(self, base):
+        """base, holding the spread and its cards as they are now: the positions' cards in number
+        order, then those added since"""
+        items = [(p.card, p.slot.position_id) for p in self.placements if p.card is not None]
+        loose = [
+            card
+            for card in sorted(self.cards(), key=lambda card: card.zValue())
+            if not isinstance(card, SlotItem) and self.placement_of(card) is None
+        ]
+        items += [(card, "") for card in loose]
+        items = [(card, position) for card, position in items if card.card_data.get("id")]
+        keys = [deck_key(card.deck) for card, _ in items]
+        cards = tuple(
+            self._kept_card(card, key, position)
+            for (card, position), key in zip(items, keys, strict=True)
+        )
+        return replace(
+            base,
+            deck=default_deck(keys),
+            reversals=self.dealt_reversals,
+            spread=self.spread,
+            spread_from=self.spread_from,
+            cards=cards,
+            ground=self.ground,
+        )
+
+    def _kept_card(self, item, key, position):
+        """item as a ReadingCard, where it lies, or where it will land while it is in flight"""
+        face_down = is_face_down(item)
+        reversed = item.drawn_reversed if face_down else item.is_reversed()
+        card = reading_card(item, key, reversed, position=position, turned=not face_down)
+        if not position:
+            return card
+        slot = self.placement_of(item).slot
+        if item in self._landed:
+            # The next or turning card is raised only while it is
+            if item.zValue() >= NEXT_Z:
+                return replace(card, z=CARD_Z + slot.zValue())
+            return card
+        at = _centre(slot) - item.boundingRect().center()
+        return replace(
+            card, x=at.x(), y=at.y(), z=CARD_Z + slot.zValue(), rotation=slot.orient % 360
+        )
+
+    def restore_reading(self, reading, decks, reference):
+        """Lay a kept reading out as it was left, dealt or read, with nothing moving"""
+        self.pane.question_edit.setText(reading.question)
+        self.dealt_at = local_qdatetime(reading.date)
+        self.dealt_reversals = reading.reversals
+        self.deck = resolve_deck(reading.deck, decks, reference)
+
+        by_position = {p.slot.position_id: p for p in self.placements}
+        resolved = resolve_decks(reading.cards, decks, reference)
+        backs = {}
+        for card in reading.cards:
+            placement = by_position.get(card.position) if card.position else None
+            if placement is not None and placement.card is not None:
+                logger.warning(
+                    f"Card {card.id!r} shares position {card.position!r}, so it is loose"
+                )
+                placement = None
+            face_down = placement is not None and not card.turned
+            deck = resolved[card.deck]
+            item = self.restore_card(card, deck, ReadingCard if face_down else DraggableCardItem)
+            if item is None:
+                continue
+            if face_down:
+                size = item.face_pixmap().size()
+                key = (id(deck), size.width(), size.height())
+                if key not in backs:
+                    backs[key] = back_pixmap(deck, size)
+                item.lie_face_down(*backs[key])
+            if placement is not None:
+                placement.fill(item)
+                placement.sync_slot(landed=True)
+                self._landed.add(item)
+
+        self._order = [p.card for p in self.placements if p.card is not None]
+        self._dealt = [card for card in self._order if is_face_down(card)]
+        self._turn_queue = list(self._dealt)
+        if self._turn_queue:
+            self.set_phase(Phase.DEALT)
+        # Read at once if nothing is face-down
+        self._finish_deal(fade=False)
+        self.settle_motion()
 
     # -- turning ----------------------------------------------------------------------------
 
@@ -679,6 +804,8 @@ class ReadingTab(SpreadSlots, CanvasTab):
         placement = self.placement_of(card)
         if placement is not None:
             card.setZValue(CARD_Z + placement.slot.zValue())
+        if self.saved_reading is not None:
+            self.saved_reading.schedule()
         self.refresh_rows()
         if not self._turn_queue and not any(c.is_turning() for c in self._dealt):
             self._read()
