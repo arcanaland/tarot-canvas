@@ -6,6 +6,8 @@ from PyQt6.QtCore import Qt
 SubtitleRole = Qt.ItemDataRole.UserRole + 2
 CoverPathRole = Qt.ItemDataRole.UserRole + 3
 PreviewRole = Qt.ItemDataRole.UserRole + 15
+# Short text at a row's trailing end, before its buttons, or None for none
+BadgeRole = Qt.ItemDataRole.UserRole + 16
 # True on a heading row. A model answers it and gives the row no flags, so it is never selected
 SectionRole = Qt.ItemDataRole.UserRole + 40
 

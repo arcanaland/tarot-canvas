@@ -725,6 +725,11 @@ READINGS = {
     "library_note": "Notes",
     "library_face_down": "(hidden)",
     "library_card_position": "{position}: {card}",
+    "library_resume": "Resume Reading",
+    "library_rename": "Rename Entry",
+    "library_menu_tooltip": "Entry details",
+    "library_meta": "{when} · {spread}",
+    "library_revealed": "{turned} of {total} revealed",
     "sort_oldest": "Oldest",
     "sort_tooltip": "Sort entries",
 }

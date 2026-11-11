@@ -1,5 +1,7 @@
 """A layout's shape with its numbers, for any Library view's pane; a reading's on its ground"""
 
+import math
+
 from PyQt6.QtCore import QObject, QRect, QRectF, QSize, Qt
 from PyQt6.QtGui import QPainter, QPainterPath
 from PyQt6.QtWidgets import QWidget
@@ -38,17 +40,42 @@ class _PendingSource(QObject):
         self.diagram.source_ready(self)
 
 
+def marks_extent(marks, style):
+    """The fraction of a style's icon square that marks cover, turned as they are"""
+    x0 = y0 = math.inf
+    x1 = y1 = -math.inf
+    for mark in marks:
+        radians = math.radians(mark.angle)
+        cos, sin = abs(math.cos(radians)), abs(math.sin(radians))
+        half_w = (mark.w * cos + mark.h * sin) / 2
+        half_h = (mark.w * sin + mark.h * cos) / 2
+        x0, x1 = min(x0, mark.x - half_w), max(x1, mark.x + half_w)
+        y0, y1 = min(y0, mark.y - half_h), max(y1, mark.y + half_h)
+    area = 1 - 2 * style.inset
+    return QRectF(
+        style.inset + x0 * area, style.inset + y0 * area, (x1 - x0) * area, (y1 - y0) * area
+    )
+
+
 class LayoutDiagram(QWidget):
-    """Marks as large as its width and the pane's height allow, over a ground or none"""
+    """Marks as large as its width and the pane's height allow, over a ground or none.
+
+    As a strip, the ground is cut to the marks' own extent with a margin round them, and the
+    widget is as large as that, inside `strip`, allows.
+    """
 
     WIDTH = 14 * units.GRID_UNIT
+    STRIP_MARGIN = units.GRID_UNIT
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, strip=None):
         super().__init__(parent)
         self._icon = None
         self._ground = None
         self._pending = None
-        self.setFixedWidth(self.WIDTH)
+        self._strip = strip  # the largest QSize a strip may take, or None for a square
+        self._icon_rect = QRect()
+        if strip is None:
+            self.setFixedWidth(self.WIDTH)
         self.hide()
 
     def ground(self):
@@ -59,21 +86,46 @@ class LayoutDiagram(QWidget):
         self._ground = ground if marks else None
         style = DIAGRAM if ground is None else GROUNDED_DIAGRAM
         self._icon = spread_icon(marks, style) if marks else None
+        if marks and self._strip is not None:
+            self._fit_strip(marks, style)
         self.setVisible(self._icon is not None)
         self._request_source()
         self.update()
 
+    def _fit_strip(self, marks, style):
+        extent = marks_extent(marks, style)
+        margin = self.STRIP_MARGIN
+        span_w = max(extent.width(), 1e-3)
+        span_h = max(extent.height(), 1e-3)
+        side = min(
+            (self._strip.width() - 2 * margin) / span_w,
+            (self._strip.height() - 2 * margin) / span_h,
+        )
+        self.setFixedSize(round(span_w * side + 2 * margin), round(span_h * side + 2 * margin))
+        self._icon_rect = QRect(
+            round(margin - extent.x() * side),
+            round(margin - extent.y() * side),
+            round(side),
+            round(side),
+        )
+
     def square(self):
-        """Where the diagram paints: a square at the top, centred across"""
+        """Where the ground paints: a square at the top, centred across, or a strip's whole rect"""
+        if self._strip is not None:
+            return self.rect()
         side = min(self.width(), self.height())
         square = QRect(0, 0, side, side)
         square.moveCenter(QRect(0, 0, self.width(), side).center())
         return square
 
+    def icon_rect(self):
+        """Where the marks' icon paints: the square, or the strip's square reaching past it"""
+        return self._icon_rect if self._strip is not None else self.square()
+
     def _device(self):
         ratio = self.devicePixelRatioF()
-        side = self.square().width()
-        return QSize(round(side * ratio), round(side * ratio))
+        rect = self.square()
+        return QSize(round(rect.width() * ratio), round(rect.height() * ratio))
 
     def _source_key(self):
         ground = self._ground
@@ -125,5 +177,5 @@ class LayoutDiagram(QWidget):
             image = _sources.get(self._source_key())
             paint_ground(painter, square, self._ground, self.devicePixelRatioF(), image)
             painter.restore()
-        self._icon.paint(painter, square)
+        self._icon.paint(painter, self.icon_rect())
         painter.end()

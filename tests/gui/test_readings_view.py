@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 import pytest
 from PyQt6.QtCore import QSize
 from PyQt6.QtGui import QColor, QImage
-from PyQt6.QtWidgets import QMessageBox
+from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from tarot_canvas.models import readings
 from tarot_canvas.models.ground import Ground
@@ -18,8 +18,10 @@ from tarot_canvas.settings import (
     get_settings,
 )
 from tarot_canvas.ui import commands
+from tarot_canvas.ui.canvas.detail import card_unit_size
 from tarot_canvas.ui.canvas.saved_canvas import AUTOSAVE_MS, local_qdatetime
 from tarot_canvas.ui.library import diagram as diagram_module
+from tarot_canvas.ui.library.readings.details_pane import ReadingDetailsPane
 from tarot_canvas.ui.library.readings.model import (
     SORT_EDITED,
     SORT_NEWEST,
@@ -27,13 +29,15 @@ from tarot_canvas.ui.library.readings.model import (
     CardRow,
     ReadingPathRole,
     card_row_text,
+    spatial_order,
 )
 from tarot_canvas.ui.library.readings.page import ReadingsPage
+from tarot_canvas.ui.library.roles import BadgeRole, SubtitleRole
 from tarot_canvas.ui.library.section_row import is_section
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.strings import READINGS, SPREADS
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
-from tarot_canvas.utils.dates import format_month, format_qdatetime
+from tarot_canvas.utils.dates import format_month, format_qdatetime, format_recent
 
 NOW = datetime.now().astimezone().replace(microsecond=0)
 
@@ -96,6 +100,15 @@ def first_reading(page):
         for row in range(page.list_model.rowCount())
         if not is_section(page.list_model.index(row, 0))
     )
+
+
+PAST_PRESENT_FUTURE = Spread(
+    name="Three ways",
+    positions=tuple(
+        Position(id=key, label=key.title(), x=float(n))
+        for n, key in enumerate(("past", "present", "future"))
+    ),
+)
 
 
 def readings_view(window):
@@ -260,6 +273,7 @@ def test_the_pane_shows_the_question_date_numbered_cards_and_note(
         "1",
         NOW,
         "Should I?",
+        spread=PAST_PRESENT_FUTURE,
         cards=[ReadingCard(id=first), ReadingCard(id=second, reversed=True)],
         note="# Morning\nclear skies",
     )
@@ -269,7 +283,9 @@ def test_the_pane_shows_the_question_date_numbered_cards_and_note(
     pane = page.details_pane
     names = [minimal_deck.get_card_by_id(card)["name"] for card in (first, second)]
     assert pane.heading_label.text() == "Should I?"
-    assert pane.date_label.text() == format_qdatetime(local_qdatetime(NOW))
+    assert pane.meta_label.text() == READINGS["library_meta"].format(
+        when=format_recent(local_qdatetime(NOW)), spread="Three ways"
+    )
     assert pane.card_lines() == [
         card_row_text(CardRow(1, "", names[0], False)),
         card_row_text(CardRow(2, "", names[1], True)),
@@ -298,17 +314,8 @@ def test_a_reading_without_a_note_shows_no_note_section(readings_base, page):
     page.list_view.clicked.emit(first_reading(page))
 
     pane = page.details_pane
-    assert not pane.note_title.isVisibleTo(pane)
+    assert not pane.note_rule.isVisibleTo(pane)
     assert not pane.note_view.isVisibleTo(pane)
-
-
-PAST_PRESENT_FUTURE = Spread(
-    name="Three ways",
-    positions=tuple(
-        Position(id=key, label=key.title(), x=float(n))
-        for n, key in enumerate(("past", "present", "future"))
-    ),
-)
 
 
 @pytest.fixture
@@ -358,15 +365,77 @@ def test_searching_a_face_down_cards_name_finds_nothing(mid_deal, page):
     assert labels(page) == ["Mid-deal"]
 
 
-def test_a_plain_canvas_numbers_its_cards_without_positions(readings_base, page, minimal_deck):
-    card = minimal_deck.get_all_cards()[0]
-    keep(readings_base, "1", NOW, "Plain", cards=[ReadingCard(id=card["id"], position="past")])
+def test_a_sandbox_lists_its_cards_unnumbered_by_where_they_lie(readings_base, page, minimal_deck):
+    first, second = minimal_deck.get_all_cards()[:2]
+    unit = card_unit_size()
+    keep(
+        readings_base,
+        "1",
+        NOW,
+        "Plain",
+        cards=[
+            # Put down last but lying top left, then one a little lower beside it, then below
+            ReadingCard(id=second["id"], x=2 * unit.width(), y=unit.height() * 0.2),
+            ReadingCard(id=first["id"], x=0.0, y=3 * unit.height(), position="past"),
+            ReadingCard(id=first["id"], x=0.0, y=0.0),
+        ],
+    )
     page.refresh()
     page.list_view.clicked.emit(first_reading(page))
 
-    assert page.details_pane.card_lines() == [
-        SPREADS["slot_row"].format(number=1, label=card["name"])
+    # No numbers and no positions: a sandbox has neither
+    assert page.details_pane.card_lines() == [first["name"], second["name"], first["name"]]
+
+
+def test_spatial_order_reads_rows_top_to_bottom_then_left_to_right():
+    unit = QSize(10, 20)
+    cards = [
+        ReadingCard(id="c", x=0, y=40),
+        ReadingCard(id="b", x=20, y=5),
+        ReadingCard(id="a", x=0, y=0),
     ]
+    assert [card.id for card in spatial_order(cards, unit)] == ["a", "b", "c"]
+
+
+def test_many_cards_flow_into_columns(readings_base, page, minimal_deck):
+    card = minimal_deck.get_all_cards()[0]["id"]
+    positions = tuple(Position(id=str(n), label=str(n), x=float(n)) for n in range(10))
+    keep(
+        readings_base,
+        "1",
+        NOW,
+        "Big",
+        spread=Spread(name="Ten", positions=positions),
+        cards=[ReadingCard(id=card, position=str(n)) for n in range(10)],
+    )
+    page.refresh()
+    page.list_view.clicked.emit(first_reading(page))
+
+    pane = page.details_pane
+    assert pane.card_columns() == 2
+    # Still in deal order, down the first column then the second
+    assert [line.split(".")[0] for line in pane.card_lines()] == [str(n) for n in range(1, 11)]
+
+
+def test_the_diagram_is_a_strip_no_taller_than_its_band(readings_base, qtbot, page, minimal_deck):
+    card = minimal_deck.get_all_cards()[0]["id"]
+    unit = card_unit_size()
+    keep(
+        readings_base,
+        "1",
+        NOW,
+        "Row",
+        spread=PAST_PRESENT_FUTURE,
+        cards=[ReadingCard(id=card, x=n * 1.2 * unit.width()) for n in range(3)],
+    )
+    page.refresh()
+    pane = shown_pane(qtbot, page)
+
+    strip = ReadingDetailsPane.DIAGRAM_STRIP
+    assert pane.diagram.height() <= strip.height()
+    assert pane.diagram.width() <= strip.width()
+    # Three cards in a row are wider than they are tall
+    assert pane.diagram.width() > pane.diagram.height()
 
 
 # -- the diagram's ground -------------------------------------------------------------------
@@ -509,8 +578,14 @@ def test_delete_takes_the_row_and_folder_and_undo_brings_them_back(three, page):
 def test_the_menu_deletes_through_the_library(three, window):
     library, page = readings_view(window)
     menu = page.row_menu(first_reading(page))
-    entries = [action.text() for action in menu.actions() if not action.isSeparator()]
-    assert entries == [READINGS["library_open"], READINGS["library_delete"]]
+    entries = [
+        action.text().split("\t")[0] for action in menu.actions() if not action.isSeparator()
+    ]
+    assert entries == [
+        READINGS["library_open"],
+        READINGS["library_rename"],
+        READINGS["library_delete"],
+    ]
 
     menu.actions()[-1].trigger()
 
@@ -547,6 +622,113 @@ def test_closing_the_library_makes_a_pending_delete_final(three, window, reading
 
     assert page.staged is None
     assert sorted(path.name for path in readings_base.iterdir()) == ["2", "3"]
+
+
+def test_the_delete_key_deletes_the_selected_entry_only_from_the_list(qtbot, three, window):
+    library, page = readings_view(window)
+    with qtbot.waitActive(window):
+        window.show()
+        window.activateWindow()
+    page.select(three[1])
+
+    library.search_field.setFocus()
+    qtbot.waitUntil(lambda: QApplication.focusWidget() is library.search_field)
+    assert not library.can_delete()
+
+    page.list_view.setFocus()
+    qtbot.waitUntil(lambda: QApplication.focusWidget() is page.list_view)
+    assert library.can_delete()
+    library.delete()
+
+    assert not three[1].exists()
+    assert page.staged is not None
+
+
+# -- rows and their menu --------------------------------------------------------------------
+
+
+def row_for(page, question):
+    model = page.list_model
+    return next(
+        model.index(row, 0)
+        for row in range(model.rowCount())
+        if not is_section(model.index(row, 0)) and model.index(row, 0).data() == question
+    )
+
+
+def test_a_rows_caption_says_when_and_which_spread(readings_base, page, minimal_deck):
+    card = minimal_deck.get_all_cards()[0]["id"]
+    keep(
+        readings_base,
+        "1",
+        NOW,
+        "Dealt",
+        spread=PAST_PRESENT_FUTURE,
+        cards=[ReadingCard(id=card, position="past")],
+    )
+    keep(readings_base, "2", NOW - timedelta(days=3), "Laid out", cards=[ReadingCard(id=card)])
+    page.refresh()
+
+    today = local_qdatetime(NOW)
+    assert row_for(page, "Dealt").data(SubtitleRole) == READINGS["library_meta"].format(
+        when=format_recent(today), spread="Three ways"
+    )
+    earlier = local_qdatetime(NOW - timedelta(days=3))
+    assert row_for(page, "Laid out").data(SubtitleRole) == READINGS["library_meta"].format(
+        when=format_recent(earlier), spread=READINGS["sandbox_canvas"]
+    )
+
+
+def test_a_reading_still_being_dealt_says_how_far_and_resumes(mid_deal, page):
+    page.refresh()
+    index = first_reading(page)
+    assert index.data(BadgeRole) == READINGS["library_revealed"].format(turned=2, total=3)
+
+    menu = page.row_menu(index)
+    assert menu.actions()[0].text() == READINGS["library_resume"]
+    page.list_view.clicked.emit(index)
+    assert page.details_pane.open_button.text() == READINGS["library_resume"]
+
+
+def test_a_finished_reading_has_no_badge_and_opens(three, page):
+    index = first_reading(page)
+    assert index.data(BadgeRole) is None
+    page.list_view.clicked.emit(index)
+    assert page.details_pane.open_button.text() == READINGS["library_open"]
+
+
+def test_a_row_has_a_menu_button(page):
+    assert page.row_delegate._menu_button
+
+
+def test_renaming_a_row_writes_its_question(qtbot, three, window):
+    _library, page = readings_view(window)
+    index = row_for(page, "Newest")
+    page.list_model.setData(index, "  Renamed   now ")
+
+    qtbot.waitUntil(lambda: readings.load(three[1]).question == "Renamed now")
+    qtbot.waitUntil(lambda: "Renamed now" in labels(page))
+
+
+def test_renaming_an_open_reading_goes_through_its_tab(qtbot, three, window):
+    tab = window.open_saved_reading(three[1])
+    _library, page = readings_view(window)
+    page.list_model.setData(row_for(page, "Newest"), "From the Journal")
+
+    qtbot.waitUntil(lambda: readings.load(three[1]).question == "From the Journal")
+    assert tab.saved_reading.question() == "From the Journal"
+    # The tab's own autosave doesn't write the old Question back
+    qtbot.wait(AUTOSAVE_MS + 200)
+    assert readings.load(three[1]).question == "From the Journal"
+
+
+def test_f2_edits_the_selected_rows_question(qtbot, three, window):
+    window.show()
+    qtbot.waitExposed(window)
+    library, page = readings_view(window)
+    page.select(three[1])
+    assert page.rename_selected()
+    assert page.list_view.state() == page.list_view.State.EditingState
 
 
 # -- live refresh ---------------------------------------------------------------------------

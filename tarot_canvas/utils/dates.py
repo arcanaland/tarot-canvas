@@ -3,6 +3,7 @@ from PyQt6.QtCore import QDate, QDateTime, QLocale, Qt
 from tarot_canvas.ui.strings import DATES, READINGS
 
 RELATIVE_DATE_DAYS = 30
+SECONDS_PER_DAY = 24 * 60 * 60
 
 WEEKDAY_PATTERNS = ("dddd, ", ", dddd", "dddd ", " dddd", "dddd")
 
@@ -22,6 +23,14 @@ def format_qdatetime(datetime):
     """`datetime`'s date as `format_qdate` writes it, then its time in the locale's short form."""
     time = QLocale.system().toString(datetime.time(), QLocale.FormatType.ShortFormat)
     return READINGS["date_and_time"].format(date=format_qdate(datetime.date()), time=time)
+
+
+def format_recent(datetime, now=None):
+    """`datetime`'s time in the locale's short form within a day of now, else its date."""
+    now = QDateTime.currentDateTime() if now is None else now
+    if 0 <= datetime.secsTo(now) < SECONDS_PER_DAY:
+        return QLocale.system().toString(datetime.time(), QLocale.FormatType.ShortFormat)
+    return format_qdate(datetime.date())
 
 
 def format_month(date):

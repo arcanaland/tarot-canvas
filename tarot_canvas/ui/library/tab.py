@@ -92,6 +92,7 @@ class LibraryTab(BaseTab):
         self.readings_page.row_chosen.connect(self._open_details_for_selection)
         self.readings_page.open_requested.connect(self.on_reading_open_requested)
         self.readings_page.delete_requested.connect(self.on_reading_delete_requested)
+        self.readings_page.rename_requested.connect(self.on_reading_rename_requested)
         self.readings_page.details_changed.connect(self._on_list_details_changed)
 
         self.esoterica_page = EsotericaPage(deck=deck_manager.get_reference_deck())
@@ -168,6 +169,7 @@ class LibraryTab(BaseTab):
             {
                 "library.toggle_details": self.details_toggle.click,
                 "library.start_reading": self._start_reading,
+                "library.rename": self._rename,
                 **{
                     f"library.view_{n}": partial(self.show_view, view)
                     for n, view in enumerate(LIBRARY_VIEWS, 1)
@@ -447,6 +449,11 @@ class LibraryTab(BaseTab):
         if hasattr(main_window, "open_saved_reading"):
             main_window.open_saved_reading(path)
 
+    def on_reading_rename_requested(self, path, question):
+        main_window = self.window()
+        if hasattr(main_window, "rename_saved_reading"):
+            main_window.rename_saved_reading(path, question)
+
     def on_reading_delete_requested(self, path):
         """Delete a reading once any tab holding it has closed and written itself"""
         main_window = self.window()
@@ -492,6 +499,20 @@ class LibraryTab(BaseTab):
     def _start_reading(self):
         if self.pages.currentWidget() is self.spreads_page:
             self.spreads_page.start_reading()
+
+    def _rename(self):
+        if self.pages.currentWidget() is self.readings_page:
+            self.readings_page.rename_selected()
+
+    def can_delete(self):
+        return (
+            self.pages.currentWidget() is self.readings_page
+            and self.readings_page.can_delete_selected()
+        )
+
+    def delete(self):
+        if self.can_delete():
+            self.readings_page.delete_selected()
 
     def details_pane_is_open(self):
         return not self.details_container.isHidden()

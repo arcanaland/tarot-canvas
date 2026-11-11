@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import NamedTuple
 
-from PyQt6.QtCore import QAbstractListModel, QModelIndex, Qt
+from PyQt6.QtCore import QAbstractListModel, QModelIndex, Qt, pyqtSignal
 
 from tarot_canvas.models import notes as notes_model
 from tarot_canvas.models.readings import READING_FILE, Reading
@@ -16,9 +16,9 @@ from tarot_canvas.ui.canvas.tab_icon import (
     spread_icon,
 )
 from tarot_canvas.ui.library.cards import card_name
-from tarot_canvas.ui.library.roles import PreviewRole, SectionRole, SubtitleRole
+from tarot_canvas.ui.library.roles import BadgeRole, PreviewRole, SectionRole, SubtitleRole
 from tarot_canvas.ui.strings import READINGS, SPREADS
-from tarot_canvas.utils.dates import format_month, relative_date
+from tarot_canvas.utils.dates import format_month, format_recent
 
 ReadingPathRole = Qt.ItemDataRole.UserRole + 31
 ReadingRole = Qt.ItemDataRole.UserRole + 32
@@ -30,7 +30,8 @@ SORTS = (SORT_NEWEST, SORT_OLDEST, SORT_EDITED)
 
 
 class CardRow(NamedTuple):
-    number: int  # 1-based, in reading.cards, as the diagram numbers it
+    # 1-based, in reading.cards, as the diagram numbers it; None on a sandbox canvas
+    number: int | None
     position: str  # the spread position's label, or ""
     name: str  # "" while the card is face down
     reversed: bool  # False while the card is face down: a reversal gives it away too
@@ -46,6 +47,8 @@ def card_row_text(card_row):
         card = card_row.name
     if card_row.position:
         card = READINGS["library_card_position"].format(position=card_row.position, card=card)
+    if card_row.number is None:
+        return card
     return SPREADS["slot_row"].format(number=card_row.number, label=card).strip()
 
 
@@ -66,6 +69,23 @@ def reading_icon(reading, unit):
     return spread_icon(marks) if marks else CanvasIcon()
 
 
+def is_sandbox(reading):
+    """A canvas laid out by hand, rather than a reading dealt from a spread"""
+    return reading.spread is None
+
+
+def spatial_order(cards, unit):
+    """cards top to bottom, then left to right; within half a card's height is one row"""
+    tolerance = unit.height() / 2
+    rows, top = [], None
+    for card in sorted(cards, key=lambda card: card.y):
+        if top is None or card.y - top > tolerance:
+            rows.append([])
+            top = card.y
+        rows[-1].append(card)
+    return [card for row in rows for card in sorted(row, key=lambda card: card.x)]
+
+
 def _position_labels(reading):
     if reading.spread is None:
         return {}
@@ -75,7 +95,11 @@ def _position_labels(reading):
 def _row(path, reading, decks, reference, unit):
     resolved, labels = {}, _position_labels(reading)
     card_rows, names = [], [reading.spread.name] if reading.spread is not None else []
-    for number, card in enumerate(reading.cards, start=1):
+    numbers = {id(card): number for number, card in enumerate(reading.cards, start=1)}
+    # A sandbox's order is only the order its cards were put down, so it is read by place
+    sandbox = is_sandbox(reading)
+    ordered = spatial_order(reading.cards, unit) if sandbox else reading.cards
+    for card in ordered:
         if card.deck not in resolved:
             # As the reading opens: a deck that isn't installed shows as the reference deck
             deck = resolved[card.deck] = find_deck(card.deck, decks) or reference
@@ -86,6 +110,7 @@ def _row(path, reading, decks, reference, unit):
         if name:
             names.append(name)
         position = labels.get(card.position, "") if card.position else ""
+        number = None if sandbox else numbers[id(card)]
         card_rows.append(CardRow(number, position, name, card.reversed and card.turned))
     notes = notes_model.read_directory(path)
     return ReadingRow(
@@ -108,6 +133,35 @@ def _modified(path):
 
 def label(reading):
     return reading_label(reading.question, reading.date)
+
+
+def is_unfinished(row):
+    """Whether the reading still has a card face down"""
+    return any(not card.turned for card in row.reading.cards)
+
+
+def revealed_text(row):
+    """How many cards are turned of how many, for a reading still being dealt, else None"""
+    if not is_unfinished(row):
+        return None
+    turned = sum(1 for card in row.reading.cards if card.turned)
+    return READINGS["library_revealed"].format(turned=turned, total=len(row.reading.cards))
+
+
+def meta_text(row):
+    """The row's and the pane's caption: when, then the spread or Sandbox Canvas"""
+    reading = row.reading
+    spread = READINGS["sandbox_canvas"] if is_sandbox(reading) else reading.spread.name
+    when = format_recent(local_qdatetime(reading.date))
+    return READINGS["library_meta"].format(when=when, spread=spread)
+
+
+def open_text(row):
+    return READINGS["library_resume" if is_unfinished(row) else "library_open"]
+
+
+def open_icon(row):
+    return "media-playback-start" if is_unfinished(row) else "document-open"
 
 
 def newest_note_line(row):
@@ -149,6 +203,9 @@ def _sorted(rows, sort):
 
 class ReadingsListModel(QAbstractListModel):
     """Every kept reading, by date under a heading per month, or by when it was last edited"""
+
+    # The reading's folder and the Question it was renamed to
+    renameRequested = pyqtSignal(object, str)
 
     def __init__(self, scanned=(), decks=(), reference=None, parent=None):
         super().__init__(parent)
@@ -228,7 +285,19 @@ class ReadingsListModel(QAbstractListModel):
         if isinstance(self._rows[index.row()], str):
             # Drawn by the delegate, but never selected, focused or activated
             return Qt.ItemFlag.NoItemFlags
-        return Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
+        return Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEditable
+
+    def setData(self, index, value, role=Qt.ItemDataRole.EditRole):
+        if role != Qt.ItemDataRole.EditRole or not index.isValid():
+            return False
+        if not 0 <= index.row() < len(self._rows) or isinstance(self._rows[index.row()], str):
+            return False
+        row, _preview = self._rows[index.row()]
+        question = " ".join(str(value).split())
+        if question != row.reading.question:
+            self.renameRequested.emit(row.path, question)
+        # Nothing here changed: the rename, if it happens, rescans
+        return False
 
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
         if not index.isValid() or not 0 <= index.row() < len(self._rows):
@@ -244,8 +313,12 @@ class ReadingsListModel(QAbstractListModel):
         row, preview = self._rows[index.row()]
         if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.AccessibleTextRole):
             return label(row.reading)
+        if role == Qt.ItemDataRole.EditRole:
+            return row.reading.question
         if role == SubtitleRole:
-            return relative_date(local_qdatetime(row.reading.date).date())
+            return meta_text(row)
+        if role == BadgeRole:
+            return revealed_text(row)
         if role == PreviewRole:
             return preview
         if role == Qt.ItemDataRole.DecorationRole:

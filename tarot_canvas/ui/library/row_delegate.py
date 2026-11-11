@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from PyQt6.QtCore import QEvent, QModelIndex, QPoint, QRect, QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter
@@ -10,6 +10,7 @@ from tarot_canvas.ui.covers.cache import CoverCache
 from tarot_canvas.ui.covers.ghost import paint_placeholder_well
 from tarot_canvas.ui.library.roles import (
     SELECTED_SUBTITLE_ALPHA,
+    BadgeRole,
     CoverPathRole,
     PreviewRole,
     SubtitleRole,
@@ -138,6 +139,9 @@ class NoteRowDelegate(QStyledItemDelegate):
             self._paint_well(painter, layout.well, palette, index)
 
         title_font, small_font = self._fonts(option, selected)
+        badge = index.data(BadgeRole)
+        if badge:
+            layout = self._paint_badge(painter, layout, badge, small_font, palette, selected)
         title_colour = palette.highlightedText().color() if selected else palette.text().color()
         _draw(
             painter, layout.title, index.data(Qt.ItemDataRole.DisplayRole), title_font, title_colour
@@ -161,6 +165,31 @@ class NoteRowDelegate(QStyledItemDelegate):
             )
 
         painter.restore()
+
+    def _paint_badge(self, painter, layout, badge, font, palette, selected):
+        """badge at the text's trailing end, centred on the row; the layout its text keeps"""
+        width = QFontMetrics(font).horizontalAdvance(badge)
+        right = layout.title.right() + 1
+        rect = QRect(
+            right - width, layout.title.top(), width, layout.well.height() or layout.title.height()
+        )
+        painter.setFont(font)
+        painter.setPen(palette.highlightedText().color() if selected else palette.text().color())
+        painter.drawText(
+            rect, int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter), badge
+        )
+
+        def narrowed(text_rect):
+            if text_rect.isNull():
+                return text_rect
+            return text_rect.adjusted(0, 0, -(width + units.LARGE_SPACING), 0)
+
+        return replace(
+            layout,
+            title=narrowed(layout.title),
+            subtitle=narrowed(layout.subtitle),
+            preview=narrowed(layout.preview),
+        )
 
     # -- the row's buttons --------------------------------------------------
 

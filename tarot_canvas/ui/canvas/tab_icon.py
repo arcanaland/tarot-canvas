@@ -14,6 +14,7 @@ from PyQt6.QtGui import (
     QPixmap,
 )
 
+from tarot_canvas.ui import typography
 from tarot_canvas.ui.canvas.ground import GRADIENT_STOPS, GROUND_HUE_DEFAULT, GROUND_HUES
 from tarot_canvas.ui.canvas.ground_paint import aura_gradient
 from tarot_canvas.ui.canvas.reading_card import FACE_DOWN_MARK
@@ -213,13 +214,28 @@ def render_spread(marks, style, side):
         w = mark.w * area
         painter.save()
         painter.translate(inset + mark.x * area, inset + mark.y * area)
-        painter.rotate(mark.angle)
         painter.setPen(slot_ink(mark.colour))
-        paint_number(painter, mark.number, QRectF(-w / 2, -h / 2, w, h))
+        paint_upright_number(painter, mark.number, w, h, mark.angle)
         painter.restore()
 
     painter.end()
     return image
+
+
+def paint_upright_number(painter, number, w, h, angle):
+    """number on a w x h mark centred on the origin and turned by angle, the right way up.
+
+    A mark nearer upright than sideways keeps it in its top half, as an upright slot does;
+    one nearer sideways has it at its centre, at the size its upright twin would.
+    """
+    radians = math.radians(angle)
+    if abs(math.cos(radians)) >= abs(math.sin(radians)):
+        paint_number(painter, number, QRectF(-w / 2, -h / 2, w, h))
+        return
+    font = typography.in_pixels(typography.font(typography.Role.BODY), h * NUMBER_HEIGHT)
+    font.setBold(True)
+    painter.setFont(font)
+    painter.drawText(QRectF(-h / 2, -w / 2, h, w), Qt.AlignmentFlag.AlignCenter, str(number))
 
 
 def _paint_ground(painter, side, style):

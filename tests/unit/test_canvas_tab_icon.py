@@ -5,8 +5,10 @@ from PyQt6.QtCore import QSize
 from PyQt6.QtGui import QColor
 
 from tarot_canvas.models.readings import Reading, ReadingCard
+from tarot_canvas.ui.canvas import tab_icon
 from tarot_canvas.ui.canvas.tab_icon import (
     MINIMAP,
+    Mark,
     layout_marks,
     reading_marks,
     snapped,
@@ -104,3 +106,18 @@ def test_a_numbered_reading_counts_its_cards_in_order():
 def test_a_reading_is_unnumbered_by_default():
     reading = _reading("major_arcana.fool", "major_arcana.magician")
     assert all(mark.number is None for mark in layout_marks(reading_marks(reading, QSize(10, 17))))
+
+
+def test_a_turned_marks_number_is_painted_upright(qapp, monkeypatch):
+    painted = []
+
+    def spy(painter, number, w, h, angle):
+        transform = painter.worldTransform()
+        painted.append((number, angle, transform.m12(), transform.m21()))
+
+    monkeypatch.setattr(tab_icon, "paint_upright_number", spy)
+    marks = (Mark(0.5, 0.5, 0.2, 0.35, 90.0, "#ff8800", 0, 4),)
+    tab_icon.render_spread(marks, tab_icon.DIAGRAM, 64)
+
+    # The painter isn't turned with the mark; the number is drawn knowing the mark's angle
+    assert painted == [(4, 90.0, 0.0, 0.0)]

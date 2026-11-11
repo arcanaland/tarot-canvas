@@ -6,6 +6,7 @@ from tarot_canvas.utils.dates import (
     format_date,
     format_qdate,
     format_qdatetime,
+    format_recent,
     relative_date,
     relative_date_from_iso,
     relative_date_from_timestamp,
@@ -81,3 +82,22 @@ def test_a_moment_reads_as_its_long_date_and_its_short_time(qtbot):
 
     assert format_qdate(TODAY) in text
     assert QLocale.system().toString(moment.time(), QLocale.FormatType.ShortFormat) in text
+
+
+def test_within_a_day_a_moment_reads_as_its_time_alone(qtbot):
+    now = QDateTime(QDate(2026, 11, 11), QTime(12, 0))
+    moment = QDateTime(QDate(2026, 11, 10), QTime(12, 30))
+    time = QLocale.system().toString(moment.time(), QLocale.FormatType.ShortFormat)
+    assert format_recent(moment, now) == time
+
+
+def test_a_day_or_more_ago_a_moment_reads_as_its_date_alone(qtbot):
+    now = QDateTime(QDate(2026, 11, 11), QTime(12, 0))
+    moment = QDateTime(QDate(2026, 11, 10), QTime(11, 59))
+    assert format_recent(moment, now) == format_qdate(moment.date())
+
+
+def test_a_moment_in_the_future_reads_as_its_date(qtbot):
+    now = QDateTime(QDate(2026, 11, 11), QTime(12, 0))
+    moment = QDateTime(QDate(2026, 11, 11), QTime(13, 0))
+    assert format_recent(moment, now) == format_qdate(moment.date())
