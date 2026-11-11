@@ -109,12 +109,29 @@ def test_swirl_is_one_still_render_per_hue_and_size(monkeypatch):
     assert len(field.calls) == 1
     t, size, at, scale = field.calls[0]
     assert t == swirl.STILL_T
-    assert size == swirl.field_size(QSize(SIDE, SIDE), 1.0, swirl.PARAMS["pixel"])
+    assert size == QSize(SIDE, SIDE)
     assert at == (size.width() / 2, size.height() / 2)
     assert scale == 1.0
 
     painted(Ground(style="swirl", hue="red"))
     assert len(field.calls) == 2
+
+
+def test_a_swirl_still_renders_at_device_resolution(monkeypatch):
+    field = FakeField()
+    monkeypatch.setattr(swirl, "field", lambda: field)
+    painted(Ground(style="swirl", hue="blue"), ratio=2.0)
+    assert field.calls[0][1] == QSize(SIDE * 2, SIDE * 2)
+
+
+def test_a_resized_swirl_still_replaces_the_one_before(monkeypatch):
+    field = FakeField()
+    monkeypatch.setattr(swirl, "field", lambda: field)
+    ground = Ground(style="swirl", hue="blue")
+    for side in (40, 48, 56, 64):
+        ground_paint.swirl_still(ground, QSize(side, side), 1.0)
+    assert len(ground_paint._swirl_stills) == 1
+    assert ground_paint._swirl_stills["blue"][0] == QSize(64, 64)
 
 
 def test_a_failed_swirl_render_is_aura_and_never_raises(monkeypatch):

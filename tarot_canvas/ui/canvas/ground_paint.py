@@ -20,7 +20,7 @@ CHECKERBOARD_SQUARES_ACROSS = 6
 # Positionings whose scale means nothing in a miniature, painted as crop there
 _MINIATURE_AS_CROP = ("tile", "center")
 
-# (hue id, device w, device h) -> the swirl's still frame
+# hue id -> (device size, still frame)
 _swirl_stills = {}
 
 
@@ -58,10 +58,10 @@ def swirl_still(ground, size, ratio):
     field = swirl.field()
     if field is None:
         return None
-    target = swirl.field_size(size, ratio, swirl.PARAMS["pixel"])
-    key = (ground.hue, target.width(), target.height())
-    if key in _swirl_stills:
-        return _swirl_stills[key]
+    target = swirl.field_size(size, ratio, 1)
+    cached = _swirl_stills.get(ground.hue)
+    if cached is not None and cached[0] == target:
+        return cached[1]
     values = {**swirl.PARAMS, **swirl.colour_values(ground_hue(ground))}
     centre = (target.width() / 2.0, target.height() / 2.0)
     try:
@@ -69,7 +69,7 @@ def swirl_still(ground, size, ratio):
     except Exception as error:
         log.warning("The swirl ground could not render a still (%s); drawing Aura", error)
         return None
-    _swirl_stills[key] = image
+    _swirl_stills[ground.hue] = (target, image)
     return image
 
 
@@ -108,7 +108,7 @@ def _paint_swirl(painter, rect, ground, ratio):
         _paint_aura(painter, rect, ground)
         return
     painter.save()
-    # Bilinear, as the canvas draws it
+    # Bilinear for a fractional ratio's last pixel of scaling
     painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
     painter.drawImage(rect, still)
     painter.restore()
