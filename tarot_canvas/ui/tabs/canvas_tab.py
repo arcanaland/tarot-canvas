@@ -177,6 +177,8 @@ class CanvasTab(BaseTab):
         self.background_panel = None
         self.id = f"canvas_{id(self)}"
         self.tab_name = CANVAS["tab_name"]
+        # Whether the user manually named the tab
+        self.named_by_hand = False
         # Set once the clipboard's card has been pasted here, until the next copy
         self._clipboard_pasted = False
 
@@ -1466,6 +1468,7 @@ class CanvasTab(BaseTab):
             self.saved_reading.set_question(name)
             return
         self.tab_name = name
+        self.named_by_hand = True
         self.tab_label_changed.emit()
 
     # -- keeping the canvas as a reading -----------------------------------
@@ -1490,7 +1493,12 @@ class CanvasTab(BaseTab):
         except OSError as error:
             logger.error(f"Could not make a folder for a reading: {error}")
             return False
-        self.save_as(path, new_reading())
+        reading = new_reading()
+
+        if self.named_by_hand:
+            reading = replace(reading, question=self.tab_name)
+
+        self.save_as(path, reading)
         saved = self.saved_reading.write()
         self.saved_reading.pane.question_edit.setFocus()
         return saved

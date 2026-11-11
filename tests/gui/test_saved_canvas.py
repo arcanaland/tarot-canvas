@@ -243,6 +243,25 @@ def test_renaming_a_reading_tab_sets_its_question(window, two_cards, monkeypatch
     assert tab.saved_reading.question() == "After"
 
 
+def test_a_canvas_renamed_by_hand_keeps_its_name_as_the_question(window, two_cards, monkeypatch):
+    tab = two_cards
+    monkeypatch.setattr(QInputDialog, "getText", staticmethod(lambda *_a, **_k: ("Mine", True)))
+    window.show_tab_rename_dialog(window.tab_widget.indexOf(tab))
+
+    path = saved(window, tab)
+
+    assert window.tab_widget.tabText(window.tab_widget.indexOf(tab)) == "Mine"
+    assert tab.saved_reading.question() == "Mine"
+    assert readings.load(path).question == "Mine"
+
+
+def test_a_canvas_never_renamed_is_saved_with_no_question(window, two_cards):
+    path = saved(window, two_cards)
+
+    assert two_cards.saved_reading.question() == ""
+    assert readings.load(path).question == ""
+
+
 # -- reopening ---------------------------------------------------------------------------
 
 
