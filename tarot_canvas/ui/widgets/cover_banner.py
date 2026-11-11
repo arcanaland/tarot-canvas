@@ -1,7 +1,7 @@
 from PyQt6.QtCore import QPoint, QRect, QSize, Qt
 from PyQt6.QtGui import QColor, QImageReader, QPainter, QPalette, QPixmap
 
-from tarot_canvas.ui.library import units
+from tarot_canvas.ui import units
 
 BANNER_PADDING = 2 * units.LARGE_SPACING
 BANNER_SAMPLE_WIDTH = 24

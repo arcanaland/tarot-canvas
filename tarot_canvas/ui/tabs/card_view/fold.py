@@ -1,7 +1,7 @@
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import QToolButton, QVBoxLayout, QWidget
 
-from tarot_canvas.ui.tabs.card_view.passage_metrics import HEADING_TO_BODY
+from tarot_canvas.ui.passage_metrics import HEADING_TO_BODY
 
 
 class Fold(QWidget):

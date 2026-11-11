@@ -6,8 +6,9 @@ from PyQt6.QtGui import QColor, QFont, QFontMetrics, QPalette, QPixmap
 from PyQt6.QtWidgets import QStyle
 
 from tarot_canvas.models.deck import pick_raster
-from tarot_canvas.ui import typography
+from tarot_canvas.ui import typography, units
 from tarot_canvas.ui.canvas.detail import art_loader, art_size, fit_device_size
+from tarot_canvas.ui.covers.ghost import paint_placeholder_well
 from tarot_canvas.ui.deck_view.card_model import (
     KIND_CARD,
     KIND_HEADING,
@@ -17,9 +18,7 @@ from tarot_canvas.ui.deck_view.card_model import (
     KindRole,
 )
 from tarot_canvas.ui.deck_view.tableau_model import KIND_GHOST, KIND_LABEL, DimmedRole
-from tarot_canvas.ui.library import units
-from tarot_canvas.ui.library.deck_delegate import CellLayout, DeckDelegate
-from tarot_canvas.ui.library.ghost_paint import paint_placeholder_well
+from tarot_canvas.ui.library.decks.delegate import CellLayout, DeckDelegate
 
 TEXT_FLAGS = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
 NOTE_FLAGS = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop | Qt.TextFlag.TextWordWrap

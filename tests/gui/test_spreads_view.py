@@ -31,17 +31,17 @@ from tarot_canvas.ui.canvas.tab_icon import (
     spread_marks,
 )
 from tarot_canvas.ui.card_colours import SLOT_COLOUR
-from tarot_canvas.ui.library.deck_model import SORT_AUTHOR, SORT_COUNT, SORT_NAME, SubtitleRole
-from tarot_canvas.ui.library.notes_model import PreviewRole
+from tarot_canvas.ui.library.decks.model import SORT_AUTHOR
+from tarot_canvas.ui.library.roles import SORT_COUNT, SORT_NAME, PreviewRole, SubtitleRole
 from tarot_canvas.ui.library.section_row import is_section
-from tarot_canvas.ui.library.spread_details_pane import SpreadDetails
-from tarot_canvas.ui.library.spread_row_delegate import SpreadRowDelegate
-from tarot_canvas.ui.library.spreads_model import SORT_EDITED, SORT_NEWEST, SpreadPathRole
-from tarot_canvas.ui.library.spreads_page import SpreadsPage
+from tarot_canvas.ui.library.spreads.details_pane import SpreadDetails
+from tarot_canvas.ui.library.spreads.model import SORT_EDITED, SORT_NEWEST, SpreadPathRole
+from tarot_canvas.ui.library.spreads.page import SpreadsPage
+from tarot_canvas.ui.library.spreads.row_delegate import SpreadRowDelegate
+from tarot_canvas.ui.library.tab import LibraryTab
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.strings import READINGS, SPREADS
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
-from tarot_canvas.ui.tabs.library_tab import LibraryTab
 from tarot_canvas.ui.tabs.spread_tab import SpreadTab
 
 Answer = QMessageBox.StandardButton
@@ -55,8 +55,8 @@ def card_unit(monkeypatch):
         "canvas.slot_item",
         "tabs.spread_tab",
         "tabs.canvas_tab",
-        "library.spreads_model",
-        "library.spread_details_pane",
+        "library.spreads.model",
+        "library.spreads.details_pane",
     ):
         monkeypatch.setattr(f"tarot_canvas.ui.{module}.card_unit_size", lambda: UNIT)
 
@@ -372,7 +372,7 @@ def test_each_view_keeps_its_own_sort(window, spreads_base):
 
     assert combo.currentData() == SORT_EDITED
     assert library.spreads_page.sort_key() == SORT_EDITED
-    assert library.proxy_model.sort_key() == SORT_AUTHOR
+    assert library.decks_page.list_model.sort_key() == SORT_AUTHOR
     settings = get_settings()
     assert settings.value(LIBRARY_SPREADS_SORT_KEY, type=str) == SORT_EDITED
     assert settings.value(LIBRARY_SORT_KEY, type=str) == SORT_AUTHOR
@@ -385,7 +385,7 @@ def test_opening_on_spreads_keeps_the_decks_saved_sort(window, spreads_base):
     library = LibraryTab()
     window.tab_widget.addTab(library, "Library")
 
-    assert library.proxy_model.sort_key() == SORT_AUTHOR
+    assert library.decks_page.list_model.sort_key() == SORT_AUTHOR
     assert library.sort_combo.currentData() == SORT_NEWEST
 
 

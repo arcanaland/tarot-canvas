@@ -24,6 +24,7 @@ from tarot_canvas.settings import (
     DECK_VIEW_MODES,
     get_settings,
 )
+from tarot_canvas.ui import units
 from tarot_canvas.ui.activate_on_return import activate_on_return
 from tarot_canvas.ui.card_transfer import copy_cards_to_clipboard
 from tarot_canvas.ui.deck_view.card_delegate import CardDelegate
@@ -32,11 +33,10 @@ from tarot_canvas.ui.deck_view.sections_view import SectionsView
 from tarot_canvas.ui.deck_view.tableau_model import TableauModel
 from tarot_canvas.ui.deck_view.tableau_view import TableauView
 from tarot_canvas.ui.icons import deck_icon
-from tarot_canvas.ui.library import units
+from tarot_canvas.ui.library.decks import header as deck_header
+from tarot_canvas.ui.library.decks.header import DeckHeader
 from tarot_canvas.ui.strings import DECK_VIEW
 from tarot_canvas.ui.tabs.base_tab import BaseTab
-from tarot_canvas.ui.widgets import deck_header
-from tarot_canvas.ui.widgets.deck_header import DeckHeader
 from tarot_canvas.ui.widgets.search_field import search_field
 from tarot_canvas.ui.widgets.zoom_slider import ZoomSlider
 

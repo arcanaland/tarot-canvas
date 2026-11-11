@@ -14,9 +14,8 @@ from PyQt6.QtWidgets import (
 
 from tarot_canvas.models.ground import Ground
 from tarot_canvas.settings import get_settings
-from tarot_canvas.ui import commands
+from tarot_canvas.ui import commands, units
 from tarot_canvas.ui.canvas.canvas_panel import CanvasPanel
-from tarot_canvas.ui.library import units
 from tarot_canvas.ui.strings import CANVAS
 from tarot_canvas.ui.windows.background_form import BackgroundForm, canvas_aspect
 

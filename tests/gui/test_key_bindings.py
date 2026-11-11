@@ -4,11 +4,11 @@ from PyQt6.QtGui import QAction, QKeySequence, QShortcut
 from PyQt6.QtWidgets import QMenu, QToolBar, QToolButton
 
 from tarot_canvas.ui.commands import COMMANDS
+from tarot_canvas.ui.library.tab import LibraryTab
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.card_view.notes_tab import NotesTab
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
-from tarot_canvas.ui.tabs.library_tab import LibraryTab
 from tarot_canvas.ui.widgets.zoomable_image_view import ZoomableImageView
 
 # Nearest first: the art and the Notes tab sit inside a card view

@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import (
 from tarot_canvas.models.card_search import CardTerms, Query
 from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.ui import typography
-from tarot_canvas.ui.library.cover_cache import CoverCache
+from tarot_canvas.ui.covers.cache import CoverCache
 from tarot_canvas.ui.strings import PALETTE
 
 THUMBNAIL_SIZE = QSize(25, 40)

@@ -3,12 +3,12 @@ from PyQt6.QtCore import QRect
 from PyQt6.QtGui import QColor, QImage, QPainter, QPalette
 
 from tarot_canvas.ui.palette import subtle_fill
-from tarot_canvas.ui.tabs.card_view.ghost_passages import ghost_layout, paint_ghost_passages
-from tarot_canvas.ui.tabs.card_view.passage_metrics import (
+from tarot_canvas.ui.passage_metrics import (
     SIDE_MARGIN,
     TOP_MARGIN,
     column_width,
 )
+from tarot_canvas.ui.tabs.card_view.ghost_passages import ghost_layout, paint_ghost_passages
 
 WIDTH, HEIGHT = 300, 600
 

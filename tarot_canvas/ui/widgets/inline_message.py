@@ -4,7 +4,7 @@ from PyQt6.QtCore import QEvent, QRectF, Qt, pyqtSignal
 from PyQt6.QtGui import QIcon, QPainter
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QSizePolicy, QToolButton
 
-from tarot_canvas.ui.library import units
+from tarot_canvas.ui import units
 from tarot_canvas.ui.palette import message_border, message_fill
 
 

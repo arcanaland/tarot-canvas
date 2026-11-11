@@ -15,12 +15,12 @@ from tarot_canvas.settings import EXPLORER_VISIBLE_KEY, get_settings
 from tarot_canvas.ui import main_window as main_window_module
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
 from tarot_canvas.ui.card_transfer import CARD_MIME
+from tarot_canvas.ui.library.tab import LibraryTab
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.strings import COMMANDS
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tarot_canvas.ui.tabs.deck_view_tab import DeckViewTab
-from tarot_canvas.ui.tabs.library_tab import LibraryTab
 from tarot_canvas.utils.theme_manager import ThemeType
 from tests.conftest import MINIMAL_DECK_PATH
 

@@ -1,6 +1,6 @@
-from tarot_canvas.ui.library.deck_details import DeckDetails, details_for
-from tarot_canvas.ui.library.deck_downloads import DeckState, deck_downloads
-from tarot_canvas.ui.library.deck_model import DeckListModel
+from tarot_canvas.ui.catalog.downloads import DeckState, deck_downloads
+from tarot_canvas.ui.library.decks.details import DeckDetails, details_for
+from tarot_canvas.ui.library.decks.model import DeckListModel
 from tarot_canvas.utils.package_download import DownloadFailure, FailureKind
 from tests.unit.test_library_model import catalog_entry, fake_deck
 

@@ -14,15 +14,15 @@ from tarot_canvas.settings import (
     get_readings_deck,
     set_readings_deck,
 )
+from tarot_canvas.ui import units
 from tarot_canvas.ui.commands import key_text, tooltip_with_keys
-from tarot_canvas.ui.library import units
-from tarot_canvas.ui.library.note_row_delegate import NoteRowDelegate
+from tarot_canvas.ui.library.row_delegate import NoteRowDelegate
 from tarot_canvas.ui.library.section_row import is_section
-from tarot_canvas.ui.library.spread_row_delegate import SpreadRowDelegate
-from tarot_canvas.ui.library.spreads_model import SpreadPathRole
+from tarot_canvas.ui.library.spreads.model import SpreadPathRole
+from tarot_canvas.ui.library.spreads.row_delegate import SpreadRowDelegate
+from tarot_canvas.ui.library.tab import LibraryTab
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.strings import READINGS, SPREADS
-from tarot_canvas.ui.tabs.library_tab import LibraryTab
 from tarot_canvas.ui.tabs.reading_tab import ReadingTab
 from tests.conftest import write_full_deck
 from tests.gui.test_note_row_delegate import ROW_WIDTH, make_option
@@ -410,5 +410,7 @@ def test_the_deck_grid_takes_the_same_keys(library, qtbot):
 
     qtbot.keyClick(library.search_field, Qt.Key.Key_Down)
 
-    assert library.view.hasFocus()
-    assert library.view.selectionModel().isSelected(library.view.currentIndex())
+    assert library.decks_page.list_view.hasFocus()
+    assert library.decks_page.list_view.selectionModel().isSelected(
+        library.decks_page.list_view.currentIndex()
+    )

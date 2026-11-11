@@ -12,6 +12,7 @@ from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QWidget
 
 from tarot_canvas.models.readings import Reading, ReadingCard
+from tarot_canvas.ui import units
 from tarot_canvas.ui.canvas.reading_note import ReadingNote
 from tarot_canvas.ui.canvas.reading_pane import (
     DATE_ICON,
@@ -22,7 +23,6 @@ from tarot_canvas.ui.canvas.reading_pane import (
 )
 from tarot_canvas.ui.canvas.side_pane import SidePane
 from tarot_canvas.ui.icons import CANVAS_ICON
-from tarot_canvas.ui.library import units
 from tarot_canvas.ui.strings import READINGS
 from tarot_canvas.utils.dates import format_qdatetime
 from tarot_canvas.utils.logger import logger

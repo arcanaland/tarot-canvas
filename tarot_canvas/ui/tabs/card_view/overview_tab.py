@@ -8,10 +8,10 @@ from tarot_canvas.models.esoterica import get_esoterica_manager
 from tarot_canvas.models.esoterica_events import esoterica_events
 from tarot_canvas.models.esoterica_registry import Role
 from tarot_canvas.models.note_events import note_events
-from tarot_canvas.ui import typography
+from tarot_canvas.ui import typography, units
 from tarot_canvas.ui.card_transfer import deck_path_key
-from tarot_canvas.ui.library import units
 from tarot_canvas.ui.palette import muted_text, with_text_colour
+from tarot_canvas.ui.passage_metrics import TITLE_TO_AUTHOR
 from tarot_canvas.ui.strings import CARD_VIEW, label_for
 from tarot_canvas.ui.tabs.card_view.esoterica_tab import (
     Byline,
@@ -22,7 +22,6 @@ from tarot_canvas.ui.tabs.card_view.esoterica_tab import (
     reseated_note,
 )
 from tarot_canvas.ui.tabs.card_view.notes_section import NotesSection
-from tarot_canvas.ui.tabs.card_view.passage_metrics import TITLE_TO_AUTHOR
 
 # Whose words head the Overview, in order of preference
 HEADLINE_ROLES = (Role.KEYWORDS, Role.EPITHET)

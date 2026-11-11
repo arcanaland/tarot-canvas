@@ -15,6 +15,9 @@ from tarot_canvas.ui.library.deselect import deselect_on_empty_click_or_escape
 class LibraryListPage(QWidget):
     """A Library view that is a list, with its details pane below it in the tab"""
 
+    # Where the details pane sits: below a list, beside a grid
+    DETAILS_BESIDE = False
+
     details_changed = pyqtSignal()
 
     def __init__(self, list_model, delegate_class, details_pane, parent=None):

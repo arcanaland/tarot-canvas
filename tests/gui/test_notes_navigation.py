@@ -4,9 +4,9 @@ import pytest
 
 from tarot_canvas.models.note_events import note_events
 from tarot_canvas.settings import LIBRARY_VIEW_ESOTERICA, LIBRARY_VIEW_NOTES
+from tarot_canvas.ui.library.tab import LibraryTab
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
-from tarot_canvas.ui.tabs.library_tab import LibraryTab
 
 FOOL = "major_arcana.00"
 MAGICIAN = "major_arcana.01"

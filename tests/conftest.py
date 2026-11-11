@@ -31,11 +31,12 @@ DECK_MANAGER_CONSUMERS = [
     "tarot_canvas.ui.tabs.canvas_tab",
     "tarot_canvas.ui.main_window",
     "tarot_canvas.ui.tabs.card_view_tab",
-    "tarot_canvas.ui.tabs.library_tab",
+    "tarot_canvas.ui.library.tab",
+    "tarot_canvas.ui.library.decks.page",
     "tarot_canvas.ui.tabs.reading_tab",
-    "tarot_canvas.ui.components.card_explorer",
-    "tarot_canvas.ui.library.deck_downloads",
-    "tarot_canvas.ui.library.deck_menu",
+    "tarot_canvas.ui.card_explorer",
+    "tarot_canvas.ui.catalog.downloads",
+    "tarot_canvas.ui.library.decks.menu",
 ]
 
 
@@ -183,8 +184,8 @@ def fresh_deck_catalog(monkeypatch):
     Every library a test opens activates the catalog, so its default transport is
     offline too. A test that wants replies installs a DeckCatalog of its own.
     """
-    monkeypatch.setattr("tarot_canvas.ui.library.catalog_client._instance", None)
-    monkeypatch.setattr("tarot_canvas.ui.library.catalog_client.QtTransport", _OfflineTransport)
+    monkeypatch.setattr("tarot_canvas.ui.catalog.client._instance", None)
+    monkeypatch.setattr("tarot_canvas.ui.catalog.client.QtTransport", _OfflineTransport)
 
 
 def _no_network_download(*args, **kwargs):
@@ -194,10 +195,8 @@ def _no_network_download(*args, **kwargs):
 @pytest.fixture(autouse=True)
 def fresh_deck_downloads(monkeypatch):
     """A DeckDownloads per test, whose downloads can't reach the network."""
-    monkeypatch.setattr("tarot_canvas.ui.library.deck_downloads._instance", None)
-    monkeypatch.setattr(
-        "tarot_canvas.ui.library.deck_downloads.DOWNLOAD_FACTORY", _no_network_download
-    )
+    monkeypatch.setattr("tarot_canvas.ui.catalog.downloads._instance", None)
+    monkeypatch.setattr("tarot_canvas.ui.catalog.downloads.DOWNLOAD_FACTORY", _no_network_download)
 
 
 class FakeDownload(QObject):
@@ -233,7 +232,7 @@ def fake_downloads(monkeypatch):
         made.append(FakeDownload(*args, **kwargs))
         return made[-1]
 
-    monkeypatch.setattr("tarot_canvas.ui.library.deck_downloads.DOWNLOAD_FACTORY", factory)
+    monkeypatch.setattr("tarot_canvas.ui.catalog.downloads.DOWNLOAD_FACTORY", factory)
     return made
 
 

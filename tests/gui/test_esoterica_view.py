@@ -8,16 +8,16 @@ from tarot_canvas.models.esoterica import EsotericaManager
 from tarot_canvas.models.esoterica_events import esoterica_events
 from tarot_canvas.settings import get_esoterica_disabled, set_esoterica_disabled
 from tarot_canvas.ui import strings
-from tarot_canvas.ui.library import source_row_delegate
-from tarot_canvas.ui.library.deck_model import SubtitleRole
-from tarot_canvas.ui.library.esoterica_list_model import (
+from tarot_canvas.ui.library.esoterica import row_delegate as source_row_delegate
+from tarot_canvas.ui.library.esoterica.model import (
     CountRole,
     IdentifierRole,
     KindRole,
     RowKind,
 )
-from tarot_canvas.ui.library.esoterica_page import EsotericaPage
-from tarot_canvas.ui.library.source_row_delegate import GENERIC_ICON, type_icon
+from tarot_canvas.ui.library.esoterica.page import EsotericaPage
+from tarot_canvas.ui.library.esoterica.row_delegate import GENERIC_ICON, type_icon
+from tarot_canvas.ui.library.roles import SubtitleRole
 from tarot_canvas.ui.strings import label_for
 from tests.unit.test_esoterica import every_card, write
 
@@ -630,7 +630,7 @@ def grid_page(qtbot, roots):
 
 def cell_centre(grid, card_id):
     from tarot_canvas.models.card_ids import CANONICAL_CARD_IDS
-    from tarot_canvas.ui.library.coverage_strip import grid_cell_rects
+    from tarot_canvas.ui.library.esoterica.coverage_strip import grid_cell_rects
 
     rects = grid_cell_rects(grid.rect(), grid._label_width())
     return rects[CANONICAL_CARD_IDS.index(card_id)].center().toPoint()

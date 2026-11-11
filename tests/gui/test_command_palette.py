@@ -5,7 +5,7 @@ from PyQt6.QtCore import Qt
 
 from tarot_canvas.ui import command_palette
 from tarot_canvas.ui.command_palette import THUMBNAIL_SIZE, CommandPalette
-from tarot_canvas.ui.library.cover_cache import CoverCache
+from tarot_canvas.ui.covers.cache import CoverCache
 from tests.conftest import MINIMAL_DECK_PATH
 
 ART = MINIMAL_DECK_PATH / "h750" / "major_arcana"

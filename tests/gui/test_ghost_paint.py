@@ -2,8 +2,8 @@ import pytest
 from PyQt6.QtCore import QRect, Qt
 from PyQt6.QtGui import QColor, QIcon, QImage, QPainter, QPixmap
 
-from tarot_canvas.ui.library import ghost_paint
-from tarot_canvas.ui.library.ghost_paint import paint_ghost_cover, paint_placeholder_well
+from tarot_canvas.ui.covers import ghost as ghost_paint
+from tarot_canvas.ui.covers.ghost import paint_ghost_cover, paint_placeholder_well
 
 RECT = QRect(10, 10, 120, 180)
 

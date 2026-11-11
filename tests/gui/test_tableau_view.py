@@ -12,10 +12,10 @@ from tarot_canvas.settings import (
     DECK_VIEW_MODE_TABLEAU,
     get_settings,
 )
+from tarot_canvas.ui import units
 from tarot_canvas.ui.card_transfer import CARD_MIME
 from tarot_canvas.ui.deck_view.card_model import CardRole, KindRole
 from tarot_canvas.ui.deck_view.tableau_model import KIND_GHOST, ROW_LABELS, DimmedRole
-from tarot_canvas.ui.library import units
 from tarot_canvas.ui.strings import DECK_VIEW
 from tarot_canvas.ui.tabs.deck_view_tab import DeckViewTab
 from tests.conftest import MINIMAL_DECK_PATH

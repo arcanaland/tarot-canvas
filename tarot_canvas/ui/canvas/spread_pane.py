@@ -29,10 +29,9 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from tarot_canvas.ui import typography
+from tarot_canvas.ui import typography, units
 from tarot_canvas.ui.canvas.side_pane import SidePane
 from tarot_canvas.ui.icons import SPREAD_ICON
-from tarot_canvas.ui.library import units
 from tarot_canvas.ui.palette import subtle_fill
 from tarot_canvas.ui.strings import SPREADS
 from tarot_canvas.ui.widgets.heading_edit import heading_edit

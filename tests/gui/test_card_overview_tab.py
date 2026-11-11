@@ -11,8 +11,7 @@ from tarot_canvas.models.esoterica import Entry, SourceReading
 from tarot_canvas.models.esoterica_events import esoterica_events
 from tarot_canvas.models.esoterica_registry import PASSAGES, Role
 from tarot_canvas.models.note_events import note_events
-from tarot_canvas.ui import typography
-from tarot_canvas.ui.library import units
+from tarot_canvas.ui import typography, units
 from tarot_canvas.ui.palette import muted_text
 from tarot_canvas.ui.tabs.card_view import overview_tab
 from tarot_canvas.ui.tabs.card_view.overview_tab import OverviewTab

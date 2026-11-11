@@ -5,7 +5,7 @@ from PyQt6.QtGui import QAction, QIcon
 from PyQt6.QtWidgets import QApplication, QVBoxLayout
 
 from tarot_canvas.models import staged_delete
-from tarot_canvas.ui.library import units
+from tarot_canvas.ui import units
 from tarot_canvas.ui.library.list_page import LibraryListPage
 from tarot_canvas.ui.strings import notes_text
 from tarot_canvas.ui.widgets.inline_message import InlineMessage

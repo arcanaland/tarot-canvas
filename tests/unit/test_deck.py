@@ -160,7 +160,7 @@ def test_schema_1_0_name_files_still_load(tmp_path):
 
 def test_artist_is_read_as_the_author_in_2_0(tmp_path):
     """2.0 renamed author to artist ."""
-    from tarot_canvas.ui.library.deck_model import deck_author
+    from tarot_canvas.ui.library.decks.model import deck_author
 
     deck = _write_deck(
         tmp_path,

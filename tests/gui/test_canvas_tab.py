@@ -38,8 +38,8 @@ from tarot_canvas.ui.canvas.motion import LIFT_REST, LIFT_SELECTED
 from tarot_canvas.ui.canvas.selection import GILT_ON_DARK, GILT_ON_LIGHT
 from tarot_canvas.ui.card_colours import CARD_COLOURS, SLOT_COLOUR
 from tarot_canvas.ui.card_transfer import card_mime_data, cards_mime_data, copy_card_to_clipboard
+from tarot_canvas.ui.document_tabs import DocumentTabs
 from tarot_canvas.ui.tabs.canvas_tab import GROUNDS, CanvasTab, wheel_turn
-from tarot_canvas.ui.widgets.document_tabs import DocumentTabs
 
 
 def add_cards(tab, count):

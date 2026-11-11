@@ -29,13 +29,9 @@ from tarot_canvas.settings import (
     set_esoterica_expanded,
     set_esoterica_hidden,
 )
-from tarot_canvas.ui import typography
-from tarot_canvas.ui.library import units
+from tarot_canvas.ui import typography, units
 from tarot_canvas.ui.palette import muted_text, subtle_fill, with_text_colour
-from tarot_canvas.ui.strings import CARD_VIEW, label_for
-from tarot_canvas.ui.tabs.card_view.fold import Fold
-from tarot_canvas.ui.tabs.card_view.ghost_passages import GhostPassages
-from tarot_canvas.ui.tabs.card_view.passage_metrics import (
+from tarot_canvas.ui.passage_metrics import (
     FOLD_INDENT,
     HEADER_TO_ROWS,
     HEADING_TO_BODY,
@@ -50,6 +46,9 @@ from tarot_canvas.ui.tabs.card_view.passage_metrics import (
     column_width,
     line_height_css,
 )
+from tarot_canvas.ui.strings import CARD_VIEW, label_for
+from tarot_canvas.ui.tabs.card_view.fold import Fold
+from tarot_canvas.ui.tabs.card_view.ghost_passages import GhostPassages
 from tarot_canvas.ui.widgets.contextual_help import ContextualHelpButton
 from tarot_canvas.ui.widgets.placeholder_message import (
     ICON_SIZE,

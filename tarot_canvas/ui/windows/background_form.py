@@ -25,11 +25,10 @@ from PyQt6.QtWidgets import (
 
 from tarot_canvas.models import backgrounds
 from tarot_canvas.models.ground import FILLED_POSITIONINGS, HUED_STYLES, Ground
-from tarot_canvas.ui import typography
+from tarot_canvas.ui import typography, units
 from tarot_canvas.ui.canvas.ground import GROUND_HUE_DEFAULT, GROUND_HUES
-from tarot_canvas.ui.library import units
-from tarot_canvas.ui.library.pane_text import pane_form
 from tarot_canvas.ui.strings import PREFERENCES
+from tarot_canvas.ui.widgets.pane_text import pane_form
 from tarot_canvas.ui.windows.background_grid import BackgroundGrid
 from tarot_canvas.utils.logger import logger
 

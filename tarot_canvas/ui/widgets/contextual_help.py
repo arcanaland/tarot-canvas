@@ -2,7 +2,7 @@ from PyQt6.QtCore import QPoint, Qt
 from PyQt6.QtGui import QIcon, QPainter
 from PyQt6.QtWidgets import QFrame, QLabel, QStyle, QStyleOption, QToolButton, QVBoxLayout
 
-from tarot_canvas.ui.tabs.card_view.passage_metrics import column_width
+from tarot_canvas.ui.passage_metrics import column_width
 
 ICON = "help-contextual"
 

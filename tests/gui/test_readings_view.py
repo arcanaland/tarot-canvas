@@ -15,13 +15,13 @@ from tarot_canvas.settings import (
 )
 from tarot_canvas.ui import commands
 from tarot_canvas.ui.canvas.saved_canvas import AUTOSAVE_MS, local_qdatetime
-from tarot_canvas.ui.library.readings_model import (
+from tarot_canvas.ui.library.readings.model import (
     SORT_EDITED,
     SORT_NEWEST,
     SORT_OLDEST,
     ReadingPathRole,
 )
-from tarot_canvas.ui.library.readings_page import ReadingsPage
+from tarot_canvas.ui.library.readings.page import ReadingsPage
 from tarot_canvas.ui.library.section_row import is_section
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.strings import READINGS

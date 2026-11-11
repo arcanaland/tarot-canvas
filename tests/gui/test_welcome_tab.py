@@ -11,12 +11,12 @@ from tarot_canvas.models.readings import Reading
 from tarot_canvas.models.spreads import Position, Spread
 from tarot_canvas.settings import LIBRARY_VIEW_SPREADS
 from tarot_canvas.ui import main_window as main_window_module
-from tarot_canvas.ui.library.deck_model import SubtitleRole
-from tarot_canvas.ui.library.spreads_model import spread_title
+from tarot_canvas.ui.library.roles import SubtitleRole
+from tarot_canvas.ui.library.spreads.model import spread_title
+from tarot_canvas.ui.library.tab import LibraryTab
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.spread_menu import sections
 from tarot_canvas.ui.strings import DATES, MAIN_WINDOW
-from tarot_canvas.ui.tabs.library_tab import LibraryTab
 from tarot_canvas.ui.tabs.reading_tab import ReadingTab
 from tarot_canvas.ui.tabs.spread_tab import SpreadTab
 from tarot_canvas.ui.welcome_tab import WelcomeTab, shows_part

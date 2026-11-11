@@ -4,14 +4,14 @@ from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QApplication
 
 from tarot_canvas.settings import DECK_HEADER_EXPANDED_KEY, get_settings
+from tarot_canvas.ui.library.decks import header as deck_header
+from tarot_canvas.ui.library.decks.header import DeckHeader, wrapped_height
 from tarot_canvas.ui.strings import DECK_VIEW
-from tarot_canvas.ui.widgets import deck_header
 from tarot_canvas.ui.widgets.cover_banner import (
     BANNER_SCRIM_ALPHA,
     BANNER_SUBTEXT,
     BANNER_TEXT,
 )
-from tarot_canvas.ui.widgets.deck_header import DeckHeader, wrapped_height
 from tarot_canvas.ui.widgets.tag_chips import TagChips
 
 FULL_METADATA = {

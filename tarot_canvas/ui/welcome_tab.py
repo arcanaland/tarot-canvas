@@ -30,10 +30,10 @@ from tarot_canvas.ui.activate_on_return import activate_on_return
 from tarot_canvas.ui.canvas.detail import card_unit_size
 from tarot_canvas.ui.canvas.saved_canvas import local_qdatetime, reading_label
 from tarot_canvas.ui.icons import LIBRARY_ICON, SPREAD_ICON, deck_icon
-from tarot_canvas.ui.library.deck_model import SubtitleRole
-from tarot_canvas.ui.library.note_row_delegate import IconRowDelegate
-from tarot_canvas.ui.library.readings_model import reading_icon
-from tarot_canvas.ui.library.spreads_model import spread_thumbnail, spread_title
+from tarot_canvas.ui.library.readings.model import reading_icon
+from tarot_canvas.ui.library.roles import SubtitleRole
+from tarot_canvas.ui.library.row_delegate import IconRowDelegate
+from tarot_canvas.ui.library.spreads.model import spread_thumbnail, spread_title
 from tarot_canvas.ui.spread_menu import sections
 from tarot_canvas.ui.strings import COMMANDS, MAIN_WINDOW, READINGS
 from tarot_canvas.ui.windows.about import ICON_PATH

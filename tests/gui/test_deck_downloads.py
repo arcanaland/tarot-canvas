@@ -1,6 +1,6 @@
 import pytest
 
-from tarot_canvas.ui.library.deck_downloads import DeckState, deck_downloads
+from tarot_canvas.ui.catalog.downloads import DeckState, deck_downloads
 from tarot_canvas.utils.package_download import DownloadFailure, FailureKind
 from tarot_canvas.utils.path_helper import get_decks_directory, get_staging_directory
 from tests.unit.test_library_model import catalog_entry

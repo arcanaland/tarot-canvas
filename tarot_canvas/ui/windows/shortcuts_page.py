@@ -12,9 +12,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from tarot_canvas.ui import commands
+from tarot_canvas.ui import commands, units
 from tarot_canvas.ui.commands import COMMANDS, Scope
-from tarot_canvas.ui.library import units
 from tarot_canvas.ui.strings import NOTES, PREFERENCES
 from tarot_canvas.ui.widgets.inline_message import InlineMessage
 

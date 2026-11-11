@@ -3,7 +3,7 @@ from PyQt6.QtCore import QRect
 from PyQt6.QtGui import QColor, QImage, QPainter, QPalette
 
 from tarot_canvas.models.coverage import CellState
-from tarot_canvas.ui.library.coverage_strip import (
+from tarot_canvas.ui.library.esoterica.coverage_strip import (
     GRID_MAX_CELL_WIDTH,
     RUN_GAP,
     RUNS,

@@ -5,7 +5,7 @@ from PyQt6.QtCore import Qt
 from tarot_canvas.models.deck import TarotDeck
 from tarot_canvas.models.note_events import note_events
 from tarot_canvas.ui import strings
-from tarot_canvas.ui.library.notes_model import PreviewRole
+from tarot_canvas.ui.library.roles import PreviewRole
 from tarot_canvas.ui.tabs.card_view.notes_section import MAX_ROWS
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tests.conftest import MINIMAL_DECK_PATH

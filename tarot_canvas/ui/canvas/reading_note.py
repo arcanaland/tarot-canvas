@@ -9,8 +9,7 @@ from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.models.notes import read_directory
 from tarot_canvas.models.reading_events import reading_events
-from tarot_canvas.ui import typography
-from tarot_canvas.ui.library import units
+from tarot_canvas.ui import typography, units
 from tarot_canvas.ui.strings import CARD_VIEW, READINGS
 from tarot_canvas.ui.tabs.card_view.markdown_editor import MarkdownEditor
 from tarot_canvas.ui.tabs.card_view.note_editing import NoteLinks, write_note

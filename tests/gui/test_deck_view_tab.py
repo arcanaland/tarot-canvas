@@ -21,7 +21,7 @@ from tarot_canvas.settings import (
     LIBRARY_DENSITY_KEY,
     get_settings,
 )
-from tarot_canvas.ui import typography
+from tarot_canvas.ui import typography, units
 from tarot_canvas.ui.card_transfer import CARD_MIME, card_from_mime
 from tarot_canvas.ui.deck_view import card_delegate
 from tarot_canvas.ui.deck_view.card_model import (
@@ -31,11 +31,10 @@ from tarot_canvas.ui.deck_view.card_model import (
     CardRole,
     KindRole,
 )
-from tarot_canvas.ui.library import units
+from tarot_canvas.ui.library.decks.header import DeckHeader
 from tarot_canvas.ui.strings import DECK_VIEW
 from tarot_canvas.ui.tabs import deck_view_tab as module
 from tarot_canvas.ui.tabs.deck_view_tab import DeckViewTab
-from tarot_canvas.ui.widgets.deck_header import DeckHeader
 from tests.conftest import MINIMAL_DECK_PATH
 
 
