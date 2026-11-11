@@ -6,6 +6,7 @@ from tarot_canvas.ui.widgets.placeholder_message import tinted_icon
 
 LIBRARY_ICON = "view-institution"
 SPREAD_ICON = "view-grid"
+CANVAS_ICON = "draw-rectangle"
 
 DECK_ICON = files("tarot_canvas.resources.icons").joinpath("deck.svg")
 

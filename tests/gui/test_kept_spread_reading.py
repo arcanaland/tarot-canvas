@@ -3,12 +3,13 @@
 from dataclasses import replace
 
 import pytest
-from PyQt6.QtWidgets import QMessageBox
+from PyQt6.QtCore import QDateTime, Qt
+from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from tarot_canvas.models import readings, spreads
 from tarot_canvas.models.deck import TarotDeck
 from tarot_canvas.models.ground import Ground
-from tarot_canvas.models.spreads import Position, Spread
+from tarot_canvas.models.spreads import BUNDLED_SPREADS_PATH, Position, Spread
 from tarot_canvas.settings import (
     MOTION_LEVEL_KEY,
     get_readings_reversals,
@@ -17,6 +18,7 @@ from tarot_canvas.settings import (
 )
 from tarot_canvas.ui.canvas.placement import Phase
 from tarot_canvas.ui.canvas.reading_card import is_face_down
+from tarot_canvas.ui.canvas.reading_pane import NOTES_MIN_LINES
 from tarot_canvas.ui.canvas.saved_canvas import AUTOSAVE_MS, deck_key, now
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
@@ -321,3 +323,229 @@ def test_opening_the_same_reading_twice_raises_its_tab(window, readings_base):
 
     assert again is tab
     assert window.tab_widget.currentWidget() is tab
+
+
+# -- the pane's note
+
+
+def shown(qtbot, spread, height=700):
+    tab = ReadingTab(spread, spread_from="mine")
+    qtbot.addWidget(tab)
+    tab.resize(1200, height)
+    tab.show()
+    qtbot.waitExposed(tab)
+    return tab
+
+
+def celtic_cross():
+    return spreads.load(BUNDLED_SPREADS_PATH / "celtic-cross")
+
+
+def rows_height(view):
+    return sum(view.sizeHintForRow(row) for row in range(view.model().rowCount()))
+
+
+def settle(qtbot):
+    # Let the layouts and the list's fit catch up
+    QApplication.processEvents()
+    qtbot.wait(50)
+
+
+def test_the_notes_show_from_the_deal_on(qtbot, deck, readings_base):
+    tab = shown(qtbot, three())
+    assert tab.pane.note is None
+    assert not tab.pane.expand_button.isVisible()
+
+    tab.deal()
+    settle(qtbot)
+
+    note = tab.pane.note
+    assert note.isVisible() and note.editor.isVisible() and note.editor.isEnabled()
+    assert not tab.pane.filler.isVisible()
+
+
+def test_a_note_is_written_beside_the_reading_and_reopens(window, readings_base, qtbot):
+    tab = dealt(window)
+    path = tab.reading_path
+
+    qtbot.keyClicks(tab.pane.note.editor, "The tower, again")
+
+    qtbot.waitUntil(
+        lambda: any(p.stem.isdigit() for p in path.glob("*.md")), timeout=PAST_AUTOSAVE_MS
+    )
+    close(window, tab)
+    reopened = window.open_saved_reading(path)
+    assert reopened.pane.note.editor.toPlainText() == "The tower, again"
+
+
+def test_a_reading_reopened_read_shows_its_note(window, readings_base, qtbot):
+    tab = dealt(window)
+    path = tab.reading_path
+    tab.turn_all()
+    qtbot.keyClicks(tab.pane.note.editor, "Done")
+    close(window, tab)
+
+    reopened = window.open_saved_reading(path)
+
+    assert reopened.phase is Phase.READ
+    assert reopened.pane.note.editor.toPlainText() == "Done"
+
+
+def test_the_editor_has_four_lines_at_least(qtbot, deck, readings_base):
+    tab = shown(qtbot, three())
+    tab.deal()
+
+    editor = tab.pane.note.editor
+    assert editor.minimumHeight() >= editor.fontMetrics().lineSpacing() * NOTES_MIN_LINES
+
+
+# -- the list gives way
+
+
+def test_a_long_spread_caps_its_list_and_the_pane_does_not_scroll(qtbot, deck, readings_base):
+    tab = shown(qtbot, celtic_cross())
+    tab.deal()
+    settle(qtbot)
+
+    pane = tab.pane
+    editor = pane.note.editor
+    assert editor.height() >= editor.minimumHeight()
+    assert pane.list_view.height() < rows_height(pane.list_view)
+    assert pane.list_view.verticalScrollBar().maximum() > 0
+    assert not pane.verticalScrollBar().isVisible()
+
+
+def test_a_short_spread_shows_every_row(qtbot, deck, readings_base):
+    tab = shown(qtbot, three())
+    tab.deal()
+    settle(qtbot)
+
+    view = tab.pane.list_view
+    assert view.height() >= rows_height(view)
+    assert view.verticalScrollBar().maximum() == 0
+    assert not tab.pane.verticalScrollBar().isVisible()
+
+
+def test_turning_keeps_the_next_row_in_the_capped_list(qtbot, deck, readings_base):
+    tab = shown(qtbot, celtic_cross())
+    tab.deal()
+    for _ in range(7):
+        tab.turn_next()
+    settle(qtbot)
+
+    view = tab.pane.list_view
+    row = tab.placements.index(tab.placement_of(tab.next_card()))
+    rect = view.visualRect(tab.positions.index(row))
+    assert view.viewport().rect().contains(rect)
+
+
+# -- ⤢
+
+
+def overflowed(qtbot, tab):
+    tab.pane.note.editor.setPlainText("\n".join(f"line {n}" for n in range(60)))
+    qtbot.waitUntil(tab.pane.expand_button.isVisible, timeout=2000)
+
+
+def test_an_empty_note_has_no_expand_button(qtbot, deck, readings_base):
+    tab = shown(qtbot, three())
+    tab.deal()
+    settle(qtbot)
+
+    assert not tab.pane.expand_button.isVisible()
+
+
+def test_expanding_hides_the_facts_and_the_list_and_a_turn_gives_them_back(
+    qtbot, deck, readings_base
+):
+    tab = shown(qtbot, three())
+    tab.deal()
+    overflowed(qtbot, tab)
+    pane = tab.pane
+
+    pane.expand_button.click()
+
+    assert pane.notes_expanded()
+    assert not pane.facts.isVisible() and not pane.list_view.isVisible()
+    assert pane.question_edit.isVisible()
+    assert pane.expand_button.isVisible()
+
+    tab.turn_next()
+
+    assert not pane.notes_expanded()
+    assert pane.facts.isVisible() and pane.list_view.isVisible()
+
+
+def test_choosing_a_card_on_the_canvas_gives_the_list_back(qtbot, deck, readings_base):
+    tab = shown(qtbot, three())
+    tab.deal()
+    tab.turn_next()
+    overflowed(qtbot, tab)
+    pane = tab.pane
+    pane.expand_button.click()
+    assert pane.notes_expanded()
+
+    tab.turn_order()[0].setSelected(True)
+
+    assert not pane.notes_expanded()
+    assert pane.list_view.isVisible()
+
+
+def test_restoring_by_the_button_gives_the_list_back(qtbot, deck, readings_base):
+    tab = shown(qtbot, three())
+    tab.deal()
+    overflowed(qtbot, tab)
+    pane = tab.pane
+    pane.expand_button.click()
+
+    pane.expand_button.click()
+
+    assert not pane.notes_expanded()
+    assert pane.list_view.isVisible() and pane.facts.isVisible()
+
+
+# -- the Date line
+
+
+def test_the_date_is_text_until_activated(qtbot, deck, readings_base):
+    tab = shown(qtbot, three())
+    pane = tab.pane
+    assert not pane.date_text.isVisible()
+
+    tab.deal()
+
+    assert pane.date_text.isVisible() and not pane.date_edit.isVisible()
+    pane.date_line.edit()
+    assert pane.date_edit.isVisible() and not pane.date_text.isVisible()
+    QApplication.activePopupWidget().close()
+
+
+def test_a_backdated_reading_is_written_and_kept_through_a_turn(window, readings_base, qtbot):
+    tab = dealt(window)
+    path = tab.reading_path
+    earlier = QDateTime(tab.dealt_at).addDays(-3)
+
+    tab.pane.date_edit.setDateTime(earlier)
+    tab.turn_next()
+
+    assert tab.pane.date_edit.dateTime() == earlier
+    wanted = earlier.toPyDateTime().astimezone()
+    qtbot.waitUntil(lambda: readings.load(path).date == wanted, timeout=PAST_AUTOSAVE_MS)
+
+
+@pytest.mark.parametrize("clicks", [1, 2])
+def test_the_expand_button_leaves_the_typing_in_the_note(qtbot, deck, readings_base, clicks):
+    tab = shown(qtbot, three())
+    tab.deal()
+    overflowed(qtbot, tab)
+    editor = tab.pane.note.editor
+    tab.view.setFocus()
+    cards = len(tab.cards())
+
+    for _ in range(clicks):
+        qtbot.mouseClick(tab.pane.expand_button, Qt.MouseButton.LeftButton)
+    qtbot.keyClicks(QApplication.focusWidget(), "dd")
+
+    assert editor.hasFocus()
+    assert editor.toPlainText().startswith("dd")
+    assert len(tab.cards()) == cards

@@ -6,30 +6,22 @@ from datetime import datetime
 from PyQt6.QtCore import (
     QDate,
     QDateTime,
-    QEvent,
-    QPointF,
-    Qt,
     QTime,
-    pyqtSignal,
-    pyqtSlot,
 )
-from PyQt6.QtGui import QIcon, QMouseEvent
-from PyQt6.QtWidgets import (
-    QApplication,
-    QDateTimeEdit,
-    QHBoxLayout,
-    QLabel,
-    QStyle,
-    QStyleOptionComboBox,
-    QStyleOptionFocusRect,
-    QStylePainter,
-    QWidget,
-)
+from PyQt6.QtGui import QIcon
+from PyQt6.QtWidgets import QHBoxLayout, QLabel, QWidget
 
 from tarot_canvas.models.readings import Reading, ReadingCard
 from tarot_canvas.ui.canvas.reading_note import ReadingNote
-from tarot_canvas.ui.canvas.reading_pane import DATE_ICON, FactLines, QuestionBox, fact_indent
+from tarot_canvas.ui.canvas.reading_pane import (
+    DATE_ICON,
+    DateLine,
+    FactLines,
+    QuestionBox,
+    fact_indent,
+)
 from tarot_canvas.ui.canvas.side_pane import SidePane
+from tarot_canvas.ui.icons import CANVAS_ICON
 from tarot_canvas.ui.library import units
 from tarot_canvas.ui.strings import READINGS
 from tarot_canvas.utils.dates import format_qdatetime
@@ -119,61 +111,6 @@ def reading_label(question, when):
     return question or format_qdatetime(local_qdatetime(when))
 
 
-class FactButton(QLabel):
-    """A fact that is also a button: a click, Return or Space activates it"""
-
-    activated = pyqtSignal()
-
-    def __init__(self):
-        super().__init__()
-        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
-
-    def mouseReleaseEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton and self.rect().contains(
-            event.position().toPoint()
-        ):
-            self.activated.emit()
-            return
-        super().mouseReleaseEvent(event)
-
-    def keyPressEvent(self, event):
-        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
-            self.activated.emit()
-            return
-        super().keyPressEvent(event)
-
-    def paintEvent(self, event):
-        super().paintEvent(event)
-        if self.hasFocus():
-            painter = QStylePainter(self)
-            option = QStyleOptionFocusRect()
-            option.initFrom(self)
-            option.backgroundColor = self.palette().window().color()
-            painter.drawPrimitive(QStyle.PrimitiveElement.PE_FrameFocusRect, option)
-
-
-def open_calendar(edit):
-    """Open edit's calendar as a click on its arrow does, which is the only way Qt has"""
-    option = QStyleOptionComboBox()
-    option.initFrom(edit)
-    option.editable = True
-    option.subControls = QStyle.SubControl.SC_All
-    arrow = edit.style().subControlRect(
-        QStyle.ComplexControl.CC_ComboBox, option, QStyle.SubControl.SC_ComboBoxArrow, edit
-    )
-    at = QPointF(arrow.center())
-    left = Qt.MouseButton.LeftButton
-    for kind, held in (
-        (QEvent.Type.MouseButtonPress, left),
-        (QEvent.Type.MouseButtonRelease, Qt.MouseButton.NoButton),
-    ):
-        event = QMouseEvent(
-            kind, at, edit.mapToGlobal(at), left, held, Qt.KeyboardModifier.NoModifier
-        )
-        QApplication.sendEvent(edit, event)
-
-
 class SavedCanvasPane(SidePane):
     """The Question, the Date and the note of a saved canvas"""
 
@@ -190,21 +127,15 @@ class SavedCanvasPane(SidePane):
         heading.addWidget(self.question_edit, 1)
         self.body.addLayout(heading)
 
-        # The Date reads as a fact, and is edited only when asked to be
-        when = local_qdatetime(reading.date)
-        self.date_text = FactButton()
-        self.date_text.setIndent(fact_indent())
-        self.date_text.setToolTip(READINGS["date_tooltip"])
-        self.date_text.activated.connect(self.edit_date)
-        self.date_edit = QDateTimeEdit(when)
-        self.date_edit.setCalendarPopup(True)
-        self.date_edit.setToolTip(READINGS["date_tooltip"])
-        self.date_edit.hide()
-        self.date_edit.dateTimeChanged.connect(self._show_date)
-        self.date_edit.editingFinished.connect(self._date_edited)
-        QApplication.instance().focusChanged.connect(self._focus_moved)
-        self._show_date(when)
+        self.date_line = DateLine(self, local_qdatetime(reading.date))
+        self.date_text = self.date_line.text
+        self.date_edit = self.date_line.editor
         self.facts = FactLines()
+        # Where a spread reading names its spread
+        self.spread_label = QLabel(READINGS["sandbox_canvas"])
+        self.spread_label.setWordWrap(True)
+        self.spread_label.setIndent(fact_indent())
+        self.facts.add(QIcon.fromTheme(CANVAS_ICON), self.spread_label)
         self.facts.add(QIcon.fromTheme(DATE_ICON), self.date_text, self.date_edit, None)
         self.body.addWidget(self.facts)
 
@@ -213,46 +144,6 @@ class SavedCanvasPane(SidePane):
         # Shift+Tab from the Question reaches the Date
         QWidget.setTabOrder(self.date_text, self.question_edit)
         QWidget.setTabOrder(self.question_edit, self.note.editor)
-
-    @pyqtSlot(QDateTime)
-    def _show_date(self, when):
-        text = format_qdatetime(when)
-        self.date_text.setText(text)
-        self.date_text.setAccessibleName(text)
-
-    @pyqtSlot()
-    def edit_date(self):
-        """Swap the Date's text for its editor, with the calendar open"""
-        self.date_text.hide()
-        self.date_edit.show()
-        self.facts.layout().activate()
-        self.date_edit.setFocus()
-        open_calendar(self.date_edit)
-
-    @pyqtSlot()
-    def _date_edited(self):
-        # The calendar taking focus ends an edit too, but the user isn't done
-        if QApplication.activePopupWidget() is None:
-            self._close_date_edit()
-
-    @pyqtSlot(QWidget, QWidget)
-    def _focus_moved(self, _old, new):
-        """Focus leaving the editor and its calendar for another widget closes it"""
-        if new is None:
-            return
-        for inside in (self.date_edit, self.date_edit.calendarWidget()):
-            if new is inside or inside.isAncestorOf(new):
-                return
-        self._close_date_edit()
-
-    def _close_date_edit(self):
-        if self.date_edit.isHidden():
-            return
-        refocus = self.date_edit.hasFocus()
-        self.date_edit.hide()
-        self.date_text.show()
-        if refocus:
-            self.date_text.setFocus()
 
 
 def new_reading():

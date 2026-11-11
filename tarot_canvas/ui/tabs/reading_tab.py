@@ -41,6 +41,7 @@ from tarot_canvas.ui.canvas.reading_marks import Badges, Caption
 from tarot_canvas.ui.canvas.reading_pane import ReadingPane, RowOpener
 from tarot_canvas.ui.canvas.reading_strip import ReadingStrip, RevealKeys
 from tarot_canvas.ui.canvas.saved_canvas import (
+    AUTOSAVE_MS,
     deck_key,
     default_deck,
     local_qdatetime,
@@ -178,6 +179,7 @@ class ReadingTab(SpreadSlots, CanvasTab):
         pane = self.pane
         pane.question_edit.textChanged.connect(self.tab_label_changed)
         pane.question_edit.submitted.connect(self.deal)
+        pane.date_edit.dateTimeChanged.connect(self._on_date_edited)
 
         pane.deck_combo.currentIndexChanged.connect(self._on_deck_chosen)
 
@@ -310,6 +312,9 @@ class ReadingTab(SpreadSlots, CanvasTab):
         if self._syncing:
             return
         selected = self.selected_cards()
+        # So does choosing a card on the canvas
+        if selected:
+            self.pane.set_notes_expanded(False)
         placement = self.placement_of(selected[0]) if len(selected) == 1 else None
         selection = self.pane.list_view.selectionModel()
         self._syncing = True
@@ -403,6 +408,9 @@ class ReadingTab(SpreadSlots, CanvasTab):
         if reversals is None:
             reversals = self.reversals()
         return reversals and random.random() < 0.5
+
+    def _on_date_edited(self, when):
+        self.dealt_at = when
 
     def _on_deck_chosen(self):
         if self.phase is Phase.STAGED:
@@ -656,6 +664,7 @@ class ReadingTab(SpreadSlots, CanvasTab):
 
     def save_as(self, path, reading):
         """From now on, this is the reading in folder path, and writes itself there"""
+        self.pane.add_note(self, path, AUTOSAVE_MS)
         self.saved_reading = SavedReading(self, path, reading, self.pane)
 
     def reading_contents(self, base):
@@ -766,6 +775,8 @@ class ReadingTab(SpreadSlots, CanvasTab):
     def turn_next(self):
         if not self.can_turn():
             return
+        # A turn gives the list back
+        self.pane.set_notes_expanded(False)
         card = self._turn_queue.pop(0)
         animate = self.motion_level != "Off"
         # Above the next card while it turns, then back to its own depth

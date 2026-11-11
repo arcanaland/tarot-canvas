@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 
 from PyQt6.QtCore import QTimer, pyqtSlot
-from PyQt6.QtWidgets import QFrame, QLabel, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from tarot_canvas.models.deck_manager import deck_manager
 from tarot_canvas.models.notes import read_directory
@@ -52,8 +52,12 @@ class ReadingNote(QWidget):
         header = QLabel(CARD_VIEW["tab_notes"])
         typography.apply(header, typography.Role.HEADING_4)
         margin = units.LARGE_SPACING
-        header.setContentsMargins(margin, margin, margin, units.SMALL_SPACING)
-        layout.addWidget(header)
+        # The header's row, which a pane may end with a button of its own
+        self.header_row = QHBoxLayout()
+        self.header_row.setContentsMargins(margin, margin, margin, units.SMALL_SPACING)
+        self.header_row.setSpacing(units.SMALL_SPACING)
+        self.header_row.addWidget(header, 1)
+        layout.addLayout(self.header_row)
 
         # The editor asks its parent for link suggestions
         self.editor = MarkdownEditor(self)

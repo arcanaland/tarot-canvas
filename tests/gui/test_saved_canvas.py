@@ -91,6 +91,15 @@ def test_once_saved_save_is_disabled_and_the_pane_is_shown(window, two_cards):
     assert tab.saved_reading.pane.isVisibleTo(tab)
 
 
+def test_a_saved_canvas_names_itself_where_a_spread_reading_names_its_spread(window, two_cards):
+    tab = two_cards
+    saved(window, tab)
+
+    pane = tab.saved_reading.pane
+    assert pane.spread_label.text() == READINGS["sandbox_canvas"]
+    assert pane.spread_label.isVisibleTo(pane)
+
+
 def test_a_scratch_canvas_has_no_pane(window):
     tab = window.new_canvas_tab()
 

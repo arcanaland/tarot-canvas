@@ -58,7 +58,7 @@ COMMANDS = {
     "card_image_toggle_details": "Toggle Card Details (Art)",
     # Library
     "library_toggle_details": "Toggle Deck Details",
-    "canvas_background": "Canvas Background…",
+    "canvas_background": "Canvas Background",
 }
 
 # The Preferences dialog
@@ -704,6 +704,9 @@ READINGS = {
     "date_tooltip": "When the reading was performed",
     "open_failed": "Cannot open reading",
     "notes_hint": "Enter your notes here...",
+    "sandbox_canvas": "Sandbox Canvas",
+    "notes_expand": "<clankertext>Give the notes the whole pane</clankertext>",
+    "notes_restore": "<clankertext>Show the positions again</clankertext>",
     "welcome_no_readings": "No readings yet.",
     "library_view_name": "Journal",
     "library_search_placeholder": "Search journal entries...",
