@@ -49,7 +49,7 @@ COMMANDS = {
     "send_to_back": "Send to Back",
     "align_cards": "Align Cards",
     "save_layout_as_spread": "Save Layout as Spread",
-    "fit_all": "Home view",
+    "fit_all": "Home View",
     "fullscreen_canvas": "Fullscreen Canvas",
     "cancel_selection": "Cancel Selection",
     # Card view
@@ -392,6 +392,7 @@ CANVAS = {
     "delete_tooltip": "Remove selected card",
     "paste": "Paste",
     "paste_tooltip": "Paste card",
+    "draw_here": "Draw a Card Here",
     "bring_to_front_tooltip": "Bring card to front",
     "send_to_back_tooltip": "Send card to back",
     "align_tooltip": "Align selected cards",
@@ -436,6 +437,7 @@ SPREADS = {
     # The toolbar
     "section_slots": "Slots",
     "add_slot_tooltip": "Add card slot",
+    "add_slot_here": "Add Slot Here",
     "save_tooltip": "Save this spread",
     "pane_tooltip": "Toggle details",
     # The title band

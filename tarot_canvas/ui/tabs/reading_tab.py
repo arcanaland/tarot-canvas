@@ -222,6 +222,10 @@ class ReadingTab(SpreadSlots, CanvasTab):
             return
         self.add_specific_card(random.choice(pool), self.deck, self._draw_reversed(), at)
 
+    def shows_draw_here(self):
+        # Before the deal, drawing deals
+        return self.phase is not Phase.STAGED
+
     def card_menu(self, scene_pos):
         item = self.card_at(scene_pos)
         if item is not None and (isinstance(item, SlotItem) or is_face_down(item)):
