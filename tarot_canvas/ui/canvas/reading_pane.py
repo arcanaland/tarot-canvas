@@ -51,7 +51,6 @@ from tarot_canvas.ui.canvas.reading_note import ReadingNote
 from tarot_canvas.ui.canvas.side_pane import SidePane
 from tarot_canvas.ui.canvas.spread_pane import (
     DescriptionBox,
-    ExpandButton,
     MeaningRole,
     NumberRole,
     PositionDelegate,
@@ -59,6 +58,7 @@ from tarot_canvas.ui.canvas.spread_pane import (
 )
 from tarot_canvas.ui.icons import SPREAD_ICON, deck_icon
 from tarot_canvas.ui.strings import READINGS
+from tarot_canvas.ui.widgets.expand_button import ExpandButton
 from tarot_canvas.ui.widgets.reorder_list import GRIP_WIDTH
 from tarot_canvas.utils.dates import format_qdatetime
 

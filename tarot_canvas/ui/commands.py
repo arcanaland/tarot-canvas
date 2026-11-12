@@ -254,6 +254,7 @@ COMMANDS = (
         ["Ctrl+Return", "Ctrl+Enter"],
         L,
     ),
+    _command("library.rename", READINGS["library_rename"], "edit-rename", ["F2"], L),
 )
 
 _BY_ID = {command.id: command for command in COMMANDS}

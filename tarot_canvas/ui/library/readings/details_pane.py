@@ -1,7 +1,10 @@
-from PyQt6.QtCore import Qt, pyqtSignal
+import math
+
+from PyQt6.QtCore import QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QIcon, QPalette
 from PyQt6.QtWidgets import (
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QPushButton,
     QScrollArea,
@@ -9,30 +12,132 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from tarot_canvas.models.ground import drawn
 from tarot_canvas.ui import typography, units
-from tarot_canvas.ui.canvas.saved_canvas import local_qdatetime
-from tarot_canvas.ui.library.readings.model import label, newest_note_line
+from tarot_canvas.ui.canvas.detail import card_unit_size
+from tarot_canvas.ui.canvas.reading_note import note_path
+from tarot_canvas.ui.canvas.tab_icon import DIAGRAM, layout_marks, reading_marks
+from tarot_canvas.ui.library.cards import card_in
+from tarot_canvas.ui.library.diagram import LayoutDiagram
+from tarot_canvas.ui.library.readings.model import (
+    card_row_html,
+    card_row_text,
+    is_sandbox,
+    label,
+    meta_text,
+    open_icon,
+    open_text,
+)
 from tarot_canvas.ui.strings import READINGS
+from tarot_canvas.ui.widgets.expand_button import ExpandButton
+from tarot_canvas.ui.widgets.markdown_view import MarkdownView
 from tarot_canvas.ui.widgets.pane_text import pane_text
-from tarot_canvas.utils.dates import format_qdatetime
+from tarot_canvas.utils.logger import logger
 
 
-def _section_title(text):
-    return typography.apply(pane_text(text), typography.Role.HEADING_4)
+def _note_text(folder):
+    """The reading's note as its tab edits it, or "" for none"""
+    path = note_path(folder)
+    if path is None:
+        return ""
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as error:
+        logger.warning(f"Could not read the reading's note {path}: {error}")
+        return ""
+
+
+CARD_LINK = "card:"
+
+
+class _CardColumns(QWidget):
+    """Card rows down a column, flowing into the next past ROWS_PER_COLUMN, each turned card's
+    name a link that says which row it is"""
+
+    ROWS_PER_COLUMN = 6
+
+    link_activated = pyqtSignal(int)  # the row's index
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._labels = []
+        self._texts = []
+        self._columns = 0
+        self._grid = None
+        self._new_grid()
+
+    def _new_grid(self):
+        # A fresh grid each time: a QGridLayout keeps every row and column it ever had
+        if self._grid is not None:
+            QWidget().setLayout(self._grid)
+        self._grid = QGridLayout(self)
+        self._grid.setContentsMargins(0, 0, 0, 0)
+        self._grid.setHorizontalSpacing(units.GRID_UNIT)
+        self._grid.setVerticalSpacing(units.SMALL_SPACING)
+        self._grid.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+
+    def show_rows(self, card_rows):
+        for line in self._labels:
+            line.deleteLater()
+        self._new_grid()
+        self._texts = [card_row_text(card_row) for card_row in card_rows]
+        self._labels = []
+        for number, card_row in enumerate(card_rows):
+            line = pane_text()
+            line.setTextFormat(Qt.TextFormat.RichText)
+            line.setText(card_row_html(card_row, f"{CARD_LINK}{number}"))
+            # Wrapped, a label in a left-packed grid takes its narrowest width and clips
+            line.setWordWrap(False)
+            line.setTextInteractionFlags(
+                Qt.TextInteractionFlag.TextSelectableByMouse
+                | Qt.TextInteractionFlag.LinksAccessibleByMouse
+                | Qt.TextInteractionFlag.LinksAccessibleByKeyboard
+            )
+            line.linkActivated.connect(self._on_link)
+            self._labels.append(line)
+        count = len(self._labels)
+        self._columns = math.ceil(count / self.ROWS_PER_COLUMN)
+        if not count:
+            return
+        rows = math.ceil(count / self._columns)
+        for number, line in enumerate(self._labels):
+            self._grid.addWidget(line, number % rows, number // rows)
+
+    def lines(self):
+        """Each row as plain text"""
+        return list(self._texts)
+
+    def labels(self):
+        return list(self._labels)
+
+    def _on_link(self, href):
+        if href.startswith(CARD_LINK):
+            self.link_activated.emit(int(href.removeprefix(CARD_LINK)))
+
+    def columns(self):
+        return self._columns
 
 
 class ReadingDetailsPane(QWidget):
-    """A reading's Question and Date, its cards in order and its newest note's first line"""
+    """A reading's Question, what it was, its layout on its ground beside its cards, its note"""
 
     open_requested = pyqtSignal(object)  # the reading's folder
+    card_requested = pyqtSignal(object, object)  # a turned card's dict, and its deck
+    # The expand button was clicked, or Esc pressed while expanded: whether to expand
+    expand_requested = pyqtSignal(bool)
+
+    # The diagram's largest strip: as wide as the spread pane's, a short band tall
+    DIAGRAM_STRIP = QSize(14 * units.GRID_UNIT, 8 * units.GRID_UNIT)
+    # The note's widest, so its lines stay a readable length on a wide window
+    NOTE_MEASURE = 45 * units.GRID_UNIT
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._details = None
 
         self.heading_label = typography.apply(pane_text(), typography.Role.HEADING_1, primary=True)
-        self.date_label = typography.apply(pane_text(), typography.Role.SMALL)
-        self.date_label.setForegroundRole(QPalette.ColorRole.PlaceholderText)
+        self.meta_label = typography.apply(pane_text(), typography.Role.SMALL)
+        self.meta_label.setForegroundRole(QPalette.ColorRole.PlaceholderText)
 
         self.open_button = QPushButton(QIcon.fromTheme("document-open"), READINGS["library_open"])
         self.open_button.clicked.connect(self._on_open)
@@ -41,7 +146,7 @@ class ReadingDetailsPane(QWidget):
         heading_column.setContentsMargins(0, 0, 0, 0)
         heading_column.setSpacing(units.SMALL_SPACING)
         heading_column.addWidget(self.heading_label)
-        heading_column.addWidget(self.date_label)
+        heading_column.addWidget(self.meta_label)
 
         heading_row = QHBoxLayout()
         heading_row.setContentsMargins(0, 0, 0, 0)
@@ -49,30 +154,50 @@ class ReadingDetailsPane(QWidget):
         heading_row.addLayout(heading_column, 1)
         heading_row.addWidget(self.open_button, 0, Qt.AlignmentFlag.AlignTop)
 
-        self.cards_title = _section_title(READINGS["library_cards"])
-        self.cards_column = QVBoxLayout()
-        self.cards_column.setContentsMargins(0, 0, 0, 0)
-        self.cards_column.setSpacing(units.SMALL_SPACING)
-        self.note_title = _section_title(READINGS["library_note"])
-        self.note_label = pane_text()
+        # In the corner, after Open; its room is kept while hidden, so Open never shifts
+        self._expanded = False
+        self.expand_button = ExpandButton(
+            READINGS["library_details_expand"], READINGS["library_details_restore"]
+        )
+        policy = self.expand_button.sizePolicy()
+        policy.setRetainSizeWhenHidden(True)
+        self.expand_button.setSizePolicy(policy)
+        self.expand_button.clicked.connect(lambda: self.expand_requested.emit(not self._expanded))
+        heading_row.addWidget(self.expand_button, 0, Qt.AlignmentFlag.AlignTop)
+
+        self.diagram = LayoutDiagram(strip=self.DIAGRAM_STRIP)
+        self.cards = _CardColumns()
+        self.cards.link_activated.connect(self._on_card_link)
+
+        strip = QHBoxLayout()
+        strip.setContentsMargins(0, 0, 0, 0)
+        strip.setSpacing(units.GRID_UNIT)
+        strip.addWidget(self.diagram, 0, Qt.AlignmentFlag.AlignTop)
+        strip.addWidget(self.cards, 1, Qt.AlignmentFlag.AlignTop)
+
+        self.note_rule = QFrame()
+        self.note_rule.setFrameShape(QFrame.Shape.HLine)
+        self.note_rule.setFrameShadow(QFrame.Shadow.Sunken)
+        self.note_view = MarkdownView()
+        self.note_view.setMaximumWidth(self.NOTE_MEASURE)
 
         body = QVBoxLayout()
         body.setContentsMargins(0, 0, 0, 0)
         body.setSpacing(units.LARGE_SPACING)
-        body.addWidget(self.cards_title)
-        body.addLayout(self.cards_column)
-        body.addWidget(self.note_title)
-        body.addWidget(self.note_label)
+        body.addLayout(strip)
+        body.addWidget(self.note_rule)
+        body.addWidget(self.note_view)
         body.addStretch(1)
         content = QWidget()
         content.setLayout(body)
 
-        # Only the body scrolls; the heading stays put
+        # Everything under the heading scrolls as one, the diagram with the note
         self.scroll_area = QScrollArea()
         self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.scroll_area.setWidget(content)
+        self.scroll_area.verticalScrollBar().rangeChanged.connect(self._sync_expand_button)
 
         margin = units.GRID_UNIT
         layout = QVBoxLayout(self)
@@ -85,35 +210,67 @@ class ReadingDetailsPane(QWidget):
         """The ReadingRow shown, or None"""
         return self._details
 
+    def is_expanded(self):
+        return self._expanded
+
+    def set_expanded(self, expanded):
+        """Say whether the pane has the list's room; the Library tab gives it"""
+        self._expanded = expanded
+        self._sync_expand_button()
+
+    def _sync_expand_button(self, *_):
+        # Only a pane that doesn't fit needs it, so a short entry never shows it
+        overflowing = self.scroll_area.verticalScrollBar().maximum() > 0
+        self.expand_button.sync(self._expanded or overflowing, self._expanded)
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Escape and self._expanded:
+            self.expand_requested.emit(False)
+            return
+        super().keyPressEvent(event)
+
     def card_lines(self):
-        return [
-            self.cards_column.itemAt(n).widget().text() for n in range(self.cards_column.count())
-        ]
+        """The card rows' text, in reading order: down each column, then the next"""
+        return self.cards.lines()
+
+    def card_columns(self):
+        return self.cards.columns()
 
     def show_details(self, row):
         previous, self._details = self._details, row
         if row is None:
+            self.diagram.hide()
             return
 
         reading = row.reading
         self.heading_label.setText(label(reading))
-        # Without a Question the heading is the Date already
-        self.date_label.setText(format_qdatetime(local_qdatetime(reading.date)))
-        self.date_label.setVisible(bool(reading.question))
+        self.meta_label.setText(meta_text(row))
+        self.open_button.setText(open_text(row))
+        self.open_button.setIcon(QIcon.fromTheme(open_icon(row)))
 
-        while self.cards_column.count():
-            self.cards_column.takeAt(0).widget().deleteLater()
-        for line in row.card_lines:
-            self.cards_column.addWidget(pane_text(line))
-        self.cards_title.setVisible(bool(row.card_lines))
+        # A sandbox's order means nothing, so its marks go unnumbered
+        numbered = not is_sandbox(reading)
+        marks = reading_marks(reading, card_unit_size(), numbered=numbered)
+        self.diagram.show_marks(layout_marks(marks, DIAGRAM.max_fill), drawn(reading.ground))
 
-        note = newest_note_line(row)
-        self.note_label.setText(note)
-        self.note_title.setVisible(bool(note))
-        self.note_label.setVisible(bool(note))
+        self.cards.show_rows(row.card_rows)
+
+        note = _note_text(row.path)
+        self.note_view.set_markdown(note, base=row.path)
+        self.note_rule.setVisible(bool(note.strip()))
+        self.note_view.setVisible(bool(note.strip()))
 
         if previous is None or previous.path != row.path:
             self.scroll_area.verticalScrollBar().setValue(0)
+        self._sync_expand_button()
+
+    def _on_card_link(self, number):
+        if self._details is None or not 0 <= number < len(self._details.card_rows):
+            return
+        card_row = self._details.card_rows[number]
+        card = card_in(card_row.deck, card_row.card_id)
+        if card is not None:
+            self.card_requested.emit(card, card_row.deck)
 
     def _on_open(self):
         if self._details is not None:

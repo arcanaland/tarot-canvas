@@ -1,6 +1,6 @@
 """Kept readings: readings/<timestamp>/reading.toml beside the reading's notes"""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date as Date
 from datetime import datetime
 from pathlib import Path
@@ -250,6 +250,14 @@ def save(path, reading):
     path = Path(path)
     path.mkdir(parents=True, exist_ok=True)
     write_toml(path / READING_FILE, _table(reading))
+
+
+def rename(path, question):
+    """Give the reading in folder path a new Question; raises OSError, ValueError if unreadable"""
+    reading = load(path)
+    if reading is None:
+        raise ValueError(f"no reading at {path}")
+    save(path, replace(reading, question=question))
 
 
 # -- scanning ------------------------------------------------------------------------------

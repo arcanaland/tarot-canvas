@@ -32,6 +32,7 @@ from PyQt6.QtWidgets import (
 from tarot_canvas.about import load_about_data
 from tarot_canvas.models import readings, spreads
 from tarot_canvas.models.deck_manager import deck_manager
+from tarot_canvas.models.reading_events import reading_events
 from tarot_canvas.settings import (
     EXPLORER_VISIBLE_DEFAULT,
     EXPLORER_VISIBLE_KEY,
@@ -644,6 +645,22 @@ class MainWindow(QMainWindow):
         self.add_canvas_tab(tab)
         QTimer.singleShot(0, tab.on_home)
         return tab
+
+    def rename_saved_reading(self, path, question):
+        """Give the reading in folder path a new Question, through its tab if one holds it"""
+        path = Path(path)
+        tab = self.saved_reading_tab(path)
+        if tab is not None and tab.saved_reading is not None:
+            # The tab would write its own Question back over a rename made around it
+            tab.rename(question)
+            tab.saved_reading.write()
+            return
+        try:
+            readings.rename(path, question)
+        except (OSError, ValueError) as error:
+            logger.error(f"Could not rename reading {path}: {error}")
+            return
+        reading_events().readings_changed.emit()
 
     def close_saved_reading(self, path):
         """Close the tab holding the reading in folder path, and return whether none is left"""

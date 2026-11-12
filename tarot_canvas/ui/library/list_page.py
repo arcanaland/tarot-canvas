@@ -73,6 +73,11 @@ class LibraryListPage(QWidget):
         """(label, key) of each sort the view offers; with any, it also has the other sort_*"""
         return ()
 
+    def filter_choices(self):
+        """(label, key) of each filter the view offers, the first showing everything; with any,
+        it also has the other filter_*"""
+        return ()
+
     def set_search(self, text):
         self.list_model.set_search(text)
         self._update_empty_state()

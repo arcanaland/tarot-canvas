@@ -34,6 +34,7 @@ from tarot_canvas.ui.canvas.side_pane import SidePane
 from tarot_canvas.ui.icons import SPREAD_ICON
 from tarot_canvas.ui.palette import subtle_fill
 from tarot_canvas.ui.strings import SPREADS
+from tarot_canvas.ui.widgets.expand_button import ExpandButton
 from tarot_canvas.ui.widgets.heading_edit import heading_edit
 from tarot_canvas.ui.widgets.placeholder_message import PlaceholderMessage
 from tarot_canvas.ui.widgets.reorder_list import GRIP_WIDTH, ReorderListView, paint_grip
@@ -94,20 +95,6 @@ class DescriptionBox(QTextEdit):
         if overflowing != self.overflowing:
             self.overflowing = overflowing
             self.overflow_changed.emit()
-
-
-class ExpandButton(QToolButton):
-    def __init__(self, expand_tip, restore_tip):
-        super().__init__()
-        self.setAutoRaise(True)
-        self._tips = (expand_tip, restore_tip)
-
-    def sync(self, shown, expanded):
-        self.setVisible(shown)
-        self.setIcon(QIcon.fromTheme("view-restore" if expanded else "view-fullscreen"))
-        tooltip = self._tips[1] if expanded else self._tips[0]
-        self.setToolTip(tooltip)
-        self.setAccessibleName(tooltip)
 
 
 class PositionModel(QAbstractListModel):

@@ -13,9 +13,7 @@ from PyQt6.QtGui import (
     QFontMetrics,
     QGuiApplication,
     QIcon,
-    QPainter,
     QPixmap,
-    QRadialGradient,
 )
 from PyQt6.QtWidgets import (
     QGraphicsScene,
@@ -31,7 +29,7 @@ from PyQt6.QtWidgets import (
 
 from tarot_canvas.models import backgrounds, readings
 from tarot_canvas.models.deck_manager import deck_manager
-from tarot_canvas.models.ground import Ground
+from tarot_canvas.models.ground import drawn
 from tarot_canvas.models.spreads import Position, Spread, offsets_from_middle
 from tarot_canvas.settings import (
     CANVAS_GUIDES_DEFAULT,
@@ -70,9 +68,10 @@ from tarot_canvas.ui.canvas.ground import (
     CHECKERBOARD_SQUARE,
     GROUND_HUE_DEFAULT,
     GROUND_HUES,
-    checkerboard_partner,
+    ground_hue,
     shadow_for_ground,
 )
+from tarot_canvas.ui.canvas.ground_paint import AURA_RADIUS, aura_gradient, checkerboard_tile
 from tarot_canvas.ui.canvas.guides import GuideItem
 from tarot_canvas.ui.canvas.motion import (
     AMBIENT_GAIN_FLOOR,
@@ -128,11 +127,6 @@ GROUNDS = {
         ground.image, ground.positioning, ground.fill
     ),
 }
-
-
-def ground_hue(ground):
-    """The ground's GroundHue, which Swirl and Aura share; the default for an unknown id"""
-    return GROUND_HUES.get(ground.hue, GROUND_HUES[GROUND_HUE_DEFAULT])
 
 
 def wheel_turn(orient, notches, fine):
@@ -289,18 +283,7 @@ class CanvasTab(BaseTab):
 
     def drawn_ground(self):
         """The tab's own ground, else the default; the default too while its image is missing"""
-        default = Ground.from_settings(get_settings())
-        ground = self.ground
-        if ground is None:
-            return default
-        if ground.style == "image":
-            path = backgrounds.background_path(ground.image)
-            if path is None or not path.is_file():
-                logger.info(
-                    f"No background image {ground.image!r}, so the canvas draws the default"
-                )
-                return default
-        return ground
+        return drawn(self.ground, get_settings())
 
     def apply_ground(self):
         """Draw the tab's own ground, or the default when it has none"""
@@ -460,12 +443,7 @@ class CanvasTab(BaseTab):
     def create_gradient_background(self, hue=None):
         """Aura: a radial gradient through hue's three stops"""
         hue = hue or GROUND_HUES[GROUND_HUE_DEFAULT]
-        center = QPointF(0, 0)
-        radius = 800
-        gradient = QRadialGradient(center, radius)
-
-        gradient.setStops(hue.aura_stops())
-
+        gradient = aura_gradient(hue, QPointF(0, 0), AURA_RADIUS)
         brush = QBrush(gradient)
         self.scene.setBackgroundBrush(brush)
         self.view.setBackgroundBrush(brush)
@@ -527,26 +505,7 @@ class CanvasTab(BaseTab):
     def create_checkerboard_background(self, color_str):
         """A checkerboard of the user's colour and its derived partner"""
         color = QColor(color_str)
-        partner = checkerboard_partner(color)
-
-        size = CHECKERBOARD_SQUARE
-        pixmap = QPixmap(size * 2, size * 2)
-        pixmap.fill(Qt.GlobalColor.transparent)
-
-        painter = QPainter(pixmap)
-        painter.setPen(Qt.PenStyle.NoPen)
-
-        painter.setBrush(QBrush(color))
-        painter.drawRect(0, 0, size, size)
-        painter.drawRect(size, size, size, size)
-
-        painter.setBrush(QBrush(partner))
-        painter.drawRect(0, size, size, size)
-        painter.drawRect(size, 0, size, size)
-
-        painter.end()
-
-        pattern_brush = QBrush(pixmap)
+        pattern_brush = QBrush(checkerboard_tile(color, CHECKERBOARD_SQUARE))
         self.view.setBackgroundBrush(pattern_brush)
         return color
 

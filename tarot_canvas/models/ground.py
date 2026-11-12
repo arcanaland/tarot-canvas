@@ -3,6 +3,7 @@
 import re
 from dataclasses import dataclass, replace
 
+from tarot_canvas.models import backgrounds
 from tarot_canvas.settings import (
     BACKGROUND_COLOR_DEFAULT,
     BACKGROUND_COLOR_KEY,
@@ -150,3 +151,16 @@ def _colour(table, key):
     if not _COLOUR.fullmatch(value):
         raise ValueError(f"{key} is not a #rrggbb colour: {value!r}")
     return value
+
+
+def drawn(ground, settings=None):
+    """The ground a canvas draws: its own, else the default; the default too while its image is missing"""
+    default = Ground.from_settings(settings or get_settings())
+    if ground is None:
+        return default
+    if ground.style == "image":
+        path = backgrounds.background_path(ground.image)
+        if path is None or not path.is_file():
+            logger.info(f"No background image {ground.image!r}, so the canvas draws the default")
+            return default
+    return ground

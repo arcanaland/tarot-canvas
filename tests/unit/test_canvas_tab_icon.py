@@ -1,8 +1,19 @@
+from datetime import UTC, datetime
+
 import pytest
 from PyQt6.QtCore import QSize
 from PyQt6.QtGui import QColor
 
-from tarot_canvas.ui.canvas.tab_icon import MINIMAP, layout_marks, snapped, spread_icon
+from tarot_canvas.models.readings import Reading, ReadingCard
+from tarot_canvas.ui.canvas import tab_icon
+from tarot_canvas.ui.canvas.tab_icon import (
+    MINIMAP,
+    Mark,
+    layout_marks,
+    reading_marks,
+    snapped,
+    spread_icon,
+)
 from tarot_canvas.ui.card_colours import CARD_COLOURS
 
 
@@ -73,3 +84,40 @@ def test_one_card_paints_its_colour_on_the_ground(qapp):
     image = spread_icon(marks).pixmap(QSize(32, 32)).toImage()
     assert image.pixelColor(16, 16) == QColor(CARD_COLOURS["wands"])
     assert image.pixelColor(0, 0).alpha() == 0
+
+
+def _reading(*card_ids):
+    cards = tuple(
+        ReadingCard(id=card_id, x=n * 10.0, z=float(len(card_ids) - n))
+        for n, card_id in enumerate(card_ids)
+    )
+    return Reading(date=datetime(2026, 11, 11, tzinfo=UTC), cards=cards)
+
+
+def test_a_numbered_reading_counts_its_cards_in_order():
+    reading = _reading("major_arcana.fool", "minors.cups.ace", "major_arcana.magician")
+    raw = reading_marks(reading, QSize(10, 17), numbered=True)
+    assert [mark[0] for mark in raw] == [0.0, 10.0, 20.0]
+    assert [mark[-1] for mark in raw] == [1, 2, 3]
+    # The order is the reading's, not paint order
+    assert [mark.number for mark in layout_marks(raw)] == [3, 2, 1]
+
+
+def test_a_reading_is_unnumbered_by_default():
+    reading = _reading("major_arcana.fool", "major_arcana.magician")
+    assert all(mark.number is None for mark in layout_marks(reading_marks(reading, QSize(10, 17))))
+
+
+def test_a_turned_marks_number_is_painted_upright(qapp, monkeypatch):
+    painted = []
+
+    def spy(painter, number, w, h, angle):
+        transform = painter.worldTransform()
+        painted.append((number, angle, transform.m12(), transform.m21()))
+
+    monkeypatch.setattr(tab_icon, "paint_upright_number", spy)
+    marks = (Mark(0.5, 0.5, 0.2, 0.35, 90.0, "#ff8800", 0, 4),)
+    tab_icon.render_spread(marks, tab_icon.DIAGRAM, 64)
+
+    # The painter isn't turned with the mark; the number is drawn knowing the mark's angle
+    assert painted == [(4, 90.0, 0.0, 0.0)]

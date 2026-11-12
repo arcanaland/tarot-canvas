@@ -1,6 +1,6 @@
 import math
 from collections import namedtuple
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from PyQt6.QtCore import QPointF, QRect, QRectF, Qt
 from PyQt6.QtGui import (
@@ -12,10 +12,11 @@ from PyQt6.QtGui import (
     QPainter,
     QPen,
     QPixmap,
-    QRadialGradient,
 )
 
-from tarot_canvas.ui.canvas.ground import GRADIENT_STOPS
+from tarot_canvas.ui import typography
+from tarot_canvas.ui.canvas.ground import GRADIENT_STOPS, GROUND_HUE_DEFAULT, GROUND_HUES
+from tarot_canvas.ui.canvas.ground_paint import aura_gradient
 from tarot_canvas.ui.canvas.reading_card import FACE_DOWN_MARK
 from tarot_canvas.ui.canvas.slot_item import NUMBER_HEIGHT, paint_number, slot_ink
 from tarot_canvas.ui.card_colours import MAJOR_ARCANA, SLOT_COLOUR, card_colour
@@ -60,6 +61,9 @@ DIAGRAM = IconStyle(
     ground=False,
     min_number=0.03,
 )
+
+# Over a ground, kept clear of its edge
+GROUNDED_DIAGRAM = replace(DIAGRAM, inset=0.08)
 
 
 def card_marks(cards):
@@ -110,8 +114,11 @@ def _kind_of(card_id):
     return {}
 
 
-def reading_marks(reading, unit):
-    """As card_marks, for a kept reading's cards, each the slot's QSize unit, without its art"""
+def reading_marks(reading, unit, numbered=False):
+    """As card_marks, for a kept reading's cards, each the slot's QSize unit, without its art.
+
+    numbered: each card's 1-based place in reading.cards
+    """
     return tuple(
         (
             card.x,
@@ -121,8 +128,10 @@ def reading_marks(reading, unit):
             card.rotation,
             card_colour(_kind_of(card.id)) if card.turned else FACE_DOWN_MARK,
             card.z,
+            # Unnumbered, as card_marks: seven fields
+            *((number,) if numbered else ()),
         )
-        for card in reading.cards
+        for number, card in enumerate(reading.cards, start=1)
     )
 
 
@@ -205,19 +214,35 @@ def render_spread(marks, style, side):
         w = mark.w * area
         painter.save()
         painter.translate(inset + mark.x * area, inset + mark.y * area)
-        painter.rotate(mark.angle)
         painter.setPen(slot_ink(mark.colour))
-        paint_number(painter, mark.number, QRectF(-w / 2, -h / 2, w, h))
+        paint_upright_number(painter, mark.number, w, h, mark.angle)
         painter.restore()
 
     painter.end()
     return image
 
 
+def paint_upright_number(painter, number, w, h, angle):
+    """number on a w x h mark centred on the origin and turned by angle, the right way up.
+
+    A mark nearer upright than sideways keeps it in its top half, as an upright slot does;
+    one nearer sideways has it at its centre, at the size its upright twin would.
+    """
+    radians = math.radians(angle)
+    if abs(math.cos(radians)) >= abs(math.sin(radians)):
+        paint_number(painter, number, QRectF(-w / 2, -h / 2, w, h))
+        return
+    font = typography.in_pixels(typography.font(typography.Role.BODY), h * NUMBER_HEIGHT)
+    font.setBold(True)
+    painter.setFont(font)
+    painter.drawText(QRectF(-h / 2, -w / 2, h, w), Qt.AlignmentFlag.AlignCenter, str(number))
+
+
 def _paint_ground(painter, side, style):
-    gradient = QRadialGradient(QPointF(side / 2, side / 2), side * math.sqrt(2) / 2)
-    gradient.setStops(GRADIENT_STOPS)
-    painter.setBrush(gradient)
+    centre = QPointF(side / 2, side / 2)
+    painter.setBrush(
+        aura_gradient(GROUND_HUES[GROUND_HUE_DEFAULT], centre, side * math.sqrt(2) / 2)
+    )
     radius = side * style.ground_radius
     if style.ground_rim:
         rim = QGuiApplication.palette().text().color()

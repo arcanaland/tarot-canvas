@@ -1,12 +1,13 @@
 from functools import partial
 
 from PyQt6.QtCore import QSignalBlocker, Qt
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QActionGroup, QIcon
 from PyQt6.QtWidgets import (
     QBoxLayout,
     QComboBox,
     QFrame,
     QHBoxLayout,
+    QMenu,
     QSplitter,
     QStackedWidget,
     QToolButton,
@@ -69,6 +70,8 @@ class LibraryTab(BaseTab):
         # alone: the next view with something reopens it
         self._details_held = False
         self._below_share = self._saved_below_share()
+        # The splitter's sizes while the pane has the list's room, or None while it hasn't
+        self._sizes_before_expand = None
         self.setup_ui()
 
     def setup_ui(self):
@@ -92,6 +95,9 @@ class LibraryTab(BaseTab):
         self.readings_page.row_chosen.connect(self._open_details_for_selection)
         self.readings_page.open_requested.connect(self.on_reading_open_requested)
         self.readings_page.delete_requested.connect(self.on_reading_delete_requested)
+        self.readings_page.rename_requested.connect(self.on_reading_rename_requested)
+        self.readings_page.details_pane.expand_requested.connect(self.set_details_expanded)
+        self.readings_page.details_pane.card_requested.connect(self.on_reading_card_requested)
         self.readings_page.details_changed.connect(self._on_list_details_changed)
 
         self.esoterica_page = EsotericaPage(deck=deck_manager.get_reference_deck())
@@ -168,6 +174,7 @@ class LibraryTab(BaseTab):
             {
                 "library.toggle_details": self.details_toggle.click,
                 "library.start_reading": self._start_reading,
+                "library.rename": self._rename,
                 **{
                     f"library.view_{n}": partial(self.show_view, view)
                     for n, view in enumerate(LIBRARY_VIEWS, 1)
@@ -234,6 +241,17 @@ class LibraryTab(BaseTab):
             )
         )
         row.addWidget(self.new_reading_button)
+
+        # The current view's filters, filled by _sync_filter_button; checked while one narrows
+        self.filter_button = QToolButton()
+        self.filter_button.setIcon(QIcon.fromTheme("view-filter"))
+        self.filter_button.setCheckable(True)
+        self.filter_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.filter_button.setMenu(QMenu(self.filter_button))
+        self._filter_group = None
+        # A press opens the menu; only a choice in it changes what is checked
+        self.filter_button.clicked.connect(self._sync_filter_state)
+        row.addWidget(self.filter_button)
 
         self.details_toggle = QToolButton()
         self.details_toggle.setCheckable(True)
@@ -321,6 +339,8 @@ class LibraryTab(BaseTab):
         self.settings.setValue(LIBRARY_VIEW_KEY, view)
 
     def _apply_view(self, view):
+        # Expanding is for reading one entry; another view gets its list back
+        self.set_details_expanded(False)
         page = self.list_pages[view]
         decks = view == LIBRARY_VIEW_DECKS
         was_open = self.details_pane_is_open() or self._details_held
@@ -340,6 +360,7 @@ class LibraryTab(BaseTab):
             self._set_details_open(True)
 
         self._sync_sort_combo(page)
+        self._sync_filter_button(page)
         self.zoom_slider.setVisible(decks)
         self.open_deck_button.setVisible(decks)
         self.new_spread_button.setVisible(view == LIBRARY_VIEW_SPREADS)
@@ -364,6 +385,36 @@ class LibraryTab(BaseTab):
         self.sort_combo.setToolTip(tooltip)
         self.sort_combo.setVisible(bool(choices))
 
+    def _sync_filter_button(self, page):
+        choices = page.filter_choices()
+        menu = self.filter_button.menu()
+        menu.clear()
+        if self._filter_group is not None:
+            self._filter_group.deleteLater()
+        self._filter_group = QActionGroup(menu)
+        self._filter_group.setExclusive(True)
+        current = page.filter_key() if choices else None
+        for label, key in choices:
+            action = menu.addAction(label)
+            action.setCheckable(True)
+            action.setChecked(key == current)
+            action.setData(key)
+            self._filter_group.addAction(action)
+        self._filter_group.triggered.connect(self.on_filter_changed)
+        self.filter_button.setVisible(bool(choices))
+        self._sync_filter_state()
+
+    def _sync_filter_state(self):
+        page = self.current_list_page()
+        if not page.filter_choices():
+            self.filter_button.setChecked(False)
+            return
+        key = page.filter_key()
+        default = page.filter_choices()[0][1]
+        self.filter_button.setChecked(key != default)
+        self.filter_button.setToolTip(page.filter_tooltip(key))
+        self.filter_button.setAccessibleName(page.filter_name())
+
     # -- slots ------------------------------------------------------------
 
     def can_find(self):
@@ -378,6 +429,8 @@ class LibraryTab(BaseTab):
         return self.current_list_page().focus_first_row()
 
     def on_search_changed(self, text):
+        # A search is for the list, so the list comes back
+        self.set_details_expanded(False)
         self.current_list_page().set_search(text)
 
     def on_card_activated(self, card_id):
@@ -447,6 +500,17 @@ class LibraryTab(BaseTab):
         if hasattr(main_window, "open_saved_reading"):
             main_window.open_saved_reading(path)
 
+    def on_reading_card_requested(self, card, deck):
+        """A card the reading names, in the deck the reading opens it in"""
+        main_window = self.window()
+        if hasattr(main_window, "open_card_view_tab"):
+            main_window.open_card_view_tab(card, deck)
+
+    def on_reading_rename_requested(self, path, question):
+        main_window = self.window()
+        if hasattr(main_window, "rename_saved_reading"):
+            main_window.rename_saved_reading(path, question)
+
     def on_reading_delete_requested(self, path):
         """Delete a reading once any tab holding it has closed and written itself"""
         main_window = self.window()
@@ -469,6 +533,10 @@ class LibraryTab(BaseTab):
 
     def on_sort_changed(self):
         self.current_list_page().set_sort_key(self.sort_combo.currentData())
+
+    def on_filter_changed(self, action):
+        self.current_list_page().set_filter_key(action.data())
+        self._sync_filter_state()
 
     def on_density_changed(self, density):
         self.decks_page.set_density(density)
@@ -493,6 +561,20 @@ class LibraryTab(BaseTab):
         if self.pages.currentWidget() is self.spreads_page:
             self.spreads_page.start_reading()
 
+    def _rename(self):
+        if self.pages.currentWidget() is self.readings_page:
+            self.readings_page.rename_selected()
+
+    def can_delete(self):
+        return (
+            self.pages.currentWidget() is self.readings_page
+            and self.readings_page.can_delete_selected()
+        )
+
+    def delete(self):
+        if self.can_delete():
+            self.readings_page.delete_selected()
+
     def details_pane_is_open(self):
         return not self.details_container.isHidden()
 
@@ -510,7 +592,31 @@ class LibraryTab(BaseTab):
         if self._details_wanted:
             self._set_details_open(True)
 
+    def details_pane_is_expanded(self):
+        return self._sizes_before_expand is not None
+
+    def set_details_expanded(self, want):
+        """Give the open pane the list's room, or give it back where the divider was"""
+        pane = self.current_details_pane()
+        want = want and self.details_pane_is_open() and hasattr(pane, "set_expanded")
+        if want == self.details_pane_is_expanded():
+            return
+        if want:
+            # The list can't collapse to nothing, so it goes, and its divider is kept
+            self._sizes_before_expand = self.splitter.sizes()
+            self.pages.hide()
+        else:
+            sizes, self._sizes_before_expand = self._sizes_before_expand, None
+            self.pages.show()
+            self.splitter.setSizes(sizes)
+        for each in self.list_pages.values():
+            if hasattr(each.details_pane, "set_expanded"):
+                each.details_pane.set_expanded(want and each.details_pane is pane)
+
     def _set_details_open(self, want):
+        if not want:
+            # Before its extent is kept, so the extent is the one beside the list
+            self.set_details_expanded(False)
         if want != self.details_pane_is_open():
             if want:
                 self.details_container.show()
