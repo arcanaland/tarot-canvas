@@ -121,7 +121,9 @@ def test_activating_a_recent_row_opens_that_reading(window, readings_base, qtbot
     assert opened.saved_reading.path == path
 
 
-def test_a_new_reading_appears_and_the_placeholder_goes(window, readings_base):
+def test_a_new_reading_appears_and_the_placeholder_goes(qtbot, window, readings_base):
+    window.show()
+    qtbot.waitExposed(window)
     tab = welcome(window)
     assert tab.recent_placeholder.isVisibleTo(tab)
 

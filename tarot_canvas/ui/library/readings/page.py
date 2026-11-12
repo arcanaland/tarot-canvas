@@ -29,6 +29,7 @@ from tarot_canvas.ui.library.readings.model import (
     open_text,
 )
 from tarot_canvas.ui.library.readings.row_delegate import ReadingRowDelegate
+from tarot_canvas.ui.refresh_when_shown import RefreshWhenShown
 from tarot_canvas.ui.strings import READINGS, SPREADS
 
 SORT_CHOICES = [
@@ -94,7 +95,9 @@ class ReadingsPage(DeletableListPage):
         self.list_view.selectionModel().currentChanged.connect(self._on_keyboard_current)
         self.details_pane.open_requested.connect(self.open_requested)
 
-        reading_events().readings_changed.connect(self.refresh)
+        # Every autosave says readings changed: only a page on screen re-reads them all
+        self._on_readings_changed = RefreshWhenShown(self, self.refresh)
+        reading_events().readings_changed.connect(self._on_readings_changed.changed)
         # A deck installed or removed names or unnames the details pane's cards
         deck_events().decks_changed.connect(self.refresh)
 

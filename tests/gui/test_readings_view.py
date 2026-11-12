@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import datetime, timedelta
 
 import pytest
@@ -7,6 +8,7 @@ from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from tarot_canvas.models import readings
 from tarot_canvas.models.ground import Ground
+from tarot_canvas.models.reading_events import reading_events
 from tarot_canvas.models.readings import Reading, ReadingCard
 from tarot_canvas.models.spreads import Position, Spread
 from tarot_canvas.settings import (
@@ -694,7 +696,9 @@ def test_new_readings_menu_leads_with_a_blank_canvas(window):
 # -- delete ---------------------------------------------------------------------------------
 
 
-def test_delete_takes_the_row_and_folder_and_undo_brings_them_back(three, page):
+def test_delete_takes_the_row_and_folder_and_undo_brings_them_back(qtbot, three, page):
+    page.show()
+    qtbot.waitExposed(page)
     page.delete(three[1])
 
     assert "Newest" not in labels(page)
@@ -834,6 +838,8 @@ def test_a_row_has_a_menu_button(page):
 
 
 def test_renaming_a_row_writes_its_question(qtbot, three, window):
+    window.show()
+    qtbot.waitExposed(window)
     _library, page = readings_view(window)
     index = row_for(page, "Newest")
     page.list_model.setData(index, "  Renamed   now ")
@@ -996,13 +1002,39 @@ def test_another_view_a_search_or_closing_the_pane_gives_the_list_back(
 # -- live refresh ---------------------------------------------------------------------------
 
 
-def test_save_as_reading_adds_a_row_without_reopening_the_library(window, minimal_deck):
-    _library, page = readings_view(window)
+def test_save_as_reading_adds_a_row_without_reopening_the_library(qtbot, window, minimal_deck):
+    window.show()
+    qtbot.waitExposed(window)
+    library, page = readings_view(window)
     assert labels(page) == []
 
     canvas = window.new_canvas_tab()
     canvas.add_specific_card(minimal_deck.get_all_cards()[0], card_deck=minimal_deck)
     window.update_save_action()
     window.save_action.trigger()
+    window.tab_widget.setCurrentWidget(library)
 
     assert [first_reading(page).data(ReadingPathRole)] == [canvas.reading_path]
+
+
+def test_a_hidden_journal_reads_the_readings_again_only_once_shown(
+    qtbot, window, three, monkeypatch
+):
+    # Every autosave says readings changed; a Journal behind another tab must not rescan for each
+    window.show()
+    qtbot.waitExposed(window)
+    library, page = readings_view(window)
+    window.new_canvas_tab()
+    assert not page.isVisible()
+    scans = []
+    real_scan = readings.scan
+    monkeypatch.setattr(readings, "scan", lambda *a: scans.append(1) or real_scan(*a))
+
+    readings.save(three[1], replace(readings.load(three[1]), question="Changed"))
+    for _ in range(3):
+        reading_events().readings_changed.emit()
+    assert scans == []
+
+    window.tab_widget.setCurrentWidget(library)
+    assert scans == [1]
+    assert "Changed" in labels(page)

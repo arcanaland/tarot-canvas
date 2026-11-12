@@ -41,8 +41,8 @@ from tarot_canvas.ui.canvas.reading_pane import ReadingPane, RowOpener
 from tarot_canvas.ui.canvas.reading_strip import ReadingStrip, RevealKeys
 from tarot_canvas.ui.canvas.saved_canvas import (
     AUTOSAVE_MS,
-    deck_key,
     default_deck,
+    item_deck_key,
     local_qdatetime,
     now,
     reading_card,
@@ -658,19 +658,38 @@ class ReadingTab(SpreadSlots, CanvasTab):
 
     def reading_contents(self, base):
         """base, holding the spread and its cards as they are now: the positions' cards in number
-        order, then those added since"""
-        items = [(p.card, p.slot.position_id) for p in self.placements if p.card is not None]
+        order, then those added since. A card its deck could not lay out is written back as it was
+        read, in its position's place"""
+        waiting = list(self.unrestored)
+        # Each an (item, position id), or a kept ReadingCard written as it is
+        entries = []
+        for placement in self.placements:
+            if placement.card is not None:
+                entries.append((placement.card, placement.slot.position_id))
+                continue
+            position = placement.slot.position_id
+            held = next((card for card in waiting if card.position == position), None)
+            if held is not None:
+                waiting.remove(held)
+                entries.append(held)
         loose = [
             card
             for card in sorted(self.cards(), key=lambda card: card.zValue())
             if not isinstance(card, SlotItem) and self.placement_of(card) is None
         ]
-        items += [(card, "") for card in loose]
-        items = [(card, position) for card, position in items if card.card_data.get("id")]
-        keys = [deck_key(card.deck) for card, _ in items]
+        entries += [(card, "") for card in loose]
+        entries += waiting
+        entries = [
+            entry
+            for entry in entries
+            if not isinstance(entry, tuple) or entry[0].card_data.get("id")
+        ]
+        keys = [
+            item_deck_key(entry[0]) if isinstance(entry, tuple) else entry.deck for entry in entries
+        ]
         cards = tuple(
-            self._kept_card(card, key, position)
-            for (card, position), key in zip(items, keys, strict=True)
+            self._kept_card(entry[0], key, entry[1]) if isinstance(entry, tuple) else entry
+            for entry, key in zip(entries, keys, strict=True)
         )
         return replace(
             base,

@@ -26,6 +26,8 @@ class SavedReading(QObject):
         self._base = reading
         self._date = reading.date
         self.pane = pane
+        # Set once the tab has closed: nothing it does after is written
+        self._closed = False
 
         self.timer = QTimer(self)
         self.timer.setSingleShot(True)
@@ -63,7 +65,8 @@ class SavedReading(QObject):
 
     @pyqtSlot()
     def schedule(self):
-        self.timer.start()
+        if not self._closed:
+            self.timer.start()
 
     @pyqtSlot()
     def flush(self):
@@ -74,6 +77,15 @@ class SavedReading(QObject):
         if note is not None:
             note.flush()
 
+    def close(self):
+        """Write what is waiting, and nothing after: the closed tab lives on, unseen"""
+        self.flush()
+        self._closed = True
+        self.timer.stop()
+        note = getattr(self.pane, "note", None)
+        if note is not None:
+            note.timer.stop()
+
     def reading(self):
         contents = self.tab.reading_contents(self._base)
         return replace(contents, date=self._date, question=self.question())
@@ -82,6 +94,10 @@ class SavedReading(QObject):
     def write(self):
         """Write the reading, and return whether that worked"""
         self.timer.stop()
+        # Deleted from the Library, the folder stays gone
+        if not self.path.is_dir():
+            logger.warning(f"Did not save reading {self.path}: its folder is gone")
+            return False
         try:
             readings.save(self.path, self.reading())
         except OSError as error:

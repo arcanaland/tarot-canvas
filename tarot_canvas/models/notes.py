@@ -60,7 +60,7 @@ def _lines(path):
     try:
         with open(path, encoding="utf-8") as handle:
             return [line.strip() for line in handle.read().splitlines() if line.strip()]
-    except OSError as error:
+    except (OSError, UnicodeDecodeError) as error:
         logger.debug(f"Could not read note {path}: {error}")
         return []
 
@@ -104,6 +104,9 @@ def read_directory(directory):
         return notes
 
     for path in entries:
+        # A copy to a disk macOS can't tag leaves its metadata in a ._ file beside each note
+        if path.name.startswith("._"):
+            continue
         try:
             modified = path.stat().st_mtime
         except OSError as error:

@@ -143,6 +143,38 @@ def test_of_two_notes_the_older_is_shown_and_edited(qtbot, window, saved_tab):
     assert newer.read_text(encoding="utf-8") == "newer"
 
 
+def test_a_note_that_is_not_utf8_is_passed_over_and_never_written_over(qtbot, window, saved_tab):
+    path = saved_tab.reading_path
+    window.close_tab(window.tab_widget.indexOf(saved_tab))
+    latin = path / "1700000000.md"
+    latin.write_bytes("caf\xe9".encode("latin-1"))
+    # macOS leaves one beside each file it copies to a disk it can't tag
+    (path / "._1700000000.md").write_bytes(b"\x00\x05\x16\x07\xff\xfe")
+
+    reopened = window.open_saved_reading(path)
+    editor = reopened.saved_reading.pane.note.editor
+    assert editor.toPlainText() == ""
+    qtbot.keyClicks(editor, "new")
+    reopened.flush_pending_edits()
+
+    assert latin.read_bytes() == "caf\xe9".encode("latin-1")
+    written = [note for note in notes_in(path) if note != latin and not note.name.startswith("._")]
+    assert [note.read_text(encoding="utf-8") for note in written] == ["new"]
+
+
+def test_the_journal_lists_a_reading_whose_note_is_not_utf8(window, saved_tab):
+    path = saved_tab.reading_path
+    window.close_tab(window.tab_widget.indexOf(saved_tab))
+    (path / "1700000000.md").write_bytes(b"\xff\xfe not utf-8")
+    (path / "._1700000000.md").write_bytes(b"\x00\x05\x16\x07\xff")
+
+    library = window.new_library_tab()
+    page = library.readings_page
+    page.refresh()
+
+    assert page.list_model.rowCount() > 0
+
+
 def test_save_as_reading_leaves_the_cursor_in_the_question(qtbot, focused):
     # The pane shows itself once the event loop runs, and takes focus then
     qtbot.waitUntil(focused.saved_reading.pane.question_edit.hasFocus)

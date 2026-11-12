@@ -211,7 +211,7 @@ def test_a_saved_spread_carries_the_apps_version(tmp_path):
     spreads.save(tmp_path, sample())
     table = tomllib.loads((tmp_path / "spread.toml").read_text())
 
-    assert table["app"][spreads.APP_TABLE] == {"version": spreads.VERSION}
+    assert table["app"][toml_files.APP_TABLE] == {"version": spreads.VERSION}
 
 
 def test_a_file_with_no_version_loads_as_the_first(tmp_path):

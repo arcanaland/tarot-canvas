@@ -1,5 +1,6 @@
 """A dealt spread is kept as a reading, written as it is turned, and reopens where it stopped."""
 
+import shutil
 from dataclasses import replace
 
 import pytest
@@ -211,6 +212,25 @@ def test_closing_at_once_after_a_turn_writes_it(window, readings_base):
     assert turned_flags(path) == [True, False, False]
 
 
+def test_closing_mid_turn_writes_the_turn_and_nothing_after(window, readings_base, qtbot):
+    # Hiding a tab settles its motion, which finishes the turn; that must not write later
+    get_settings().setValue(MOTION_LEVEL_KEY, "Reactive")
+    window.show()
+    qtbot.waitExposed(window)
+    tab = dealt(window)
+    qtbot.waitUntil(tab.can_turn, timeout=3000)
+    path = tab.reading_path
+
+    tab.turn_next()
+    close(window, tab)
+    assert turned_flags(path) == [True, False, False]
+
+    # Deleted at once, from outside or by the Journal, the folder stays gone
+    shutil.rmtree(path)
+    qtbot.wait(PAST_AUTOSAVE_MS)
+    assert not path.exists()
+
+
 # -- reopening
 
 
@@ -276,6 +296,59 @@ def test_a_card_its_deck_lacks_leaves_its_position_empty(window, readings_base):
     assert [p.card is None for p in reopened.placements] == [False, True, False]
     assert reopened.phase is Phase.DEALT
     assert reopened.next_card() is reopened.placements[0].card
+
+
+def test_a_card_its_deck_lacks_is_written_back_in_its_place(window, readings_base, qtbot):
+    tab = dealt(window)
+    path = tab.reading_path
+    close(window, tab)
+    reading = readings.load(path)
+    lost = replace(reading.cards[1], id="no-such-card")
+    readings.save(path, replace(reading, cards=(reading.cards[0], lost, reading.cards[2])))
+
+    reopened = window.open_saved_reading(path)
+    reopened.turn_next()
+
+    qtbot.waitUntil(lambda: turned_flags(path)[0], timeout=PAST_AUTOSAVE_MS)
+    cards = readings.load(path).cards
+    assert [card.id for card in cards][1] == "no-such-card"
+    assert (cards[1].position, cards[1].turned) == ("p2", False)
+
+
+def test_a_missing_deck_keeps_its_name_through_a_write(window, readings_base, qtbot):
+    tab = dealt(window)
+    path = tab.reading_path
+    close(window, tab)
+    reading = readings.load(path)
+    gone = tuple(replace(card, deck="Uninstalled Deck") for card in reading.cards)
+    readings.save(path, replace(reading, deck="Uninstalled Deck", cards=gone))
+
+    # Shown in the reference deck, but written as the deck it names
+    reopened = window.open_saved_reading(path)
+    reopened.turn_next()
+
+    qtbot.waitUntil(lambda: turned_flags(path)[0], timeout=PAST_AUTOSAVE_MS)
+    written = readings.load(path)
+    assert written.deck == "Uninstalled Deck"
+    assert {card.deck for card in written.cards} == {"Uninstalled Deck"}
+
+
+def test_with_no_deck_at_all_an_edit_keeps_every_card(
+    window, readings_base, qtbot, stub_deck_manager
+):
+    tab = dealt(window)
+    path = tab.reading_path
+    ids = [card.id for card in readings.load(path).cards]
+    close(window, tab)
+    # Before the reference deck's first download, nothing can lay a card out
+    stub_deck_manager.get_reference_deck = lambda: None
+    stub_deck_manager.get_all_decks = lambda: []
+
+    reopened = window.open_saved_reading(path)
+    reopened.pane.question_edit.setText("Still here?")
+
+    qtbot.waitUntil(lambda: readings.load(path).question == "Still here?", timeout=PAST_AUTOSAVE_MS)
+    assert [card.id for card in readings.load(path).cards] == ids
 
 
 def test_a_fully_turned_reading_reopens_read(window, readings_base, qtbot):

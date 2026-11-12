@@ -105,6 +105,28 @@ def version_of(ours):
     return version
 
 
+def take_app_fields(extra, keys):
+    """The fields named by keys in extra's app table, taken out of it; ValueError if malformed
+
+    What is left of the app's table stays in extra to round-trip, and an emptied table goes.
+    """
+    ours = app_table(extra)
+    taken = {key: ours[key] for key in keys if key in ours}
+    if APP_TABLE not in extra.get("app", {}):
+        return taken
+    rest = {key: value for key, value in ours.items() if key not in keys}
+    apps = dict(extra["app"])
+    if rest:
+        apps[APP_TABLE] = rest
+    else:
+        del apps[APP_TABLE]
+    if apps:
+        extra["app"] = apps
+    else:
+        del extra["app"]
+    return taken
+
+
 def with_app_table(table, fields):
     """A copy of table whose app table holds fields, over what it held; other apps' tables are kept"""
     apps = dict(table.get("app", {}))

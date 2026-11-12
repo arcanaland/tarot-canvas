@@ -22,9 +22,20 @@ def _written_at(path):
     return (0, int(prefix), path.name) if prefix.isdigit() else (1, 0, path.name)
 
 
+def _readable(path):
+    try:
+        path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as error:
+        logger.warning(f"Reading note {path} can't be read, so it is passed over: {error}")
+        return False
+    return True
+
+
 def note_path(folder):
-    """The reading's note: the oldest of its notes, or None while it has none"""
-    paths = sorted((note.path for note in read_directory(folder)), key=_written_at)
+    """The reading's note: the oldest of its notes it can read, or None while it has none; one it
+    can't read is never written over"""
+    notes = sorted((note.path for note in read_directory(folder)), key=_written_at)
+    paths = [path for path in notes if _readable(path)]
     if len(paths) > 1:
         others = ", ".join(path.name for path in paths[1:])
         logger.info(f"Reading {folder} shows note {paths[0].name}; it also holds {others}")
@@ -73,8 +84,10 @@ class ReadingNote(QWidget):
         if self.path is not None:
             try:
                 self.editor.setPlainText(self.path.read_text(encoding="utf-8"))
-            except OSError as error:
+            except (OSError, UnicodeDecodeError) as error:
                 logger.error(f"Could not read reading note {self.path}: {error}")
+                # Not written over: the first edit starts a note of its own
+                self.path = None
         self.editor.document().setModified(False)
 
         self.timer = QTimer(self)
