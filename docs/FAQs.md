@@ -2,9 +2,9 @@
 
 ## 1. Where Can I Get Other Tarot Decks?
 
-Arcana Land provides a small number of free tarot decks (as of 2026, three) in our [Reference Deck Collection](https://github.com/arcanaland/reference-decks/releases). The installation instructions are included at that link.
+Arcana Land provides a small number of free tarot decks (as of 2026, four) in our [Reference Deck Collection](https://github.com/arcanaland/reference-decks/releases). They are all available for download directly in the Tarot Canvas app.
 
-There are only a handful of tarot decks in existence that are verifiably free from copyright claim. Because of this, we are only able to provide a small sample of decks that are permissively licensed. For other decks, you can create your own by following the next section.
+Because there are only a handful of tarot decks in existence that are verifiably free from copyright claim, we are only able to provide a small sample of decks that are permissively licensed. For other decks, you can create your own by following the next section.
 
 ## 2. How Do I Make My Own Deck?
 
@@ -18,11 +18,11 @@ The create a new TOML file called `deck.toml` and fill it out:
 
 ```toml
 [deck]
-id = "my-tarot-deck"
-name = "My Tarot Deck"
-version = "1.0"
-author = "Jane Doe"
 schema_version = "1.0"
+name = "My Tarot Deck"
+author = "Jane Doe"
+version = "1.0"
+identifier = "com.example/deck/my-tarot-deck"
 ```
 
 <img width="1958" height="1382" alt="deck1" src="https://github.com/user-attachments/assets/8ac38498-a75a-4001-afc7-fbdc645d7592" />
@@ -57,7 +57,7 @@ You should now be able use the canvas view with "My Custom Tarot" selected in th
 
 
 > [!TIP]
-> Refer to the full [Tarot Deck Specification](https://github.com/arcanaland/specifications/blob/deck%2Fv1.0/DECK.md) (v1) for more details about the file and directory format. Note that a major revision for [version 2](https://github.com/arcanaland/specifications/blob/deck-v2/DECK.md) is currently under development.
+> Refer to the full [Tarot Deck Specification](https://github.com/arcanaland/specifications/blob/main/DECK.md) ([PDF](https://github.com/arcanaland/specifications/releases/download/deck%2Fv2.0-rc.1/deck-v2.0-rc.1.pdf)) for more details about the file and directory format.
 
 > [!NOTE]
 > I personally scan my decks using an app that I am developing called [deckle](https://github.com/arcanaland/deckle). It is a command-line tool that handles the scanning, physical jig creation, image cropping, deskeweing and cataloging. It is pre-alpha, but if you are technical and adventurous, it may be of interest.
