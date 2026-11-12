@@ -196,7 +196,6 @@ class DateLine(QObject):
         self.text.setToolTip(READINGS["date_tooltip"])
         self.text.activated.connect(self.edit)
         self.editor = QDateTimeEdit(when)
-        # Only the years a reading's file can hold, which no zone moves out of datetime's range
         self.editor.setDateRange(QDate(FIRST_YEAR, 1, 1), QDate(LAST_YEAR, 12, 31))
         self.editor.setCalendarPopup(True)
         self.editor.setToolTip(READINGS["date_tooltip"])

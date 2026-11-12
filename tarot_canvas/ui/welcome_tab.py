@@ -252,7 +252,6 @@ class WelcomeTab(QScrollArea):
         self.refresh_readings()
         self.refresh_spreads()
         self._update_button_widths()
-        # Every autosave says readings changed: only a tab on screen re-reads them all
         self._on_readings_changed = RefreshWhenShown(self, self.refresh_readings)
         reading_events().readings_changed.connect(self._on_readings_changed.changed)
         spread_events().spreads_changed.connect(self.refresh_spreads)
