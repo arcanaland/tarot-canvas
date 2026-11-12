@@ -69,8 +69,19 @@ def default_deck(keys):
     return Counter(keys).most_common(1)[0][0] if keys else ""
 
 
+def item_deck_key(item):
+    """How a reading names canvas item's deck: as the reading it was restored from did, which
+    holds while that deck is missing and another stands in, else by the deck it shows"""
+    kept = getattr(item, "kept_card", None)
+    if kept is not None and kept.deck:
+        return kept.deck
+    return deck_key(item.deck)
+
+
 def reading_card(item, key, reversed=None, **fields):
     """A ReadingCard for canvas item, from deck key, where it lies now"""
+    # What this version doesn't read rides on the card it was restored from
+    kept = getattr(item, "kept_card", None)
     return ReadingCard(
         id=item.card_data["id"],
         reversed=item.is_reversed() if reversed is None else reversed,
@@ -79,6 +90,8 @@ def reading_card(item, key, reversed=None, **fields):
         y=item.pos().y(),
         z=item.zValue(),
         rotation=item.orient,
+        extra=kept.extra if kept is not None else {},
+        layout_extra=kept.layout_extra if kept is not None else {},
         **fields,
     )
 
@@ -89,14 +102,15 @@ def resolve_decks(cards, decks, reference):
     return {key: resolve_deck(key, decks, reference) for key in keys}
 
 
-def cards_of(items):
-    """(default deck, ReadingCards) for canvas items, in stacking order"""
+def cards_of(items, unrestored=()):
+    """(default deck, ReadingCards) for canvas items in stacking order, then the ReadingCards that
+    could not be laid out, as they were read"""
     ordered = [
         item for item in sorted(items, key=lambda item: item.zValue()) if item.card_data.get("id")
     ]
-    keys = [deck_key(item.deck) for item in ordered]
+    keys = [item_deck_key(item) for item in ordered]
     cards = tuple(reading_card(item, key) for item, key in zip(ordered, keys, strict=True))
-    return default_deck(keys), cards
+    return default_deck(keys + [card.deck for card in unrestored]), cards + tuple(unrestored)
 
 
 def local_qdatetime(when):

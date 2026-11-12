@@ -34,6 +34,7 @@ from tarot_canvas.ui.library.readings.model import reading_icon
 from tarot_canvas.ui.library.roles import SubtitleRole
 from tarot_canvas.ui.library.row_delegate import IconRowDelegate
 from tarot_canvas.ui.library.spreads.model import spread_thumbnail, spread_title
+from tarot_canvas.ui.refresh_when_shown import RefreshWhenShown
 from tarot_canvas.ui.spread_menu import sections
 from tarot_canvas.ui.strings import COMMANDS, MAIN_WINDOW, READINGS
 from tarot_canvas.ui.windows.about import ICON_PATH
@@ -251,7 +252,8 @@ class WelcomeTab(QScrollArea):
         self.refresh_readings()
         self.refresh_spreads()
         self._update_button_widths()
-        reading_events().readings_changed.connect(self.refresh_readings)
+        self._on_readings_changed = RefreshWhenShown(self, self.refresh_readings)
+        reading_events().readings_changed.connect(self._on_readings_changed.changed)
         spread_events().spreads_changed.connect(self.refresh_spreads)
         welcome_events().show_at_startup_changed.connect(self.follow_show_at_startup)
 

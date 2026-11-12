@@ -1,6 +1,6 @@
 """Kept readings: readings/<timestamp>/reading.toml beside the reading's notes"""
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import date as Date
 from datetime import datetime
 from pathlib import Path
@@ -9,10 +9,10 @@ from tarot_canvas.models.ground import Ground
 from tarot_canvas.models.spreads import Spread, spread_from_table, spread_table
 from tarot_canvas.models.staged_delete import is_staged
 from tarot_canvas.models.toml_files import (
-    app_table,
     load_table,
     new_timestamped_dir,
     number,
+    take_app_fields,
     version_of,
     with_app_table,
     write_toml,
@@ -24,6 +24,16 @@ READINGS_SUBPATH = "tarot-canvas/readings"
 READING_FILE = "reading.toml"
 
 VERSION = 1
+
+# A date outside these years is unreadable: any zone can shift it without leaving datetime's range
+FIRST_YEAR = 1000
+LAST_YEAR = 9000
+
+# The keys this version reads; any other key in the file is kept as it is and written back
+_READING_KEYS = {"date", "question", "deck", "reversals", "spread", "cards"}
+_CARD_KEYS = {"id", "reversed", "deck", "position", "turned"}
+_LAYOUT_KEYS = {"x", "y", "z", "rotation"}
+_APP_KEYS = {"version", "layout", "ground"}
 
 
 @dataclass(frozen=True)
@@ -40,6 +50,10 @@ class ReadingCard:
     y: float = 0.0
     z: float = 0.0
     rotation: float = 0.0
+    # The keys of the card's entry, and of its layout, that this version doesn't read; carried
+    # to the next write, they don't make two cards differ
+    extra: dict = field(default_factory=dict, compare=False)
+    layout_extra: dict = field(default_factory=dict, compare=False)
 
 
 @dataclass(frozen=True)
@@ -57,6 +71,10 @@ class Reading:
     cards: tuple = ()
     # The canvas's own ground, or None while it follows the default
     ground: Ground | None = None
+    # Carried to the next write, and so not compared: the ground's table as it was read, whose keys
+    # this version doesn't draw with are kept, and the keys and app tables it doesn't read
+    ground_table: dict = field(default_factory=dict, compare=False)
+    extra: dict = field(default_factory=dict, compare=False)
 
 
 def readings_base():
@@ -82,14 +100,18 @@ def _typed(table, key, kind, default):
 def _date(table):
     value = table.get("date")
     if isinstance(value, datetime):
-        # A naive time is the reader's local time
-        return value if value.tzinfo is not None else value.astimezone()
-    if isinstance(value, Date):
-        return datetime(value.year, value.month, value.day).astimezone()
-    raise ValueError(f"no date: {value!r}")
+        when = value
+    elif isinstance(value, Date):
+        when = datetime(value.year, value.month, value.day)
+    else:
+        raise ValueError(f"no date: {value!r}")
+    if not FIRST_YEAR <= when.year <= LAST_YEAR:
+        raise ValueError(f"date out of range: {value!r}")
+    # A naive time is the reader's local time
+    return when if when.tzinfo is not None else when.astimezone()
 
 
-def _card(entry, default_deck, geometry):
+def _card(entry, default_deck, geometry, layout_extra):
     if not isinstance(entry, dict):
         raise ValueError("not a table")
     return ReadingCard(
@@ -99,7 +121,15 @@ def _card(entry, default_deck, geometry):
         position=_typed(entry, "position", str, ""),
         turned=_typed(entry, "turned", bool, True),
         **geometry,
+        extra={key: value for key, value in entry.items() if key not in _CARD_KEYS},
+        layout_extra=layout_extra,
     )
+
+
+def _layout_extra(entry):
+    if not isinstance(entry, dict):
+        return {}
+    return {key: value for key, value in entry.items() if key not in _LAYOUT_KEYS}
 
 
 def _geometry(entry, index):
@@ -116,8 +146,12 @@ def _geometry(entry, index):
         return defaults
 
 
-def _spread(table, path):
-    """(snapshot, from) from the [spread] table; a bad one is dropped and the reading still loads"""
+def _spread(table):
+    """(snapshot, from) from the [spread] table, else ValueError
+
+    A reading whose spread can't be read is not read at all: opened as a plain canvas, its first
+    write would lose the spread and every card's place in it.
+    """
     snapshot = table.get("spread")
     if snapshot is None:
         return None, ""
@@ -130,26 +164,19 @@ def _spread(table, path):
             raise ValueError(f"from is not a string: {origin!r}")
         return spread_from_table(snapshot), origin
     except (ValueError, TypeError) as error:
-        logger.warning(f"Dropped the unreadable spread of reading {path}: {error}")
-        return None, ""
+        raise ValueError(f"unreadable spread: {error}") from error
 
 
 def _reading(table, path):
-    try:
-        ours = app_table(table)
-    except ValueError as error:
-        logger.warning(f"Ignored reading {path}'s app table: {error}")
-        ours = {}
-    try:
-        version = version_of(ours)
-    except ValueError as error:
-        logger.warning(f"Ignored reading {path}'s version: {error}")
-        version = VERSION
+    # [meta] would be a later shared reading format's, which this version can't know
+    if "meta" in table:
+        raise ValueError("written for an unknown reading format")
+    extra = {key: value for key, value in table.items() if key not in _READING_KEYS}
+    ours = take_app_fields(extra, _APP_KEYS)
+    version = version_of(ours)
+    # Read, its first write would bring it down to this version and lose what it holds
     if version > VERSION:
-        logger.warning(
-            f"Reading {path} was written by a newer Tarot Canvas (version {version}); "
-            "loading what this one understands"
-        )
+        raise ValueError(f"written by a newer Tarot Canvas (version {version})")
 
     deck = _typed(table, "deck", str, "")
     reversals = table.get("reversals")
@@ -169,17 +196,23 @@ def _reading(table, path):
 
     cards = []
     for index, entry in enumerate(entries):
-        geometry = _geometry(layout[index] if index < len(layout) else None, index)
+        placed = layout[index] if index < len(layout) else None
         try:
-            cards.append(_card(entry, deck, geometry))
+            cards.append(_card(entry, deck, _geometry(placed, index), _layout_extra(placed)))
         except ValueError as error:
             logger.warning(f"Skipped card {index} of reading {path}: {error}")
 
     question = table.get("question", "")
-    spread, origin = _spread(table, path)
+    spread, origin = _spread(table)
     ground = None
+    ground_table = {}
     if "ground" in ours:
         ground = Ground.from_table(ours["ground"], Ground.from_settings())
+        if ground is not None:
+            ground_table = ours["ground"]
+        else:
+            # A ground this version can't draw is kept for one that can
+            extra = with_app_table(extra, {"ground": ours["ground"]})
     return Reading(
         date=_date(table),
         question=question if isinstance(question, str) else "",
@@ -189,6 +222,8 @@ def _reading(table, path):
         spread_from=origin,
         cards=tuple(cards),
         ground=ground,
+        ground_table=ground_table,
+        extra=extra,
     )
 
 
@@ -216,6 +251,18 @@ def _card_table(card, default_deck):
         table["position"] = card.position
     if not card.turned:
         table["turned"] = False
+    return {**table, **card.extra}
+
+
+def _layout_table(card):
+    return {"x": card.x, "y": card.y, "z": card.z, "rotation": card.rotation, **card.layout_extra}
+
+
+def _ground_table(reading):
+    """The ground's table, keeping what the stored one held beyond it while the style is the same"""
+    table = reading.ground.to_table()
+    if reading.ground_table.get("style") == reading.ground.style:
+        return {**reading.ground_table, **table}
     return table
 
 
@@ -235,13 +282,12 @@ def _table(reading):
         snapshot.update((k, v) for k, v in spread_table(reading.spread).items() if k != "app")
         table["spread"] = snapshot
     table["cards"] = [_card_table(card, reading.deck) for card in reading.cards]
-    layout = [
-        {"x": card.x, "y": card.y, "z": card.z, "rotation": card.rotation} for card in reading.cards
-    ]
-    ours = {"version": VERSION, "layout": layout}
+    # The extras hold none of the keys above, but app: the other apps' tables, and the rest of ours
+    table.update(reading.extra)
+    ours = {"version": VERSION, "layout": [_layout_table(card) for card in reading.cards]}
     # Only a ground of its own: a snapshot of the default would stop it following
     if reading.ground is not None:
-        ours["ground"] = reading.ground.to_table()
+        ours["ground"] = _ground_table(reading)
     return with_app_table(table, ours)
 
 

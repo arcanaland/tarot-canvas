@@ -1,6 +1,7 @@
 """Pane on the side of a reading"""
 
 from PyQt6.QtCore import (
+    QDate,
     QDateTime,
     QEvent,
     QObject,
@@ -43,6 +44,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from tarot_canvas.models.readings import FIRST_YEAR, LAST_YEAR
 from tarot_canvas.ui import typography, units
 from tarot_canvas.ui.canvas.placement import Phase
 from tarot_canvas.ui.canvas.reading_card import is_face_down
@@ -194,6 +196,7 @@ class DateLine(QObject):
         self.text.setToolTip(READINGS["date_tooltip"])
         self.text.activated.connect(self.edit)
         self.editor = QDateTimeEdit(when)
+        self.editor.setDateRange(QDate(FIRST_YEAR, 1, 1), QDate(LAST_YEAR, 12, 31))
         self.editor.setCalendarPopup(True)
         self.editor.setToolTip(READINGS["date_tooltip"])
         self.editor.hide()

@@ -58,13 +58,13 @@
     </screenshot>
   </screenshots>
   <releases>
-    <release version="1.9.0" date="2026-11-11" type="development">
+    <release version="1.9.0" date="2026-11-11" type="stable">
       <description>
-        <p>This version introduces tarot readings from your spreads.</p>
+        <p>This version introduces tarot readings and a journal.</p>
         <ul>
         <li>Read from a spread by drawing cards from any deck.</li>
         <li>Take notes for a reading and store them in a journal.</li>
-        <li>Save any open canvas as a tarot reading.</li>
+        <li>Save any open canvas as a tarot reading or journal entry.</li>
         </ul>
         <p>Other changes:</p>
         <ul>

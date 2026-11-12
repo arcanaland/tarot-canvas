@@ -2,7 +2,7 @@ import tomllib
 
 import pytest
 
-from tarot_canvas.models import spreads
+from tarot_canvas.models import spreads, toml_files
 from tarot_canvas.utils.path_helper import BUNDLED_SPREADS_PATH
 
 # A build with no built-ins has no folder, and nothing to check
@@ -29,4 +29,4 @@ def test_each_included_spread_says_which_version_it_is(folder):
     with open(folder / spreads.SPREAD_FILE, "rb") as handle:
         table = tomllib.load(handle)
 
-    assert table["app"][spreads.APP_TABLE]["version"] == spreads.VERSION
+    assert table["app"][toml_files.APP_TABLE]["version"] == spreads.VERSION

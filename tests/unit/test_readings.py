@@ -1,4 +1,5 @@
 import tomllib
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -116,16 +117,24 @@ def test_a_reading_with_no_spread_has_no_spread_table(tmp_path):
     assert readings.load(tmp_path).spread is None
 
 
-def test_a_bad_spread_is_dropped_and_the_reading_still_loads(tmp_path):
+@pytest.mark.parametrize(
+    "spread",
+    [
+        "[spread]\nname = 'Cross'\npositions = 'not an array'\n",
+        "[spread]\nname = 'Cross'\n[spread.meta]\nspec = 'later'\n",
+        "[spread]\nname = 'Cross'\n[spread.app.'land.arcana.tarotcanvas']\nversion = 2\n",
+    ],
+)
+def test_a_reading_whose_spread_cannot_be_read_is_not_read(tmp_path, monkeypatch, spread):
+    # Opened as a plain canvas, its first write would lose the spread and its cards' places
+    monkeypatch.setattr(readings.logger, "warning", lambda _: None)
     write(
         tmp_path,
         "date = 2026-11-09T21:14:00-08:00\n"
-        "[spread]\nname = 'Cross'\npositions = 'not an array'\n"
-        "[[cards]]\nid = 'major_arcana.0'\nposition = 'p1'\n",
+        + spread
+        + "[[cards]]\nid = 'major_arcana.0'\nposition = 'p1'\nturned = false\n",
     )
-    reading = readings.load(tmp_path)
-    assert reading.spread is None
-    assert reading.cards[0].position == "p1"
+    assert readings.load(tmp_path) is None
 
 
 def test_position_and_an_unturned_card_round_trip_and_turned_true_is_never_written(tmp_path):
@@ -210,16 +219,24 @@ def test_a_missing_file_loads_as_none(tmp_path, monkeypatch):
     assert readings.load(tmp_path) is None
 
 
-def test_a_reading_from_a_newer_build_still_loads(tmp_path, monkeypatch):
-    warnings = []
-    monkeypatch.setattr(readings.logger, "warning", warnings.append)
+@pytest.mark.parametrize("version", [2, 99])
+def test_a_reading_from_a_newer_build_is_not_read_or_listed(tmp_path, monkeypatch, version):
+    # Read, its first write would bring it down to this version
+    monkeypatch.setattr(readings.logger, "warning", lambda _: None)
     write(
-        tmp_path,
+        tmp_path / "100",
         "date = 2026-11-09\n[[cards]]\nid = 'major_arcana.0'\n"
-        "[app.'land.arcana.tarotcanvas']\nversion = 2\n",
+        f"[app.'land.arcana.tarotcanvas']\nversion = {version}\n",
     )
-    assert readings.load(tmp_path).cards[0].id == "major_arcana.0"
-    assert len(warnings) == 1
+    assert readings.load(tmp_path / "100") is None
+    assert readings.scan(tmp_path) == []
+
+
+def test_a_reading_with_a_meta_table_is_not_read(tmp_path, monkeypatch):
+    # [meta] would be a later shared reading format's
+    monkeypatch.setattr(readings.logger, "warning", lambda _: None)
+    write(tmp_path, "date = 2026-11-09\n[meta]\nspec = 'later'\n")
+    assert readings.load(tmp_path) is None
 
 
 def test_scan_is_newest_first_and_skips_what_it_cannot_read(tmp_path, monkeypatch):
@@ -278,14 +295,14 @@ def test_the_events_singleton_is_stable():
         "[app.'land.arcana.tarotcanvas']\nversion = true\n",
     ],
 )
-def test_a_bad_app_table_or_version_is_logged_and_the_reading_still_loads(
+def test_a_bad_app_table_or_version_is_logged_and_the_reading_is_not_read(
     tmp_path, monkeypatch, app
 ):
     warnings = []
     monkeypatch.setattr(readings.logger, "warning", warnings.append)
     write(tmp_path, "date = 2026-11-09\n" + app + "[[cards]]\nid = 'major_arcana.0'\n")
 
-    assert readings.load(tmp_path).cards[0].id == "major_arcana.0"
+    assert readings.load(tmp_path) is None
     assert len(warnings) == 1
 
 
@@ -334,3 +351,124 @@ def test_a_bad_ground_loads_as_none_with_the_rest_intact(tmp_path, monkeypatch):
     assert reading.question == "Kept"
     assert reading.cards[0].id == "major_arcana.0"
     assert len(warnings) == 1
+
+
+# -- what this version doesn't read is written back -------------------------------------------
+
+LATER = """\
+date = 2026-11-09T21:14:00-08:00
+deck = "rider-waite-smith"
+mood = "calm"
+
+[group]
+name = "Spring"
+
+[[cards]]
+id = "major_arcana.0"
+note_anchor = "a1"
+
+[[cards]]
+id = "major_arcana.1"
+
+[app."land.arcana.tarotcanvas"]
+version = 1
+later_key = true
+
+[[app."land.arcana.tarotcanvas".layout]]
+x = 1.0
+scale = 2.0
+
+[[app."land.arcana.tarotcanvas".layout]]
+x = 2.0
+
+[app."land.arcana.tarotcanvas".ground]
+style = "swirl"
+hue = "violet"
+speed = 0.5
+
+[app."org.example.other"]
+kept = [1, 2]
+"""
+
+
+def test_a_resave_keeps_every_key_this_version_does_not_read(tmp_path):
+    write(tmp_path, LATER)
+    readings.save(tmp_path, readings.load(tmp_path))
+
+    table = table_of(tmp_path)
+    ours = table["app"]["land.arcana.tarotcanvas"]
+    assert table["mood"] == "calm"
+    assert table["group"] == {"name": "Spring"}
+    assert table["cards"][0]["note_anchor"] == "a1"
+    assert "note_anchor" not in table["cards"][1]
+    assert ours["later_key"] is True
+    assert ours["layout"][0]["scale"] == 2.0
+    assert "scale" not in ours["layout"][1]
+    assert ours["ground"]["speed"] == 0.5
+    assert table["app"]["org.example.other"] == {"kept": [1, 2]}
+
+
+def test_a_resave_writes_what_changed_over_what_it_keeps(tmp_path):
+    write(tmp_path, LATER)
+    reading = readings.load(tmp_path)
+    moved = (replace(reading.cards[0], x=5.0, reversed=True), reading.cards[1])
+    readings.save(tmp_path, replace(reading, cards=moved, question="Now"))
+
+    table = table_of(tmp_path)
+    assert table["question"] == "Now"
+    assert table["cards"][0] == {"id": "major_arcana.0", "reversed": True, "note_anchor": "a1"}
+    assert table["app"]["land.arcana.tarotcanvas"]["layout"][0] == {
+        "x": 5.0,
+        "y": 0.0,
+        "z": 0.0,
+        "rotation": 0.0,
+        "scale": 2.0,
+    }
+
+
+def test_a_new_ground_style_drops_what_the_old_one_held(tmp_path):
+    write(tmp_path, LATER)
+    reading = readings.load(tmp_path)
+    readings.save(tmp_path, replace(reading, ground=Ground(style="solid")))
+
+    written = table_of(tmp_path)["app"]["land.arcana.tarotcanvas"]["ground"]
+    assert "speed" not in written
+    assert written["style"] == "solid"
+
+
+def test_a_ground_this_version_cannot_draw_is_kept(tmp_path, monkeypatch):
+    monkeypatch.setattr(ground_model.logger, "warning", lambda _: None)
+    write(
+        tmp_path,
+        "date = 2026-11-09\n[app.'land.arcana.tarotcanvas'.ground]\nstyle = 'aurora'\nbands = 3\n",
+    )
+    reading = readings.load(tmp_path)
+    assert reading.ground is None
+    readings.save(tmp_path, reading)
+
+    written = table_of(tmp_path)["app"]["land.arcana.tarotcanvas"]["ground"]
+    assert written == {"style": "aurora", "bands": 3}
+
+
+def test_a_ground_this_version_cannot_draw_gives_way_to_one_chosen(tmp_path, monkeypatch):
+    monkeypatch.setattr(ground_model.logger, "warning", lambda _: None)
+    write(tmp_path, "date = 2026-11-09\n[app.'land.arcana.tarotcanvas'.ground]\nstyle = 'aurora'\n")
+    reading = readings.load(tmp_path)
+    readings.save(tmp_path, replace(reading, ground=Ground(style="solid")))
+
+    assert table_of(tmp_path)["app"]["land.arcana.tarotcanvas"]["ground"]["style"] == "solid"
+
+
+@pytest.mark.parametrize(
+    "date",
+    [
+        "0001-01-01T00:00:00+05:00",
+        "9999-12-31T23:00:00-05:00",
+        "0999-12-31",
+        "9001-01-01T00:00:00",
+    ],
+)
+def test_a_date_outside_the_years_any_zone_can_show_is_not_read(tmp_path, monkeypatch, date):
+    monkeypatch.setattr(readings.logger, "warning", lambda _: None)
+    write(tmp_path, f"date = {date}\n")
+    assert readings.load(tmp_path) is None

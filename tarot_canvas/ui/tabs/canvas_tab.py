@@ -183,6 +183,8 @@ class CanvasTab(BaseTab):
         self.ground_pace = Pace()
 
         self._cards = []
+        # A kept reading's cards that its decks could not lay out, written back as they were read
+        self.unrestored = []
         self._top_z = 0.0
         self._bottom_z = 0.0
         self.motion_level = MOTION_LEVEL_DEFAULT
@@ -1431,7 +1433,7 @@ class CanvasTab(BaseTab):
 
     def reading_contents(self, base):
         """base, holding this canvas's cards and ground as they are now"""
-        deck, cards = cards_of(self.cards())
+        deck, cards = cards_of(self.cards(), self.unrestored)
         return replace(base, deck=deck, cards=cards, ground=self.ground)
 
     def restore_cards(self, reading, decks, reference):
@@ -1442,14 +1444,17 @@ class CanvasTab(BaseTab):
 
     def restore_card(self, card, deck, item_type=DraggableCardItem):
         """Lay ReadingCard card out in deck exactly as it was saved, and return its item, or None
-        if deck has no such card or its art won't load"""
+        if deck has no such card or its art won't load; such a card is kept to be written back"""
         data = self._card_in(deck, card.id)
         if data is None:
             logger.warning(f"Skipped card {card.id!r}: its deck has no such card")
+            self.unrestored.append(card)
             return None
         item = self.make_card_item(data, deck, card.reversed, item_type=item_type)
         if item is None:
+            self.unrestored.append(card)
             return None
+        item.kept_card = card
         item.restore(QPointF(card.x, card.y), card.z, card.rotation)
         self.scene.addItem(item)
         self._top_z = max(self._top_z, card.z)
@@ -1470,7 +1475,12 @@ class CanvasTab(BaseTab):
             self.saved_reading.flush()
 
     def about_to_close(self):
+        # Removing the tab hides it, and hiding settles its motion, which can finish a turn: settled
+        # now, the turn is in the last write rather than one the closed tab would make later
+        self.settle_motion()
         self.flush_pending_edits()
+        if self.saved_reading is not None:
+            self.saved_reading.close()
 
     def tab_icon(self):
         return self._tab_icon

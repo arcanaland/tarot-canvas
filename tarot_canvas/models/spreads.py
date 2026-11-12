@@ -4,11 +4,10 @@ from pathlib import Path
 
 from tarot_canvas.models.staged_delete import is_staged
 from tarot_canvas.models.toml_files import (
-    APP_TABLE,
-    app_table,
     load_table,
     new_timestamped_dir,
     number,
+    take_app_fields,
     version_of,
     with_app_table,
     write_toml,
@@ -112,19 +111,7 @@ def position_from_table(table):
 
 def _take_version(extra):
     """The file's version, removing it from extra's app table (absent is 1)"""
-    ours = app_table(extra)
-    version = version_of(ours)
-    if APP_TABLE not in extra.get("app", {}):
-        return version
-
-    # What is left of the app's table round-trips in extra; an emptied one goes
-    ours.pop("version", None)
-    apps = extra["app"]
-    if not ours:
-        del apps[APP_TABLE]
-    if not apps:
-        del extra["app"]
-    return version
+    return version_of(take_app_fields(extra, {"version"}))
 
 
 def load(path):
