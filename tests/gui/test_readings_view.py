@@ -939,13 +939,9 @@ def expanded_view(qtbot, window, question):
     return library, page, page.details_pane
 
 
-def test_only_an_entry_too_long_for_the_pane_offers_to_expand(qtbot, long_and_short, window):
-    library, page, pane = expanded_view(qtbot, window, "Short")
-    qtbot.wait(20)
-    assert not pane.expand_button.isVisible()
-
-    page.list_view.clicked.emit(row_for(page, "Long"))
-    qtbot.waitUntil(pane.expand_button.isVisible)
+def test_a_short_entry_offers_to_expand_too(qtbot, long_and_short, window):
+    _library, _page, pane = expanded_view(qtbot, window, "Short")
+    assert pane.expand_button.isVisible()
 
 
 def test_expanding_hides_the_list_and_restoring_puts_the_divider_back(

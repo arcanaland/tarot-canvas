@@ -154,15 +154,13 @@ class ReadingDetailsPane(QWidget):
         heading_row.addLayout(heading_column, 1)
         heading_row.addWidget(self.open_button, 0, Qt.AlignmentFlag.AlignTop)
 
-        # In the corner, after Open; its room is kept while hidden, so Open never shifts
+        # In the corner, after Open
         self._expanded = False
         self.expand_button = ExpandButton(
             READINGS["library_details_expand"], READINGS["library_details_restore"]
         )
-        policy = self.expand_button.sizePolicy()
-        policy.setRetainSizeWhenHidden(True)
-        self.expand_button.setSizePolicy(policy)
         self.expand_button.clicked.connect(lambda: self.expand_requested.emit(not self._expanded))
+        self._sync_expand_button()
         heading_row.addWidget(self.expand_button, 0, Qt.AlignmentFlag.AlignTop)
 
         self.diagram = LayoutDiagram(strip=self.DIAGRAM_STRIP)
@@ -197,7 +195,6 @@ class ReadingDetailsPane(QWidget):
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.scroll_area.setWidget(content)
-        self.scroll_area.verticalScrollBar().rangeChanged.connect(self._sync_expand_button)
 
         margin = units.GRID_UNIT
         layout = QVBoxLayout(self)
@@ -218,10 +215,8 @@ class ReadingDetailsPane(QWidget):
         self._expanded = expanded
         self._sync_expand_button()
 
-    def _sync_expand_button(self, *_):
-        # Only a pane that doesn't fit needs it, so a short entry never shows it
-        overflowing = self.scroll_area.verticalScrollBar().maximum() > 0
-        self.expand_button.sync(self._expanded or overflowing, self._expanded)
+    def _sync_expand_button(self):
+        self.expand_button.sync(True, self._expanded)
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Escape and self._expanded:
