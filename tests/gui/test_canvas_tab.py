@@ -37,8 +37,14 @@ from tarot_canvas.ui.canvas.icons import CanvasIcon
 from tarot_canvas.ui.canvas.motion import LIFT_REST, LIFT_SELECTED
 from tarot_canvas.ui.canvas.selection import GILT_ON_DARK, GILT_ON_LIGHT
 from tarot_canvas.ui.card_colours import CARD_COLOURS, SLOT_COLOUR
-from tarot_canvas.ui.card_transfer import card_mime_data, cards_mime_data, copy_card_to_clipboard
+from tarot_canvas.ui.card_transfer import (
+    CARD_MIME,
+    card_mime_data,
+    cards_mime_data,
+    copy_card_to_clipboard,
+)
 from tarot_canvas.ui.document_tabs import DocumentTabs
+from tarot_canvas.ui.strings import CANVAS
 from tarot_canvas.ui.tabs.canvas_tab import GROUNDS, CanvasTab, wheel_turn
 
 
@@ -611,20 +617,19 @@ def test_the_toolbar_paste_button_follows_the_clipboard(qtbot, clipboard, minima
     assert only_card(tab).card_data["id"] == "major_arcana.00"
 
 
-def test_a_copy_pastes_once(qtbot, clipboard, minimal_deck):
-    """A second paste of the same clipboard would only stack a duplicate."""
+def test_a_copy_pastes_as_often_as_you_like(qtbot, clipboard, minimal_deck):
     tab = make_tab(qtbot)
     card = minimal_deck.get_card_by_id("major_arcana.00")
     copy_card_to_clipboard(card, minimal_deck)
+    spot = QPointF(40, 40)
 
-    tab.paste_action.trigger()
-    assert not tab.paste_action.isEnabled()
-    assert not tab.can_paste_card(clipboard.mimeData())
-    tab.on_paste_card()
-    assert len([i for i in tab.scene.items() if isinstance(i, DraggableCardItem)]) == 1
+    first = tab.paste_card(clipboard.mimeData(), spot)
+    assert tab.paste_action.isEnabled()
+    assert tab.can_paste_card(clipboard.mimeData())
+    second = tab.paste_card(clipboard.mimeData(), spot)
 
-    copy_card_to_clipboard(card, minimal_deck)
-    assert tab.paste_action.isEnabled(), "a new copy is a new paste"
+    assert len([i for i in tab.scene.items() if isinstance(i, DraggableCardItem)]) == 2
+    assert second.pos() != first.pos(), "cascaded off the first"
 
 
 def test_pasting_once_does_not_stop_a_drop(qtbot, clipboard, minimal_deck):
@@ -1212,6 +1217,8 @@ def menu_layout(menu):
             rows.append(None)
         elif action.menu() is not None:
             rows.append("swap")
+        elif (shown := action.property("menu_text")) is not None:
+            rows.append(shown[1])
         else:
             rows.append(action.objectName() or "open")
     return rows
@@ -1231,6 +1238,9 @@ def test_right_clicking_an_unselected_card_selects_only_it(qtbot, stub_deck_mana
     assert tab.selected_cards() == [first]
     assert menu_layout(menu) == [
         "open",
+        None,
+        "window.copy_card",
+        "window.cut",
         None,
         "canvas.flip",
         "canvas.rotate",
@@ -1667,3 +1677,80 @@ def test_a_turn_keeps_a_reversed_card_reversed(qtbot):
     wheel(tab, over(tab, card), (0, 120))
 
     assert (card.orient, card.reversed) == (15, True)
+
+
+# -- the ground's menu --------------------------------------------------------
+
+
+def centred_on(card, spot):
+    centre = card.pos() + card.boundingRect().center()
+    return (centre - spot).manhattanLength() <= 1
+
+
+def ground_entry(menu, command_id):
+    (action,) = (a for a in menu.actions() if (a.property("menu_text") or ())[1:] == (command_id,))
+    return action
+
+
+def test_the_ground_menu_pastes_draws_selects_fits_and_sets_the_background(qtbot, clipboard):
+    tab = make_tab(qtbot)
+
+    menu = tab.card_menu(QPointF(5000, 5000))
+
+    assert menu_layout(menu) == [
+        "window.paste_card",
+        "canvas.summon",
+        None,
+        "window.select_all",
+        "canvas.fit",
+        None,
+        "open",
+    ]
+    assert ground_entry(menu, "canvas.summon").text().startswith(CANVAS["draw_here"])
+
+
+def test_paste_on_the_ground_is_disabled_without_a_card(qtbot, clipboard):
+    tab = make_tab(qtbot)
+    clipboard.setText("not a card")
+
+    menu = tab.card_menu(QPointF(5000, 5000))
+
+    assert not ground_entry(menu, "window.paste_card").isEnabled()
+
+
+def test_paste_on_the_ground_lands_where_you_clicked(qtbot, clipboard, minimal_deck):
+    tab = make_tab(qtbot)
+    copy_card_to_clipboard(minimal_deck.get_card_by_id("major_arcana.00"), minimal_deck)
+    spot = QPointF(5000, 5000)
+
+    ground_entry(tab.card_menu(spot), "window.paste_card").trigger()
+
+    assert centred_on(only_card(tab), spot)
+
+
+def test_draw_here_lands_where_you_clicked(qtbot, minimal_deck):
+    tab = make_tab(qtbot)
+    tab.deck = minimal_deck
+    spot = QPointF(5000, 5000)
+
+    ground_entry(tab.card_menu(spot), "canvas.summon").trigger()
+
+    assert centred_on(only_card(tab), spot)
+
+
+def test_copy_and_cut_on_a_card_take_one_card(qtbot, clipboard, minimal_deck):
+    tab = make_tab(qtbot)
+    first, second = (
+        tab.add_specific_card(card, card_deck=minimal_deck, at=QPointF(400 * i, 0))
+        for i, card in enumerate(minimal_deck.get_all_cards()[:2])
+    )
+    first.setSelected(True)
+
+    menu = tab.card_menu(card_centre(first))
+    assert not ground_entry(menu, "window.copy_card").isEnabled()
+    assert not ground_entry(menu, "window.cut").isEnabled()
+
+    tab.scene.clearSelection()
+    ground_entry(tab.card_menu(card_centre(first)), "window.cut").trigger()
+    assert clipboard.mimeData().hasFormat(CARD_MIME)
+    assert first not in tab.scene.items()

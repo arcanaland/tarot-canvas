@@ -39,6 +39,7 @@ from tarot_canvas.ui.strings import COMMANDS, READINGS
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.reading_tab import CARD_Z, NEXT_Z, ReadingTab
 from tests.conftest import write_full_deck
+from tests.gui.test_canvas_tab import centred_on, ground_entry, menu_layout
 
 LEFT = Qt.MouseButton.LeftButton
 NONE = Qt.MouseButton.NoButton
@@ -460,7 +461,7 @@ def test_the_empty_ground_offers_the_readings_own_background(qtbot, deck, off):
 
     menu = tab.card_menu(QPointF(9000, 9000))
 
-    (action,) = menu.actions()
+    action = menu.actions()[-1]
     assert action.text() == commands.by_id("window.canvas_background").text
     action.trigger()
     assert tab.background_is_open()
@@ -1462,3 +1463,24 @@ def test_home_leaves_out_the_halos_light(qtbot, deck, off):
     tab.patch.setVisible(False)
     tab.on_home()
     assert tab.view.transform() == lit
+
+
+def test_draw_here_waits_for_the_deal(qtbot, deck, off):
+    tab = make_tab(qtbot)
+    assert "canvas.summon" not in menu_layout(tab.card_menu(QPointF(9000, 9000)))
+
+    deal(qtbot, tab)
+    assert "canvas.summon" in menu_layout(tab.card_menu(QPointF(9000, 9000)))
+
+
+def test_draw_here_draws_from_the_reading_where_you_clicked(qtbot, deck, off):
+    tab = make_tab(qtbot)
+    deal(qtbot, tab)
+    spot = QPointF(9000, 9000)
+    menu = tab.card_menu(spot)
+
+    ground_entry(menu, "canvas.summon").trigger()
+
+    (drawn,) = (card for card in tab.cards() if tab.placement_of(card) is None)
+    assert centred_on(drawn, spot)
+    assert drawn.deck is tab.deck

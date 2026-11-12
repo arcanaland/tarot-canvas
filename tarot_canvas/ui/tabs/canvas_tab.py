@@ -160,6 +160,8 @@ class CanvasTab(BaseTab):
     SAVES_CANVAS = True
     # Whether the tab can have a ground of its own, which only a tab that keeps one offers
     OWN_GROUND = True
+    # The ground menu's entry for canvas.summon, which places at the click
+    DRAW_HERE = CANVAS["draw_here"]
     # Set once the canvas is a reading
     saved_reading = None
 
@@ -172,8 +174,6 @@ class CanvasTab(BaseTab):
         self.tab_name = CANVAS["tab_name"]
         # Whether the user manually named the tab
         self.named_by_hand = False
-        # Set once the clipboard's card has been pasted here, until the next copy
-        self._clipboard_pasted = False
 
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
@@ -593,9 +593,9 @@ class CanvasTab(BaseTab):
         # Paste
         self.paste_action = QAction(QIcon.fromTheme("edit-paste"), CANVAS["paste"], self)
         set_tooltip_with_keys(self.paste_action, CANVAS["paste_tooltip"], "window.paste_card")
-        self.paste_action.triggered.connect(self.on_paste_card)
+        self.paste_action.triggered.connect(lambda _checked=False: self.on_paste_card())
         self.toolbar.addAction(self.paste_action)
-        QGuiApplication.clipboard().dataChanged.connect(self.on_clipboard_changed)
+        QGuiApplication.clipboard().dataChanged.connect(self.update_paste_action)
         self.update_paste_action()
 
         # Arrangement actions group
@@ -744,15 +744,10 @@ class CanvasTab(BaseTab):
     # -- card clipboard and drop ---------------------------------------------
 
     def can_paste_card(self, mime):
-        # Once per copy
-        return not self.arranging and has_card(mime) and not self._clipboard_pasted
+        return not self.arranging and has_card(mime)
 
-    def paste_card(self, mime):
-        item = self.place_card(mime)
-        if item is not None:
-            self._clipboard_pasted = True
-            self.update_paste_action()
-        return item
+    def paste_card(self, mime, at=None):
+        return self.place_card(mime, at)
 
     def place_card(self, mime, at=None):
         """Resolve a card payload and place every card in it (cascading)
@@ -825,17 +820,13 @@ class CanvasTab(BaseTab):
     def deselect(self):
         self.scene.clearSelection()
 
-    def on_paste_card(self):
+    def on_paste_card(self, at=None):
         mime = QGuiApplication.clipboard().mimeData()
         if self.can_paste_card(mime):
-            self.paste_card(mime)
+            self.paste_card(mime, at)
 
     # A real slot for Qt
     @pyqtSlot()
-    def on_clipboard_changed(self):
-        self._clipboard_pasted = False
-        self.update_paste_action()
-
     def update_paste_action(self):
         if self.arranging:
             return
@@ -936,26 +927,60 @@ class CanvasTab(BaseTab):
         On empty ground, the ground's menu."""
         item = self.card_at(scene_pos)
         if item is None:
-            return self.ground_menu()
+            return self.ground_menu(scene_pos)
         if not item.isSelected():
             self.scene.clearSelection()
             item.setSelected(True)
         return self.build_card_menu(item)
 
-    def ground_menu(self):
-        """Background, the command's entry, where the tab can have its own; else None"""
-        if not self.OWN_GROUND:
-            return None
-        command = commands.by_id(BACKGROUND_COMMAND)
+    def _menu_entry(self, menu, command_id, slot, enabled=True, words=None, icon=None):
+        """An entry with command_id's words, icon and key, which runs slot instead"""
+        command = commands.by_id(command_id)
+        action = menu.addAction(icon or commands.command_icon(command), "")
+        commands.set_menu_text(action, words or command.text, command_id)
+        action.setEnabled(enabled)
+        action.triggered.connect(lambda _checked=False: slot())
+        return action
+
+    def shows_draw_here(self):
+        return True
+
+    def ground_menu(self, scene_pos):
+        """Paste and draw at scene_pos, select and fit, and Background where the tab keeps one"""
         menu = QMenu(self)
-        action = menu.addAction(commands.command_icon(command), command.text)
-        action.triggered.connect(self.edit_background)
+        clipboard = QGuiApplication.clipboard()
+        self._menu_entry(
+            menu,
+            "window.paste_card",
+            lambda: self.on_paste_card(at=scene_pos),
+            self.can_paste_card(clipboard.mimeData()),
+        )
+        if self.shows_draw_here():
+            self._menu_entry(
+                menu,
+                "canvas.summon",
+                lambda: self.on_draw_card(at=scene_pos),
+                not self.arranging,
+                words=self.DRAW_HERE,
+                icon=self.commands["canvas.summon"].icon(),
+            )
+        menu.addSeparator()
+        self._menu_entry(menu, "window.select_all", self.select_all, self.can_select_all())
+        menu.addAction(self.commands["canvas.fit"])
+        if self.OWN_GROUND:
+            menu.addSeparator()
+            command = commands.by_id(BACKGROUND_COMMAND)
+            action = menu.addAction(commands.command_icon(command), command.text)
+            action.triggered.connect(self.edit_background)
         return menu
 
     def build_card_menu(self, item):
         menu = QMenu(self)
         open_action = menu.addAction(QIcon.fromTheme("document-open"), CANVAS["open_card"])
         open_action.triggered.connect(lambda: self.open_card_view(item))
+        menu.addSeparator()
+        self._menu_entry(menu, "window.copy_card", self.copy_card, self.can_copy_card())
+        self._menu_entry(menu, "window.cut", self.cut_card, self.can_cut_card())
         menu.addSeparator()
         menu.addAction(self.commands["canvas.flip"])
         menu.addAction(self.commands["canvas.rotate"])

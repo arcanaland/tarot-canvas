@@ -1111,25 +1111,22 @@ def test_ctrl_c_copies_the_card_and_ctrl_v_places_it(qtbot, clipboard):
 
     cards = [item for item in canvas.scene.items() if isinstance(item, DraggableCardItem)]
     assert [c.card_data["id"] for c in cards] == [card_view.card["id"]]
-    assert not window.paste_card_action.isEnabled(), "one paste per copy"
 
     ctrl(qtbot, canvas.view, Qt.Key.Key_V)
     cards = [item for item in canvas.scene.items() if isinstance(item, DraggableCardItem)]
-    assert len(cards) == 1
+    assert len(cards) == 2
 
 
-def test_one_paste_per_canvas_per_copy(qtbot, clipboard):
+def test_a_copy_pastes_again_on_the_same_canvas(qtbot, clipboard):
     window, card_view = make_window_with_card_view(qtbot)
     window.copy_card_action.trigger()
-    first = window.new_canvas_tab()
+    canvas = window.new_canvas_tab()
     window.paste_card_action.trigger()
-    assert not window.paste_card_action.isEnabled()
+    assert window.paste_card_action.isEnabled()
 
-    window.new_canvas_tab()
-    assert window.paste_card_action.isEnabled(), "another canvas has not had it yet"
-
-    window.tab_widget.setCurrentWidget(first)
-    assert not window.paste_card_action.isEnabled()
+    window.paste_card_action.trigger()
+    cards = [item for item in canvas.scene.items() if isinstance(item, DraggableCardItem)]
+    assert len(cards) == 2
 
 
 def test_ctrl_c_still_copies_in_fullscreen(qtbot, clipboard):

@@ -251,8 +251,7 @@ def test_it_is_headed_by_its_command(tab):
 
 
 def background_action(menu):
-    (action,) = menu.actions()
-    return action
+    return menu.actions()[-1]
 
 
 def test_a_right_click_on_empty_ground_offers_the_panel(tab):
@@ -273,7 +272,8 @@ def test_a_right_click_on_a_card_is_still_the_card_menu(tab):
 
 def test_the_spread_designer_offers_no_ground(qtbot):
     designer = make_tab(qtbot, SpreadTab)
-    assert designer.card_menu(QPointF(5000, 5000)) is None
+    menu = designer.card_menu(QPointF(5000, 5000))
+    assert COMMAND.text not in [action.text() for action in menu.actions()]
     assert designer.edit_background() is None
 
 

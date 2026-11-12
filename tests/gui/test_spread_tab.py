@@ -18,6 +18,7 @@ from tarot_canvas.ui.strings import COMMANDS, SPREADS
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.spread_tab import SpreadTab
 from tarot_canvas.ui.widgets.reorder_list import GRIP_WIDTH
+from tests.gui.test_canvas_tab import centred_on, ground_entry
 
 Answer = QMessageBox.StandardButton
 UNIT = 200
@@ -1847,3 +1848,26 @@ def test_an_included_spreads_folder_is_shown_only_once_it_is_a_copy(window, ship
     assert tab.save()
 
     assert enabled(tab) == (False, True)
+
+
+def test_add_slot_here_adds_a_slot_where_you_clicked(qtbot):
+    tab = make_tab(qtbot)
+    spot = QPointF(5000, 5000)
+    menu = tab.card_menu(spot)
+
+    add = ground_entry(menu, "canvas.summon")
+    assert add.text().startswith(SPREADS["add_slot_here"])
+    add.trigger()
+
+    assert centred_on(tab.slots()[-1], spot)
+
+
+def test_paste_on_the_ground_adds_a_slot_where_you_clicked(qtbot, clipboard, minimal_deck):
+    tab = make_tab(qtbot)
+    copy_card_to_clipboard(minimal_deck.get_random_card(), minimal_deck, False)
+    spot = QPointF(5000, 5000)
+    menu = tab.card_menu(spot)
+
+    ground_entry(menu, "window.paste_card").trigger()
+
+    assert centred_on(tab.slots()[-1], spot)
