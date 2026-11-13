@@ -64,7 +64,7 @@ def test_a_failed_save_keeps_the_old_file_and_leaves_no_temporary(tmp_path, monk
 
 def test_scan_skips_and_logs_a_folder_it_cannot_read(tmp_path, monkeypatch):
     warnings = []
-    monkeypatch.setattr(spreads.logger, "warning", warnings.append)
+    monkeypatch.setattr(spreads.log, "warning", lambda msg, *args: warnings.append(msg % args))
     (tmp_path / "1").mkdir()
     spreads.save(tmp_path / "1", sample())
     (tmp_path / "2").mkdir()
@@ -271,7 +271,7 @@ def test_scan_skips_a_spread_written_to_a_spec(tmp_path):
 
 def test_scan_skips_and_logs_a_spread_from_a_newer_build(tmp_path, monkeypatch):
     warnings = []
-    monkeypatch.setattr(spreads.logger, "warning", warnings.append)
+    monkeypatch.setattr(spreads.log, "warning", lambda msg, *args: warnings.append(msg % args))
     write_spread(
         tmp_path / "1",
         f'name = "A"\n[app."land.arcana.tarotcanvas"]\nversion = {spreads.VERSION + 1}\n',

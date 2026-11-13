@@ -4,124 +4,124 @@ from typing import ClassVar
 
 from tarot_canvas.utils.path_helper import get_data_directory
 
+LOGGER_NAME = "tarot_canvas"
+FORMAT = "%(asctime)s - %(levelname)s - %(name)s:%(lineno)d - %(message)s"
+
+# A log is deleted only when it is neither one of the newest KEEP_NEWEST nor younger than
+# KEEP_DAYS, so a crash reported the next day, or after a dozen relaunches, is still there
+KEEP_NEWEST = 20
+KEEP_DAYS = 7
+
+_log_file = None
+
+
+def configure_logging(log_dir=None):
+    """Open this run's log file and prune old ones. Only main() calls this.
+
+    Importing the package configures nothing, so a test, a bench run or a one-off
+    import neither creates a log file nor deletes one.
+    """
+    global _log_file
+
+    if log_dir is None:
+        log_dir = get_data_directory("tarot-canvas/logs")
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    _log_file = log_dir / f"tarot_canvas_{timestamp}.log"
+
+    formatter = logging.Formatter(FORMAT)
+
+    file_handler = logging.FileHandler(_log_file)
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(formatter)
+
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(formatter)
+
+    root = logging.getLogger(LOGGER_NAME)
+    root.setLevel(logging.DEBUG)
+    root.addHandler(file_handler)
+    root.addHandler(console_handler)
+
+    root.info(f"Logger initialized. Log file: {_log_file}")
+
+    # After the new file exists, so this run is always one of the newest
+    prune_logs(log_dir)
+
+    return _log_file
+
+
+def prune_logs(log_dir, keep_newest=KEEP_NEWEST, keep_days=KEEP_DAYS, now=None):
+    """Delete the logs that are neither among the newest keep_newest nor keep_days old."""
+    log = logging.getLogger(LOGGER_NAME)
+    now = now or datetime.datetime.now()
+    cutoff = (now - datetime.timedelta(days=keep_days)).timestamp()
+
+    logs = sorted(
+        log_dir.glob("tarot_canvas_*.log"), key=lambda path: path.stat().st_mtime, reverse=True
+    )
+    for path in logs[keep_newest:]:
+        if path.stat().st_mtime >= cutoff:
+            continue
+        try:
+            path.unlink()
+            log.info(f"Deleted old log file: {path}")
+        except OSError as e:
+            log.warning(f"Failed to delete old log file {path}: {e}")
+
+
+def get_log_file_path():
+    """This run's log file, or None when logging was never configured."""
+    return _log_file
+
 
 class TarotLogger:
-    """Central logging system for Tarot Canvas application"""
+    """Logs to the tarot_canvas logger and tells the log viewer"""
 
-    _instance = None
-    _log_file = None
-    _logger = None
+    _logger = logging.getLogger(LOGGER_NAME)
     _subscribers: ClassVar[list] = []
-
-    @classmethod
-    def get_instance(cls):
-        """Singleton pattern to ensure only one logger instance exists"""
-        if cls._instance is None:
-            cls._instance = cls()
-            cls._setup_logger()
-        return cls._instance
-
-    @classmethod
-    def _setup_logger(cls):
-        """Set up the logging infrastructure"""
-        # Create logger
-        cls._logger = logging.getLogger("TarotCanvas")
-        cls._logger.setLevel(logging.DEBUG)
-
-        # Create log directory if it doesn't exist
-        log_dir = get_data_directory("tarot-canvas/logs")
-        log_dir.mkdir(parents=True, exist_ok=True)
-
-        # Clean up old log files (older than 24 hours)
-        current_time = datetime.datetime.now()
-        for log_file in log_dir.glob("tarot_canvas_*.log"):
-            file_time = datetime.datetime.fromtimestamp(log_file.stat().st_mtime)
-            file_age = current_time - file_time
-
-            if file_age.days >= 1:
-                try:
-                    log_file.unlink()
-                    print(f"Cleaning up old log file: {log_file}")
-                except Exception as e:
-                    print(f"Failed to delete old log file {log_file}: {e}")
-
-        # Create log file with timestamp
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        cls._log_file = log_dir / f"tarot_canvas_{timestamp}.log"
-
-        # Create file handler
-        file_handler = logging.FileHandler(cls._log_file)
-        file_handler.setLevel(logging.DEBUG)
-
-        # Create console handler
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.INFO)
-
-        # Create formatter
-        formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-        file_handler.setFormatter(formatter)
-        console_handler.setFormatter(formatter)
-
-        # Add handlers to logger
-        cls._logger.addHandler(file_handler)
-        cls._logger.addHandler(console_handler)
-
-        # Log startup message
-        cls._logger.info(f"Logger initialized. Log file: {cls._log_file}")
 
     @classmethod
     def debug(cls, message):
         """Log a debug message"""
-        if cls._logger is None:
-            cls.get_instance()
         cls._logger.debug(message)
         cls._notify_subscribers(logging.DEBUG, message)
 
     @classmethod
     def info(cls, message):
         """Log an info message"""
-        if cls._logger is None:
-            cls.get_instance()
         cls._logger.info(message)
         cls._notify_subscribers(logging.INFO, message)
 
     @classmethod
     def warning(cls, message):
         """Log a warning message"""
-        if cls._logger is None:
-            cls.get_instance()
         cls._logger.warning(message)
         cls._notify_subscribers(logging.WARNING, message)
 
     @classmethod
     def error(cls, message):
         """Log an error message"""
-        if cls._logger is None:
-            cls.get_instance()
         cls._logger.error(message)
         cls._notify_subscribers(logging.ERROR, message)
 
     @classmethod
     def exception(cls, message):
         """Log an error message with the traceback of the exception being handled"""
-        if cls._logger is None:
-            cls.get_instance()
         cls._logger.exception(message)
         cls._notify_subscribers(logging.ERROR, message)
 
     @classmethod
     def critical(cls, message):
         """Log a critical message"""
-        if cls._logger is None:
-            cls.get_instance()
         cls._logger.critical(message)
         cls._notify_subscribers(logging.CRITICAL, message)
 
     @classmethod
     def subscribe(cls, callback):
         """Add a subscriber to receive log messages"""
-        if cls._instance is None:
-            cls.get_instance()
         if callback not in cls._subscribers:
             cls._subscribers.append(callback)
 
@@ -138,16 +138,14 @@ class TarotLogger:
         for callback in cls._subscribers:
             try:
                 callback(level, timestamp, message)
-            except Exception as e:
-                print(f"Error notifying subscriber: {e}")
+            except Exception:
+                cls._logger.exception("Error notifying a log subscriber")
 
     @classmethod
     def get_log_file_path(cls):
         """Get the current log file path"""
-        if cls._log_file is None:
-            cls.get_instance()
-        return cls._log_file
+        return get_log_file_path()
 
 
-# Create a simple alias for easier imports
-logger = TarotLogger.get_instance()
+# Every method is a classmethod, so the class is the logger; nothing runs at import
+logger = TarotLogger

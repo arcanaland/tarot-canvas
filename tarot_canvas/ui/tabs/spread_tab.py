@@ -1,3 +1,4 @@
+import logging
 from contextlib import suppress
 from pathlib import Path
 
@@ -19,7 +20,8 @@ from tarot_canvas.ui.icons import SPREAD_ICON
 from tarot_canvas.ui.strings import CANVAS, COMMANDS, READINGS, SPREADS
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.spread_slots import SpreadSlots
-from tarot_canvas.utils.logger import logger
+
+log = logging.getLogger(__name__)
 
 
 class SpreadTab(SpreadSlots, CanvasTab):
@@ -236,7 +238,7 @@ class SpreadTab(SpreadSlots, CanvasTab):
         try:
             spreads.save(path, spread)
         except OSError as error:
-            logger.error(f"Could not save spread to {path}: {error}")
+            log.exception("Could not save spread to %s: %s", path, error)
             self._toast(SPREADS["save_failed"])
             return False
         spread_events().spreads_changed.emit()
@@ -257,7 +259,7 @@ class SpreadTab(SpreadSlots, CanvasTab):
             try:
                 path = spreads.new_spread_dir()
             except OSError as error:
-                logger.error(f"Could not create directory for a spread: {error}")
+                log.exception("Could not create directory for a spread: %s", error)
                 return False
         if not self._write(path, spread):
             if is_new:
@@ -334,7 +336,7 @@ class SpreadTab(SpreadSlots, CanvasTab):
         try:
             spread = spreads.load(self.spread_path)
         except (OSError, ValueError) as error:
-            logger.error(f"Could not reload spread {self.spread_path}: {error}")
+            log.exception("Could not reload spread %s: %s", self.spread_path, error)
             self._toast(SPREADS["open_failed"])
             return
 
@@ -347,5 +349,5 @@ class SpreadTab(SpreadSlots, CanvasTab):
     @pyqtSlot()
     def open_folder(self):
         if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.spread_path))):
-            logger.error(f"Could not open the folder {self.spread_path}")
+            log.error("Could not open the folder %s", self.spread_path)
             self._toast(SPREADS["open_folder_failed"])

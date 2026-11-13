@@ -1,3 +1,4 @@
+import logging
 import math
 import os
 import random
@@ -105,7 +106,8 @@ from tarot_canvas.ui.card_transfer import (
 from tarot_canvas.ui.commands import Scope, set_tooltip_with_keys
 from tarot_canvas.ui.strings import CANVAS, MAIN_WINDOW, READINGS, SPREADS
 from tarot_canvas.ui.tabs.base_tab import BaseTab
-from tarot_canvas.utils.logger import logger
+
+log = logging.getLogger(__name__)
 
 # A tab title longer than this many average characters is cut short
 TAB_TITLE_CHARS = 32
@@ -481,7 +483,7 @@ class CanvasTab(BaseTab):
         path = backgrounds.background_path(name)
         source = image_ground.load(path, positioning, image_ground.decode_bound()) if path else None
         if source is None or source.isNull():
-            logger.warning(f"No background image {name!r} to draw; drawing the gradient")
+            log.warning("No background image %r to draw; drawing the gradient", name)
             return self.create_gradient_background()
         # Its transparency shows the fill, in every positioning
         source = image_ground.flatten(source, fill)
@@ -681,7 +683,7 @@ class CanvasTab(BaseTab):
         # Get the main window to access the card explorer
         main_window = self.window()
         if not main_window:
-            print("Couldn't find main window")
+            log.warning("Couldn't find main window")
             return
 
         # Try to find the card explorer in the main window
@@ -697,19 +699,19 @@ class CanvasTab(BaseTab):
             # Get the currently selected deck from the explorer if it exists
             if card_explorer and card_explorer.current_deck:
                 selected_deck = card_explorer.current_deck
-        except Exception as e:
-            print(f"Error accessing card explorer: {e}")
+        except Exception:
+            log.exception("Error accessing card explorer")
 
         # Use the selected deck or fall back to the default deck
         deck_to_use = selected_deck or self.deck
         if not deck_to_use:
-            print("No deck available to draw from!")
+            log.warning("No deck available to draw from!")
             return
 
         # Get a random card from the selected deck
         card = deck_to_use.random_card()
         if not card:
-            print(f"Could not draw a card from {deck_to_use.metadata.name}!")
+            log.warning("Could not draw a card from %s!", deck_to_use.metadata.name)
             return
 
         # Add a 50% chance for the card to be reversed
@@ -719,7 +721,7 @@ class CanvasTab(BaseTab):
         self.add_specific_card(card, card_deck=deck_to_use, is_reversed=is_reversed, at=at)
 
         # Log what deck we drew from
-        print(f"Drew card from {deck_to_use.metadata.name} deck")
+        log.debug("Drew card from %s deck", deck_to_use.metadata.name)
 
     def take_top_z(self):
         """The next depth above every card on the canvas."""
@@ -755,7 +757,7 @@ class CanvasTab(BaseTab):
         """
         resolved = cards_from_mime(mime, deck_library.decks())
         if not resolved:
-            logger.warning("Nothing placed: the card payload did not resolve")
+            log.warning("Nothing placed: the card payload did not resolve")
             return None
         return self.place_cards(resolved, at)
 
@@ -838,13 +840,13 @@ class CanvasTab(BaseTab):
         """An item_type for card, not yet on the canvas, or None if its art won't load."""
         image_path = card.default_image()
         if not image_path or not os.path.exists(image_path):
-            print(f"Card image not found: {image_path}")
+            log.warning("Card image not found: %s", image_path)
             return None
 
         # The card is placed at a fitted size; sharper levels load as the view needs them
         art = load_card_art(image_path)
         if art is None:
-            print(f"Failed to load image: {image_path}")
+            log.warning("Failed to load image: %s", image_path)
             return None
         pixmap, source_size = art
 
@@ -864,12 +866,12 @@ class CanvasTab(BaseTab):
             card_item.place_and_settle()
 
             reversed_status = "reversed" if is_reversed else "upright"
-            print(f"Added card to canvas: {card.display_name} ({reversed_status})")
+            log.debug("Added card to canvas: %s (%s)", card.display_name, reversed_status)
 
             return card_item
 
-        except Exception as e:
-            print(f"Error adding card to canvas: {e}")
+        except Exception:
+            log.exception("Error adding card to canvas")
             return None
 
     def add_slot(self, number, position_id, at=None, label="", meaning=""):
@@ -1427,7 +1429,7 @@ class CanvasTab(BaseTab):
         try:
             path = readings.new_reading_dir()
         except OSError as error:
-            logger.error(f"Could not make a folder for a reading: {error}")
+            log.exception("Could not make a folder for a reading: %s", error)
             return False
         reading = new_reading()
 
@@ -1471,7 +1473,7 @@ class CanvasTab(BaseTab):
         if deck has no such card or its art won't load; such a card is kept to be written back"""
         data = self._card_in(deck, card.id)
         if data is None:
-            logger.warning(f"Skipped card {card.id!r}: its deck has no such card")
+            log.warning("Skipped card %r: its deck has no such card", card.id)
             self.unrestored.append(card)
             return None
         item = self.make_card_item(data, deck, card.reversed, item_type=item_type)

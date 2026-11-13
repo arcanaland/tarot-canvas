@@ -127,7 +127,7 @@ def test_a_reading_with_no_spread_has_no_spread_table(tmp_path):
 )
 def test_a_reading_whose_spread_cannot_be_read_is_not_read(tmp_path, monkeypatch, spread):
     # Opened as a plain canvas, its first write would lose the spread and its cards' places
-    monkeypatch.setattr(readings.logger, "warning", lambda _: None)
+    monkeypatch.setattr(readings.log, "warning", lambda *_: None)
     write(
         tmp_path,
         "date = 2026-11-09T21:14:00-08:00\n"
@@ -179,7 +179,7 @@ def test_a_naive_date_is_local_time(tmp_path):
 
 def test_a_card_with_no_id_is_skipped_and_its_neighbours_keep_their_layout(tmp_path, monkeypatch):
     warnings = []
-    monkeypatch.setattr(readings.logger, "warning", warnings.append)
+    monkeypatch.setattr(readings.log, "warning", lambda msg, *args: warnings.append(msg % args))
     write(
         tmp_path,
         "date = 2026-11-09T21:14:00-08:00\n"
@@ -209,20 +209,20 @@ def test_a_card_with_no_id_is_skipped_and_its_neighbours_keep_their_layout(tmp_p
     ],
 )
 def test_an_unreadable_file_loads_as_none(tmp_path, monkeypatch, text):
-    monkeypatch.setattr(readings.logger, "warning", lambda _: None)
+    monkeypatch.setattr(readings.log, "warning", lambda *_: None)
     write(tmp_path, text)
     assert readings.load(tmp_path) is None
 
 
 def test_a_missing_file_loads_as_none(tmp_path, monkeypatch):
-    monkeypatch.setattr(readings.logger, "warning", lambda _: None)
+    monkeypatch.setattr(readings.log, "warning", lambda *_: None)
     assert readings.load(tmp_path) is None
 
 
 @pytest.mark.parametrize("version", [2, 99])
 def test_a_reading_from_a_newer_build_is_not_read_or_listed(tmp_path, monkeypatch, version):
     # Read, its first write would bring it down to this version
-    monkeypatch.setattr(readings.logger, "warning", lambda _: None)
+    monkeypatch.setattr(readings.log, "warning", lambda *_: None)
     write(
         tmp_path / "100",
         "date = 2026-11-09\n[[cards]]\nid = 'major_arcana.0'\n"
@@ -234,13 +234,13 @@ def test_a_reading_from_a_newer_build_is_not_read_or_listed(tmp_path, monkeypatc
 
 def test_a_reading_with_a_meta_table_is_not_read(tmp_path, monkeypatch):
     # [meta] would be a later shared reading format's
-    monkeypatch.setattr(readings.logger, "warning", lambda _: None)
+    monkeypatch.setattr(readings.log, "warning", lambda *_: None)
     write(tmp_path, "date = 2026-11-09\n[meta]\nspec = 'later'\n")
     assert readings.load(tmp_path) is None
 
 
 def test_scan_is_newest_first_and_skips_what_it_cannot_read(tmp_path, monkeypatch):
-    monkeypatch.setattr(readings.logger, "warning", lambda _: None)
+    monkeypatch.setattr(readings.log, "warning", lambda *_: None)
     older, newer = sample(date=WHEN - timedelta(days=1)), sample()
     readings.save(tmp_path / "200", older)
     readings.save(tmp_path / "100", newer)
@@ -299,7 +299,7 @@ def test_a_bad_app_table_or_version_is_logged_and_the_reading_is_not_read(
     tmp_path, monkeypatch, app
 ):
     warnings = []
-    monkeypatch.setattr(readings.logger, "warning", warnings.append)
+    monkeypatch.setattr(readings.log, "warning", lambda msg, *args: warnings.append(msg % args))
     write(tmp_path, "date = 2026-11-09\n" + app + "[[cards]]\nid = 'major_arcana.0'\n")
 
     assert readings.load(tmp_path) is None
@@ -336,7 +336,7 @@ def test_an_image_ground_writes_only_its_keys_and_loads_back(tmp_path, positioni
 
 def test_a_bad_ground_loads_as_none_with_the_rest_intact(tmp_path, monkeypatch):
     warnings = []
-    monkeypatch.setattr(ground_model.logger, "warning", warnings.append)
+    monkeypatch.setattr(ground_model.log, "warning", lambda msg, *args: warnings.append(msg % args))
     write(
         tmp_path,
         "date = 2026-11-09T21:14:00-08:00\nquestion = 'Kept'\n"
@@ -437,7 +437,7 @@ def test_a_new_ground_style_drops_what_the_old_one_held(tmp_path):
 
 
 def test_a_ground_this_version_cannot_draw_is_kept(tmp_path, monkeypatch):
-    monkeypatch.setattr(ground_model.logger, "warning", lambda _: None)
+    monkeypatch.setattr(ground_model.log, "warning", lambda *_: None)
     write(
         tmp_path,
         "date = 2026-11-09\n[app.'land.arcana.tarotcanvas'.ground]\nstyle = 'aurora'\nbands = 3\n",
@@ -451,7 +451,7 @@ def test_a_ground_this_version_cannot_draw_is_kept(tmp_path, monkeypatch):
 
 
 def test_a_ground_this_version_cannot_draw_gives_way_to_one_chosen(tmp_path, monkeypatch):
-    monkeypatch.setattr(ground_model.logger, "warning", lambda _: None)
+    monkeypatch.setattr(ground_model.log, "warning", lambda *_: None)
     write(tmp_path, "date = 2026-11-09\n[app.'land.arcana.tarotcanvas'.ground]\nstyle = 'aurora'\n")
     reading = readings.load(tmp_path)
     readings.save(tmp_path, replace(reading, ground=Ground(style="solid")))
@@ -469,6 +469,6 @@ def test_a_ground_this_version_cannot_draw_gives_way_to_one_chosen(tmp_path, mon
     ],
 )
 def test_a_date_outside_the_years_any_zone_can_show_is_not_read(tmp_path, monkeypatch, date):
-    monkeypatch.setattr(readings.logger, "warning", lambda _: None)
+    monkeypatch.setattr(readings.log, "warning", lambda *_: None)
     write(tmp_path, f"date = {date}\n")
     assert readings.load(tmp_path) is None

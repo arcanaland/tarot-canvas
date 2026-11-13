@@ -1,9 +1,11 @@
 """What every note editor does, wherever it is shown: write its file, and offer and follow links"""
 
+import logging
 import os
 
 from tarot_canvas.models import notes as notes_model
-from tarot_canvas.utils.logger import logger
+
+log = logging.getLogger(__name__)
 
 
 def write_note(file_path, content):
@@ -11,9 +13,9 @@ def write_note(file_path, content):
     dir_path = os.path.dirname(file_path)
     os.makedirs(dir_path, exist_ok=True)
 
-    logger.info(f"Saving note to: {file_path}")
-    logger.info(f"Directory: {dir_path} exists: {os.path.exists(dir_path)}")
-    logger.info(f"Content length: {len(content)} characters")
+    log.info("Saving note to: %s", file_path)
+    log.info("Directory: %s exists: %s", dir_path, os.path.exists(dir_path))
+    log.info("Content length: %s characters", len(content))
 
     with open(file_path, "w", encoding="utf-8") as f:
         f.write(content)
@@ -22,9 +24,9 @@ def write_note(file_path, content):
         os.fsync(f.fileno())
 
     if os.path.exists(file_path):
-        logger.info(f"File saved successfully: {os.path.getsize(file_path)} bytes")
+        log.info("File saved successfully: %s bytes", os.path.getsize(file_path))
     else:
-        logger.error(f"File doesn't exist after save: {file_path}")
+        log.error("File doesn't exist after save: %s", file_path)
 
     os.utime(file_path, None)
 

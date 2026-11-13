@@ -1,5 +1,6 @@
 """Kept readings: readings/<timestamp>/reading.toml beside the reading's notes"""
 
+import logging
 from dataclasses import dataclass, field, replace
 from datetime import date as Date
 from datetime import datetime
@@ -17,8 +18,9 @@ from tarot_canvas.models.toml_files import (
     with_app_table,
     write_toml,
 )
-from tarot_canvas.utils.logger import logger
 from tarot_canvas.utils.path_helper import get_data_directory
+
+log = logging.getLogger(__name__)
 
 READINGS_SUBPATH = "tarot-canvas/readings"
 READING_FILE = "reading.toml"
@@ -142,7 +144,7 @@ def _geometry(entry, index):
             raise ValueError("not a table")
         return {key: number(entry, key, default) for key, default in defaults.items()}
     except (ValueError, TypeError, OverflowError) as error:
-        logger.warning(f"Reading layout {index} is unreadable, so it takes the default: {error}")
+        log.warning("Reading layout %s is unreadable, so it takes the default: %s", index, error)
         return defaults
 
 
@@ -182,7 +184,7 @@ def _reading(table, path):
     reversals = table.get("reversals")
     if not isinstance(reversals, bool):
         if reversals is not None:
-            logger.warning(f"Ignored reading {path}'s reversals: {reversals!r}")
+            log.warning("Ignored reading %s's reversals: %r", path, reversals)
         reversals = None
 
     entries = table.get("cards", [])
@@ -192,7 +194,7 @@ def _reading(table, path):
     if not isinstance(layout, list):
         layout = []
     if len(layout) < len(entries):
-        logger.info(f"Reading {path} has no layout for some cards, so they take the default")
+        log.info("Reading %s has no layout for some cards, so they take the default", path)
 
     cards = []
     for index, entry in enumerate(entries):
@@ -200,7 +202,7 @@ def _reading(table, path):
         try:
             cards.append(_card(entry, deck, _geometry(placed, index), _layout_extra(placed)))
         except ValueError as error:
-            logger.warning(f"Skipped card {index} of reading {path}: {error}")
+            log.warning("Skipped card %s of reading %s: %s", index, path, error)
 
     question = table.get("question", "")
     spread, origin = _spread(table)
@@ -232,7 +234,7 @@ def load(path):
     try:
         return _reading(load_table(Path(path) / READING_FILE), path)
     except (OSError, ValueError, TypeError) as error:
-        logger.warning(f"Could not read reading {path}: {error}")
+        log.warning("Could not read reading %s: %s", path, error)
         return None
 
 
