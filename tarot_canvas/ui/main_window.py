@@ -99,6 +99,30 @@ TAB_EDITS = {
 }
 
 
+def corner_search_button(platform=sys.platform):
+    """The search button beside the + in the tab bar's corner."""
+    button = QToolButton()
+    button.setIcon(QIcon.fromTheme("search", QIcon.fromTheme("edit-find")))
+
+    if platform == "darwin":
+        button.setAutoRaise(True)
+        return button
+
+    # Style the button to show only the icon without borders or background
+    button.setStyleSheet("""
+            QToolButton {
+                border: none;
+                background-color: transparent;
+                margin: 2px;
+            }
+            QToolButton:hover {
+                background-color: rgba(128, 128, 128, 0.2);
+                border-radius: 2px;
+            }
+        """)
+    return button
+
+
 class TabBarEventFilter(QObject):
     close_tab_requested = pyqtSignal(int)  # Signal with tab index
     new_tab_requested = pyqtSignal()
@@ -477,23 +501,9 @@ class MainWindow(QMainWindow):
         new_tab_button.setMenu(new_tab_menu)
 
         # Create search button and put it in the tab corner
-        search_button = QToolButton()
-        search_button.setIcon(QIcon.fromTheme("search", QIcon.fromTheme("edit-find")))
+        search_button = corner_search_button()
         set_tooltip_with_keys(search_button, MAIN_WINDOW["search_tooltip"], self.find_card_action)
         search_button.clicked.connect(self.show_command_palette)
-
-        # Style the button to show only the icon without borders or background
-        search_button.setStyleSheet("""
-            QToolButton {
-                border: none;
-                background-color: transparent;
-                margin: 2px;
-            }
-            QToolButton:hover {
-                background-color: rgba(128, 128, 128, 0.2);
-                border-radius: 2px;
-            }
-        """)
 
         # shared corner container with the + and search
         corner = QWidget()
