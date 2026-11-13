@@ -1,4 +1,5 @@
 import glob
+import logging
 import os
 import random
 import tomllib
@@ -12,7 +13,8 @@ from tarot_canvas.models.deck_types import (
     DeckMetadata,
     SuitInfo,
 )
-from tarot_canvas.utils.logger import logger
+
+log = logging.getLogger(__name__)
 
 CANONICAL_MAJOR_ARCANA_NAMES = {
     "00": "The Fool",
@@ -105,9 +107,9 @@ def _pattern(table, root_path=None):
         if isinstance(entry, dict) and entry.get("rel") == "pattern"
     ]
     if len(targets) > 1:
-        logger.warning(
-            f"{root_path}: [deck].related names more than one pattern, "
-            f"so the deck is read as having none"
+        log.warning(
+            "%s: [deck].related names more than one pattern, so the deck is read as having none",
+            root_path,
         )
         return None
     if not targets or not isinstance(targets[0], str) or not targets[0].strip():
@@ -173,8 +175,8 @@ class TarotDeck:  # implements deck_types.Deck
 
         with open(deck_file, "rb") as f:
             manifest = tomllib.load(f)
-            logger.debug(
-                f"Loaded metadata for deck: {manifest.get('deck', {}).get('name', 'Unknown')}"
+            log.debug(
+                "Loaded metadata for deck: %s", manifest.get("deck", {}).get("name", "Unknown")
             )
             return manifest
 
@@ -186,7 +188,7 @@ class TarotDeck:  # implements deck_types.Deck
                 aliases[canonical_suit] = custom_name
 
         if aliases:
-            logger.debug(f"Deck '{self.metadata.name}' has suit aliases: {aliases}")
+            log.debug("Deck '%s' has suit aliases: %s", self.metadata.name, aliases)
         return aliases
 
     def _extract_court_aliases(self):
@@ -211,7 +213,7 @@ class TarotDeck:  # implements deck_types.Deck
                 reason = excluded_data["reason"]
 
         if excluded:
-            logger.debug(f"Deck '{self.metadata.name}' has {len(excluded)} excluded cards")
+            log.debug("Deck '%s' has %s excluded cards", self.metadata.name, len(excluded))
 
         return excluded, reason
 
@@ -265,9 +267,9 @@ class TarotDeck:  # implements deck_types.Deck
 
         excluded_count = len(cards) - len(filtered_cards)
         if excluded_count > 0:
-            logger.info(f"Excluded {excluded_count} cards from deck: {self.metadata.name}")
+            log.info("Excluded %s cards from deck: %s", excluded_count, self.metadata.name)
 
-        logger.info(f"Loaded {len(filtered_cards)} cards for deck: {self.metadata.name}")
+        log.info("Loaded %s cards for deck: %s", len(filtered_cards), self.metadata.name)
         return filtered_cards
 
     def _load_major_arcana_cards(self):
@@ -487,7 +489,7 @@ class TarotDeck:  # implements deck_types.Deck
             return matches[0]
 
         # Return a placeholder if no image found
-        logger.warning(f"No image found for card: {card_type}/{card_id}")
+        log.warning("No image found for card: %s/%s", card_type, card_id)
         return None
 
     def _raster_images(self, card_type, card_id):

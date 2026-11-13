@@ -1,3 +1,4 @@
+import logging
 import os
 import shutil
 import time
@@ -33,7 +34,8 @@ from tarot_canvas.ui.tabs.card_view.note_editing import NoteLinks, write_note
 from tarot_canvas.ui.tabs.card_view.notes_list import NotesEmptyPage, NotesListPage
 from tarot_canvas.ui.widgets.heading_edit import heading_edit
 from tarot_canvas.ui.widgets.inline_message import InlineMessage
-from tarot_canvas.utils.logger import logger
+
+log = logging.getLogger(__name__)
 
 
 def renamed_path(file_path, new_name):
@@ -259,7 +261,7 @@ class NotesTab(QWidget):
         # Ensure deck manager reference is passed to editor
         if hasattr(self.parent_tab, "deck_library"):
             self.note_editor.set_deck_library(self.parent_tab.deck_library)
-            logger.debug("Passed deck manager to editor")
+            log.debug("Passed deck manager to editor")
 
         # The directory is made when the first note is written, not when a card is opened
         self.current_file_path = None
@@ -470,7 +472,7 @@ class NotesTab(QWidget):
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
         except OSError as error:
             error_msg = NOTES["mkdir_failed"].format(error=error)
-            logger.error(error_msg)
+            log.exception(error_msg)
             QMessageBox.critical(self, NOTES["error"], error_msg)
             return
 
@@ -535,7 +537,7 @@ class NotesTab(QWidget):
             staged_delete.commit(staged_path)
         except OSError as error:
             # Left where it is, the file can still be recovered by hand
-            logger.error(f"Could not remove deleted note {staged_path}: {error}")
+            log.exception("Could not remove deleted note %s: %s", staged_path, error)
 
     def export_note(self, file_path):
         """Copy a note to a file of the user's choosing"""
@@ -600,11 +602,7 @@ class NotesTab(QWidget):
 
         except Exception as e:
             error_msg = NOTES["save_failed"].format(error=e)
-            logger.error(error_msg)
-            # Add exception details and traceback
-            import traceback
-
-            logger.error(traceback.format_exc())
+            log.exception(error_msg)
             QMessageBox.critical(self, NOTES["error"], error_msg)
 
     def find_note_by_title(self, note_name):
@@ -614,4 +612,4 @@ class NotesTab(QWidget):
         """Automatically save the current note if modified"""
         path = self.current_file_path
         if self.save_if_modified():
-            logger.debug(f"Auto-saved note: {path}")
+            log.debug("Auto-saved note: %s", path)

@@ -222,6 +222,26 @@ def test_double_clicking_empty_canvas_summons_a_card_there(qtbot, minimal_deck):
     assert abs(centre.y() - expected.y()) <= 1
 
 
+class DeadTerminal:
+    """stdout after the terminal that launched the app has closed"""
+
+    def write(self, text):
+        raise OSError(5, "Input/output error")
+
+    def flush(self):
+        raise OSError(5, "Input/output error")
+
+
+def test_a_card_is_drawn_after_the_launching_terminal_has_gone(qtbot, minimal_deck, monkeypatch):
+    tab = make_tab(qtbot)
+    tab.deck = minimal_deck
+    monkeypatch.setattr("sys.stdout", DeadTerminal())
+
+    tab.on_draw_card(at=QPointF(0, 0))
+
+    only_card(tab)
+
+
 def test_double_clicking_a_card_summons_nothing(qtbot, minimal_deck):
     tab = make_tab(qtbot)
     tab.deck = minimal_deck

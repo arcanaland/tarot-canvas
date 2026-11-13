@@ -14,7 +14,7 @@ INDEX_FORMAT = 1
 SUPPORTED_SCHEMA_MAJORS = frozenset({1, 2})
 INDEX_TTL = timedelta(hours=24)
 
-log = logging.getLogger("TarotCanvas.catalog")
+log = logging.getLogger(__name__)
 
 _SHA256 = re.compile(r"[0-9a-fA-F]{64}")
 _REQUIRED_TEXT = (

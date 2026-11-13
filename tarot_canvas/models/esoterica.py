@@ -2,6 +2,7 @@
 This module is expected to become a thin call into arcana-tarot once that is done
 """
 
+import logging
 import os
 import tomllib
 from dataclasses import dataclass
@@ -22,8 +23,9 @@ from tarot_canvas.models.esoterica_registry import (
     sort_key,
 )
 from tarot_canvas.settings import get_esoterica_disabled
-from tarot_canvas.utils.logger import logger
 from tarot_canvas.utils.path_helper import get_esoterica_directories
+
+log = logging.getLogger(__name__)
 
 SUPPORTED_SCHEMA_MAJORS = {"1"}
 
@@ -300,7 +302,7 @@ def _read_related(path, meta):
     if related is None or "translates" in meta:
         return None, frozenset()
     if not isinstance(related, list):
-        logger.warning(f"{path}: [meta].related is not an array, so it is not read")
+        log.warning("%s: [meta].related is not an array, so it is not read", path)
         return None, frozenset()
 
     patterns = []
@@ -308,7 +310,7 @@ def _read_related(path, meta):
     for entry in related:
         target = entry.get("target") if isinstance(entry, dict) else None
         if not isinstance(target, str) or not target.strip():
-            logger.warning(f"{path}: an entry in [meta].related has no target; skipping it")
+            log.warning("%s: an entry in [meta].related has no target; skipping it", path)
             continue
         if entry.get("rel") == "pattern":
             patterns.append(target.strip())
@@ -316,8 +318,8 @@ def _read_related(path, meta):
             about.add(target.strip())
 
     if len(patterns) > 1:
-        logger.warning(
-            f"{path}: [meta].related names more than one pattern, so it is read as having none"
+        log.warning(
+            "%s: [meta].related names more than one pattern, so it is read as having none", path
         )
         patterns = []
     return (patterns[0] if patterns else None), frozenset(about)
@@ -356,7 +358,7 @@ def _read_source(path):
         with open(path, "rb") as f:
             content = tomllib.load(f)
     except (OSError, tomllib.TOMLDecodeError) as e:
-        logger.debug(f"Not readable as an esoterica source: {path} ({e})")
+        log.debug("Not readable as an esoterica source: %s (%s)", path, e)
         return None
 
     meta = content.get("meta")
@@ -367,9 +369,10 @@ def _read_source(path):
 
     if not isinstance(cards, dict):
         if "passages" in content or "id" in meta:
-            logger.warning(
-                f"{path}: this is the older esoterica format, which is no longer read. "
-                f'Passages now live under [card."<canonical id>".passages].'
+            log.warning(
+                "%s: this is the older esoterica format, which is no longer read. "
+                'Passages now live under [card."<canonical id>".passages].',
+                path,
             )
             raise _Skipped(NotReadReason.OLDER_FORMAT)
         return None
@@ -378,7 +381,7 @@ def _read_source(path):
     if isinstance(schema_version, str):
         major = schema_version.split(".")[0]
         if major not in SUPPORTED_SCHEMA_MAJORS:
-            logger.warning(f"{path}: schema_version {schema_version!r} is not supported; skipping")
+            log.warning("%s: schema_version %r is not supported; skipping", path, schema_version)
             raise _Skipped(NotReadReason.UNSUPPORTED_SCHEMA)
 
     groups = content.get("group")
@@ -387,9 +390,10 @@ def _read_source(path):
 
     targets = [*cards.values(), *_group_targets(groups)]
     if any(_has_legacy_symbols(target) for target in targets if isinstance(target, dict)):
-        logger.warning(
-            f"{path}: symbols under passages are a draft spelling, which is no longer read. "
-            f'Symbols now live under [card."<canonical id>".symbols.<name>], with text = "…".'
+        log.warning(
+            "%s: symbols under passages are a draft spelling, which is no longer read. "
+            'Symbols now live under [card."<canonical id>".symbols.<name>], with text = "…".',
+            path,
         )
 
     pattern, about = _read_related(path, meta)
@@ -468,19 +472,22 @@ class EsotericaManager:
                     continue
                 identifier = _identifier(source["meta"])
                 if identifier is None:
-                    logger.warning(f"{path}: [meta].identifier is missing, so it is not read")
+                    log.warning("%s: [meta].identifier is missing, so it is not read", path)
                     self.not_read.append(NotRead(path, root, NotReadReason.NO_IDENTIFIER))
                     continue
                 if identifier in claimed:
-                    logger.warning(
-                        f"{path} and {claimed[identifier]} have the same identifier "
-                        f"{identifier!r}; only {claimed[identifier]} is read"
+                    log.warning(
+                        "%s and %s have the same identifier %r; only %s is read",
+                        path,
+                        claimed[identifier],
+                        identifier,
+                        claimed[identifier],
                     )
                     self.not_read.append(NotRead(path, root, NotReadReason.DUPLICATE_IN_ROOT))
                     continue
                 if identifier in self.sources:
                     # An earlier root wins, and that is not a skip: the source is read
-                    logger.debug(f"{path}: {identifier!r} is shadowed by an earlier root")
+                    log.debug("%s: %r is shadowed by an earlier root", path, identifier)
                     self.shadowed.setdefault(identifier, []).append(path)
                     continue
                 claimed[identifier] = path
@@ -489,7 +496,7 @@ class EsotericaManager:
                 source["coverage"] = coverage(source)
                 self.sources[identifier] = source
 
-        logger.info(f"Loaded {len(self.sources)} esoterica sources")
+        log.info("Loaded %s esoterica sources", len(self.sources))
 
     def reload(self):
         """Read every root again, for files added, removed or changed since the last load"""

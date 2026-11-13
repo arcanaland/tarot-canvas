@@ -1,5 +1,7 @@
 """A picture as the canvas ground"""
 
+import logging
+
 from PyQt6.QtCore import QPoint, QRect, QSize, Qt
 from PyQt6.QtGui import (
     QColor,
@@ -11,7 +13,7 @@ from PyQt6.QtGui import (
     QPixmap,
 )
 
-from tarot_canvas.utils.logger import logger
+log = logging.getLogger(__name__)
 
 _last_load = None
 
@@ -41,7 +43,7 @@ def _decode(path, positioning, bound):
             reader.setScaledSize(size.scaled(bound, Qt.AspectRatioMode.KeepAspectRatioByExpanding))
     image = reader.read()
     if image.isNull():
-        logger.warning(f"Could not decode the background {path}: {reader.errorString()}")
+        log.warning("Could not decode the background %s: %s", path, reader.errorString())
     return image
 
 
@@ -51,7 +53,7 @@ def load(path, positioning, bound):
     try:
         stamp = path.stat().st_mtime_ns
     except OSError as error:
-        logger.warning(f"The background {path} is missing: {error}")
+        log.warning("The background %s is missing: %s", path, error)
         return QImage()
     mode = "center" if positioning == "center" else "scaled"
     key = (str(path), stamp, mode, bound.width(), bound.height())

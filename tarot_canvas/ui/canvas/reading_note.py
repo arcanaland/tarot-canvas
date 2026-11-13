@@ -1,5 +1,6 @@
 """A reading's one note: the oldest Markdown file in its folder, written a moment after each edit"""
 
+import logging
 import time
 from pathlib import Path
 
@@ -13,7 +14,8 @@ from tarot_canvas.ui import typography, units
 from tarot_canvas.ui.strings import CARD_VIEW, READINGS
 from tarot_canvas.ui.tabs.card_view.markdown_editor import MarkdownEditor
 from tarot_canvas.ui.tabs.card_view.note_editing import NoteLinks, write_note
-from tarot_canvas.utils.logger import logger
+
+log = logging.getLogger(__name__)
 
 
 def _written_at(path):
@@ -26,7 +28,7 @@ def _readable(path):
     try:
         path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as error:
-        logger.warning(f"Reading note {path} can't be read, so it is passed over: {error}")
+        log.warning("Reading note %s can't be read, so it is passed over: %s", path, error)
         return False
     return True
 
@@ -38,7 +40,7 @@ def note_path(folder):
     paths = [path for path in notes if _readable(path)]
     if len(paths) > 1:
         others = ", ".join(path.name for path in paths[1:])
-        logger.info(f"Reading {folder} shows note {paths[0].name}; it also holds {others}")
+        log.info("Reading %s shows note %s; it also holds %s", folder, paths[0].name, others)
     return paths[0] if paths else None
 
 
@@ -85,7 +87,7 @@ class ReadingNote(QWidget):
             try:
                 self.editor.setPlainText(self.path.read_text(encoding="utf-8"))
             except (OSError, UnicodeDecodeError) as error:
-                logger.error(f"Could not read reading note {self.path}: {error}")
+                log.exception("Could not read reading note %s: %s", self.path, error)
                 # Not written over: the first edit starts a note of its own
                 self.path = None
         self.editor.document().setModified(False)
@@ -126,7 +128,7 @@ class ReadingNote(QWidget):
         try:
             write_note(str(self.path), content)
         except OSError as error:
-            logger.error(f"Could not save reading note {self.path}: {error}")
+            log.exception("Could not save reading note %s: %s", self.path, error)
             return
         self.editor.document().setModified(False)
         reading_events().readings_changed.emit()

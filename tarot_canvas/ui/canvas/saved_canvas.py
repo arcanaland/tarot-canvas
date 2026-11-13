@@ -1,5 +1,6 @@
 """A saved canvas's pane, and what any kept reading needs to name its cards and decks"""
 
+import logging
 from collections import Counter
 from datetime import datetime
 
@@ -25,7 +26,8 @@ from tarot_canvas.ui.canvas.side_pane import SidePane
 from tarot_canvas.ui.icons import CANVAS_ICON
 from tarot_canvas.ui.strings import READINGS
 from tarot_canvas.utils.dates import format_qdatetime
-from tarot_canvas.utils.logger import logger
+
+log = logging.getLogger(__name__)
 
 # How long a kept reading stays still before it is written
 AUTOSAVE_MS = 1000
@@ -57,10 +59,10 @@ def resolve_deck(key, decks, reference):
     """The deck a reading names, else the reference deck"""
     deck = find_deck(key, decks)
     if deck is None:
-        logger.warning(f"No deck {key!r} is installed, so the reading shows the reference deck")
+        log.warning("No deck %r is installed, so the reading shows the reference deck", key)
         return reference
     if deck.metadata.identifier != key:
-        logger.info(f"Reading deck {key!r} matched by name")
+        log.info("Reading deck %r matched by name", key)
     return deck
 
 

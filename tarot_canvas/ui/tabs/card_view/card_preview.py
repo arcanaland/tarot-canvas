@@ -1,3 +1,5 @@
+import logging
+
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import QFrame, QLabel, QVBoxLayout
@@ -5,7 +7,8 @@ from PyQt6.QtWidgets import QFrame, QLabel, QVBoxLayout
 from tarot_canvas.models.deck_types import CardKind
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.strings import CARD_VIEW
-from tarot_canvas.utils.logger import logger
+
+log = logging.getLogger(__name__)
 
 
 class CardPreviewWidget(QFrame):
@@ -13,7 +16,7 @@ class CardPreviewWidget(QFrame):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        logger.debug("Creating CardPreviewWidget")
+        log.debug("Creating CardPreviewWidget")
 
         # Set up styling as a floating panel
         self.setWindowFlags(Qt.WindowType.ToolTip | Qt.WindowType.FramelessWindowHint)
@@ -55,16 +58,16 @@ class CardPreviewWidget(QFrame):
 
         # Hide initially
         self.hide()
-        logger.debug("CardPreviewWidget initialized and hidden")
+        log.debug("CardPreviewWidget initialized and hidden")
 
     def set_card(self, card, deck=None):
         """Set the card data to display"""
         if not card:
-            logger.debug("No card provided to preview, hiding")
+            log.debug("No card provided to preview, hiding")
             self.hide()
             return
 
-        logger.debug(f"Setting up preview for card: {card.display_name}")
+        log.debug("Setting up preview for card: %s", card.display_name)
 
         self.name_label.setText(card.display_name)
 
@@ -76,13 +79,13 @@ class CardPreviewWidget(QFrame):
             if card.rank_key:
                 card_type += f" - {card.rank_key}"
 
-        logger.debug(f"Card type/suit: {card_type}")
+        log.debug("Card type/suit: %s", card_type)
         self.type_label.setText(card_type)
 
         if card.default_image():
             try:
                 image_path = card.default_image()
-                logger.debug(f"Trying to load image from: {image_path}")
+                log.debug("Trying to load image from: %s", image_path)
 
                 pixmap = QPixmap(image_path)
                 if not pixmap.isNull():
@@ -95,22 +98,19 @@ class CardPreviewWidget(QFrame):
                     )
                     self.image_label.setPixmap(pixmap)
                     self.image_label.setFixedSize(pixmap.size())
-                    logger.debug(
-                        f"Image loaded successfully, size: {pixmap.width()}x{pixmap.height()}"
+                    log.debug(
+                        "Image loaded successfully, size: %sx%s", pixmap.width(), pixmap.height()
                     )
                 else:
-                    logger.debug("Failed to load image - pixmap is null")
+                    log.debug("Failed to load image - pixmap is null")
                     self.image_label.setText(CARD_VIEW["preview_no_image"])
             except Exception as e:
-                logger.error(f"Error loading card image: {e}")
-                import traceback
-
-                logger.debug(traceback.format_exc())
+                log.exception("Error loading card image: %s", e)
                 self.image_label.setText(CARD_VIEW["preview_image_error"])
         else:
-            logger.debug("No image specified for card")
+            log.debug("No image specified for card")
             self.image_label.setText(CARD_VIEW["preview_no_image"])
 
         # Resize the widget based on content
         self.adjustSize()
-        logger.debug(f"Preview widget size adjusted to: {self.width()}x{self.height()}")
+        log.debug("Preview widget size adjusted to: %sx%s", self.width(), self.height())
