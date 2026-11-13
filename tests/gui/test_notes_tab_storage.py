@@ -4,7 +4,7 @@ from tests.conftest import MINIMAL_DECK_PATH
 
 
 def open_card_view(qtbot, deck):
-    card = next(c for c in deck.get_all_cards() if c.default_image())
+    card = next(c for c in deck.cards if c.default_image())
     tab = CardViewTab(card=card, deck=deck)
     qtbot.addWidget(tab)
     return tab
@@ -20,7 +20,7 @@ def test_opening_a_card_view_writes_nothing_to_the_notes_store(qtbot, notes_base
 
 def test_a_card_with_notes_lists_them_without_touching_other_cards(qtbot, notes_base):
     deck = TarotDeck(str(MINIMAL_DECK_PATH))
-    card = next(c for c in deck.get_all_cards() if c.default_image())
+    card = next(c for c in deck.cards if c.default_image())
 
     card_dir = notes_base / card.canonical_id
     card_dir.mkdir(parents=True)

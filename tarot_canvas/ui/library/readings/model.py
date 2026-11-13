@@ -126,7 +126,7 @@ def _row(path, reading, decks, reference, unit):
             # As the reading opens: a deck that isn't installed shows as the reference deck
             deck = resolved[card.deck] = find_deck(card.deck, decks) or reference
             if deck is not None:
-                names.append(deck.get_name())
+                names.append(deck.metadata.name)
         # A face-down card is neither named nor found
         name = card_name(resolved[card.deck], card.id) if card.turned else ""
         if name:

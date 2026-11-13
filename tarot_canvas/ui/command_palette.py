@@ -57,9 +57,9 @@ class CommandPaletteItem(QWidget):
         if card.kind is CardKind.MINOR:
             suit = (card.suit_key or "").title()
             rank = (card.rank_key or "").title()
-            details = f"{suit} {rank} - {deck.get_name()}"
+            details = f"{suit} {rank} - {deck.metadata.name}"
         else:
-            details = f"{card_type} - {deck.get_name()}"
+            details = f"{card_type} - {deck.metadata.name}"
 
         details_label = QLabel(details)
         details_label.setStyleSheet("color: gray;")
@@ -86,7 +86,7 @@ class ResultItem(QListWidgetItem):
 
     def __init__(self, card, deck, position):
         super().__init__()
-        self.terms = CardTerms(card, deck.get_name())
+        self.terms = CardTerms(card, deck.metadata.name)
         self.position = position
         self.order = (False, 0, position)
 
@@ -157,7 +157,7 @@ class CommandPalette(QDialog):
 
         # Only load cards from the reference deck
         if reference_deck:
-            for card in reference_deck._cards:
+            for card in reference_deck.cards:
                 self.cards.append((card, reference_deck))
 
         self.build_results()

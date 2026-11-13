@@ -17,7 +17,7 @@ from tarot_canvas.utils.package_download import DownloadFailure, FailureKind
 from tests.unit.test_library_model import catalog_entry
 
 ENTRY = catalog_entry("aquatic-tarot")
-DECK = SimpleNamespace(deck_path="/decks/aquatic-tarot")
+DECK = SimpleNamespace(root_path="/decks/aquatic-tarot")
 FAILURE = DownloadFailure(FailureKind.NETWORK, "offline")
 
 AVAILABLE = DeckDetails(

@@ -63,7 +63,7 @@ def heights(card):
 
 
 def test_a_deck_records_every_raster_height_of_a_card(three_height_deck, tmp_path):
-    by_id = {c.canonical_id: c for c in three_height_deck.get_all_cards()}
+    by_id = {c.canonical_id: c for c in three_height_deck.cards}
     for card_id, rel in [
         ("major_arcana.00", os.path.join("major_arcana", "00.webp")),
         ("minor_arcana.cups.ace", os.path.join("minor_arcana", "cups", "ace.webp")),
@@ -77,13 +77,13 @@ def test_a_deck_records_every_raster_height_of_a_card(three_height_deck, tmp_pat
 
 
 def test_the_default_image_is_h1200_over_h2400(three_height_deck, tmp_path):
-    card = three_height_deck.get_card_by_id("major_arcana.00")
+    card = three_height_deck.find_card("major_arcana.00")
     assert card.default_image() == str(tmp_path / "h1200" / "major_arcana" / "00.webp")
     assert [image.height for image in card.images] == [1200, 2400, 750]
 
 
 def test_a_card_with_no_raster_has_no_images(three_height_deck):
-    assert three_height_deck.get_card_by_id("minor_arcana.cups.two").images == ()
+    assert three_height_deck.find_card("minor_arcana.cups.two").images == ()
 
 
 def test_a_folder_prefers_png_over_webp_over_jpeg(tmp_path):
@@ -94,7 +94,7 @@ def test_a_folder_prefers_png_over_webp_over_jpeg(tmp_path):
     folder.mkdir(parents=True)
     for name in ("00.jpg", "00.webp", "00.png", "01.jpeg", "01.jpg", "02.avif"):
         (folder / name).write_bytes(b"")
-    by_id = {c.canonical_id: c for c in TarotDeck(str(tmp_path)).get_all_cards()}
+    by_id = {c.canonical_id: c for c in TarotDeck(str(tmp_path)).cards}
     assert heights(by_id["major_arcana.00"]) == {750: str(folder / "00.png")}
     assert heights(by_id["major_arcana.01"]) == {750: str(folder / "01.jpg")}
     assert heights(by_id["major_arcana.02"]) == {}

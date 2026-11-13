@@ -708,9 +708,9 @@ class CanvasTab(BaseTab):
             return
 
         # Get a random card from the selected deck
-        card = deck_to_use.get_random_card()
+        card = deck_to_use.random_card()
         if not card:
-            print(f"Could not draw a card from {deck_to_use.get_name()}!")
+            print(f"Could not draw a card from {deck_to_use.metadata.name}!")
             return
 
         # Add a 50% chance for the card to be reversed
@@ -720,7 +720,7 @@ class CanvasTab(BaseTab):
         self.add_specific_card(card, card_deck=deck_to_use, is_reversed=is_reversed, at=at)
 
         # Log what deck we drew from
-        print(f"Drew card from {deck_to_use.get_name()} deck")
+        print(f"Drew card from {deck_to_use.metadata.name} deck")
 
     def take_top_z(self):
         """The next depth above every card on the canvas."""
@@ -992,12 +992,12 @@ class CanvasTab(BaseTab):
 
     def _add_swap_menu(self, menu, item):
         swap_menu = menu.addMenu(CANVAS["swap_deck"])
-        current = deck_path_key(item.deck.deck_path) if item.deck else None
+        current = deck_path_key(item.deck.root_path) if item.deck else None
         card_id = item.card_data.canonical_id if item.card_data else None
         others = 0
         for deck, card in deck_manager.decks_containing(card_id) if card_id else []:
-            action = swap_menu.addAction(deck.get_name())
-            if deck_path_key(deck.deck_path) == current:
+            action = swap_menu.addAction(deck.metadata.name)
+            if deck_path_key(deck.root_path) == current:
                 action.setCheckable(True)
                 action.setChecked(True)
                 action.setEnabled(False)
@@ -1491,7 +1491,7 @@ class CanvasTab(BaseTab):
         if deck is None:
             return None
         try:
-            return deck.get_card_by_id(card_id)
+            return deck.find_card(card_id)
         except Exception:
             return None
 

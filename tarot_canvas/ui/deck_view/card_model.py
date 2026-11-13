@@ -4,6 +4,7 @@ from PyQt6.QtCore import QAbstractListModel, QSortFilterProxyModel, Qt
 
 from tarot_canvas.models.card_ids import COURTS, PIPS
 from tarot_canvas.models.card_search import CardTerms, Query
+from tarot_canvas.models.deck_types import CardKind
 from tarot_canvas.ui.strings import DECK_VIEW
 
 KindRole = Qt.ItemDataRole.UserRole + 1
@@ -24,25 +25,29 @@ def _rank_key(card):
     return RANK_ORDER.get(card.rank_key, len(RANK_ORDER))
 
 
+def shown_suits(deck):
+    return [suit for suit in deck.suits if not suit.excluded]
+
+
 def display_rows(deck):
     """(kind, text, card) per row: the majors, then each suit, each under its heading"""
     rows = []
-    majors = sorted(deck.get_cards_by_type("major_arcana"), key=_major_key)
+    majors = sorted(deck.cards_of_kind(CardKind.MAJOR), key=_major_key)
     if majors:
         rows.append((KIND_HEADING, DECK_VIEW["major_arcana"], None))
         rows.extend((KIND_CARD, card.display_name, card) for card in majors)
 
-    suits = deck.get_suits()
+    suits = shown_suits(deck)
     if not suits:
-        reason = deck.get_exclusion_reason()
+        reason = deck.exclusion_reason
         if reason:
             rows.append((KIND_NOTE, DECK_VIEW["note"].format(reason=reason), None))
 
     for suit in suits:
-        cards = sorted(deck.get_cards_by_suit(suit), key=_rank_key)
+        cards = sorted(deck.cards_in_suit(suit.key), key=_rank_key)
         if not cards:
             continue
-        rows.append((KIND_HEADING, deck.get_display_suit_name(suit), None))
+        rows.append((KIND_HEADING, suit.name, None))
         rows.extend((KIND_CARD, card.display_name, card) for card in cards)
     return rows
 
@@ -68,7 +73,7 @@ class CardModel(QAbstractListModel):
         """Whether the card at row is found by query"""
         terms = self._terms.get(row)
         if terms is None:
-            terms = self._terms[row] = CardTerms(self._rows[row][2], self._deck.get_name())
+            terms = self._terms[row] = CardTerms(self._rows[row][2], self._deck.metadata.name)
         return terms.tier(query) is not None
 
     def section_card_rows(self, row):

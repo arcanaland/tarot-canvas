@@ -130,12 +130,12 @@ class DeckBar(QWidget):
         card_id = card.canonical_id if card else None
         self.compatible_decks = deck_manager.decks_containing(card_id) if card_id else []
 
-        current = deck_path_key(current_deck.deck_path)
+        current = deck_path_key(current_deck.root_path)
         current_index = next(
             (
                 i
                 for i, (deck, _) in enumerate(self.compatible_decks)
-                if deck_path_key(deck.deck_path) == current
+                if deck_path_key(deck.root_path) == current
             ),
             None,
         )
@@ -145,14 +145,14 @@ class DeckBar(QWidget):
             current_index = 0
 
         self.current_index = current_index
-        self.deck_button.set_title(current_deck.get_name())
+        self.deck_button.set_title(current_deck.metadata.name)
 
     def fill_deck_list(self):
         """Built as the menu opens: stepping through cards shouldn't decode every deck's art"""
         self.deck_list.clear()
         for deck, card in self.compatible_decks:
-            item = QListWidgetItem(self._thumbnail(card), deck.get_name())
-            item.setToolTip(deck.get_name())
+            item = QListWidgetItem(self._thumbnail(card), deck.metadata.name)
+            item.setToolTip(deck.metadata.name)
             self.deck_list.addItem(item)
         self.deck_list.setCurrentRow(self.current_index)
 
@@ -182,7 +182,7 @@ class DeckBar(QWidget):
         if not 0 <= index < len(self.compatible_decks):
             return
         new_deck, new_card = self.compatible_decks[index]
-        if deck_path_key(new_deck.deck_path) == deck_path_key(self.tab.deck.deck_path):
+        if deck_path_key(new_deck.root_path) == deck_path_key(self.tab.deck.root_path):
             return
         self.tab.show_card(new_card, new_deck)
 

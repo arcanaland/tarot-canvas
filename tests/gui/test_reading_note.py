@@ -31,7 +31,7 @@ def window(qtbot, stub_deck_manager, spreads_base, notes_base):
 def save_a_canvas(window, deck):
     """A canvas with a card, just saved as a reading"""
     tab = window.new_canvas_tab()
-    card = next(card for card in deck.get_all_cards() if card.default_image())
+    card = next(card for card in deck.cards if card.default_image())
     tab.add_specific_card(card, card_deck=deck)
     window.tab_widget.setCurrentWidget(tab)
     window.update_save_action()

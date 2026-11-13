@@ -156,7 +156,7 @@ def test_clicking_play_starts_a_reading_with_the_remembered_deck_and_leaves_the_
     library, qtbot, decks
 ):
     _first, second = decks
-    set_readings_deck(second.deck_path)
+    set_readings_deck(second.root_path)
     page = page_of(library)
     assert not library.details_pane_is_open()
 
@@ -242,7 +242,7 @@ def test_choosing_another_deck_starts_with_it_and_remembers_it(library, qtbot, d
     tab = current_tab(library)
     assert isinstance(tab, ReadingTab)
     assert tab.deck is second
-    assert get_readings_deck() == second.deck_path
+    assert get_readings_deck() == second.root_path
     menu.aboutToShow.emit()
     assert deck_entries(menu) == [("First", False), ("Second", True)]
 
@@ -266,7 +266,7 @@ def test_the_deck_list_is_rebuilt_as_it_opens(library, qtbot, decks, stub_deck_m
 
 def test_the_menus_submenu_holds_the_same_decks_as_the_arrow(library, qtbot, decks):
     _first, second = decks
-    set_readings_deck(second.deck_path)
+    set_readings_deck(second.root_path)
     page = page_of(library)
     pane = show_pane_for(library, qtbot, "Celtic Cross")
     arrow = pane.reading_button.menu()
@@ -281,7 +281,7 @@ def test_the_menus_submenu_holds_the_same_decks_as_the_arrow(library, qtbot, dec
 
 def test_the_submenus_deck_starts_a_reading_with_it(library, decks, monkeypatch):
     first, second = decks
-    set_readings_deck(second.deck_path)
+    set_readings_deck(second.root_path)
     monkeypatch.setattr(QMenu, "exec", lambda *_: None)
     page = page_of(library)
     menu = page.row_menu(index_of(page, "Basic Three-Card Spread"))
@@ -292,7 +292,7 @@ def test_the_submenus_deck_starts_a_reading_with_it(library, decks, monkeypatch)
     assert isinstance(tab, ReadingTab)
     assert len(tab.slots()) == 3
     assert tab.deck is first
-    assert get_readings_deck() == first.deck_path
+    assert get_readings_deck() == first.root_path
 
 
 # -- the key

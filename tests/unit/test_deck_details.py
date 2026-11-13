@@ -50,7 +50,7 @@ def test_an_installed_deck_missing_a_field_shows_none_rather_than_a_stand_in(qap
     assert details.license is None
     assert details.attribution is None
     assert details.description is None
-    # Not the tile's "Unknown", nor get_version()'s "Unknown Version"
+    # Not the tile's "Unknown"
     assert details.artist is None
     assert details.version is None
 

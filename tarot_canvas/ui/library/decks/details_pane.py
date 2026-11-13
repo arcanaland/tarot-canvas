@@ -225,7 +225,7 @@ class DeckDetailsPane(QWidget):
 
 def _identity(details):
     if details.deck is not None:
-        return ("deck", details.deck.deck_path)
+        return ("deck", details.deck.root_path)
     return ("entry", details.entry.slug)
 
 

@@ -215,7 +215,7 @@ def test_the_pane_offers_the_deck_and_reversals_until_the_deal(qtbot, deck, off)
     deal(qtbot, tab)
 
     assert pane.deck_combo.isHidden()
-    assert pane.deck_label.text() == deck.get_name()
+    assert pane.deck_label.text() == deck.metadata.name
     assert pane.reversals_check.isHidden()
     assert pane.reversals_label.text() == READINGS["reversals_with"]
     assert not pane.date_text.isHidden()
@@ -334,11 +334,11 @@ def test_a_seventy_nine_position_spread_deals_the_whole_deck(qtbot, deck, off):
 
 
 def test_a_card_with_no_face_is_left_out_of_the_draw(qtbot, deck, off, monkeypatch):
-    cards = list(deck.get_all_cards())
+    cards = list(deck.cards)
     faceless = replace(
         cards[0], canonical_id="faceless", images=(CardImage("/nowhere.png", "raster"),)
     )
-    monkeypatch.setattr(deck, "get_all_cards", lambda: [faceless, *cards[1:10]])
+    monkeypatch.setattr(deck, "_cards", (faceless, *cards[1:10]))
     tab = make_tab(qtbot)
 
     deal(qtbot, tab)
@@ -350,9 +350,7 @@ def test_a_card_with_no_face_is_left_out_of_the_draw(qtbot, deck, off, monkeypat
 def test_a_card_staged_on_a_socket_fills_it_by_hand(qtbot, deck, off):
     tab = make_tab(qtbot)
     first = tab.slots()[0]
-    staged = tab.add_specific_card(
-        deck.get_all_cards()[0], deck, False, first.sceneBoundingRect().center()
-    )
+    staged = tab.add_specific_card(deck.cards[0], deck, False, first.sceneBoundingRect().center())
     staged.setPos(staged.pos() + QPointF(3, 3))
 
     assert tab.card_in(first) is staged
@@ -498,7 +496,7 @@ def test_ctrl_wheel_does_not_turn_a_face_down_card(qtbot, deck, off):
 
 def test_the_deal_names_no_card_above_debug(qtbot, deck, off, caplog):
     tab = make_tab(qtbot)
-    names = {card.display_name for card in deck.get_all_cards()}
+    names = {card.display_name for card in deck.cards}
 
     with caplog.at_level(logging.DEBUG):
         deal(qtbot, tab)
@@ -859,7 +857,7 @@ def test_swapping_a_cards_deck_moves_its_position(qtbot, deck, off, tmp_path, st
     deal(qtbot, tab)
     read(qtbot, tab)
     old = tab.placements[2].card
-    card = other.get_card_by_id(old.card_data.canonical_id)
+    card = other.find_card(old.card_data.canonical_id)
 
     replacement = tab.swap_card(old, other, card)
 
@@ -1073,7 +1071,7 @@ def themed(monkeypatch):
 
 
 def fill_by_hand(tab, deck, slots):
-    cards = deck.get_all_cards()
+    cards = deck.cards
     return [
         tab.add_specific_card(cards[slot.number], deck, False, slot.sceneBoundingRect().center())
         for slot in slots
@@ -1101,7 +1099,7 @@ def test_with_every_position_filled_by_hand_the_reading_just_begins(qtbot, deck,
     assert not any(isinstance(card, ReadingCard) for card in tab.cards())
     assert pane.reversals_label.isHidden()
     assert pane.reversals_mark.isHidden()
-    assert pane.deck_label.text() == deck.get_name()
+    assert pane.deck_label.text() == deck.metadata.name
 
 
 def test_taking_a_card_back_off_its_socket_puts_the_deal_back(qtbot, deck, off, themed):
@@ -1128,7 +1126,7 @@ def test_the_deck_line_names_every_deck_the_cards_came_from(
 
     deal(qtbot, tab)
 
-    assert tab.pane.deck_label.text().split("\n") == [other.get_name(), deck.get_name()]
+    assert tab.pane.deck_label.text().split("\n") == [other.metadata.name, deck.metadata.name]
     assert not tab.pane.reversals_label.isHidden()
 
 
@@ -1145,7 +1143,7 @@ def test_a_new_reading_starts_with_the_deck_last_chosen(
 
     first.pane.deck_combo.setCurrentIndex(first.pane.deck_combo.findData(other))
 
-    assert get_readings_deck() == other.deck_path
+    assert get_readings_deck() == other.root_path
     second = make_tab(qtbot)
     assert second.deck is other
     assert second.pane.deck_combo.currentData() is other
@@ -1162,7 +1160,7 @@ def test_a_remembered_deck_since_removed_gives_way_to_the_reference(qtbot, deck,
 
 def test_a_card_laid_loose_before_the_deal_is_not_dealt_again(qtbot, short_deck, off):
     tab = make_tab(qtbot, three_card())
-    loose = short_deck.get_all_cards()[0]
+    loose = short_deck.cards[0]
     far = tab.slots()[-1].sceneBoundingRect().bottomRight() + QPointF(2000, 2000)
     tab.add_specific_card(loose, short_deck, False, far)
 
@@ -1188,7 +1186,7 @@ def test_summon_mid_deal_draws_no_card_still_in_flight(qtbot, short_deck):
 def test_a_card_whose_art_wont_load_gives_way_to_the_next(qtbot, deck, off, monkeypatch):
     toasts = []
     monkeypatch.setattr(ReadingTab, "_toast", lambda self, text: toasts.append(text))
-    broken = deck.get_all_cards()[0].canonical_id
+    broken = deck.cards[0].canonical_id
     make = CanvasTab.make_card_item
 
     def failing(self, card, *args, **kwargs):
@@ -1270,9 +1268,7 @@ def test_the_pane_reads_the_staged_table_once_per_change(qtbot, deck, off, monke
     assert len(calls) == 1
 
     first = tab.slots()[0]
-    staged = tab.add_specific_card(
-        deck.get_all_cards()[0], deck, False, first.sceneBoundingRect().center()
-    )
+    staged = tab.add_specific_card(deck.cards[0], deck, False, first.sceneBoundingRect().center())
     assert tab.card_in(first) is staged
 
 
@@ -1364,7 +1360,7 @@ def test_a_decks_own_back_is_rimmed_square_and_the_house_back_round(qtbot, deck,
     assert all(p.card._house_back for p in tab.placements)
     tab.view.viewport().grab()
 
-    own = str(next(iter(sorted(Path(deck.deck_path).rglob("*.png")))))
+    own = str(next(iter(sorted(Path(deck.root_path).rglob("*.png")))))
     monkeypatch.setattr(type(deck), "get_card_backs", lambda self: ({"default": own}, "default"))
     tab = make_tab(qtbot, three_card())
     deal(qtbot, tab)

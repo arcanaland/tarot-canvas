@@ -166,7 +166,7 @@ def model_with_cover(tmp_path, colour="red"):
         images=(CardImage(path, "raster"),),
     )
     pip = Card(canonical_id="minor_arcana.cups.ace", kind=CardKind.MINOR, display_name="Ace")
-    deck.get_cards_by_type = lambda t: [fool] if t == "major_arcana" else [pip] * 56
+    deck.cards_of_kind = lambda kind: [fool] if kind is CardKind.MAJOR else [pip] * 56
     return DeckListModel([deck])
 
 

@@ -119,7 +119,7 @@ def test_the_command_palette_is_no_menu_item_of_its_own(qtbot):
 
 
 def make_card_view(qtbot, deck):
-    tab = CardViewTab(card=deck.get_random_card(), deck=deck)
+    tab = CardViewTab(card=deck.random_card(), deck=deck)
     qtbot.addWidget(tab)
     return tab
 
@@ -166,10 +166,10 @@ def test_a_new_deck_view_is_labelled_as_it_is_added(qtbot, full_deck):
     window = make_window(qtbot)
     tabs = window.tab_widget
 
-    tab = window.new_deck_view_tab(deck_path=full_deck.deck_path)
+    tab = window.new_deck_view_tab(deck_path=full_deck.root_path)
 
     index = tabs.indexOf(tab)
-    assert tabs.tabText(index) == full_deck.get_name()
+    assert tabs.tabText(index) == full_deck.metadata.name
     assert drawn(tabs.tabIcon(index)) == drawn(deck_icon())
 
 
@@ -205,7 +205,7 @@ def test_a_deck_has_one_icon_and_it_is_not_a_neighbours(qtbot, full_deck):
     expected = drawn(deck_icon())
 
     assert drawn(welcome_button(window, MAIN_WINDOW["welcome_open_deck"]).icon()) == expected
-    tab = window.new_deck_view_tab(deck_path=full_deck.deck_path)
+    tab = window.new_deck_view_tab(deck_path=full_deck.root_path)
     assert drawn(tab.tab_icon()) == expected
     assert drawn(sidebar_row(library_of(window), LIBRARY_VIEW_DECKS).icon()) == expected
     assert expected != drawn(QIcon.fromTheme(SPREAD_ICON))

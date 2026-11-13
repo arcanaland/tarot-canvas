@@ -15,6 +15,7 @@ from tarot_canvas.models.catalog import (
     parse_index,
     read_index,
 )
+from tarot_canvas.models.deck_types import DeckMetadata
 
 
 def raw_entry(slug="aquatic-tarot", **overrides):
@@ -186,12 +187,10 @@ def test_the_schema_major_gate(schema_version, kept):
 # --- the join --------------------------------------------------------------------
 
 
-def deck(identifier=None, deck_id=None, path="/decks/unrelated", name="Unrelated"):
+def deck(identifier=None, path="/decks/unrelated", name="Unrelated"):
     return SimpleNamespace(
-        get_identifier=lambda: identifier,
-        get_deck_id=lambda: deck_id,
-        get_name=lambda: name,
-        deck_path=path,
+        metadata=DeckMetadata(name=name, identifier=identifier),
+        root_path=path,
     )
 
 
@@ -204,7 +203,7 @@ RWS, AQUATIC, ASCII = parse_index(
 )
 
 JOIN = {
-    "rws-1.1-by-id": (RWS, deck(deck_id="rider-waite-smith", path="/data/reference"), True),
+    "v1-by-directory": (RWS, deck(path="/data/decks/rider-waite-smith"), True),
     "ascii-by-identifier": (
         ASCII,
         deck(identifier="land.arcana/deck/ascii-tarot-lawreka", path="/decks/whatever"),
@@ -222,7 +221,6 @@ JOIN = {
         deck(identifier="org.example/deck/other", path="/decks/aquatic-tarot"),
         False,
     ),
-    "id-beats-directory": (AQUATIC, deck(deck_id="other", path="/decks/aquatic-tarot"), False),
 }
 
 
@@ -233,7 +231,7 @@ def test_is_installed(entry, installed, expected):
 
 def test_available_entries_are_those_no_deck_matches():
     decks = [
-        deck(deck_id="rider-waite-smith", path="/data/reference"),
+        deck(path="/data/decks/rider-waite-smith"),
         deck(identifier="land.arcana/deck/ascii-tarot-lawreka"),
         deck(path="/decks/unrelated"),
     ]

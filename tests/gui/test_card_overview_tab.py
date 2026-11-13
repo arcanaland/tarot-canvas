@@ -7,7 +7,7 @@ from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QPalette
 from PyQt6.QtWidgets import QFrame, QGridLayout, QLabel, QWidget
 
-from tarot_canvas.models.deck_types import Card, CardKind
+from tarot_canvas.models.deck_types import Card, CardKind, DeckMetadata
 from tarot_canvas.models.esoterica import Entry, SourceReading
 from tarot_canvas.models.esoterica_events import esoterica_events
 from tarot_canvas.models.esoterica_registry import PASSAGES, Role
@@ -80,8 +80,8 @@ class FakeCardView(QWidget):
 
 def test_a_broken_link_to_the_reference_deck_survives_a_rescan(qtbot):
     """A rescan swaps every deck object, so the tab's deck is the old one, at the same path"""
-    reference = SimpleNamespace(deck_path="/decks/rider-waite-smith")
-    before_the_rescan = SimpleNamespace(deck_path="/decks/rider-waite-smith")
+    reference = SimpleNamespace(root_path="/decks/rider-waite-smith")
+    before_the_rescan = SimpleNamespace(root_path="/decks/rider-waite-smith")
     card_view = FakeCardView(reference)
     qtbot.addWidget(card_view)
     tab = OverviewTab(MAJOR, None, card_view)
@@ -91,14 +91,12 @@ def test_a_broken_link_to_the_reference_deck_survives_a_rescan(qtbot):
 
     tab.on_deck_link_clicked("deck:None")
 
-    assert asked == [("open_deck_view", {"deck_path": reference.deck_path})]
+    assert asked == [("open_deck_view", {"deck_path": reference.root_path})]
 
 
 class FakeDeck:
-    deck_path = "/decks/rider-waite-smith"
-
-    def get_name(self):
-        return "Rider-Waite-Smith"
+    root_path = "/decks/rider-waite-smith"
+    metadata = DeckMetadata(name="Rider-Waite-Smith")
 
 
 def test_a_major_arcanum_has_its_type_and_number_then_its_deck_under_the_name(qtbot):
@@ -270,11 +268,9 @@ def test_the_description_is_set_apart_from_the_keywords(qtbot, readings):
 # A headline written at another seat
 
 MARSEILLE = SimpleNamespace(
-    deck_path="/decks/marseille",
-    get_name=lambda: "Marseille",
-    get_identifier=lambda: None,
-    get_pattern=lambda: "land.arcana/pattern/tarot-de-marseille",
-    get_card_by_id=lambda card_id: {
+    root_path="/decks/marseille",
+    metadata=DeckMetadata(name="Marseille", pattern="land.arcana/pattern/tarot-de-marseille"),
+    find_card=lambda card_id: {
         "major_arcana.11": Card(
             canonical_id="major_arcana.11", kind=CardKind.MAJOR, display_name="La Force"
         )

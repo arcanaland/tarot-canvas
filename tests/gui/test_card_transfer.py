@@ -21,7 +21,7 @@ from tests.conftest import MINIMAL_DECK_PATH
 
 @pytest.fixture
 def card(minimal_deck):
-    return minimal_deck.get_card_by_id("major_arcana.00")
+    return minimal_deck.find_card("major_arcana.00")
 
 
 def payload(mime):
@@ -68,7 +68,7 @@ def test_the_copied_deck_is_the_one_resolved(qapp, tmp_path, minimal_deck):
     """Same card_id in two decks: the payload picks the deck, not the first match."""
     shutil.copytree(MINIMAL_DECK_PATH, tmp_path / "other")
     other = TarotDeck(str(tmp_path / "other"))
-    mime = card_mime_data(other.get_card_by_id("major_arcana.01"), other)
+    mime = card_mime_data(other.find_card("major_arcana.01"), other)
 
     _, deck, _ = card_from_mime(mime, [minimal_deck, other])
     assert deck is other
@@ -131,7 +131,7 @@ THREE_CARDS = ["minor_arcana.cups.two", "major_arcana.00", "minor_arcana.wands.k
 
 
 def test_several_cards_survive_the_round_trip_in_order(qapp, full_deck):
-    cards = [full_deck.get_card_by_id(card_id) for card_id in THREE_CARDS]
+    cards = [full_deck.find_card(card_id) for card_id in THREE_CARDS]
 
     resolved = cards_from_mime(cards_mime_data(cards, full_deck), [full_deck])
 
@@ -141,7 +141,7 @@ def test_several_cards_survive_the_round_trip_in_order(qapp, full_deck):
 
 def test_a_several_card_payload_still_names_its_first_card_alone(qapp, full_deck):
     """A reader that knows only card_id reads the first card."""
-    cards = [full_deck.get_card_by_id(card_id) for card_id in THREE_CARDS]
+    cards = [full_deck.find_card(card_id) for card_id in THREE_CARDS]
     mime = cards_mime_data(cards, full_deck)
 
     assert payload(mime)["card_id"] == THREE_CARDS[0]
@@ -175,7 +175,7 @@ def test_an_unknown_card_among_several_is_skipped(qapp, minimal_deck):
 def test_copying_several_cards_is_one_clipboard_write(qapp, clipboard, full_deck):
     writes = []
     clipboard.dataChanged.connect(lambda: writes.append(1))
-    cards = [full_deck.get_card_by_id(card_id) for card_id in THREE_CARDS]
+    cards = [full_deck.find_card(card_id) for card_id in THREE_CARDS]
 
     copy_cards_to_clipboard(cards, full_deck)
 

@@ -71,14 +71,13 @@ class NoteLinks:
             # Add all cards from reference deck
             ref_deck = self.deck_manager.get_reference_deck()
             if ref_deck:
-                # Use _cards directly or get_all_cards() if available
-                cards = getattr(ref_deck, "get_all_cards", lambda: ref_deck._cards)()
+                cards = ref_deck.cards
                 for card in cards:
                     suggestions.append(f"card:{card.display_name}")
 
             # Add all decks
             for deck in self.deck_manager.get_all_decks():
-                suggestions.append(f"deck:{deck.get_name()}")
+                suggestions.append(f"deck:{deck.metadata.name}")
 
         return suggestions
 
@@ -98,7 +97,7 @@ class NoteLinks:
             return
         ref_deck = self.deck_manager.get_reference_deck()
         if ref_deck:
-            cards = getattr(ref_deck, "get_all_cards", lambda: ref_deck._cards)()
+            cards = ref_deck.cards
             for card in cards:
                 if card.display_name.lower() == card_name.lower():
                     self.tab.navigation_requested.emit(
@@ -111,8 +110,8 @@ class NoteLinks:
         if not self._can_navigate():
             return
         for deck in self.deck_manager.get_all_decks():
-            if deck.get_name().lower() == deck_name.lower():
-                self.tab.navigation_requested.emit("open_deck_view", {"deck_path": deck.deck_path})
+            if deck.metadata.name.lower() == deck_name.lower():
+                self.tab.navigation_requested.emit("open_deck_view", {"deck_path": deck.root_path})
                 return
 
     def find_note_by_title(self, note_name):
@@ -146,7 +145,7 @@ class NoteLinks:
         if note_info.card_id != self.card_id() and self._can_navigate():
             ref_deck = self.deck_manager.get_reference_deck()
             if ref_deck:
-                cards = getattr(ref_deck, "get_all_cards", lambda: ref_deck._cards)()
+                cards = ref_deck.cards
                 for card in cards:
                     if card.canonical_id == note_info.card_id:
                         self.tab.navigation_requested.emit(

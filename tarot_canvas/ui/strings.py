@@ -370,7 +370,6 @@ DECK_VIEW = {
     "field.updated_date": "Updated",
     "field.published_date": "Published",
     "field.tags": "Tags",
-    "field.id": "Identifier",
     "field.version": "Version",
     "field.schema_version": "Schema version",
 }

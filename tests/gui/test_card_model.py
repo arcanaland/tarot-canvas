@@ -140,9 +140,9 @@ def test_find_hides_the_note(minimal_deck):
 def test_a_major_with_no_number_goes_last(minimal_deck):
     unnumbered = Card(canonical_id="x", kind=CardKind.MAJOR, display_name="Unnumbered")
     deck = SimpleNamespace(
-        get_cards_by_type=lambda kind: [unnumbered, *minimal_deck.get_cards_by_type(kind)],
-        get_suits=lambda: [],
-        get_exclusion_reason=lambda: None,
+        cards_of_kind=lambda kind: [unnumbered, *minimal_deck.cards_of_kind(kind)],
+        suits=(),
+        exclusion_reason=None,
     )
     assert [text for _, text in rows(CardModel(deck))] == [
         "Major Arcana",
@@ -173,9 +173,9 @@ def _one_card_deck(image):
         images=(CardImage(image, "raster"),) if image else (),
     )
     return SimpleNamespace(
-        get_cards_by_type=lambda kind: [card] if kind == "major_arcana" else [],
-        get_suits=lambda: [],
-        get_exclusion_reason=lambda: None,
+        cards_of_kind=lambda kind: [card] if kind is CardKind.MAJOR else [],
+        suits=(),
+        exclusion_reason=None,
     )
 
 
@@ -288,7 +288,7 @@ def test_a_view_deleted_before_its_art_lands_is_skipped(qtbot, tmp_path, monkeyp
 
 def test_the_deck_view_appears_before_its_art_is_decoded(qtbot, monkeypatch, full_deck):
     release = _held_art(monkeypatch)
-    tab = DeckViewTab(full_deck.deck_path)
+    tab = DeckViewTab(full_deck.root_path)
     qtbot.addWidget(tab)
     tab.resize(900, 600)
     tab.show()

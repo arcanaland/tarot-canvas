@@ -40,7 +40,7 @@ def deck_key(deck):
     """How a reading names deck: its identifier, else its name"""
     if deck is None:
         return ""
-    return deck.get_identifier() or deck.get_name()
+    return deck.metadata.identifier or deck.metadata.name
 
 
 def find_deck(key, decks):
@@ -48,9 +48,9 @@ def find_deck(key, decks):
     if not key:
         return None
     for deck in decks:
-        if deck.get_identifier() == key:
+        if deck.metadata.identifier == key:
             return deck
-    return next((deck for deck in decks if deck.get_name() == key), None)
+    return next((deck for deck in decks if deck.metadata.name == key), None)
 
 
 def resolve_deck(key, decks, reference):
@@ -59,7 +59,7 @@ def resolve_deck(key, decks, reference):
     if deck is None:
         logger.warning(f"No deck {key!r} is installed, so the reading shows the reference deck")
         return reference
-    if deck.get_identifier() != key:
+    if deck.metadata.identifier != key:
         logger.info(f"Reading deck {key!r} matched by name")
     return deck
 

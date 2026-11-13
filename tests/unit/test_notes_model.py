@@ -34,7 +34,7 @@ def note(tmp_path, card_id, title, body="", modified=1_700_000_000.0):
 def deck():
     names = {FOOL: "The Fool", MAGICIAN: "The Magician"}
 
-    def get_card_by_id(card_id):
+    def find_card(card_id):
         if card_id not in names:
             return None
         return Card(
@@ -44,7 +44,7 @@ def deck():
             images=(CardImage(f"/art/{card_id}.png", "raster"),),
         )
 
-    return SimpleNamespace(get_card_by_id=get_card_by_id)
+    return SimpleNamespace(find_card=find_card)
 
 
 def ids(model):

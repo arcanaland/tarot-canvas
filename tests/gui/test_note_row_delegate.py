@@ -18,7 +18,7 @@ ROW_WIDTH = 480
 def test_the_art_is_drawn_in_the_well(qapp, tmp_path):
     art = write_card(tmp_path, 600, 1050, "red")
     deck = SimpleNamespace(
-        get_card_by_id=lambda card_id: Card(
+        find_card=lambda card_id: Card(
             canonical_id=card_id,
             kind=CardKind.MAJOR,
             display_name=card_id,

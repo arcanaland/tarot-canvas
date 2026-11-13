@@ -445,7 +445,7 @@ class LibraryTab(BaseTab):
 
     def _open_card_view(self, card_id, show_notes=False):
         deck = deck_manager.get_reference_deck()
-        card = deck.get_card_by_id(card_id) if deck else None
+        card = deck.find_card(card_id) if deck else None
         if card is None:
             return None
 
@@ -708,7 +708,7 @@ class LibraryTab(BaseTab):
         """Open the deck in a new tab."""
         main_window = self.window()
         if hasattr(main_window, "new_deck_view_tab"):
-            main_window.new_deck_view_tab(deck_path=deck.deck_path)
+            main_window.new_deck_view_tab(deck_path=deck.root_path)
 
     def browse_for_deck(self):
         """Open file dialog to browse for additional decks"""

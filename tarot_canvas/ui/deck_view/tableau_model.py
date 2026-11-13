@@ -8,6 +8,7 @@ from tarot_canvas.ui.deck_view.card_model import (
     KIND_CARD,
     CardRole,
     KindRole,
+    shown_suits,
 )
 
 KIND_LABEL = "label"
@@ -27,12 +28,12 @@ RANK_LABEL_ALIGNMENT = Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCent
 
 
 def column_count(deck):
-    return max(MAJOR_COLUMNS, len(deck.get_suits()) + 1)
+    return max(MAJOR_COLUMNS, len(shown_suits(deck)) + 1)
 
 
 def rank_label(deck, rank):
     if rank in COURTS:
-        return deck.get_display_court_name(rank)
+        return deck.display_rank_name(rank)
     return rank.capitalize()
 
 
@@ -60,7 +61,7 @@ class TableauModel(QAbstractTableModel):
         majors = [row for row in rows if cards[row].kind is CardKind.MAJOR]
         self._build_majors(majors, cards)
 
-        suits = deck.get_suits()
+        suits = shown_suits(deck)
         if suits:
             minors = [row for row in rows if cards[row].suit_key]
             self._row_kinds.append(ROW_GAP)
@@ -120,11 +121,7 @@ class TableauModel(QAbstractTableModel):
 
         row = self._new_row(ROW_LABELS)
         for position, suit in enumerate(suits):
-            self._cells[(row, left + 1 + position)] = (
-                KIND_LABEL,
-                deck.get_display_suit_name(suit),
-                None,
-            )
+            self._cells[(row, left + 1 + position)] = (KIND_LABEL, suit.name, None)
 
         ranks = list(PIPS + COURTS)
         for source_row in minors:
@@ -142,10 +139,10 @@ class TableauModel(QAbstractTableModel):
             self._cells[(row, left)] = (KIND_LABEL, rank_label(deck, rank), None)
             for position, suit in enumerate(suits):
                 column = left + 1 + position
-                source_row = by_slot.get((suit, rank))
+                source_row = by_slot.get((suit.key, rank))
                 if source_row is not None:
                     self._put_card(row, column, source_row, cards[source_row])
-                elif suit in SUITS and rank in PIPS + COURTS:
+                elif suit.key in SUITS and rank in PIPS + COURTS:
                     self._cells[(row, column)] = (KIND_GHOST, "", None)
 
     # -- mapping ------------------------------------------------------------

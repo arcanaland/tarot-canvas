@@ -230,11 +230,11 @@ def reseated_note(reading, deck):
     """Where the source wrote this card's text, when it isn't the card's own ID; else None"""
     if not reading.written_at or deck is None:
         return None
-    card = deck.get_card_by_id(reading.written_at)
+    card = deck.find_card(reading.written_at)
     slots = {
         "card": card.display_name if card else reading.written_at,
         "card_id": reading.written_at,
-        "deck_pattern": _pattern_name(deck.get_pattern()),
+        "deck_pattern": _pattern_name(deck.metadata.pattern),
         "source_pattern": _pattern_name(reading.pattern),
     }
     slots = {key: html.escape(str(value)) for key, value in slots.items()}

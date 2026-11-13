@@ -168,11 +168,11 @@ def _label(raw):
 
 
 def is_installed(entry, deck):
-    identifier = deck.get_identifier()
+    identifier = deck.metadata.identifier
     if identifier:
         return identifier == entry.identifier
 
-    return (deck.get_deck_id() or Path(deck.deck_path).name) == entry.slug
+    return Path(deck.root_path).name == entry.slug
 
 
 def available_entries(entries, decks):

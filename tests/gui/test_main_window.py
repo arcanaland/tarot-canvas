@@ -455,7 +455,7 @@ def test_ctrl_p_is_bound_exactly_once(qtbot):
 
 def test_the_go_menu_asks_the_card_view(qtbot):
     window, tab = make_window_with_card_view(qtbot)
-    cards = tab.deck.get_all_cards()
+    cards = tab.deck.cards
     tab.show_card(cards[0])
     go = window.go_actions
 
@@ -937,7 +937,7 @@ def test_the_deck_link_opens_the_deck_however_the_card_was_opened(
     window.show()
     qtbot.waitExposed(window)
     deck = stub_deck_manager.get_reference_deck()
-    open_a_card(window, deck.get_random_card(), deck)
+    open_a_card(window, deck.random_card(), deck)
     tab = window.tab_widget.currentWidget()
 
     tab.overview_tab.on_deck_link_clicked(deck_link(tab))
@@ -1048,7 +1048,7 @@ def test_copy_card_is_offered_by_a_card_view_and_not_an_empty_canvas(qtbot):
 
 def test_a_card_copied_in_one_deck_is_pasted_from_that_deck(qtbot, clipboard, other_deck):
     window = make_shown_window(qtbot)
-    window.open_card_view(other_deck.get_card_by_id("major_arcana.01"), other_deck)
+    window.open_card_view(other_deck.find_card("major_arcana.01"), other_deck)
     window.copy_card_action.trigger()
 
     canvas = window.new_canvas_tab()
@@ -1058,7 +1058,7 @@ def test_a_card_copied_in_one_deck_is_pasted_from_that_deck(qtbot, clipboard, ot
     cards = [item for item in canvas.scene.items() if isinstance(item, DraggableCardItem)]
     assert len(cards) == 1
     assert cards[0].card_data.canonical_id == "major_arcana.01"
-    assert cards[0].card_data.default_image().startswith(str(other_deck.deck_path))
+    assert cards[0].card_data.default_image().startswith(str(other_deck.root_path))
 
 
 def test_a_canvas_card_opens_from_its_own_deck(qtbot, other_deck):
@@ -1066,7 +1066,7 @@ def test_a_canvas_card_opens_from_its_own_deck(qtbot, other_deck):
     assert canvas.deck is not other_deck
     centre = canvas.view.viewport().rect().center()
     item = canvas.add_specific_card(
-        other_deck.get_card_by_id("major_arcana.01"),
+        other_deck.find_card("major_arcana.01"),
         card_deck=other_deck,
         at=canvas.view.mapToScene(centre),
     )
@@ -1090,7 +1090,7 @@ def test_paste_waits_for_a_card_on_the_clipboard(qtbot, clipboard):
     clipboard.setText("just some text")
     assert not window.paste_card_action.isEnabled()
 
-    window.open_card_view(canvas.deck.get_random_card(), canvas.deck)
+    window.open_card_view(canvas.deck.random_card(), canvas.deck)
     window.copy_card_action.trigger()
     assert not window.paste_card_action.isEnabled(), "a card view has nowhere to paste"
 

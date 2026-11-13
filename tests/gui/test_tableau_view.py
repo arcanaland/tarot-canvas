@@ -36,7 +36,7 @@ def shown(qtbot, deck_path, width=1300, height=800, mode=DECK_VIEW_MODE_TABLEAU,
 
 @pytest.fixture
 def tab(qtbot, full_deck):
-    return shown(qtbot, full_deck.deck_path)
+    return shown(qtbot, full_deck.root_path)
 
 
 def at(tab, row, column):
@@ -123,7 +123,7 @@ def test_arrows_step_between_cards_only(tab, start, key, end):
 
 def test_arrows_skip_a_ghost(qtbot, tmp_path):
     deck = deck_without(tmp_path, "minor_arcana.cups.ace")
-    tab = shown(qtbot, deck.deck_path)
+    tab = shown(qtbot, deck.root_path)
     first = labels(tab) + 1
     assert at(tab, first, 3).data(KindRole) == KIND_GHOST
     tab.tableau.setCurrentIndex(at(tab, first, 2))
@@ -156,20 +156,20 @@ def test_the_view_bar_is_two_exclusive_icon_buttons_with_placeholder_names(tab):
 
 
 def test_the_choice_persists_and_a_new_tab_opens_in_it(qtbot, full_deck):
-    first = shown(qtbot, full_deck.deck_path, mode=DECK_VIEW_MODE_SECTIONS)
+    first = shown(qtbot, full_deck.root_path, mode=DECK_VIEW_MODE_SECTIONS)
     assert first.current_view() is first.grid
 
     first.view_buttons[DECK_VIEW_MODE_TABLEAU].click()
     assert get_settings().value(DECK_VIEW_MODE_KEY) == DECK_VIEW_MODE_TABLEAU
 
-    second = DeckViewTab(str(full_deck.deck_path))
+    second = DeckViewTab(str(full_deck.root_path))
     qtbot.addWidget(second)
     assert second.current_view() is second.tableau
     assert second.view_buttons[DECK_VIEW_MODE_TABLEAU].isChecked()
 
 
 def test_an_unknown_stored_mode_falls_back_to_sections(qtbot, full_deck):
-    tab = shown(qtbot, full_deck.deck_path, mode="carousel")
+    tab = shown(qtbot, full_deck.root_path, mode="carousel")
     assert tab.mode == DECK_VIEW_MODE_SECTIONS
     assert tab.current_view() is tab.grid
 
@@ -182,7 +182,7 @@ def selected_ids(tab):
 
 
 def test_the_selection_and_current_card_cross_both_ways(qtbot, full_deck):
-    tab = shown(qtbot, full_deck.deck_path, mode=DECK_VIEW_MODE_SECTIONS)
+    tab = shown(qtbot, full_deck.root_path, mode=DECK_VIEW_MODE_SECTIONS)
     model = tab.grid.model()
     rows = [r for r in range(model.rowCount()) if model.index(r, 0).data(CardRole)]
     picks = [model.index(rows[n], 0) for n in (3, 30, 77)]
@@ -204,7 +204,7 @@ def test_the_selection_and_current_card_cross_both_ways(qtbot, full_deck):
 
 
 def test_a_card_find_hid_has_no_selection_to_carry_back(qtbot, full_deck):
-    tab = shown(qtbot, full_deck.deck_path)
+    tab = shown(qtbot, full_deck.root_path)
     tab.tableau.setCurrentIndex(at(tab, 0, 3))  # The Fool
     tab.search_field.setText("king")
 
@@ -262,7 +262,7 @@ def test_new_canvas_from_selection_sends_the_selected_cards_in_deck_order(tab, q
 
 
 def test_a_wide_tab_centres_the_tableau_with_no_horizontal_bar(qtbot, full_deck):
-    tab = shown(qtbot, full_deck.deck_path, width=1300, density=units.DENSITY_SMALL)
+    tab = shown(qtbot, full_deck.root_path, width=1300, density=units.DENSITY_SMALL)
     # The area hides its bars after a deferred relayout
     qtbot.waitUntil(lambda: not horizontal_bar(tab).isVisible())
     viewport = tab.scroll.viewport()
@@ -274,7 +274,7 @@ def test_a_wide_tab_centres_the_tableau_with_no_horizontal_bar(qtbot, full_deck)
 
 
 def test_a_narrow_tab_scrolls_the_tableau_sideways_and_sections_do_not(qtbot, full_deck):
-    tab = shown(qtbot, full_deck.deck_path, width=1000, density=units.DENSITY_LARGE)
+    tab = shown(qtbot, full_deck.root_path, width=1000, density=units.DENSITY_LARGE)
     qtbot.waitUntil(lambda: horizontal_bar(tab).isVisible())
 
     tab.view_buttons[DECK_VIEW_MODE_SECTIONS].click()

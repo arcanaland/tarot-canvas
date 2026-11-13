@@ -17,7 +17,7 @@ def no_dialogs(monkeypatch):
 
 def open_card_view(qtbot, deck=None):
     deck = deck or TarotDeck(str(MINIMAL_DECK_PATH))
-    card = next(c for c in deck.get_all_cards() if c.default_image())
+    card = next(c for c in deck.cards if c.default_image())
     tab = CardViewTab(card=card, deck=deck)
     qtbot.addWidget(tab)
     return tab, card

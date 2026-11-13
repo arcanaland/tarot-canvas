@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
 
 from tarot_canvas.models.deck_events import deck_events
 from tarot_canvas.models.deck_manager import deck_manager
+from tarot_canvas.models.deck_types import CardKind
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.card_transfer import CARD_MIME, card_mime_data, copy_card_to_clipboard
 from tarot_canvas.ui.commands import set_tooltip_with_keys
@@ -196,7 +197,7 @@ class CardExplorerPanel(QWidget):
         # Add decks to combo box
         self.deck_selector.clear()
         for deck in self.available_decks:
-            self.deck_selector.addItem(deck.get_name())
+            self.deck_selector.addItem(deck.metadata.name)
 
         # Select first deck by default if available
         if self.deck_selector.count() > 0:
@@ -225,7 +226,7 @@ class CardExplorerPanel(QWidget):
         )
 
         # Add Major Arcana cards
-        major_cards = self.current_deck.get_cards_by_type("major_arcana")
+        major_cards = self.current_deck.cards_of_kind(CardKind.MAJOR)
         if major_cards:  # Only add if there are cards
             for card in major_cards:
                 card_item = QStandardItem(card.display_name)
@@ -238,24 +239,18 @@ class CardExplorerPanel(QWidget):
             self.model.appendRow(major_group)
 
         # Create suit groups
-        suits = self.current_deck.get_suits()
-        for suit in suits:
-            # Skip entirely excluded suits
-            if self.current_deck.is_suit_excluded(suit):
+        for suit in self.current_deck.suits:
+            if suit.excluded:
                 continue
 
-            # Get display name for suit (aliased if available)
-            display_suit = self.current_deck.get_display_suit_name(suit)
-
-            # Create group with display name
-            suit_group = QStandardItem(display_suit)
+            suit_group = QStandardItem(suit.name)
             suit_group.setData(
-                {"type": "group", "group": suit, "deck": self.current_deck},
+                {"type": "group", "group": suit.key, "deck": self.current_deck},
                 Qt.ItemDataRole.UserRole,
             )
 
             # Add cards for this suit
-            suit_cards = self.current_deck.get_cards_by_suit(suit)
+            suit_cards = self.current_deck.cards_in_suit(suit.key)
             if suit_cards:  # Only add if there are cards
                 for card in suit_cards:
                     card_item = QStandardItem(card.display_name)
