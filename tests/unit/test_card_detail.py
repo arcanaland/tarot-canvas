@@ -41,9 +41,9 @@ def card(qapp, art):
     item = DraggableCardItem(
         pixmap,
         Card(
-            canonical_id="major_arcana/moon",
+            canonical_id="major_arcana.18",
             kind=CardKind.MAJOR,
-            display_name="major_arcana/moon",
+            display_name="The Moon",
             images=(CardImage(art, "raster"),),
         ),
     )

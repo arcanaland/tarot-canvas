@@ -38,9 +38,9 @@ def card(qapp):
         return DraggableCardItem(
             pixmap,
             Card(
-                canonical_id="major_arcana/hermit",
+                canonical_id="major_arcana.09",
                 kind=CardKind.MAJOR,
-                display_name="major_arcana/hermit",
+                display_name="The Hermit",
             ),
             StubTab(reactive) if with_tab else None,
         )

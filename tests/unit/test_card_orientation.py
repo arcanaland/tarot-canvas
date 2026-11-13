@@ -19,9 +19,9 @@ def make_card(reactive=False, reversed=False):
     return DraggableCardItem(
         pixmap,
         Card(
-            canonical_id="major_arcana/hermit",
+            canonical_id="major_arcana.09",
             kind=CardKind.MAJOR,
-            display_name="major_arcana/hermit",
+            display_name="The Hermit",
         ),
         tab,
         reversed=reversed,

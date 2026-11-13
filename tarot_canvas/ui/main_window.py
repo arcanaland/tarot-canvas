@@ -172,6 +172,8 @@ class MainWindow(QMainWindow):
         deck_downloads().installed.connect(self.on_deck_installed)
 
         QGuiApplication.clipboard().dataChanged.connect(self.update_edit_actions)
+        # Which of the two zooms act on moves with the focus, and the art's zoom with the wheel
+        QApplication.instance().focusChanged.connect(self.on_focus_changed)
         self.update_edit_actions()
         self.update_zoom_actions()
         self.update_canvas_background_action()
@@ -296,8 +298,6 @@ class MainWindow(QMainWindow):
         self.reset_zoom_action = actions["window.reset_zoom"]
         view_menu.addActions([self.zoom_in_action, self.zoom_out_action, self.reset_zoom_action])
         typography.events().reading_scale_changed.connect(self.update_zoom_actions)
-        # Which of the two they act on moves with the focus, and the art's zoom with the wheel
-        QApplication.instance().focusChanged.connect(self.on_focus_changed)
         view_menu.aboutToShow.connect(self.update_zoom_actions)
 
         # The current canvas's own ground

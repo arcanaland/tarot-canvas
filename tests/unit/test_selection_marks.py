@@ -49,9 +49,9 @@ def card(qapp):
         item = DraggableCardItem(
             pixmap,
             Card(
-                canonical_id="major_arcana/star",
+                canonical_id="major_arcana.17",
                 kind=CardKind.MAJOR,
-                display_name="major_arcana/star",
+                display_name="The Star",
             ),
             StubTab(reactive),
         )
