@@ -31,7 +31,7 @@ from PyQt6.QtWidgets import (
 
 from tarot_canvas.about import load_about_data
 from tarot_canvas.models import readings, spreads
-from tarot_canvas.models.deck_manager import deck_manager
+from tarot_canvas.models.deck_library import DeckLibrary, deck_library
 from tarot_canvas.models.reading_events import reading_events
 from tarot_canvas.settings import (
     EXPLORER_VISIBLE_DEFAULT,
@@ -630,8 +630,8 @@ class MainWindow(QMainWindow):
         if reading is None:
             self.toast.show_message(READINGS["open_failed"])
             return None
-        decks = deck_manager.get_all_decks()
-        reference = deck_manager.get_reference_deck()
+        decks = deck_library.decks()
+        reference = deck_library.reference()
         if reading.spread is None:
             tab = CanvasTab()
             tab.tab_name = self.next_canvas_name()
@@ -825,24 +825,16 @@ class MainWindow(QMainWindow):
             spread, spread_from = data
             self.open_reading_of(spread, spread_from)
 
-    @staticmethod
-    def _deck_path_key(deck_path):
-        """Normalized form of a deck path, for comparing tabs."""
-        if not deck_path:
-            return None
-
-        return os.path.normcase(os.path.realpath(os.fspath(deck_path)))
-
     def find_deck_view_tab(self, deck_path):
         """The open DeckViewTab or None."""
-        key = self._deck_path_key(deck_path)
+        key = DeckLibrary.path_key(deck_path)
 
         if key is None:
             return None
 
         for i in range(self.tab_widget.count()):
             tab = self.tab_widget.widget(i)
-            if isinstance(tab, DeckViewTab) and self._deck_path_key(tab.deck_path) == key:
+            if isinstance(tab, DeckViewTab) and DeckLibrary.path_key(tab.deck_path) == key:
                 return tab
 
         return None
@@ -1354,7 +1346,7 @@ class MainWindow(QMainWindow):
     def open_reference_deck(self):
         """Open the reference deck from the deck manager"""
         # Get reference deck from deck manager
-        reference_deck = deck_manager.get_reference_deck()
+        reference_deck = deck_library.reference()
 
         if not reference_deck:
             QMessageBox.warning(

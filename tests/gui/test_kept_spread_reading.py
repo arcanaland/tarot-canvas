@@ -44,10 +44,10 @@ def off():
 
 
 @pytest.fixture
-def deck(tmp_path, stub_deck_manager, qapp):
+def deck(tmp_path, stub_deck_library, qapp):
     full = TarotDeck(str(write_full_deck(tmp_path / "full")))
-    stub_deck_manager.get_reference_deck = lambda: full
-    stub_deck_manager.get_all_decks = lambda: [full]
+    stub_deck_library.reference = lambda: full
+    stub_deck_library.decks = lambda: [full]
     return full
 
 
@@ -334,15 +334,15 @@ def test_a_missing_deck_keeps_its_name_through_a_write(window, readings_base, qt
 
 
 def test_with_no_deck_at_all_an_edit_keeps_every_card(
-    window, readings_base, qtbot, stub_deck_manager
+    window, readings_base, qtbot, stub_deck_library
 ):
     tab = dealt(window)
     path = tab.reading_path
     ids = [card.id for card in readings.load(path).cards]
     close(window, tab)
     # Before the reference deck's first download, nothing can lay a card out
-    stub_deck_manager.get_reference_deck = lambda: None
-    stub_deck_manager.get_all_decks = lambda: []
+    stub_deck_library.reference = lambda: None
+    stub_deck_library.decks = lambda: []
 
     reopened = window.open_saved_reading(path)
     reopened.pane.question_edit.setText("Still here?")

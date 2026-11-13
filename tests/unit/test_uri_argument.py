@@ -7,7 +7,7 @@ from tarot_canvas import main
 
 @pytest.fixture
 def opened(monkeypatch, minimal_deck):
-    monkeypatch.setattr(main.deck_manager, "get_reference_deck", lambda: minimal_deck)
+    monkeypatch.setattr(main.deck_library, "reference", lambda: minimal_deck)
     cards = []
     return cards, SimpleNamespace(open_card_view=lambda card, deck: cards.append(card))
 

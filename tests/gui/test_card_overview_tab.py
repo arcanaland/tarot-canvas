@@ -75,7 +75,7 @@ class FakeCardView(QWidget):
 
     def __init__(self, reference_deck):
         super().__init__()
-        self.deck_manager = SimpleNamespace(get_reference_deck=lambda: reference_deck)
+        self.deck_library = SimpleNamespace(reference=lambda: reference_deck)
 
 
 def test_a_broken_link_to_the_reference_deck_survives_a_rescan(qtbot):

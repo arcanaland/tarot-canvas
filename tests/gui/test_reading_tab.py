@@ -76,18 +76,18 @@ def write_deck(root, count):
 
 
 @pytest.fixture
-def deck(tmp_path, stub_deck_manager, qapp):
+def deck(tmp_path, stub_deck_library, qapp):
     full = TarotDeck(str(write_full_deck(tmp_path / "full")))
-    stub_deck_manager.get_reference_deck = lambda: full
-    stub_deck_manager.get_all_decks = lambda: [full]
+    stub_deck_library.reference = lambda: full
+    stub_deck_library.decks = lambda: [full]
     return full
 
 
 @pytest.fixture
-def short_deck(tmp_path, stub_deck_manager, qapp):
+def short_deck(tmp_path, stub_deck_library, qapp):
     small = write_deck(tmp_path / "short", 3)
-    stub_deck_manager.get_reference_deck = lambda: small
-    stub_deck_manager.get_all_decks = lambda: [small]
+    stub_deck_library.reference = lambda: small
+    stub_deck_library.decks = lambda: [small]
     return small
 
 
@@ -850,9 +850,9 @@ def test_summon_after_a_whole_deck_is_dealt_adds_nothing(qtbot, short_deck, off)
     assert tab.cards() == before
 
 
-def test_swapping_a_cards_deck_moves_its_position(qtbot, deck, off, tmp_path, stub_deck_manager):
+def test_swapping_a_cards_deck_moves_its_position(qtbot, deck, off, tmp_path, stub_deck_library):
     other = TarotDeck(str(write_full_deck(tmp_path / "other", name="Other")))
-    stub_deck_manager.get_all_decks = lambda: [deck, other]
+    stub_deck_library.decks = lambda: [deck, other]
     tab = make_tab(qtbot)
     deal(qtbot, tab)
     read(qtbot, tab)
@@ -1117,10 +1117,10 @@ def test_taking_a_card_back_off_its_socket_puts_the_deal_back(qtbot, deck, off, 
 
 
 def test_the_deck_line_names_every_deck_the_cards_came_from(
-    qtbot, deck, off, tmp_path, stub_deck_manager
+    qtbot, deck, off, tmp_path, stub_deck_library
 ):
     other = TarotDeck(str(write_full_deck(tmp_path / "other", name="Other")))
-    stub_deck_manager.get_all_decks = lambda: [deck, other]
+    stub_deck_library.decks = lambda: [deck, other]
     tab = make_tab(qtbot, three_card())
     fill_by_hand(tab, other, tab.slots()[:1])
 
@@ -1134,10 +1134,10 @@ def test_the_deck_line_names_every_deck_the_cards_came_from(
 
 
 def test_a_new_reading_starts_with_the_deck_last_chosen(
-    qtbot, deck, off, tmp_path, stub_deck_manager
+    qtbot, deck, off, tmp_path, stub_deck_library
 ):
     other = TarotDeck(str(write_full_deck(tmp_path / "other", name="Other")))
-    stub_deck_manager.get_all_decks = lambda: [deck, other]
+    stub_deck_library.decks = lambda: [deck, other]
     first = make_tab(qtbot)
     assert first.deck is deck
 
@@ -1205,9 +1205,9 @@ def test_a_card_whose_art_wont_load_gives_way_to_the_next(qtbot, deck, off, monk
     assert toasts == []
 
 
-def test_a_reading_opens_with_no_deck_installed(qtbot, deck, off, stub_deck_manager):
-    stub_deck_manager.get_reference_deck = lambda: None
-    stub_deck_manager.get_all_decks = lambda: []
+def test_a_reading_opens_with_no_deck_installed(qtbot, deck, off, stub_deck_library):
+    stub_deck_library.reference = lambda: None
+    stub_deck_library.decks = lambda: []
 
     tab = make_tab(qtbot)
     tab.deal()

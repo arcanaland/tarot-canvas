@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from tarot_canvas.models.deck_manager import deck_manager
+from tarot_canvas.models.deck_library import deck_library
 from tarot_canvas.settings import (
     LIBRARY_DENSITY_DEFAULT,
     LIBRARY_DENSITY_KEY,
@@ -84,13 +84,13 @@ class LibraryTab(BaseTab):
         self.decks_page.row_chosen.connect(self._open_details_for_selection)
         self.decks_page.details_changed.connect(self._sync_details_toggle)
 
-        self.notes_page = NotesPage(deck_manager.get_reference_deck())
+        self.notes_page = NotesPage(deck_library.reference())
         self.notes_page.card_activated.connect(self.on_card_activated)
         self.notes_page.note_activated.connect(self.on_note_activated)
         self.notes_page.details_changed.connect(self._sync_details_toggle)
 
         self.readings_page = ReadingsPage(
-            lambda: deck_manager.get_all_decks(), lambda: deck_manager.get_reference_deck()
+            lambda: deck_library.decks(), lambda: deck_library.reference()
         )
         self.readings_page.row_chosen.connect(self._open_details_for_selection)
         self.readings_page.open_requested.connect(self.on_reading_open_requested)
@@ -100,7 +100,7 @@ class LibraryTab(BaseTab):
         self.readings_page.details_pane.card_requested.connect(self.on_reading_card_requested)
         self.readings_page.details_changed.connect(self._on_list_details_changed)
 
-        self.esoterica_page = EsotericaPage(deck=deck_manager.get_reference_deck())
+        self.esoterica_page = EsotericaPage(deck=deck_library.reference())
         self.esoterica_page.card_activated.connect(self.on_esoterica_card_activated)
         self.esoterica_page.details_changed.connect(self._sync_details_toggle)
         self.esoterica_page.details_requested.connect(self._open_details)
@@ -444,7 +444,7 @@ class LibraryTab(BaseTab):
             card_tab.show_esoterica_tab()
 
     def _open_card_view(self, card_id, show_notes=False):
-        deck = deck_manager.get_reference_deck()
+        deck = deck_library.reference()
         card = deck.find_card(card_id) if deck else None
         if card is None:
             return None

@@ -658,9 +658,9 @@ def test_a_paste_naming_a_removed_deck_places_nothing(qtbot, clipboard, minimal_
 
 
 def test_pasting_three_cards_places_three_at_distinct_positions(
-    qtbot, clipboard, full_deck, stub_deck_manager
+    qtbot, clipboard, full_deck, stub_deck_library
 ):
-    stub_deck_manager.get_all_decks = lambda: [full_deck]
+    stub_deck_library.decks = lambda: [full_deck]
     ids = ["major_arcana.00", "minor_arcana.cups.two", "minor_arcana.swords.queen"]
     tab = make_tab(qtbot)
 
@@ -1230,7 +1230,7 @@ def menu_layout(menu):
     return rows
 
 
-def test_right_clicking_an_unselected_card_selects_only_it(qtbot, stub_deck_manager, minimal_deck):
+def test_right_clicking_an_unselected_card_selects_only_it(qtbot, stub_deck_library, minimal_deck):
     tab = make_tab(qtbot)
     other = tab.add_specific_card(minimal_deck.cards[1], card_deck=minimal_deck)
     first = tab.add_specific_card(
@@ -1325,7 +1325,7 @@ def test_swap_lists_the_decks_that_have_the_card(qtbot, minimal_deck, other_deck
     assert there.isEnabled() and not there.isChecked()
 
 
-def test_swap_is_disabled_with_no_other_deck(qtbot, stub_deck_manager, minimal_deck):
+def test_swap_is_disabled_with_no_other_deck(qtbot, stub_deck_library, minimal_deck):
     tab = make_tab(qtbot)
     card = tab.add_specific_card(minimal_deck.cards[0], card_deck=minimal_deck)
 

@@ -57,6 +57,10 @@ def full_tab(qtbot, full_deck):
     return shown(qtbot, full_deck.root_path, width=1300, height=800)
 
 
+def test_the_reference_decks_view_shows_the_librarys_reference_deck(tab):
+    assert tab.deck is module.deck_library.reference()
+
+
 def indexes(tab, kind):
     model = tab.grid.model()
     return [

@@ -61,7 +61,7 @@ class MarkdownEditor(QPlainTextEdit):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.parent_tab = parent
-        self.deck_manager = None
+        self.deck_library = None
 
         # Add preview widget
         self.preview = CardPreviewWidget()
@@ -114,10 +114,10 @@ class MarkdownEditor(QPlainTextEdit):
         model = QStringListModel(items)
         self.completer.setModel(model)
 
-    def set_deck_manager(self, deck_manager):
+    def set_deck_library(self, deck_library):
         """Set the deck manager reference directly"""
-        self.deck_manager = deck_manager
-        logger.debug(f"Deck manager set: {self.deck_manager is not None}")
+        self.deck_library = deck_library
+        logger.debug(f"Deck library set: {self.deck_library is not None}")
 
     def keyPressEvent(self, event):
         """Handle key press events for auto-completion and formatting"""
@@ -354,22 +354,22 @@ class MarkdownEditor(QPlainTextEdit):
     def show_card_preview(self, card_name, position):
         """Show preview for a specific card"""
         # First check our direct reference
-        if self.deck_manager is not None:
-            deck_manager = self.deck_manager
+        if self.deck_library is not None:
+            deck_library = self.deck_library
         # Fall back to parent tab if needed
-        elif hasattr(self.parent_tab, "deck_manager"):
-            deck_manager = self.parent_tab.deck_manager
+        elif hasattr(self.parent_tab, "deck_library"):
+            deck_library = self.parent_tab.deck_library
         else:
             logger.debug("No deck manager available")
             self.preview.hide()
             return
 
-        if deck_manager is None:
-            logger.debug("deck_manager is None")
+        if deck_library is None:
+            logger.debug("deck_library is None")
             self.preview.hide()
             return
 
-        ref_deck = deck_manager.get_reference_deck()
+        ref_deck = deck_library.reference()
 
         if not ref_deck:
             logger.debug("Reference deck not found")
@@ -415,22 +415,22 @@ class MarkdownEditor(QPlainTextEdit):
     def check_if_card_and_preview(self, text, position):
         """Check if a text is a card name and show preview if it is"""
         # First check our direct reference
-        if self.deck_manager is not None:
-            deck_manager = self.deck_manager
+        if self.deck_library is not None:
+            deck_library = self.deck_library
         # Fall back to parent tab if needed
-        elif hasattr(self.parent_tab, "deck_manager"):
-            deck_manager = self.parent_tab.deck_manager
+        elif hasattr(self.parent_tab, "deck_library"):
+            deck_library = self.parent_tab.deck_library
         else:
             logger.debug("No deck manager available")
             self.preview.hide()
             return
 
-        if deck_manager is None:
-            logger.debug("deck_manager is None")
+        if deck_library is None:
+            logger.debug("deck_library is None")
             self.preview.hide()
             return
 
-        ref_deck = deck_manager.get_reference_deck()
+        ref_deck = deck_library.reference()
 
         if not ref_deck:
             logger.debug("Reference deck not found")

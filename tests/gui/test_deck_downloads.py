@@ -75,9 +75,9 @@ def test_cancelling_returns_to_available_not_failed(downloads, fake_downloads):
     assert downloads.failure(SLUG) is None
 
 
-def test_success_rescans_then_announces_the_deck(downloads, fake_downloads, stub_deck_manager):
+def test_success_rescans_then_announces_the_deck(downloads, fake_downloads, stub_deck_library):
     events = []
-    stub_deck_manager.rescan = lambda: events.append("rescan")
+    stub_deck_library.rescan = lambda: events.append("rescan")
     downloads.installed.connect(lambda entry: events.append(entry))
 
     downloads.start(ENTRY)

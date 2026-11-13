@@ -6,17 +6,11 @@ import os
 from PyQt6.QtCore import QMimeData
 from PyQt6.QtGui import QGuiApplication, QImage
 
+from tarot_canvas.models.deck_library import DeckLibrary
 from tarot_canvas.utils.logger import logger
 
 CARD_MIME = "application/x-tarot-canvas-card"
 PAYLOAD_VERSION = 1
-
-
-def deck_path_key(deck_path):
-    """Normalized deck path."""
-    if not deck_path:
-        return None
-    return os.path.normcase(os.path.realpath(os.fspath(deck_path)))
 
 
 def has_card(mime):
@@ -76,8 +70,8 @@ def cards_from_mime(mime, decks):
         logger.warning(f"Unknown card payload version: {payload!r}")
         return []
 
-    key = deck_path_key(payload.get("deck_path"))
-    deck = next((d for d in decks if key and deck_path_key(d.root_path) == key), None)
+    key = DeckLibrary.path_key(payload.get("deck_path"))
+    deck = next((d for d in decks if key and DeckLibrary.path_key(d.root_path) == key), None)
     if deck is None:
         logger.warning(f"Card payload names a deck that is not installed: {key}")
         return []

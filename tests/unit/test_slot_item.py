@@ -17,8 +17,8 @@ def test_the_unit_is_the_reference_card_as_the_canvas_places_it():
 
 
 @pytest.mark.parametrize("installed", [True, False])
-def test_the_unit_is_the_same_whatever_is_installed(stub_deck_manager, full_deck, installed):
-    stub_deck_manager.get_reference_deck = lambda: full_deck if installed else None
+def test_the_unit_is_the_same_whatever_is_installed(stub_deck_library, full_deck, installed):
+    stub_deck_library.reference = lambda: full_deck if installed else None
     assert card_unit_size() == CARD_UNIT_SIZE
 
 

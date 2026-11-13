@@ -3,19 +3,18 @@
 from PyQt6.QtGui import QActionGroup
 from PyQt6.QtWidgets import QMenu
 
-from tarot_canvas.models.deck_manager import deck_manager
+from tarot_canvas.models.deck_library import DeckLibrary, deck_library
 from tarot_canvas.settings import get_readings_deck, set_readings_deck
-from tarot_canvas.ui.card_transfer import deck_path_key
 
 
 def remembered_deck():
     """The deck the user last read with"""
-    wanted = deck_path_key(get_readings_deck())
+    wanted = DeckLibrary.path_key(get_readings_deck())
     if wanted is not None:
-        for deck in deck_manager.get_all_decks():
-            if deck_path_key(deck.root_path) == wanted:
+        for deck in deck_library.decks():
+            if DeckLibrary.path_key(deck.root_path) == wanted:
                 return deck
-    return deck_manager.get_reference_deck()
+    return deck_library.reference()
 
 
 def deck_menu(parent, start):
@@ -36,11 +35,11 @@ def _fill(menu, start):
         old.deleteLater()
     group = QActionGroup(menu)  # exclusive: the mark is the icon
     chosen = remembered_deck()
-    remembered = deck_path_key(chosen.root_path) if chosen is not None else None
-    for deck in deck_manager.get_all_decks():
+    remembered = DeckLibrary.path_key(chosen.root_path) if chosen is not None else None
+    for deck in deck_library.decks():
         action = menu.addAction(deck.metadata.name.replace("&", "&&"))  # a deck name is no mnemonic
         action.setCheckable(True)
-        action.setChecked(deck_path_key(deck.root_path) == remembered)
+        action.setChecked(DeckLibrary.path_key(deck.root_path) == remembered)
         action.setActionGroup(group)
         action.triggered.connect(lambda _checked, path=deck.root_path: _choose(path, start))
 

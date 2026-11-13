@@ -4,13 +4,13 @@ import os
 from PyQt6.QtCore import QEvent, Qt, pyqtSlot
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
+from tarot_canvas.models.deck_library import DeckLibrary
 from tarot_canvas.models.deck_types import CardKind
 from tarot_canvas.models.esoterica import get_esoterica_manager
 from tarot_canvas.models.esoterica_events import esoterica_events
 from tarot_canvas.models.esoterica_registry import Role
 from tarot_canvas.models.note_events import note_events
 from tarot_canvas.ui import typography, units
-from tarot_canvas.ui.card_transfer import deck_path_key
 from tarot_canvas.ui.palette import muted_text, with_text_colour
 from tarot_canvas.ui.passage_metrics import TITLE_TO_AUTHOR
 from tarot_canvas.ui.strings import CARD_VIEW, label_for
@@ -217,7 +217,7 @@ class OverviewTab(QWidget):
 
             # Check if deck path is valid; if it's the reference deck with an
             # invalid path, use a different method to resolve it
-            reference_deck = self.parent_tab.deck_manager.get_reference_deck()
+            reference_deck = self.parent_tab.deck_library.reference()
             if (
                 not deck_path or deck_path == "None" or not os.path.exists(deck_path)
             ) and self._is_same_deck(reference_deck):
@@ -233,7 +233,7 @@ class OverviewTab(QWidget):
         """By path, not identity: installing a deck rebuilds every deck object"""
         if self.deck is None or other is None:
             return False
-        return deck_path_key(self.deck.root_path) == deck_path_key(other.root_path)
+        return DeckLibrary.path_key(self.deck.root_path) == DeckLibrary.path_key(other.root_path)
 
     def update_card_info(self, card, deck):
         """Update the overview tab with new card and deck information"""

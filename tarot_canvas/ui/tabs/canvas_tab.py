@@ -28,7 +28,7 @@ from PyQt6.QtWidgets import (
 )
 
 from tarot_canvas.models import backgrounds, readings
-from tarot_canvas.models.deck_manager import deck_manager
+from tarot_canvas.models.deck_library import DeckLibrary, deck_library
 from tarot_canvas.models.ground import drawn
 from tarot_canvas.models.spreads import Position, Spread, offsets_from_middle
 from tarot_canvas.settings import (
@@ -100,7 +100,6 @@ from tarot_canvas.ui.canvas.view import HOME_MARGIN, MAX_ZOOM
 from tarot_canvas.ui.card_transfer import (
     cards_from_mime,
     copy_card_to_clipboard,
-    deck_path_key,
     has_card,
 )
 from tarot_canvas.ui.commands import Scope, set_tooltip_with_keys
@@ -213,7 +212,7 @@ class CanvasTab(BaseTab):
         self._tab_icon_timer.timeout.connect(self.refresh_tab_icon)
 
         self.setup_ui()
-        self.deck = deck_manager.get_reference_deck()
+        self.deck = deck_library.reference()
 
     def setup_ui(self):
         self.canvas_area = container = QWidget()
@@ -754,7 +753,7 @@ class CanvasTab(BaseTab):
 
         Returns the first item placed
         """
-        resolved = cards_from_mime(mime, deck_manager.get_all_decks())
+        resolved = cards_from_mime(mime, deck_library.decks())
         if not resolved:
             logger.warning("Nothing placed: the card payload did not resolve")
             return None
@@ -992,12 +991,12 @@ class CanvasTab(BaseTab):
 
     def _add_swap_menu(self, menu, item):
         swap_menu = menu.addMenu(CANVAS["swap_deck"])
-        current = deck_path_key(item.deck.root_path) if item.deck else None
+        current = DeckLibrary.path_key(item.deck.root_path) if item.deck else None
         card_id = item.card_data.canonical_id if item.card_data else None
         others = 0
-        for deck, card in deck_manager.decks_containing(card_id) if card_id else []:
+        for deck, card in deck_library.decks_containing(card_id) if card_id else []:
             action = swap_menu.addAction(deck.metadata.name)
-            if deck_path_key(deck.root_path) == current:
+            if DeckLibrary.path_key(deck.root_path) == current:
                 action.setCheckable(True)
                 action.setChecked(True)
                 action.setEnabled(False)
