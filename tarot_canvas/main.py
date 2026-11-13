@@ -134,7 +134,6 @@ class SetupDialog(QDialog):
 
 def main():
     log_file = configure_logging()
-    # Before anything can raise: a Devel build still dies loudly, a release keeps running
     crash_log.install(log_file, abort=crash_log.is_devel())
 
     # Suppress Qt warnings about Wayland
