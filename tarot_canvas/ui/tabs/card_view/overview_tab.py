@@ -4,6 +4,7 @@ import os
 from PyQt6.QtCore import QEvent, Qt, pyqtSlot
 from PyQt6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
+from tarot_canvas.models.deck_types import CardKind
 from tarot_canvas.models.esoterica import get_esoterica_manager
 from tarot_canvas.models.esoterica_events import esoterica_events
 from tarot_canvas.models.esoterica_registry import Role
@@ -83,7 +84,7 @@ class OverviewTab(QWidget):
             return
 
         # Card name at the top
-        self.name_label = QLabel(self.card["name"])
+        self.name_label = QLabel(self.card.display_name)
         typography.apply(self.name_label, typography.Role.HEADING_1, primary=True)
         self.name_label.setObjectName("name_label")
         layout.addWidget(self.name_label)
@@ -188,17 +189,18 @@ class OverviewTab(QWidget):
         if not self.subtitle or not self.card:
             return
         card = self.card
-        facts = [card["type"].replace("_", " ").title()]
-        if card["type"] == "minor_arcana":
-            facts.append(card.get("display_suit", card["suit"].capitalize()))
-            facts.append(card.get("display_rank", card["rank"].capitalize()))
-        elif card.get("numeral") and card["numeral"] != card["name"]:
-            facts.append(card["numeral"])
+        facts = [card.kind.value.replace("_", " ").title()]
+        if card.kind is CardKind.MINOR:
+            suit, rank = card.display_suit, card.display_rank
+            facts.append(card.suit_key.capitalize() if suit is None else suit)
+            facts.append(card.rank_key.capitalize() if rank is None else rank)
+        elif card.number and card.number != card.display_name:
+            facts.append(card.number)
         self.subtitle.setText(label_for("joiner").join(facts))
 
         # The canonical ID
-        self.subtitle.setToolTip(card["id"])
-        self.subtitle.setAccessibleDescription(card["id"])
+        self.subtitle.setToolTip(card.canonical_id)
+        self.subtitle.setAccessibleDescription(card.canonical_id)
 
     def update_deck_link(self):
         """The deck's name, as a link to it, on the line under the subtitle"""
@@ -242,17 +244,17 @@ class OverviewTab(QWidget):
         self.deck = deck
 
         if self.name_label:
-            self.name_label.setText(card["name"])
+            self.name_label.setText(card.display_name)
 
         self.update_subtitle()
         self.update_deck_link()
         self.refresh_headline()
 
         # Update description
-        has_description = "alt_text" in card and card["alt_text"]
+        has_description = card.alt_text
 
         if self.description_label:
-            self.description_label.setText(card["alt_text"] if has_description else "")
+            self.description_label.setText(card.alt_text if has_description else "")
             self.description_label.setVisible(bool(has_description))
 
         self.refresh_notes()
@@ -267,7 +269,7 @@ class OverviewTab(QWidget):
             self.lead.deleteLater()
             self.lead = None
 
-        card_id = self.card.get("id") if self.card else None
+        card_id = self.card.canonical_id if self.card else None
         readings = get_esoterica_manager().read_card(card_id, deck=self.deck) if card_id else []
         headline = headline_of(readings)
         if headline is None:
@@ -302,7 +304,7 @@ class OverviewTab(QWidget):
             return
 
         notes_tab = getattr(self.parent_tab, "notes_tab", None)
-        card_id = self.card.get("id") if self.card else None
+        card_id = self.card.canonical_id if self.card else None
         if not notes_tab or not card_id:
             self.notes_section.set_notes([])
             return

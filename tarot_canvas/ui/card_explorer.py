@@ -71,7 +71,7 @@ class CardTreeView(QTreeView):
         drag.exec(supported_actions, Qt.DropAction.CopyAction)
 
     def drag_pixmap(self, card):
-        path = card.get("image")
+        path = card.default_image()
         if not path or not os.path.exists(path):
             return None
         source = QPixmap(path)
@@ -87,7 +87,7 @@ class CardTreeView(QTreeView):
 
 class CardExplorerPanel(QWidget):
     # Signal emitted when a card action is requested
-    card_action_requested = pyqtSignal(str, dict, object)  # action, card, deck
+    card_action_requested = pyqtSignal(str, object, object)  # action, card, deck
     # Signal emitted when the header's close button is clicked
     close_requested = pyqtSignal()
 
@@ -228,7 +228,7 @@ class CardExplorerPanel(QWidget):
         major_cards = self.current_deck.get_cards_by_type("major_arcana")
         if major_cards:  # Only add if there are cards
             for card in major_cards:
-                card_item = QStandardItem(card["name"])
+                card_item = QStandardItem(card.display_name)
                 card_item.setData(
                     {"type": "card", "card": card, "deck": self.current_deck},
                     Qt.ItemDataRole.UserRole,
@@ -258,7 +258,7 @@ class CardExplorerPanel(QWidget):
             suit_cards = self.current_deck.get_cards_by_suit(suit)
             if suit_cards:  # Only add if there are cards
                 for card in suit_cards:
-                    card_item = QStandardItem(card["name"])
+                    card_item = QStandardItem(card.display_name)
                     card_item.setData(
                         {"type": "card", "card": card, "deck": self.current_deck},
                         Qt.ItemDataRole.UserRole,

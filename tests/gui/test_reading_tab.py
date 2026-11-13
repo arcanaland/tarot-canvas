@@ -1,5 +1,6 @@
 import logging
 import random
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,7 @@ from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from tarot_canvas.models import spreads
 from tarot_canvas.models.deck import TarotDeck
+from tarot_canvas.models.deck_types import CardImage
 from tarot_canvas.models.spreads import BUNDLED_SPREADS_PATH, Position, Spread
 from tarot_canvas.settings import (
     MOTION_LEVEL_KEY,
@@ -252,7 +254,7 @@ def test_the_deal_lays_the_celtic_cross_face_down(qtbot, deck, level):
     assert tab.phase is Phase.DEALT
     assert tab.next_card() is cards[0]
     assert cards[0].zValue() == NEXT_Z
-    assert len({card.card_data["id"] for card in cards}) == 10
+    assert len({card.card_data.canonical_id for card in cards}) == 10
 
 
 def test_the_ground_slows_while_face_down_and_comes_back_once_read(qtbot, deck, off, monkeypatch):
@@ -333,13 +335,15 @@ def test_a_seventy_nine_position_spread_deals_the_whole_deck(qtbot, deck, off):
 
 def test_a_card_with_no_face_is_left_out_of_the_draw(qtbot, deck, off, monkeypatch):
     cards = list(deck.get_all_cards())
-    faceless = {**cards[0], "id": "faceless", "image": "/nowhere.png"}
+    faceless = replace(
+        cards[0], canonical_id="faceless", images=(CardImage("/nowhere.png", "raster"),)
+    )
     monkeypatch.setattr(deck, "get_all_cards", lambda: [faceless, *cards[1:10]])
     tab = make_tab(qtbot)
 
     deal(qtbot, tab)
 
-    assert "faceless" not in {card.card_data["id"] for card in tab.turn_order()}
+    assert "faceless" not in {card.card_data.canonical_id for card in tab.turn_order()}
     assert len(tab.turn_order()) == 9
 
 
@@ -360,7 +364,7 @@ def test_a_card_staged_on_a_socket_fills_it_by_hand(qtbot, deck, off):
     centre = staged.pos() + staged.boundingRect().center()
     assert (centre - first.sceneBoundingRect().center()).manhattanLength() < 1
     dealt = [card for card in tab.turn_order() if card is not staged]
-    assert staged.card_data["id"] not in {card.card_data["id"] for card in dealt}
+    assert staged.card_data.canonical_id not in {card.card_data.canonical_id for card in dealt}
     assert tab.turn_order()[0] is staged
     assert number_of(tab, tab.next_card()) == 2
 
@@ -494,7 +498,7 @@ def test_ctrl_wheel_does_not_turn_a_face_down_card(qtbot, deck, off):
 
 def test_the_deal_names_no_card_above_debug(qtbot, deck, off, caplog):
     tab = make_tab(qtbot)
-    names = {card["name"] for card in deck.get_all_cards()}
+    names = {card.display_name for card in deck.get_all_cards()}
 
     with caplog.at_level(logging.DEBUG):
         deal(qtbot, tab)
@@ -502,7 +506,7 @@ def test_the_deal_names_no_card_above_debug(qtbot, deck, off, caplog):
     loud = [r.getMessage() for r in caplog.records if r.levelno > logging.DEBUG]
     assert not any(name in message for message in loud for name in names)
     quiet = [r.getMessage() for r in caplog.records if r.levelno == logging.DEBUG]
-    assert any(tab.turn_order()[0].card_data["name"] in message for message in quiet)
+    assert any(tab.turn_order()[0].card_data.display_name in message for message in quiet)
 
 
 # -- the turn
@@ -648,13 +652,13 @@ def test_space_on_the_list_turns_and_enter_on_a_turned_row_opens_its_card(qtbot,
     deal(qtbot, tab)
     rows = tab.pane.list_view
     opened = []
-    tab.navigation_requested.connect(lambda kind, data: opened.append(data["card"]["id"]))
+    tab.navigation_requested.connect(lambda kind, data: opened.append(data["card"].canonical_id))
 
     press_key(rows, Qt.Key.Key_Space, text=" ")
     rows.setCurrentIndex(tab.positions.index(0))
     press_key(rows, Qt.Key.Key_Return)
 
-    assert opened == [tab.placements[0].card.card_data["id"]]
+    assert opened == [tab.placements[0].card.card_data.canonical_id]
     assert tab.placements[1].card.face_down
 
 
@@ -821,7 +825,7 @@ def test_only_extra_cards_can_be_deleted(qtbot, deck, off):
     extra = [card for card in tab.cards() if card not in dealt and not isinstance(card, SocketItem)]
     assert len(extra) == 1
     assert extra[0].deck is deck
-    assert extra[0].card_data["id"] not in {card.card_data["id"] for card in dealt}
+    assert extra[0].card_data.canonical_id not in {card.card_data.canonical_id for card in dealt}
 
     tab.scene.clearSelection()
     dealt[0].setSelected(True)
@@ -855,7 +859,7 @@ def test_swapping_a_cards_deck_moves_its_position(qtbot, deck, off, tmp_path, st
     deal(qtbot, tab)
     read(qtbot, tab)
     old = tab.placements[2].card
-    card = other.get_card_by_id(old.card_data["id"])
+    card = other.get_card_by_id(old.card_data.canonical_id)
 
     replacement = tab.swap_card(old, other, card)
 
@@ -926,7 +930,7 @@ def test_double_clicking_a_row_below_the_open_one_opens_its_card(qtbot, deck, of
     view.setCurrentIndex(tab.positions.index(0))
     qtbot.wait(10)
     opened = []
-    tab.navigation_requested.connect(lambda kind, data: opened.append(data["card"]["id"]))
+    tab.navigation_requested.connect(lambda kind, data: opened.append(data["card"].canonical_id))
     point = QPointF(view.visualRect(tab.positions.index(2)).center())
     viewport = view.viewport()
 
@@ -948,7 +952,7 @@ def test_double_clicking_a_row_below_the_open_one_opens_its_card(qtbot, deck, of
             ),
         )
 
-    assert opened == [tab.placements[2].card.card_data["id"]]
+    assert opened == [tab.placements[2].card.card_data.canonical_id]
 
 
 def test_a_turned_row_names_its_card_and_says_reversed_in_words(qtbot, deck, off, all_reversed):
@@ -957,7 +961,7 @@ def test_a_turned_row_names_its_card_and_says_reversed_in_words(qtbot, deck, off
     tab.turn_next()
     rows = tab.pane.rows
 
-    name = tab.placements[0].card.card_data["name"]
+    name = tab.placements[0].card.card_data.display_name
     assert rows.card_line(tab.positions.index(0)) == READINGS["card_reversed"].format(card=name)
     assert rows.card_line(tab.positions.index(1)) is None
 
@@ -1164,7 +1168,7 @@ def test_a_card_laid_loose_before_the_deal_is_not_dealt_again(qtbot, short_deck,
 
     deal(qtbot, tab)
 
-    assert loose["id"] not in {card.card_data["id"] for card in tab.turn_order()}
+    assert loose.canonical_id not in {card.card_data.canonical_id for card in tab.turn_order()}
     assert len(tab.turn_order()) == 2
 
 
@@ -1177,29 +1181,29 @@ def test_summon_mid_deal_draws_no_card_still_in_flight(qtbot, short_deck):
     tab.on_draw_card()
 
     qtbot.waitUntil(lambda: not tab.is_dealing(), timeout=5000)
-    ids = [card.card_data["id"] for card in tab.cards() if not isinstance(card, SocketItem)]
+    ids = [card.card_data.canonical_id for card in tab.cards() if not isinstance(card, SocketItem)]
     assert len(ids) == len(set(ids)) == 3
 
 
 def test_a_card_whose_art_wont_load_gives_way_to_the_next(qtbot, deck, off, monkeypatch):
     toasts = []
     monkeypatch.setattr(ReadingTab, "_toast", lambda self, text: toasts.append(text))
-    broken = deck.get_all_cards()[0]["id"]
+    broken = deck.get_all_cards()[0].canonical_id
     make = CanvasTab.make_card_item
 
     def failing(self, card, *args, **kwargs):
-        return None if card.get("id") == broken else make(self, card, *args, **kwargs)
+        return None if card.canonical_id == broken else make(self, card, *args, **kwargs)
 
     monkeypatch.setattr(CanvasTab, "make_card_item", failing)
     monkeypatch.setattr(
-        random, "sample", lambda pool, k: sorted(pool, key=lambda c: c["id"] != broken)
+        random, "sample", lambda pool, k: sorted(pool, key=lambda c: c.canonical_id != broken)
     )
     tab = make_tab(qtbot)
 
     deal(qtbot, tab)
 
     assert all(placement.card is not None for placement in tab.placements)
-    assert broken not in {card.card_data["id"] for card in tab.turn_order()}
+    assert broken not in {card.card_data.canonical_id for card in tab.turn_order()}
     assert toasts == []
 
 

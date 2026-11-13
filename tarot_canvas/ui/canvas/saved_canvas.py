@@ -83,7 +83,7 @@ def reading_card(item, key, reversed=None, **fields):
     # What this version doesn't read rides on the card it was restored from
     kept = getattr(item, "kept_card", None)
     return ReadingCard(
-        id=item.card_data["id"],
+        id=item.card_data.canonical_id,
         reversed=item.is_reversed() if reversed is None else reversed,
         deck=key,
         x=item.pos().x(),
@@ -106,7 +106,7 @@ def cards_of(items, unrestored=()):
     """(default deck, ReadingCards) for canvas items in stacking order, then the ReadingCards that
     could not be laid out, as they were read"""
     ordered = [
-        item for item in sorted(items, key=lambda item: item.zValue()) if item.card_data.get("id")
+        item for item in sorted(items, key=lambda item: item.zValue()) if item.card_data is not None
     ]
     keys = [item_deck_key(item) for item in ordered]
     cards = tuple(reading_card(item, key) for item, key in zip(ordered, keys, strict=True))

@@ -155,7 +155,7 @@ class SlotItem(DraggableCardItem):
     def __init__(self, number, position_id, parent_tab=None, label="", meaning=""):
         size = card_unit_size()
         face = render_slot(number, label, SLOT_COLOUR, size, 1)
-        super().__init__(face, {"id": f"slot:{position_id}"}, parent_tab)
+        super().__init__(face, None, parent_tab, seed=f"slot:{position_id}")
         self.number = number
         self.position_id = position_id
         self.label = label

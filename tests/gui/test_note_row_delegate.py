@@ -4,6 +4,7 @@ from PyQt6.QtCore import QRect, Qt
 from PyQt6.QtGui import QColor, QImage, QPainter
 from PyQt6.QtWidgets import QStyle, QStyleOptionViewItem
 
+from tarot_canvas.models.deck_types import Card, CardImage, CardKind
 from tarot_canvas.ui import units
 from tarot_canvas.ui.library.notes.model import NotesListModel
 from tarot_canvas.ui.library.row_delegate import NoteRowDelegate
@@ -17,7 +18,12 @@ ROW_WIDTH = 480
 def test_the_art_is_drawn_in_the_well(qapp, tmp_path):
     art = write_card(tmp_path, 600, 1050, "red")
     deck = SimpleNamespace(
-        get_card_by_id=lambda card_id: {"id": card_id, "name": card_id, "image": art}
+        get_card_by_id=lambda card_id: Card(
+            canonical_id=card_id,
+            kind=CardKind.MAJOR,
+            display_name=card_id,
+            images=(CardImage(art, "raster"),),
+        )
     )
     model = NotesListModel({FOOL: [note(tmp_path, FOOL, "Written", body="a leap\n")]}, deck)
     delegate = NoteRowDelegate()

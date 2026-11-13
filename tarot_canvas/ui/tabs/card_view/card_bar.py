@@ -127,7 +127,7 @@ class DeckBar(QWidget):
 
     def update_decks(self, card, current_deck, deck_manager):
         """List every deck that has this card, current_deck selected."""
-        card_id = card.get("id") if card else None
+        card_id = card.canonical_id if card else None
         self.compatible_decks = deck_manager.decks_containing(card_id) if card_id else []
 
         current = deck_path_key(current_deck.deck_path)
@@ -162,7 +162,7 @@ class DeckBar(QWidget):
         self.deck_list.setFocus()
 
     def _thumbnail(self, card):
-        image = card.get("image")
+        image = card.default_image()
         if not image or not os.path.exists(image):
             return QIcon()
         size = self.THUMBNAIL_SIZE * self.devicePixelRatioF()

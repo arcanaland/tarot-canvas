@@ -181,7 +181,7 @@ def test_copy_from_the_deck_view_copies_the_card_from_this_deck(tab, clipboard):
     tab.copy_card()
 
     card, deck, _ = card_from_mime(clipboard.mimeData(), [tab.deck])
-    assert card["id"] == "major_arcana.00"
+    assert card.canonical_id == "major_arcana.00"
     assert deck is tab.deck
 
 
@@ -252,7 +252,7 @@ def test_right_from_the_last_major_lands_on_the_first_wand(full_tab):
     press(full_tab, Qt.Key.Key_Right)
 
     assert full_tab.grid.currentIndex() == cards[22]
-    assert cards[22].data(CardRole)["id"] == "minor_arcana.wands.ace"
+    assert cards[22].data(CardRole).canonical_id == "minor_arcana.wands.ace"
 
 
 def test_left_from_the_first_wand_lands_on_the_last_major(full_tab):
@@ -340,7 +340,7 @@ def test_the_context_menu_offers_open_copy_and_a_new_canvas(full_tab, qtbot):
     with qtbot.waitSignal(full_tab.card_action_requested, timeout=1000) as opened:
         actions["Open Card"].trigger()
     assert opened.args[0] == "double_click"
-    assert opened.args[1]["id"] == "major_arcana.00"
+    assert opened.args[1].canonical_id == "major_arcana.00"
     assert opened.args[2] is full_tab.deck
 
 
@@ -349,7 +349,9 @@ def test_open_opens_every_selected_card(full_tab):
     press(full_tab, Qt.Key.Key_Right, Qt.KeyboardModifier.ShiftModifier)
     press(full_tab, Qt.Key.Key_Right, Qt.KeyboardModifier.ShiftModifier)
     opened = []
-    full_tab.card_action_requested.connect(lambda _action, card, _deck: opened.append(card["id"]))
+    full_tab.card_action_requested.connect(
+        lambda _action, card, _deck: opened.append(card.canonical_id)
+    )
 
     actions = {
         a.text().replace("&", ""): a
@@ -364,14 +366,14 @@ def test_activating_a_card_opens_it(full_tab, qtbot):
     second = indexes(full_tab, KIND_CARD)[1]
     with qtbot.waitSignal(full_tab.card_action_requested, timeout=1000) as opened:
         full_tab.grid.activated.emit(second)
-    assert opened.args[1]["id"] == "major_arcana.01"
+    assert opened.args[1].canonical_id == "major_arcana.01"
 
 
 def test_clicking_a_card_names_its_image(full_tab, qtbot):
     first = indexes(full_tab, KIND_CARD)[0]
     with qtbot.waitSignal(full_tab.card_clicked, timeout=1000) as clicked:
         full_tab.grid.clicked.emit(first)
-    assert clicked.args == [first.data(CardRole)["image"]]
+    assert clicked.args == [first.data(CardRole).default_image()]
 
 
 # -- section headings -------------------------------------------------------------
@@ -458,7 +460,7 @@ def test_copy_after_find_copies_only_cards_still_shown(full_tab, clipboard):
     full_tab.grid.selectAll()
     full_tab.search_field.setText("ace")
 
-    assert [card["id"] for card in full_tab.selected_cards()] == [
+    assert [card.canonical_id for card in full_tab.selected_cards()] == [
         f"minor_arcana.{suit}.ace" for suit in ("wands", "cups", "swords", "pentacles")
     ]
     full_tab.copy_card()

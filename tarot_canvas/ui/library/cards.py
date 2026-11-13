@@ -13,10 +13,9 @@ def card_in(deck, card_id):
 def card_name(deck, card_id):
     """The deck's name for the card."""
     card = card_in(deck, card_id)
-    name = (card or {}).get("name")
-    return name or card_id
+    return (card.display_name if card else None) or card_id
 
 
 def card_cover_path(deck, card_id):
     card = card_in(deck, card_id)
-    return (card or {}).get("image")
+    return card.default_image() if card else None

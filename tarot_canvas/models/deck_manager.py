@@ -99,7 +99,7 @@ class DeckManager:
         found = []
         for deck in self.get_all_decks():
             card = deck.get_card_by_id(card_id)
-            if card and card.get("image") and os.path.exists(card["image"]):
+            if card and card.default_image() and os.path.exists(card.default_image()):
                 found.append((deck, card))
         return found
 

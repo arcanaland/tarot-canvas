@@ -47,7 +47,7 @@ def test_a_copied_canvas_card_keeps_its_deck_and_orientation(qtbot, clipboard, o
     qtbot.keyClick(canvas.view, Qt.Key.Key_C, CTRL)
 
     card, deck, is_reversed = card_from_mime(clipboard.mimeData(), [other_deck])
-    assert card["id"] == item.card_data["id"]
+    assert card.canonical_id == item.card_data.canonical_id
     assert deck is other_deck
     assert is_reversed
 
@@ -203,5 +203,5 @@ def test_edit_copy_in_the_deck_view_copies_every_selected_card(qtbot, clipboard,
 
     payload = json.loads(bytes(clipboard.mimeData().data(CARD_MIME)).decode())
     assert payload["card_ids"] == [
-        tab.model.index(row, 0).data(CardRole)["id"] for row in tab.model.card_rows()[:3]
+        tab.model.index(row, 0).data(CardRole).canonical_id for row in tab.model.card_rows()[:3]
     ]

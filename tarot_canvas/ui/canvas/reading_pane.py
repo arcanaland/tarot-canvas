@@ -376,7 +376,7 @@ class ReadingRowDelegate(PositionDelegate):
         card = self._card(index)
         if card is None or is_face_down(card):
             return None
-        name = card.card_data.get("name") or card.card_data.get("id", "")
+        name = card.card_data.display_name
         return READINGS["card_reversed"].format(card=name) if card.is_reversed() else name
 
     def _meaning_width(self, option):

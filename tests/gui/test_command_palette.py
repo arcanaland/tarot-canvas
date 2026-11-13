@@ -3,6 +3,7 @@ from types import SimpleNamespace
 import pytest
 from PyQt6.QtCore import Qt
 
+from tarot_canvas.models.deck_types import Card, CardImage, CardKind
 from tarot_canvas.ui import command_palette
 from tarot_canvas.ui.command_palette import THUMBNAIL_SIZE, CommandPalette
 from tarot_canvas.ui.covers.cache import CoverCache
@@ -15,10 +16,30 @@ ART = MINIMAL_DECK_PATH / "h750" / "major_arcana"
 def four_cards(stub_deck_manager):
     """Three majors, one without art, and a minor that "the" does not match"""
     cards = [
-        {"name": "The Fool", "type": "major_arcana", "image": str(ART / "00.png")},
-        {"name": "The Magician", "type": "major_arcana", "image": str(ART / "01.png")},
-        {"name": "The High Priestess", "type": "major_arcana", "image": None},
-        {"name": "Ace of Cups", "type": "minor_arcana", "suit": "cups", "rank": "ace"},
+        Card(
+            canonical_id="major_arcana.00",
+            kind=CardKind.MAJOR,
+            display_name="The Fool",
+            images=(CardImage(str(ART / "00.png"), "raster"),),
+        ),
+        Card(
+            canonical_id="major_arcana.01",
+            kind=CardKind.MAJOR,
+            display_name="The Magician",
+            images=(CardImage(str(ART / "01.png"), "raster"),),
+        ),
+        Card(
+            canonical_id="major_arcana.02",
+            kind=CardKind.MAJOR,
+            display_name="The High Priestess",
+        ),
+        Card(
+            canonical_id="minor_arcana.cups.ace",
+            kind=CardKind.MINOR,
+            display_name="Ace of Cups",
+            suit_key="cups",
+            rank_key="ace",
+        ),
     ]
     deck = SimpleNamespace(_cards=cards, get_name=lambda: "Fixture")
     stub_deck_manager.get_reference_deck = lambda: deck
@@ -53,13 +74,13 @@ def palette(qtbot, decodes):
 
 def visible_names(palette):
     return [
-        palette.results_list.item(row).data(Qt.ItemDataRole.UserRole)[0]["name"]
+        palette.results_list.item(row).data(Qt.ItemDataRole.UserRole)[0].display_name
         for row in palette.visible_rows()
     ]
 
 
 def current_name(palette):
-    return palette.results_list.currentItem().data(Qt.ItemDataRole.UserRole)[0]["name"]
+    return palette.results_list.currentItem().data(Qt.ItemDataRole.UserRole)[0].display_name
 
 
 def test_thumbnails_are_decoded_at_display_size(palette):
@@ -135,7 +156,7 @@ def test_enter_with_nothing_visible_selects_nothing(qtbot, palette):
 
 
 def test_a_card_without_art_still_gets_a_row(palette, four_cards):
-    assert visible_names(palette) == [card["name"] for card in four_cards]
+    assert visible_names(palette) == [card.display_name for card in four_cards]
 
 
 def test_the_best_match_is_listed_and_selected_first(palette):
@@ -154,4 +175,4 @@ def test_the_best_match_is_listed_and_selected_first(palette):
 def test_clearing_the_search_restores_deck_order(palette, four_cards):
     palette.search_input.setText("a")
     palette.search_input.setText("")
-    assert visible_names(palette) == [card["name"] for card in four_cards]
+    assert visible_names(palette) == [card.display_name for card in four_cards]

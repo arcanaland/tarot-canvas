@@ -14,12 +14,13 @@ from PyQt6.QtGui import (
     QPixmap,
 )
 
+from tarot_canvas.models.deck_types import CardKind
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.canvas.ground import GRADIENT_STOPS, GROUND_HUE_DEFAULT, GROUND_HUES
 from tarot_canvas.ui.canvas.ground_paint import aura_gradient
 from tarot_canvas.ui.canvas.reading_card import FACE_DOWN_MARK
 from tarot_canvas.ui.canvas.slot_item import NUMBER_HEIGHT, paint_number, slot_ink
-from tarot_canvas.ui.card_colours import MAJOR_ARCANA, SLOT_COLOUR, card_colour
+from tarot_canvas.ui.card_colours import SLOT_COLOUR, colour_of
 
 # Unit-square coordinates: x, y is the mark's centre
 Mark = namedtuple("Mark", "x y w h angle colour z number", defaults=(None,))
@@ -104,14 +105,14 @@ def spread_marks(spread, unit, numbered=False):
     )
 
 
-def _kind_of(card_id):
-    """The type and suit a card id names, as a card dict holds them"""
+def _colour_of_id(card_id):
+    """The colour for the kind and suit a card id names"""
     parts = card_id.split(".")
-    if parts[0] == MAJOR_ARCANA:
-        return {"type": MAJOR_ARCANA}
-    if len(parts) == 3:
-        return {"type": parts[0], "suit": parts[1]}
-    return {}
+    if parts[0] == CardKind.MAJOR.value:
+        return colour_of(CardKind.MAJOR)
+    if len(parts) == 3 and parts[0] == CardKind.MINOR.value:
+        return colour_of(CardKind.MINOR, parts[1])
+    return colour_of(None)
 
 
 def reading_marks(reading, unit, numbered=False):
@@ -126,7 +127,7 @@ def reading_marks(reading, unit, numbered=False):
             unit.width(),
             unit.height(),
             card.rotation,
-            card_colour(_kind_of(card.id)) if card.turned else FACE_DOWN_MARK,
+            _colour_of_id(card.id) if card.turned else FACE_DOWN_MARK,
             card.z,
             # Unnumbered, as card_marks: seven fields
             *((number,) if numbered else ()),

@@ -1,4 +1,5 @@
 import shutil
+from dataclasses import replace
 
 import pytest
 from PyQt6.QtCore import QPoint, QPointF, QRect, QSize, Qt
@@ -34,7 +35,7 @@ def make_tab(qtbot, deck, width, height, deck_count=1, stub=None):
         stub.get_all_decks = lambda: [deck] * deck_count
         stub.get_reference_deck = lambda: deck
 
-    card = next(c for c in deck.get_all_cards() if c.get("image"))
+    card = next(c for c in deck.get_all_cards() if c.default_image())
     tab = CardViewTab(card=card, deck=deck)
     qtbot.addWidget(tab)
     tab.resize(width, height)
@@ -243,7 +244,7 @@ def test_copying_from_the_bar_says_so(qtbot, big_image_deck, clipboard):
 
     assert clipboard.mimeData().hasFormat(CARD_MIME)
     assert tab.toast.isVisible()
-    assert tab.toast.text() == f"Copied {tab.card['name']}"
+    assert tab.toast.text() == f"Copied {tab.card.display_name}"
 
 
 # -- moving through the deck ---------------------------------------------------
@@ -261,16 +262,16 @@ def press(qtbot, tab, key, modifiers=Qt.KeyboardModifier.NoModifier):
 
 def test_arrows_step_through_the_deck(qtbot, big_image_deck):
     tab = make_tab(qtbot, big_image_deck, 1200, 900)
-    assert tab.card["id"] == "major_arcana.00"
+    assert tab.card.canonical_id == "major_arcana.00"
 
     press(qtbot, tab, Qt.Key.Key_Right)
-    assert tab.card["id"] == "major_arcana.01"
+    assert tab.card.canonical_id == "major_arcana.01"
 
     press(qtbot, tab, Qt.Key.Key_Right)  # the last card: nothing past it
-    assert tab.card["id"] == "major_arcana.01"
+    assert tab.card.canonical_id == "major_arcana.01"
 
     press(qtbot, tab, Qt.Key.Key_Left)
-    assert tab.card["id"] == "major_arcana.00"
+    assert tab.card.canonical_id == "major_arcana.00"
 
 
 @pytest.mark.parametrize(
@@ -285,10 +286,10 @@ def test_image_viewer_keys_step_too(qtbot, big_image_deck, forward, back):
     tab = make_tab(qtbot, big_image_deck, 1200, 900)
 
     press(qtbot, tab, forward)
-    assert tab.card["id"] == "major_arcana.01"
+    assert tab.card.canonical_id == "major_arcana.01"
 
     press(qtbot, tab, back)
-    assert tab.card["id"] == "major_arcana.00"
+    assert tab.card.canonical_id == "major_arcana.00"
 
 
 def test_arrows_pan_a_zoomed_card_instead(qtbot, big_image_deck):
@@ -299,7 +300,7 @@ def test_arrows_pan_a_zoomed_card_instead(qtbot, big_image_deck):
 
     press(qtbot, tab, Qt.Key.Key_Right)
 
-    assert tab.card["id"] == "major_arcana.00"
+    assert tab.card.canonical_id == "major_arcana.00"
     assert view.horizontalScrollBar().value() != before
 
 
@@ -309,7 +310,7 @@ def test_stepping_keeps_the_keyboard_on_the_art(qtbot, big_image_deck):
     press(qtbot, tab, Qt.Key.Key_Right)
     qtbot.keyClick(tab.image_view, Qt.Key.Key_Left)
 
-    assert tab.card["id"] == "major_arcana.00"
+    assert tab.card.canonical_id == "major_arcana.00"
     assert tab.focusWidget() is tab.image_view
 
 
@@ -318,8 +319,8 @@ def test_d_draws_another_card(qtbot, big_image_deck):
 
     press(qtbot, tab, Qt.Key.Key_D)
 
-    assert tab.card["id"] == "major_arcana.01"
-    assert tab.tab_name == tab.card["name"]
+    assert tab.card.canonical_id == "major_arcana.01"
+    assert tab.tab_name == tab.card.display_name
 
 
 def test_brackets_step_through_the_decks(qtbot, big_image_deck, minimal_deck, stub_deck_manager):
@@ -388,7 +389,7 @@ def test_a_deck_installed_after_a_card_view_is_deleted_does_not_crash(
     from tarot_canvas.models.deck_events import deck_events
 
     stub_deck_manager.get_all_decks = lambda: [big_image_deck]
-    card = next(c for c in big_image_deck.get_all_cards() if c.get("image"))
+    card = next(c for c in big_image_deck.get_all_cards() if c.default_image())
     tab = CardViewTab(card=card, deck=big_image_deck)  # not qtbot's: the test deletes it
     qtbot.wait(150)  # past the tab's 100 ms singleShot, which a deleted tab can't take
     tab.deleteLater()
@@ -475,7 +476,7 @@ def test_switching_decks_resets_the_zoom(qtbot, big_image_deck, stub_deck_manage
 
 def test_a_card_without_an_image(qtbot, big_image_deck):
     tab = make_tab(qtbot, big_image_deck, 800, 900)
-    tab.card = dict(tab.card, image=None)
+    tab.card = replace(tab.card, images=())
     tab.load_image()
 
     assert not tab.image_view.has_image()
@@ -574,7 +575,7 @@ def test_a_card_found_with_ctrl_p_takes_ctrl_digit_straight_away(qtbot, big_imag
     with qtbot.waitActive(window):
         window.show()
         window.activateWindow()
-    card = next(c for c in big_image_deck.get_all_cards() if c.get("image"))
+    card = next(c for c in big_image_deck.get_all_cards() if c.default_image())
     # What the palette does with the card picked
     window.handle_command_palette_selection(card, big_image_deck)
     tab = window.tab_widget.currentWidget()

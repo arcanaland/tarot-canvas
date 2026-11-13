@@ -32,7 +32,7 @@ def window(qtbot, stub_deck_manager, spreads_base, notes_base):
 
 
 def with_art(deck):
-    return [card for card in deck.get_all_cards() if card.get("image")]
+    return [card for card in deck.get_all_cards() if card.default_image()]
 
 
 def by_depth(tab):
@@ -69,7 +69,7 @@ def test_save_makes_a_saved_canvas_and_writes_its_reading(window, two_cards, rea
     assert path is not None and path.parent == readings_base
     reading = readings.load(path)
     items = by_depth(tab)
-    assert [card.id for card in reading.cards] == [item.card_data["id"] for item in items]
+    assert [card.id for card in reading.cards] == [item.card_data.canonical_id for item in items]
     assert [card.reversed for card in reading.cards] == [False, True]
     assert [card.rotation for card in reading.cards] == [90.0, 0.0]
     assert [(card.x, card.y) for card in reading.cards] == [
@@ -278,7 +278,7 @@ def test_a_closed_reading_reopens_as_it_was_and_is_not_rewritten(qtbot, window, 
     tab = two_cards
     path = saved(window, tab)
     before = [
-        (item.card_data["id"], item.pos(), item.zValue(), item.orient, item.is_reversed())
+        (item.card_data.canonical_id, item.pos(), item.zValue(), item.orient, item.is_reversed())
         for item in by_depth(tab)
     ]
     window.close_tab(window.tab_widget.indexOf(tab))
@@ -290,7 +290,7 @@ def test_a_closed_reading_reopens_as_it_was_and_is_not_rewritten(qtbot, window, 
     assert reopened is not tab
     assert reopened.reading_path == path
     assert [
-        (item.card_data["id"], item.pos(), item.zValue(), item.orient, item.is_reversed())
+        (item.card_data.canonical_id, item.pos(), item.zValue(), item.orient, item.is_reversed())
         for item in by_depth(reopened)
     ] == before
     assert (path / readings.READING_FILE).stat().st_mtime_ns == written
@@ -312,7 +312,9 @@ def test_a_reading_of_an_unknown_deck_opens_in_the_reference_deck(
     when = datetime(2026, 11, 9, 21, 14, tzinfo=timezone(timedelta(hours=-8)))
     readings.save(
         path,
-        Reading(date=when, deck="No Such Deck", cards=(ReadingCard(id=card["id"], x=10, y=20),)),
+        Reading(
+            date=when, deck="No Such Deck", cards=(ReadingCard(id=card.canonical_id, x=10, y=20),)
+        ),
     )
 
     tab = window.open_saved_reading(path)

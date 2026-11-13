@@ -58,7 +58,7 @@ class CardViewTab(BaseTab):
             self.card = self.deck.get_random_card()
 
         # Set the tab name to the card name when it's created
-        self.tab_name = self.card["name"] if self.card else CARD_VIEW["tab_fallback"]
+        self.tab_name = self.card.display_name if self.card else CARD_VIEW["tab_fallback"]
 
         self.setup_ui()
 
@@ -228,13 +228,9 @@ class CardViewTab(BaseTab):
 
     def load_image(self):
         """Load the card image into the zoomable view"""
-        if (
-            self.card
-            and "image" in self.card
-            and self.card["image"]
-            and os.path.exists(self.card["image"])
-        ):
-            self.image_view.set_pixmap(QPixmap(self.card["image"]))
+        image = self.card.default_image() if self.card else None
+        if image and os.path.exists(image):
+            self.image_view.set_pixmap(QPixmap(image))
         else:
             self.image_view.set_message(CARD_VIEW["no_image"])
 
@@ -302,7 +298,7 @@ class CardViewTab(BaseTab):
         if not self.can_copy_card():
             return
         copy_card_to_clipboard(self.card, self.deck)
-        self.toast.show_message(CARD_VIEW["copied"].format(name=self.card["name"]))
+        self.toast.show_message(CARD_VIEW["copied"].format(name=self.card.display_name))
 
     def can_delete(self):
         """Only while the Notes list has focus, as its own Delete did"""
@@ -396,7 +392,7 @@ class CardViewTab(BaseTab):
             self.toast.dismiss()
 
     def tab_title(self):
-        return self.card["name"] if self.card else CARD_VIEW["tab_fallback"]
+        return self.card.display_name if self.card else CARD_VIEW["tab_fallback"]
 
     def tab_icon(self):
         return ColorDot(card_colour(self.card)) if self.card else QIcon()
@@ -408,7 +404,7 @@ class CardViewTab(BaseTab):
         try:
             self.deck = deck or self.deck
             self.card = card
-            self.tab_name = card["name"]
+            self.tab_name = card.display_name
 
             self.load_image()
             self.overview_tab.update_card_info(card, self.deck)
@@ -495,8 +491,8 @@ class CardViewTab(BaseTab):
         moves[where]()
 
     def _card_index(self, cards):
-        card_id = self.card.get("id")
-        return next((i for i, c in enumerate(cards) if c.get("id") == card_id), None)
+        card_id = self.card.canonical_id
+        return next((i for i, c in enumerate(cards) if c.canonical_id == card_id), None)
 
     def step_card(self, delta):
         """The previous or next card in the deck's order; nothing past either end"""
@@ -508,12 +504,12 @@ class CardViewTab(BaseTab):
     def show_card_at(self, index):
         """The card at index in the deck's order; negative counts from the end"""
         cards = self.deck.get_all_cards()
-        if cards and cards[index].get("id") != self.card.get("id"):
+        if cards and cards[index].canonical_id != self.card.canonical_id:
             self.show_card(cards[index])
 
     def draw_card(self):
         """Any other card from this deck, the card view's Summon Card"""
-        card_id = self.card.get("id")
-        others = [c for c in self.deck.get_all_cards() if c.get("id") != card_id]
+        card_id = self.card.canonical_id
+        others = [c for c in self.deck.get_all_cards() if c.canonical_id != card_id]
         if others:
             self.show_card(random.choice(others))

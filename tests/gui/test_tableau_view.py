@@ -45,7 +45,7 @@ def at(tab, row, column):
 
 def card_id(index):
     card = index.data(CardRole)
-    return card["id"] if card else None
+    return card.canonical_id if card else None
 
 
 def press(view, key, modifier=Qt.KeyboardModifier.NoModifier):
@@ -178,7 +178,7 @@ def test_an_unknown_stored_mode_falls_back_to_sections(qtbot, full_deck):
 
 
 def selected_ids(tab):
-    return [card["id"] for card in tab.selected_cards()]
+    return [card.canonical_id for card in tab.selected_cards()]
 
 
 def test_the_selection_and_current_card_cross_both_ways(qtbot, full_deck):
@@ -238,7 +238,7 @@ def test_activating_a_tableau_card_opens_it(tab, qtbot):
     tab.tableau.setCurrentIndex(at(tab, 1, 0))
     with qtbot.waitSignal(tab.card_action_requested, timeout=1000) as opened:
         press(tab.tableau, Qt.Key.Key_Return)
-    assert opened.args[1]["id"] == "major_arcana.01"
+    assert opened.args[1].canonical_id == "major_arcana.01"
 
 
 # -- a new canvas -----------------------------------------------------------------
@@ -254,7 +254,7 @@ def test_new_canvas_from_selection_sends_the_selected_cards_in_deck_order(tab, q
         actions["Create New Canvas From Selection"].trigger()
 
     cards, deck = requested.args
-    assert [card["id"] for card in cards] == ["major_arcana.00", "major_arcana.01"]
+    assert [card.canonical_id for card in cards] == ["major_arcana.00", "major_arcana.01"]
     assert deck is tab.deck
 
 

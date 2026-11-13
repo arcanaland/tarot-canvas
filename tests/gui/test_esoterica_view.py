@@ -689,4 +689,4 @@ def test_a_cell_is_named_by_the_pages_deck(qtbot, roots, minimal_deck):
 
     name = page.details_pane.coverage_grid.card_name("major_arcana.00")
 
-    assert name == minimal_deck.get_card_by_id("major_arcana.00")["name"]
+    assert name == minimal_deck.get_card_by_id("major_arcana.00").display_name

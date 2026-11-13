@@ -108,7 +108,7 @@ def test_dealing_keeps_the_reading_face_down_in_number_order(window, readings_ba
     assert [card.position for card in reading.cards] == ["p1", "p2", "p3"]
     assert [card.turned for card in reading.cards] == [False, False, False]
     order = tab.turn_order()
-    assert [card.id for card in reading.cards] == [item.card_data["id"] for item in order]
+    assert [card.id for card in reading.cards] == [item.card_data.canonical_id for item in order]
     assert [card.reversed for card in reading.cards] == [item.drawn_reversed for item in order]
     assert reading.deck == deck_key(order[0].deck)
     assert reading.date.tzinfo is not None and reading.date.microsecond == 0
@@ -238,7 +238,7 @@ def test_a_reading_left_mid_turn_reopens_dealt_where_it_stopped(window, readings
     tab = dealt(window)
     tab.pane.question_edit.setText("Where was I?")
     path = tab.reading_path
-    ids = [item.card_data["id"] for item in tab.turn_order()]
+    ids = [item.card_data.canonical_id for item in tab.turn_order()]
     tab.turn_next()
     close(window, tab)
     mtime = (path / readings.READING_FILE).stat().st_mtime_ns
@@ -249,7 +249,7 @@ def test_a_reading_left_mid_turn_reopens_dealt_where_it_stopped(window, readings
     assert reopened.reading_path == path
     assert reopened.phase is Phase.DEALT
     order = reopened.turn_order()
-    assert [item.card_data["id"] for item in order] == ids
+    assert [item.card_data.canonical_id for item in order] == ids
     assert [is_face_down(item) for item in order] == [False, True, True]
     assert reopened.next_card() is order[1]
     assert reopened.placement_of(order[1]).number == 2

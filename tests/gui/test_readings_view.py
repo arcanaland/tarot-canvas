@@ -152,7 +152,7 @@ def test_rows_are_newest_first_and_a_reading_without_a_question_shows_its_date(t
 
 
 def test_a_row_has_the_canvas_minimap(readings_base, page, minimal_deck):
-    card = minimal_deck.get_all_cards()[0]["id"]
+    card = minimal_deck.get_all_cards()[0].canonical_id
     keep(readings_base, "1", NOW, "Q", cards=[ReadingCard(id=card)])
     page.refresh()
     from PyQt6.QtCore import Qt
@@ -380,11 +380,11 @@ def test_a_term_in_a_question_matches(three, page):
 
 def test_a_card_or_deck_name_matches(readings_base, page, minimal_deck):
     card = minimal_deck.get_all_cards()[0]
-    keep(readings_base, "1", NOW, "With", cards=[ReadingCard(id=card["id"])])
+    keep(readings_base, "1", NOW, "With", cards=[ReadingCard(id=card.canonical_id)])
     keep(readings_base, "2", NOW, "Without")
     page.refresh()
 
-    page.set_search(card["name"])
+    page.set_search(card.display_name)
     assert labels(page) == ["With"]
     page.set_search(minimal_deck.get_name())
     assert labels(page) == ["With"]
@@ -401,7 +401,7 @@ def test_a_search_with_no_match_says_so(three, page):
 def test_the_pane_shows_the_question_date_numbered_cards_and_note(
     readings_base, page, minimal_deck
 ):
-    first, second = (card["id"] for card in minimal_deck.get_all_cards()[:2])
+    first, second = (card.canonical_id for card in minimal_deck.get_all_cards()[:2])
     keep(
         readings_base,
         "1",
@@ -415,7 +415,7 @@ def test_the_pane_shows_the_question_date_numbered_cards_and_note(
     page.list_view.clicked.emit(first_reading(page))
 
     pane = page.details_pane
-    names = [minimal_deck.get_card_by_id(card)["name"] for card in (first, second)]
+    names = [minimal_deck.get_card_by_id(card).display_name for card in (first, second)]
     assert pane.heading_label.text() == "Should I?"
     assert pane.meta_label.text() == READINGS["library_meta"].format(
         when=format_recent(local_qdatetime(NOW)), spread="Three ways"
@@ -455,7 +455,7 @@ def test_a_reading_without_a_note_shows_no_note_section(readings_base, page):
 @pytest.fixture
 def mid_deal(readings_base, minimal_deck):
     """A kept spread reading with its third card still face down, and reversed"""
-    first, second = (card["id"] for card in minimal_deck.get_all_cards()[:2])
+    first, second = (card.canonical_id for card in minimal_deck.get_all_cards()[:2])
     keep(
         readings_base,
         "1",
@@ -468,7 +468,7 @@ def mid_deal(readings_base, minimal_deck):
             ReadingCard(id=second, position="future", reversed=True, turned=False),
         ],
     )
-    return [minimal_deck.get_card_by_id(card)["name"] for card in (first, second)]
+    return [minimal_deck.get_card_by_id(card).display_name for card in (first, second)]
 
 
 def test_a_face_down_card_is_numbered_and_placed_but_not_named(mid_deal, page):
@@ -509,16 +509,20 @@ def test_a_sandbox_lists_its_cards_unnumbered_by_where_they_lie(readings_base, p
         "Plain",
         cards=[
             # Put down last but lying top left, then one a little lower beside it, then below
-            ReadingCard(id=second["id"], x=2 * unit.width(), y=unit.height() * 0.2),
-            ReadingCard(id=first["id"], x=0.0, y=3 * unit.height(), position="past"),
-            ReadingCard(id=first["id"], x=0.0, y=0.0),
+            ReadingCard(id=second.canonical_id, x=2 * unit.width(), y=unit.height() * 0.2),
+            ReadingCard(id=first.canonical_id, x=0.0, y=3 * unit.height(), position="past"),
+            ReadingCard(id=first.canonical_id, x=0.0, y=0.0),
         ],
     )
     page.refresh()
     page.list_view.clicked.emit(first_reading(page))
 
     # No numbers and no positions: a sandbox has neither
-    assert page.details_pane.card_lines() == [first["name"], second["name"], first["name"]]
+    assert page.details_pane.card_lines() == [
+        first.display_name,
+        second.display_name,
+        first.display_name,
+    ]
 
 
 def test_spatial_order_reads_rows_top_to_bottom_then_left_to_right():
@@ -532,7 +536,7 @@ def test_spatial_order_reads_rows_top_to_bottom_then_left_to_right():
 
 
 def test_many_cards_flow_into_columns(readings_base, page, minimal_deck):
-    card = minimal_deck.get_all_cards()[0]["id"]
+    card = minimal_deck.get_all_cards()[0].canonical_id
     positions = tuple(Position(id=str(n), label=str(n), x=float(n)) for n in range(10))
     keep(
         readings_base,
@@ -552,7 +556,7 @@ def test_many_cards_flow_into_columns(readings_base, page, minimal_deck):
 
 
 def test_the_diagram_is_a_strip_no_taller_than_its_band(readings_base, qtbot, page, minimal_deck):
-    card = minimal_deck.get_all_cards()[0]["id"]
+    card = minimal_deck.get_all_cards()[0].canonical_id
     unit = card_unit_size()
     keep(
         readings_base,
@@ -606,7 +610,7 @@ def test_the_diagram_draws_the_readings_own_ground(
         "1",
         NOW,
         "Grounded",
-        cards=[ReadingCard(id=card["id"])],
+        cards=[ReadingCard(id=card.canonical_id)],
         ground=Ground(style="solid", color="#336699"),
     )
     page.refresh()
@@ -621,7 +625,7 @@ def test_a_reading_without_a_ground_draws_the_default(
 ):
     Ground(style="solid", color="#654321").to_settings()
     card = minimal_deck.get_all_cards()[0]
-    keep(readings_base, "1", NOW, "Default", cards=[ReadingCard(id=card["id"])])
+    keep(readings_base, "1", NOW, "Default", cards=[ReadingCard(id=card.canonical_id)])
     page.refresh()
     pane = shown_pane(qtbot, page)
 
@@ -641,7 +645,7 @@ def test_an_image_ground_shows_its_fill_until_the_picture_is_decoded(
         "1",
         NOW,
         "Pictured",
-        cards=[ReadingCard(id=card["id"])],
+        cards=[ReadingCard(id=card.canonical_id)],
         # Center keeps its fill in reading.toml, and the pane paints it as crop
         ground=Ground(style="image", image="felt.png", positioning="center", fill="#204060"),
     )
@@ -793,7 +797,7 @@ def row_for(page, question):
 
 
 def test_a_rows_caption_says_when_and_which_spread(readings_base, page, minimal_deck):
-    card = minimal_deck.get_all_cards()[0]["id"]
+    card = minimal_deck.get_all_cards()[0].canonical_id
     keep(
         readings_base,
         "1",
@@ -900,7 +904,7 @@ def test_clicking_a_cards_name_opens_it_in_the_readings_deck(mid_deal, window, m
 
     tab = window.tab_widget.currentWidget()
     assert isinstance(tab, CardViewTab)
-    assert tab.card["name"] == mid_deal[0]
+    assert tab.card.display_name == mid_deal[0]
     assert tab.deck is minimal_deck
 
 

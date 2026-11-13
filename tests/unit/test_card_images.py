@@ -2,9 +2,20 @@ import os
 
 import pytest
 
-from tarot_canvas.models.deck import TarotDeck, pick_raster
+from tarot_canvas.models.deck import TarotDeck
+from tarot_canvas.models.deck_types import Card, CardImage, CardKind
 
-IMAGES = {750: "/h750/00.webp", 1200: "/h1200/00.webp", 2400: "/h2400/00.webp"}
+IMAGES = (
+    CardImage("/h2400/00.webp", "raster", 2400),
+    CardImage("/h1200/00.webp", "raster", 1200),
+    CardImage("/h750/00.webp", "raster", 750),
+)
+
+
+def fool(images):
+    return Card(
+        canonical_id="major_arcana.00", kind=CardKind.MAJOR, display_name="The Fool", images=images
+    )
 
 
 @pytest.mark.parametrize(
@@ -16,12 +27,16 @@ IMAGES = {750: "/h750/00.webp", 1200: "/h1200/00.webp", 2400: "/h2400/00.webp"}
         (3000, "/h2400/00.webp"),  # nothing covers: the largest
     ],
 )
-def test_pick_raster_prefers_the_smallest_covering_height(target, expected):
-    assert pick_raster(IMAGES, target) == expected
+def test_raster_for_prefers_the_smallest_covering_height(target, expected):
+    assert fool(IMAGES).raster_for(target) == expected
 
 
-def test_pick_raster_of_an_empty_map_is_none():
-    assert pick_raster({}, 440) is None
+def test_raster_for_with_no_images_is_none():
+    assert fool(()).raster_for(440) is None
+
+
+def test_default_image_with_no_images_is_none():
+    assert fool(()).default_image() is None
 
 
 @pytest.fixture
@@ -43,26 +58,32 @@ def three_height_deck(tmp_path):
     return TarotDeck(str(tmp_path))
 
 
+def heights(card):
+    return {image.height: image.path for image in card.images if image.height is not None}
+
+
 def test_a_deck_records_every_raster_height_of_a_card(three_height_deck, tmp_path):
-    by_id = {c["id"]: c for c in three_height_deck.get_all_cards()}
+    by_id = {c.canonical_id: c for c in three_height_deck.get_all_cards()}
     for card_id, rel in [
         ("major_arcana.00", os.path.join("major_arcana", "00.webp")),
         ("minor_arcana.cups.ace", os.path.join("minor_arcana", "cups", "ace.webp")),
         ("minor_arcana.cups.queen", os.path.join("minor_arcana", "cups", "queen.webp")),
     ]:
-        card = by_id[card_id]
-        assert card["images"] == {
+        assert heights(by_id[card_id]) == {
             750: str(tmp_path / "h750" / rel),
             1200: str(tmp_path / "h1200" / rel),
             2400: str(tmp_path / "h2400" / rel),
         }
-        # card["image"] keeps its h1200-first order.
-        assert card["image"] == str(tmp_path / "h1200" / rel)
 
 
-def test_a_card_with_no_raster_has_an_empty_map(three_height_deck):
-    by_id = {c["id"]: c for c in three_height_deck.get_all_cards()}
-    assert by_id["minor_arcana.cups.two"]["images"] == {}
+def test_the_default_image_is_h1200_over_h2400(three_height_deck, tmp_path):
+    card = three_height_deck.get_card_by_id("major_arcana.00")
+    assert card.default_image() == str(tmp_path / "h1200" / "major_arcana" / "00.webp")
+    assert [image.height for image in card.images] == [1200, 2400, 750]
+
+
+def test_a_card_with_no_raster_has_no_images(three_height_deck):
+    assert three_height_deck.get_card_by_id("minor_arcana.cups.two").images == ()
 
 
 def test_a_folder_prefers_png_over_webp_over_jpeg(tmp_path):
@@ -73,7 +94,7 @@ def test_a_folder_prefers_png_over_webp_over_jpeg(tmp_path):
     folder.mkdir(parents=True)
     for name in ("00.jpg", "00.webp", "00.png", "01.jpeg", "01.jpg", "02.avif"):
         (folder / name).write_bytes(b"")
-    by_id = {c["id"]: c for c in TarotDeck(str(tmp_path)).get_all_cards()}
-    assert by_id["major_arcana.00"]["images"] == {750: str(folder / "00.png")}
-    assert by_id["major_arcana.01"]["images"] == {750: str(folder / "01.jpg")}
-    assert by_id["major_arcana.02"]["images"] == {}
+    by_id = {c.canonical_id: c for c in TarotDeck(str(tmp_path)).get_all_cards()}
+    assert heights(by_id["major_arcana.00"]) == {750: str(folder / "00.png")}
+    assert heights(by_id["major_arcana.01"]) == {750: str(folder / "01.jpg")}
+    assert heights(by_id["major_arcana.02"]) == {}

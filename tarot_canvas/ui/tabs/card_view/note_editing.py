@@ -74,7 +74,7 @@ class NoteLinks:
                 # Use _cards directly or get_all_cards() if available
                 cards = getattr(ref_deck, "get_all_cards", lambda: ref_deck._cards)()
                 for card in cards:
-                    suggestions.append(f"card:{card['name']}")
+                    suggestions.append(f"card:{card.display_name}")
 
             # Add all decks
             for deck in self.deck_manager.get_all_decks():
@@ -100,7 +100,7 @@ class NoteLinks:
         if ref_deck:
             cards = getattr(ref_deck, "get_all_cards", lambda: ref_deck._cards)()
             for card in cards:
-                if card["name"].lower() == card_name.lower():
+                if card.display_name.lower() == card_name.lower():
                     self.tab.navigation_requested.emit(
                         "open_card_view", {"card": card, "deck": ref_deck}
                     )
@@ -148,7 +148,7 @@ class NoteLinks:
             if ref_deck:
                 cards = getattr(ref_deck, "get_all_cards", lambda: ref_deck._cards)()
                 for card in cards:
-                    if card["id"] == note_info.card_id:
+                    if card.canonical_id == note_info.card_id:
                         self.tab.navigation_requested.emit(
                             "open_card_view",
                             {"card": card, "deck": ref_deck, "open_note": note_name},

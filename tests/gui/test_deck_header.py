@@ -3,6 +3,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QApplication
 
+from tarot_canvas.models.deck_types import Card, CardKind
 from tarot_canvas.settings import DECK_HEADER_EXPANDED_KEY, get_settings
 from tarot_canvas.ui.library.decks import header as deck_header
 from tarot_canvas.ui.library.decks.header import DeckHeader, wrapped_height
@@ -35,7 +36,15 @@ def make_deck(**overrides):
     fields = dict(FULL_METADATA)
     fields.update(overrides)
     fields = {key: value for key, value in fields.items() if value is not None}
-    cards = [{"type": "major_arcana", "number": i, "image": None} for i in range(22)]
+    cards = [
+        Card(
+            canonical_id=f"major_arcana.{i:02d}",
+            kind=CardKind.MAJOR,
+            display_name=f"{i:02d}",
+            position=i,
+        )
+        for i in range(22)
+    ]
 
     def field(key, default=None):
         value = fields.get(key)
@@ -60,7 +69,7 @@ def make_deck(**overrides):
             return cards
 
         def get_cards_by_type(self, card_type):
-            return [c for c in cards if c["type"] == card_type]
+            return [c for c in cards if c.kind.value == card_type]
 
         def get_metadata_fields(self):
             return dict(fields)

@@ -57,7 +57,7 @@ def test_activating_a_row_opens_the_card_view_on_its_notes(window):
 
     opened = card_tabs(window)
     assert len(opened) == 1
-    assert opened[0].card["id"] == FOOL
+    assert opened[0].card.canonical_id == FOOL
     assert opened[0].info_tabs.currentWidget() is opened[0].notes_tab
 
 
@@ -80,7 +80,7 @@ def test_a_covered_card_in_the_esoterica_grid_opens_its_esoterica_tab(window):
 
     opened = card_tabs(window)
     assert len(opened) == 1
-    assert opened[0].card["id"] == FOOL
+    assert opened[0].card.canonical_id == FOOL
     assert opened[0].info_tabs.currentWidget() is opened[0].esoterica_tab
 
 

@@ -92,31 +92,31 @@ class CardTerms:
     """What one card can be found by, computed once per card"""
 
     def __init__(self, card, deck_name=""):
-        self.name = (card.get("name") or "").casefold()
-        self.name_joined = " ".join(_significant(words(card.get("name"))))
-        self.rank = card.get("rank")
-        self.suit = card.get("suit")
+        self.name = (card.display_name or "").casefold()
+        self.name_joined = " ".join(_significant(words(card.display_name)))
+        self.rank = card.rank_key
+        self.suit = card.suit_key
 
-        own = set(words(card.get("name")))
+        own = set(words(card.display_name))
         own.update(words(self.suit))
-        own.update(words(card.get("display_suit")))
+        own.update(words(card.display_suit))
         own.update(words(self.rank))
-        own.update(words(card.get("display_rank")))
+        own.update(words(card.display_rank))
 
         numbers = set()
-        number = card.get("number")
+        number = card.position
         if number is None:
             number = RANK_NUMBERS.get(self.rank)
         if number is not None:
             numbers.update({str(number), roman(number)} - {""})
-        numbers.update(words(card.get("numeral")))
+        numbers.update(words(card.number))
 
-        other = set(words(card.get("type", "").replace("_", " ")))
+        other = set(words(card.kind.value.replace("_", " ")))
         other.update(words(deck_name))
         other.update(SUIT_SYNONYMS.get(self.suit, []))
         other.update(COURT_SYNONYMS.get(self.rank, []))
-        other.update(MAJOR_SYNONYMS.get(card.get("id"), []))
-        if card.get("display_rank"):
+        other.update(MAJOR_SYNONYMS.get(card.canonical_id, []))
+        if card.display_rank:
             other.add("court")
 
         self._own = own - STOPWORDS

@@ -17,7 +17,7 @@ def no_dialogs(monkeypatch):
 
 def open_card_view(qtbot, deck=None):
     deck = deck or TarotDeck(str(MINIMAL_DECK_PATH))
-    card = next(c for c in deck.get_all_cards() if c.get("image"))
+    card = next(c for c in deck.get_all_cards() if c.default_image())
     tab = CardViewTab(card=card, deck=deck)
     qtbot.addWidget(tab)
     return tab, card
@@ -40,7 +40,7 @@ def test_the_file_appears_on_the_first_keystroke(qtbot, notes_base, no_dialogs):
     notes.create_new_note()
     qtbot.keyClicks(notes.note_editor, "a line I came with")
 
-    written = sorted((notes_base / card["id"]).glob("*.md"))
+    written = sorted((notes_base / card.canonical_id).glob("*.md"))
     assert len(written) == 1
     assert written[0].stem.isdigit()
     assert notes.pending_path is None
@@ -62,7 +62,7 @@ def test_a_note_asked_for_and_abandoned_leaves_nothing_on_disk(qtbot, notes_base
 
 def test_opening_another_note_does_not_write_it_to_the_pending_path(qtbot, notes_base, no_dialogs):
     tab, card = open_card_view(qtbot)
-    card_dir = notes_base / card["id"]
+    card_dir = notes_base / card.canonical_id
     card_dir.mkdir(parents=True)
     (card_dir / "1700000000_Existing.md").write_text("# Existing\n\nbody\n", encoding="utf-8")
     tab.notes_tab.load_card_notes(card)
@@ -87,7 +87,7 @@ def test_a_nameless_note_is_listed_by_its_first_line(qtbot, notes_base, no_dialo
 
 def test_renaming_a_nameless_note_keeps_its_timestamp(qtbot, notes_base, no_dialogs):
     tab, card = open_card_view(qtbot)
-    card_dir = notes_base / card["id"]
+    card_dir = notes_base / card.canonical_id
     card_dir.mkdir(parents=True)
     (card_dir / "1700000000.md").write_text("a line I came with\n", encoding="utf-8")
     tab.notes_tab.load_card_notes(card)
@@ -99,7 +99,7 @@ def test_renaming_a_nameless_note_keeps_its_timestamp(qtbot, notes_base, no_dial
 
 def test_a_nameless_note_is_not_offered_to_the_link_completer(qtbot, notes_base, no_dialogs):
     tab, card = open_card_view(qtbot)
-    card_dir = notes_base / card["id"]
+    card_dir = notes_base / card.canonical_id
     card_dir.mkdir(parents=True)
     (card_dir / "1700000000.md").write_text("a line I came with\n", encoding="utf-8")
     (card_dir / "1700000001_Named.md").write_text("# Named\n\nbody\n", encoding="utf-8")
@@ -113,7 +113,7 @@ def test_a_nameless_note_is_not_offered_to_the_link_completer(qtbot, notes_base,
 
 def test_an_empty_link_resolves_to_nothing(qtbot, notes_base, no_dialogs):
     tab, card = open_card_view(qtbot)
-    card_dir = notes_base / card["id"]
+    card_dir = notes_base / card.canonical_id
     card_dir.mkdir(parents=True)
     (card_dir / "1700000000.md").write_text("a line I came with\n", encoding="utf-8")
     tab.notes_tab.load_card_notes(card)
@@ -123,7 +123,7 @@ def test_an_empty_link_resolves_to_nothing(qtbot, notes_base, no_dialogs):
 
 def test_the_header_names_the_open_note(qtbot, notes_base, no_dialogs):
     tab, card = open_card_view(qtbot)
-    card_dir = notes_base / card["id"]
+    card_dir = notes_base / card.canonical_id
     card_dir.mkdir(parents=True)
     (card_dir / "1700000000_Lyrics.md").write_text("# Lyrics\n\nbody\n", encoding="utf-8")
     tab.notes_tab.load_card_notes(card)
@@ -138,7 +138,7 @@ def test_the_header_shows_a_nameless_notes_name_as_empty_not_its_text(
 ):
     """The row is labelled by the note's first line."""
     tab, card = open_card_view(qtbot)
-    card_dir = notes_base / card["id"]
+    card_dir = notes_base / card.canonical_id
     card_dir.mkdir(parents=True)
     (card_dir / "1700000000.md").write_text("a line I came with\n", encoding="utf-8")
     tab.notes_tab.load_card_notes(card)
@@ -150,7 +150,7 @@ def test_the_header_shows_a_nameless_notes_name_as_empty_not_its_text(
 
 def test_typing_a_name_in_the_header_renames_the_file(qtbot, notes_base, no_dialogs):
     tab, card = open_card_view(qtbot)
-    card_dir = notes_base / card["id"]
+    card_dir = notes_base / card.canonical_id
     card_dir.mkdir(parents=True)
     (card_dir / "1700000000.md").write_text("a line I came with\n", encoding="utf-8")
     tab.notes_tab.load_card_notes(card)
@@ -165,7 +165,7 @@ def test_typing_a_name_in_the_header_renames_the_file(qtbot, notes_base, no_dial
 
 def test_clearing_the_header_takes_the_name_back_off(qtbot, notes_base, no_dialogs):
     tab, card = open_card_view(qtbot)
-    card_dir = notes_base / card["id"]
+    card_dir = notes_base / card.canonical_id
     card_dir.mkdir(parents=True)
     (card_dir / "1700000000_Lyrics.md").write_text("a line I came with\n", encoding="utf-8")
     tab.notes_tab.load_card_notes(card)
@@ -188,7 +188,7 @@ def test_a_name_typed_before_the_first_keystroke_lands_in_the_filename(
     notes.note_title.editingFinished.emit()
     qtbot.keyClicks(notes.note_editor, "a line I came with")
 
-    written = sorted((notes_base / card["id"]).glob("*.md"))
+    written = sorted((notes_base / card.canonical_id).glob("*.md"))
     assert len(written) == 1
     assert written[0].name.endswith("_Lyrics.md")
     assert written[0].stem.split("_")[0].isdigit()
@@ -196,7 +196,7 @@ def test_a_name_typed_before_the_first_keystroke_lands_in_the_filename(
 
 def test_naming_a_note_never_moves_its_id(qtbot, notes_base, no_dialogs):
     tab, card = open_card_view(qtbot)
-    card_dir = notes_base / card["id"]
+    card_dir = notes_base / card.canonical_id
     card_dir.mkdir(parents=True)
     (card_dir / "1700000000.md").write_text("a line\n", encoding="utf-8")
     tab.notes_tab.load_card_notes(card)
@@ -217,7 +217,7 @@ def type_into(qtbot, notes_tab, text):
 
 def open_with_a_note(qtbot, notes_base):
     tab, card = open_card_view(qtbot)
-    card_dir = notes_base / card["id"]
+    card_dir = notes_base / card.canonical_id
     card_dir.mkdir(parents=True)
     path = card_dir / "1700000000_Lyrics.md"
     path.write_text("# Lyrics\n\noriginal\n", encoding="utf-8")
@@ -255,7 +255,7 @@ def test_switching_card_tabs_saves_the_one_being_left(qtbot, notes_base, no_dial
 
     window.new_card_view_tab()
     first = window.tab_widget.currentWidget()
-    card_dir = notes_base / first.card["id"]
+    card_dir = notes_base / first.card.canonical_id
     card_dir.mkdir(parents=True)
     path = card_dir / "1700000000_Lyrics.md"
     path.write_text("# Lyrics\n\noriginal\n", encoding="utf-8")

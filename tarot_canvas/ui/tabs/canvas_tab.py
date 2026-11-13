@@ -837,7 +837,7 @@ class CanvasTab(BaseTab):
 
     def make_card_item(self, card, deck, reversed, item_type=DraggableCardItem):
         """An item_type for card, not yet on the canvas, or None if its art won't load."""
-        image_path = card.get("image")
+        image_path = card.default_image()
         if not image_path or not os.path.exists(image_path):
             print(f"Card image not found: {image_path}")
             return None
@@ -865,7 +865,7 @@ class CanvasTab(BaseTab):
             card_item.place_and_settle()
 
             reversed_status = "reversed" if is_reversed else "upright"
-            print(f"Added card to canvas: {card['name']} ({reversed_status})")
+            print(f"Added card to canvas: {card.display_name} ({reversed_status})")
 
             return card_item
 
@@ -993,7 +993,7 @@ class CanvasTab(BaseTab):
     def _add_swap_menu(self, menu, item):
         swap_menu = menu.addMenu(CANVAS["swap_deck"])
         current = deck_path_key(item.deck.deck_path) if item.deck else None
-        card_id = item.card_data.get("id")
+        card_id = item.card_data.canonical_id if item.card_data else None
         others = 0
         for deck, card in deck_manager.decks_containing(card_id) if card_id else []:
             action = swap_menu.addAction(deck.get_name())

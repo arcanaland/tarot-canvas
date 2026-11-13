@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
     QToolButton,
 )
 
+from tarot_canvas.models.deck_types import Card, CardKind
 from tarot_canvas.models.esoterica import Entry, EsotericaManager, GroupReading, SourceReading
 from tarot_canvas.models.esoterica_events import esoterica_events
 from tarot_canvas.models.esoterica_registry import (
@@ -42,7 +43,9 @@ from tarot_canvas.ui.tabs.card_view.esoterica_tab import (
 )
 from tarot_canvas.ui.widgets import contextual_help
 
-CARD = {"name": "The Star", "id": "major_arcana.17", "type": "major_arcana", "number": 17}
+CARD = Card(
+    canonical_id="major_arcana.17", kind=CardKind.MAJOR, display_name="The Star", position=17
+)
 
 
 # Formats rather than labels; they keep their shipped values
@@ -309,7 +312,12 @@ def test_the_header_lines_up_with_the_passages(qtbot, stub_manager):
 # A source with more than prose: rows, families and groups
 
 
-QUEEN = {"name": "Queen of Cups", "id": "minor_arcana.cups.queen", "display_suit": "Chalices"}
+QUEEN = Card(
+    canonical_id="minor_arcana.cups.queen",
+    kind=CardKind.MINOR,
+    display_name="Queen of Cups",
+    display_suit="Chalices",
+)
 
 
 def entry(key, value, slot=PASSAGES):
@@ -731,7 +739,12 @@ def test_without_a_groups_label_no_group_is_drawn(qtbot, every_label, label):
 # Folds and the show menu
 
 
-SWORDS = {"name": "Queen of Swords", "id": "minor_arcana.swords.queen", "display_suit": "Swords"}
+SWORDS = Card(
+    canonical_id="minor_arcana.swords.queen",
+    kind=CardKind.MINOR,
+    display_name="Queen of Swords",
+    display_suit="Swords",
+)
 
 COURT_FAMILIES = {"advice", "symbols", "divinatory", "correspondences", "groups"}
 
@@ -798,8 +811,8 @@ def test_a_suits_fold_opened_on_cups_is_open_on_swords(qtbot, stub_manager, ever
     swords = GroupReading("suits.swords", "suits", (entry("text", "Air and thought."),))
     stub_manager(
         {
-            QUEEN["id"]: [many_rows(groups=(suit_group(),))],
-            SWORDS["id"]: [many_rows(groups=(swords,))],
+            QUEEN.canonical_id: [many_rows(groups=(suit_group(),))],
+            SWORDS.canonical_id: [many_rows(groups=(swords,))],
         }
     )
     tab = EsotericaTab(QUEEN)
@@ -962,9 +975,9 @@ def source_file(root, identifier, body):
     path.write_text(f'[meta]\nidentifier = "{identifier}"\nname = "{identifier}"\n{body}')
 
 
-STAR_ADVICE = f'[card."{CARD["id"]}".passages]\nadvice.work = "Advice for the star."\n'
-STAR_SYMBOLS = f'[card."{CARD["id"]}".symbols.bird]\ntext = "The bird in the tree."\n'
-STAR_ESSAY = f'[card."{CARD["id"]}".passages]\ntext = "An essay on the star."\n'
+STAR_ADVICE = f'[card."{CARD.canonical_id}".passages]\nadvice.work = "Advice for the star."\n'
+STAR_SYMBOLS = f'[card."{CARD.canonical_id}".symbols.bird]\ntext = "The bird in the tree."\n'
+STAR_ESSAY = f'[card."{CARD.canonical_id}".passages]\ntext = "An essay on the star."\n'
 
 
 @pytest.fixture
@@ -1054,7 +1067,8 @@ def test_a_deleted_tab_no_longer_hears_source_changes(qtbot, scratch_sources, ev
 def test_a_source_change_keeps_the_scroll_position(qtbot, scratch_sources, every_label):
     scratch_sources(
         **{
-            f"essay{i}": f'[card."{CARD["id"]}".passages]\ntext = "{LONG_TEXT}"\n' for i in range(3)
+            f"essay{i}": f'[card."{CARD.canonical_id}".passages]\ntext = "{LONG_TEXT}"\n'
+            for i in range(3)
         },
         symbols=STAR_SYMBOLS,
     )
@@ -1214,7 +1228,11 @@ def test_the_help_button_is_named_and_tipped_by_its_constants(qtbot, stub_manage
 MARSEILLE = SimpleNamespace(
     get_identifier=lambda: None,
     get_pattern=lambda: "land.arcana/pattern/tarot-de-marseille",
-    get_card_by_id=lambda card_id: {"major_arcana.11": {"name": "La <Force>"}}.get(card_id),
+    get_card_by_id=lambda card_id: {
+        "major_arcana.11": Card(
+            canonical_id="major_arcana.11", kind=CardKind.MAJOR, display_name="La <Force>"
+        )
+    }.get(card_id),
 )
 
 

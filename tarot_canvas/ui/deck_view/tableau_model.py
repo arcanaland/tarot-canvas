@@ -2,6 +2,7 @@ from PyQt6.QtCore import QAbstractTableModel, QModelIndex, Qt
 
 from tarot_canvas.models.card_ids import COURTS, MAJOR_ARCANA_COUNT, PIPS, SUITS
 from tarot_canvas.models.card_search import Query
+from tarot_canvas.models.deck_types import CardKind
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.deck_view.card_model import (
     KIND_CARD,
@@ -56,12 +57,12 @@ class TableauModel(QAbstractTableModel):
         rows = self._source.card_rows()
         cards = {row: self._source.index(row, 0).data(CardRole) for row in rows}
 
-        majors = [row for row in rows if cards[row].get("type") == "major_arcana"]
+        majors = [row for row in rows if cards[row].kind is CardKind.MAJOR]
         self._build_majors(majors, cards)
 
         suits = deck.get_suits()
         if suits:
-            minors = [row for row in rows if cards[row].get("suit")]
+            minors = [row for row in rows if cards[row].suit_key]
             self._row_kinds.append(ROW_GAP)
             self._build_minors(deck, suits, minors, cards)
 
@@ -75,13 +76,13 @@ class TableauModel(QAbstractTableModel):
         return len(self._row_kinds) - 1
 
     def _put_card(self, row, column, source_row, card):
-        self._cells[(row, column)] = (KIND_CARD, card.get("name", "Unknown"), source_row)
+        self._cells[(row, column)] = (KIND_CARD, card.display_name, source_row)
 
     def _build_majors(self, majors, cards):
         left = (self._columns - MAJOR_COLUMNS) // 2
         by_number, others = {}, []
         for source_row in majors:
-            number = cards[source_row].get("number")
+            number = cards[source_row].position
             if (
                 isinstance(number, int)
                 and 0 <= number < MAJOR_ARCANA_COUNT
@@ -108,7 +109,7 @@ class TableauModel(QAbstractTableModel):
                 self._put_card(row, column, source_row, cards[source_row])
 
         # Unnumbered, or numbered past 21
-        others.sort(key=lambda r: (cards[r].get("number") is None, cards[r].get("number") or 0))
+        others.sort(key=lambda r: (cards[r].position is None, cards[r].position or 0))
         for position, source_row in enumerate(others):
             if position % MAJOR_COLUMNS == 0:
                 row = self._new_row()
@@ -127,14 +128,14 @@ class TableauModel(QAbstractTableModel):
 
         ranks = list(PIPS + COURTS)
         for source_row in minors:
-            rank = cards[source_row].get("rank")
+            rank = cards[source_row].rank_key
             if rank and rank not in ranks:
                 ranks.append(rank)
 
         by_slot = {}
         for source_row in minors:
             card = cards[source_row]
-            by_slot.setdefault((card.get("suit"), card.get("rank")), source_row)
+            by_slot.setdefault((card.suit_key, card.rank_key), source_row)
 
         for rank in ranks:
             row = self._new_row()

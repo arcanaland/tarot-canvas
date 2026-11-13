@@ -5,7 +5,6 @@ from PyQt6.QtCore import QObject, QPersistentModelIndex, QRect, QSize, Qt
 from PyQt6.QtGui import QColor, QFont, QFontMetrics, QPalette, QPixmap
 from PyQt6.QtWidgets import QStyle
 
-from tarot_canvas.models.deck import pick_raster
 from tarot_canvas.ui import typography, units
 from tarot_canvas.ui.canvas.detail import art_loader, art_size, fit_device_size
 from tarot_canvas.ui.covers.ghost import paint_placeholder_well
@@ -13,8 +12,7 @@ from tarot_canvas.ui.deck_view.card_model import (
     KIND_CARD,
     KIND_HEADING,
     KIND_NOTE,
-    ImageRole,
-    ImagesRole,
+    CardRole,
     KindRole,
 )
 from tarot_canvas.ui.deck_view.tableau_model import KIND_GHOST, KIND_LABEL, DimmedRole
@@ -244,8 +242,8 @@ class CardDelegate(DeckDelegate):
 
     def _paint_cover(self, painter, well, palette, index, selected=False):
         dpr = painter.device().devicePixelRatioF()
-        images = index.data(ImagesRole) or {}
-        path = pick_raster(images, well.height() * dpr) or index.data(ImageRole)
+        card = index.data(CardRole)
+        path = card and (card.raster_for(well.height() * dpr) or card.default_image())
         pixmap = (
             self._art.get(path, well.size(), dpr, self._view() or self.parent(), index)
             if path

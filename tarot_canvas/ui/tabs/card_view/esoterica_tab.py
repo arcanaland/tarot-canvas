@@ -232,7 +232,7 @@ def reseated_note(reading, deck):
         return None
     card = deck.get_card_by_id(reading.written_at)
     slots = {
-        "card": (card or {}).get("name") or reading.written_at,
+        "card": card.display_name if card else reading.written_at,
         "card_id": reading.written_at,
         "deck_pattern": _pattern_name(deck.get_pattern()),
         "source_pattern": _pattern_name(reading.pattern),
@@ -466,7 +466,7 @@ class PassageWidget(QFrame):
             return None
         member = group.group.split(".", 1)[-1]
         if group.family == "suits":
-            text = text.replace("{suit}", self.card.get("display_suit") or member)
+            text = text.replace("{suit}", self.card.display_suit or member)
         elif group.family == "custom":
             text = text.replace("{name}", member)
         # A group's own text is not the card's
@@ -710,7 +710,7 @@ class EsotericaTab(QWidget):
             return
 
         # Get the card ID
-        card_id = card.get("id", "")
+        card_id = card.canonical_id
         if not card_id:
             logger.debug("Card has no ID")
             self.show_no_content()

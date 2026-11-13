@@ -1,4 +1,5 @@
 from tarot_canvas.models.card_ids import SUITS
+from tarot_canvas.models.deck_types import CardKind
 
 MAJOR_ARCANA = "major_arcana"
 
@@ -17,18 +18,15 @@ SLOT_COLOUR = "#7f7f7f"
 ARCANA_KEYS = (MAJOR_ARCANA, *SUITS)
 
 
-def card_colour_key(card):
-    """The CARD_COLOURS key for a card dict by its type then its suit"""
-    if not card:
-        return "default"
-    card_type = card.get("type", "")
-    if card_type == MAJOR_ARCANA:
-        return MAJOR_ARCANA
-    if card_type == "minor_arcana" and card.get("suit", "") in CARD_COLOURS:
-        return card["suit"]
-    return "default"
+def colour_of(kind, suit=None):
+    """The colour for a card's kind then its suit"""
+    if kind is CardKind.MAJOR:
+        return CARD_COLOURS[MAJOR_ARCANA]
+    if kind is CardKind.MINOR and suit in CARD_COLOURS:
+        return CARD_COLOURS[suit]
+    return CARD_COLOURS["default"]
 
 
 def card_colour(card):
-    """The colour for a card dict by its type then its suit"""
-    return CARD_COLOURS[card_colour_key(card)]
+    """The colour for a card, or the default for None"""
+    return colour_of(card.kind, card.suit_key) if card else colour_of(None)

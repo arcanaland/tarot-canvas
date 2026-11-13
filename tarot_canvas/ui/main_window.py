@@ -804,7 +804,7 @@ class MainWindow(QMainWindow):
                     hasattr(tab, "id")
                     and hasattr(tab, "card")
                     and tab.card
-                    and tab.card.get("id") == card.get("id")
+                    and tab.card.canonical_id == card.canonical_id
                 ):
                     # Tab exists, just select it
                     self.raise_tab_into(tab, tab)
@@ -1244,7 +1244,7 @@ class MainWindow(QMainWindow):
                 hasattr(tab, "id")
                 and hasattr(tab, "card")
                 and tab.card
-                and tab.card.get("id") == card.get("id")
+                and tab.card.canonical_id == card.canonical_id
             ):
                 # Tab exists, just select it
                 self.raise_tab_into(tab, tab)
@@ -1266,11 +1266,11 @@ class MainWindow(QMainWindow):
                 # If it's a canvas tab, add the card to it
                 if hasattr(current_tab, "add_specific_card"):
                     current_tab.add_specific_card(card, deck)
-                    logger.debug(f"Adding card to canvas: {card['name']}")
+                    logger.debug(f"Adding card to canvas: {card.display_name}")
             else:
                 # For any other tab type, open a card view
                 self.open_card_view_tab(card, deck)
-                logger.debug(f"Opening card view for: {card['name']}")
+                logger.debug(f"Opening card view for: {card.display_name}")
 
     def open_card_view_tab(self, card, deck, show_notes=False):
         """Open a tab to view a specific card, or raise the one already open, and return it"""
@@ -1281,7 +1281,7 @@ class MainWindow(QMainWindow):
                 hasattr(tab, "id")
                 and hasattr(tab, "card")
                 and tab.card
-                and tab.card.get("id") == card.get("id")
+                and tab.card.canonical_id == card.canonical_id
             ):
                 # Tab exists, just select it
                 self.raise_tab_into(tab, tab)

@@ -5,6 +5,7 @@ from PyQt6.QtCore import QEvent, QPoint, QPointF, Qt
 from PyQt6.QtGui import QColor, QMouseEvent, QPalette, QPixmap, QWheelEvent
 from PyQt6.QtWidgets import QApplication, QDialogButtonBox
 
+from tarot_canvas.models.deck_types import Card, CardKind
 from tarot_canvas.ui.canvas.arc_popover import ARC_DEFAULTS, signed
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
 from tarot_canvas.ui.strings import CANVAS
@@ -26,7 +27,11 @@ def add_cards(tab, count, apart=40):
     pixmap.fill()
     cards = []
     for i in range(count):
-        card = DraggableCardItem(pixmap, {"id": f"card-{i}"}, tab)
+        card = DraggableCardItem(
+            pixmap,
+            Card(canonical_id=f"card-{i}", kind=CardKind.MAJOR, display_name=f"card-{i}"),
+            tab,
+        )
         card.setPos(i * (100 + apart), 0)
         tab.scene.addItem(card)
         card.setZValue(i)

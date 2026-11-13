@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from tarot_canvas.models import notes as notes_model
+from tarot_canvas.models.deck_types import Card, CardImage, CardKind
 from tarot_canvas.models.notes import Note
 from tarot_canvas.ui.library.notes.model import CardIdRole, NoteRole, NotesListModel
 from tarot_canvas.ui.library.roles import PreviewRole, SubtitleRole
@@ -36,7 +37,12 @@ def deck():
     def get_card_by_id(card_id):
         if card_id not in names:
             return None
-        return {"id": card_id, "name": names[card_id], "image": f"/art/{card_id}.png"}
+        return Card(
+            canonical_id=card_id,
+            kind=CardKind.MAJOR,
+            display_name=names[card_id],
+            images=(CardImage(f"/art/{card_id}.png", "raster"),),
+        )
 
     return SimpleNamespace(get_card_by_id=get_card_by_id)
 

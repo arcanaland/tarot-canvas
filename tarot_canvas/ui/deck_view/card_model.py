@@ -8,8 +8,6 @@ from tarot_canvas.ui.strings import DECK_VIEW
 
 KindRole = Qt.ItemDataRole.UserRole + 1
 CardRole = Qt.ItemDataRole.UserRole + 2
-ImagesRole = Qt.ItemDataRole.UserRole + 3
-ImageRole = Qt.ItemDataRole.UserRole + 4
 
 KIND_HEADING = "heading"
 KIND_NOTE = "note"
@@ -19,12 +17,11 @@ RANK_ORDER = {rank: position for position, rank in enumerate(PIPS + COURTS)}
 
 
 def _major_key(card):
-    number = card.get("number")
-    return (number is None, number or 0)
+    return (card.position is None, card.position or 0)
 
 
 def _rank_key(card):
-    return RANK_ORDER.get(card.get("rank"), len(RANK_ORDER))
+    return RANK_ORDER.get(card.rank_key, len(RANK_ORDER))
 
 
 def display_rows(deck):
@@ -33,7 +30,7 @@ def display_rows(deck):
     majors = sorted(deck.get_cards_by_type("major_arcana"), key=_major_key)
     if majors:
         rows.append((KIND_HEADING, DECK_VIEW["major_arcana"], None))
-        rows.extend((KIND_CARD, card.get("name", "Unknown"), card) for card in majors)
+        rows.extend((KIND_CARD, card.display_name, card) for card in majors)
 
     suits = deck.get_suits()
     if not suits:
@@ -46,7 +43,7 @@ def display_rows(deck):
         if not cards:
             continue
         rows.append((KIND_HEADING, deck.get_display_suit_name(suit), None))
-        rows.extend((KIND_CARD, card.get("name", "Unknown"), card) for card in cards)
+        rows.extend((KIND_CARD, card.display_name, card) for card in cards)
     return rows
 
 
@@ -114,10 +111,6 @@ class CardModel(QAbstractListModel):
             return text
         if role == CardRole:
             return card
-        if role == ImagesRole:
-            return card.get("images", {})
-        if role == ImageRole:
-            return card.get("image")
         return None
 
 

@@ -4,6 +4,7 @@ import random
 import tomllib
 
 from tarot_canvas.models.card_ids import COURTS, MAJOR_ARCANA_COUNT, PIPS, SUITS, roman
+from tarot_canvas.models.deck_types import Card, CardImage, CardKind
 from tarot_canvas.utils.logger import logger
 
 CANONICAL_MAJOR_ARCANA_NAMES = {
@@ -44,14 +45,6 @@ def rasters_by_stem(names):
             if stem not in best or rank < best[stem][0]:
                 best[stem] = (rank, name)
     return {stem: name for stem, (_, name) in best.items()}
-
-
-def pick_raster(images, target_height):
-    """The smallest image at or above target_height, else the largest below it."""
-    if not images:
-        return None
-    covering = [height for height in images if height >= target_height]
-    return images[min(covering) if covering else max(images)]
 
 
 class TarotDeck:
@@ -215,7 +208,7 @@ class TarotDeck:
             pass
 
         # Filter out excluded cards
-        filtered_cards = [card for card in cards if card["id"] not in self._excluded_cards]
+        filtered_cards = [card for card in cards if card.canonical_id not in self._excluded_cards]
 
         excluded_count = len(cards) - len(filtered_cards)
         if excluded_count > 0:
@@ -250,9 +243,7 @@ class TarotDeck:
                 # An untitled face keeps its number rather than gaining a name.
                 name = name or numeral or key
 
-            # Find image for the card
-            image_path = self._find_card_image_path("major_arcana", f"{i:02d}")
-            images = self._raster_images("major_arcana", f"{i:02d}")
+            images = self._card_images("major_arcana", key)
 
             # Get alt text for the card
             alt_text = None
@@ -265,16 +256,15 @@ class TarotDeck:
             alt_text = alt_text or self._card_entry(card_id).get("alt_text")
 
             cards.append(
-                {
-                    "id": card_id,
-                    "name": name,
-                    "type": "major_arcana",
-                    "number": i,
-                    "numeral": numeral,
-                    "image": image_path,
-                    "images": images,
-                    "alt_text": alt_text,
-                }
+                Card(
+                    canonical_id=card_id,
+                    kind=CardKind.MAJOR,
+                    display_name=name,
+                    number=numeral,
+                    position=i,
+                    alt_text=alt_text,
+                    images=images,
+                )
             )
 
         return cards
@@ -321,9 +311,7 @@ class TarotDeck:
                 name = f"{rank.capitalize()} of {display_suit}"
             name = name or rank.capitalize()
 
-        # Find image for the card
-        image_path = self._find_card_image_path(f"minor_arcana/{suit}", rank)
-        images = self._raster_images(f"minor_arcana/{suit}", rank)
+        images = self._card_images(f"minor_arcana/{suit}", rank)
 
         # Get alt text for the card
         alt_text = None
@@ -336,17 +324,16 @@ class TarotDeck:
             alt_text = alt_texts["minor_arcana"][suit][rank]
         alt_text = alt_text or self._card_entry(card_id).get("alt_text")
 
-        return {
-            "id": card_id,
-            "name": name,
-            "type": "minor_arcana",
-            "suit": suit,  # Store canonical suit name
-            "display_suit": display_suit,  # Store display suit name
-            "rank": rank,
-            "image": image_path,
-            "images": images,
-            "alt_text": alt_text,
-        }
+        return Card(
+            canonical_id=card_id,
+            kind=CardKind.MINOR,
+            display_name=name,
+            suit_key=suit,
+            rank_key=rank,
+            display_suit=display_suit,
+            alt_text=alt_text,
+            images=images,
+        )
 
     def _build_court_card(self, suit, court, display_suit, names, alt_texts):
         """Build a court card (page, knight, queen, king)."""
@@ -370,9 +357,7 @@ class TarotDeck:
                 name = f"{display_court} of {display_suit}"
             name = name or display_court
 
-        # Find image for the card
-        image_path = self._find_card_image_path(f"minor_arcana/{suit}", court)
-        images = self._raster_images(f"minor_arcana/{suit}", court)
+        images = self._card_images(f"minor_arcana/{suit}", court)
 
         # Get alt text for the card
         alt_text = None
@@ -385,18 +370,33 @@ class TarotDeck:
             alt_text = alt_texts["minor_arcana"][suit][court]
         alt_text = alt_text or self._card_entry(card_id).get("alt_text")
 
-        return {
-            "id": card_id,
-            "name": name,
-            "type": "minor_arcana",
-            "suit": suit,  # Store canonical suit name
-            "display_suit": display_suit,  # Store display suit name
-            "rank": court,
-            "display_rank": display_court,  # Store display rank name
-            "image": image_path,
-            "images": images,
-            "alt_text": alt_text,
+        return Card(
+            canonical_id=card_id,
+            kind=CardKind.MINOR,
+            display_name=name,
+            suit_key=suit,
+            rank_key=court,
+            display_suit=display_suit,
+            display_rank=display_court,
+            alt_text=alt_text,
+            images=images,
+        )
+
+    def _card_images(self, card_type, card_id):
+        """The card's best image first, then its other rasters, highest first."""
+        rasters = {
+            path: CardImage(path, "raster", height)
+            for height, path in sorted(
+                self._raster_images(card_type, card_id).items(), reverse=True
+            )
         }
+        best = self._find_card_image_path(card_type, card_id)
+        if best is None:
+            return tuple(rasters.values())
+        first = rasters.pop(best, None) or CardImage(
+            best, "scalable" if best.endswith(".svg") else "raster"
+        )
+        return (first, *rasters.values())
 
     def _find_card_image_path(self, card_type, card_id):
         """Find the best available image for a card."""
@@ -644,7 +644,7 @@ class TarotDeck:
     def get_card_by_id(self, card_id):
         """Get a card by its ID."""
         for card in self._cards:
-            if card["id"] == card_id:
+            if card.canonical_id == card_id:
                 return card
         return None
 
@@ -662,9 +662,9 @@ class TarotDeck:
             card_type (str): Type of cards to retrieve (e.g., "major_arcana", "minor_arcana")
 
         Returns:
-            list: List of card dictionaries matching the type
+            list: Cards matching the type
         """
-        return [card for card in self._cards if card.get("type") == card_type]
+        return [card for card in self._cards if card.kind.value == card_type]
 
     def get_suits(self):
         """
@@ -676,8 +676,8 @@ class TarotDeck:
         """
         found = []
         for card in self._cards:
-            suit = card.get("suit")
-            if card.get("type") == "minor_arcana" and suit and suit not in found:
+            suit = card.suit_key
+            if card.kind is CardKind.MINOR and suit and suit not in found:
                 found.append(suit)
         return [suit for suit in SUITS if suit in found] + [
             suit for suit in found if suit not in SUITS
@@ -691,9 +691,9 @@ class TarotDeck:
             suit (str): Suit name (e.g., "wands", "cups", "swords", "pentacles")
 
         Returns:
-            list: List of card dictionaries matching the suit
+            list: Cards matching the suit
         """
-        return [card for card in self._cards if card.get("suit") == suit]
+        return [card for card in self._cards if card.suit_key == suit]
 
     def get_display_suit_name(self, canonical_suit):
         """
@@ -788,7 +788,7 @@ class TarotDeck:
         Get all cards from the deck.
 
         Returns:
-            list: List of all card dictionaries in the deck
+            list: Every card in the deck
         """
         return self._cards
 
@@ -804,12 +804,12 @@ class TarotDeck:
             attributes (dict): Dictionary of attributes to match
 
         Returns:
-            dict: Card dictionary or None if not found
+            Card or None if not found
         """
         for card in self._cards:
             matches = True
             for key, value in attributes.items():
-                if key not in card or card[key] != value:
+                if getattr(card, key, None) != value:
                     matches = False
                     break
             if matches:
