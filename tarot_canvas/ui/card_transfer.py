@@ -34,7 +34,7 @@ def cards_mime_data(cards, deck, is_reversed=False):
     payload = {
         "v": PAYLOAD_VERSION,
         "card_id": first.canonical_id,
-        "deck_path": os.fspath(deck.deck_path),
+        "deck_path": os.fspath(deck.root_path),
         "reversed": bool(is_reversed),
     }
 
@@ -43,7 +43,9 @@ def cards_mime_data(cards, deck, is_reversed=False):
 
     mime = QMimeData()
     mime.setData(CARD_MIME, json.dumps(payload).encode("utf-8"))
-    mime.setText("\n".join(f"{card.display_name} \N{EM DASH} {deck.get_name()}" for card in cards))
+    mime.setText(
+        "\n".join(f"{card.display_name} \N{EM DASH} {deck.metadata.name}" for card in cards)
+    )
     image_path = first.default_image()
 
     if len(cards) == 1 and image_path and os.path.exists(image_path):
@@ -75,7 +77,7 @@ def cards_from_mime(mime, decks):
         return []
 
     key = deck_path_key(payload.get("deck_path"))
-    deck = next((d for d in decks if key and deck_path_key(d.deck_path) == key), None)
+    deck = next((d for d in decks if key and deck_path_key(d.root_path) == key), None)
     if deck is None:
         logger.warning(f"Card payload names a deck that is not installed: {key}")
         return []
@@ -87,9 +89,9 @@ def cards_from_mime(mime, decks):
     is_reversed = bool(payload.get("reversed", False))
     resolved = []
     for card_id in card_ids:
-        card = deck.get_card_by_id(card_id)
+        card = deck.find_card(card_id)
         if card is None:
-            logger.warning(f"{deck.get_name()} has no card {card_id!r}")
+            logger.warning(f"{deck.metadata.name} has no card {card_id!r}")
             continue
         resolved.append((card, deck, is_reversed))
     return resolved

@@ -4,6 +4,7 @@ import pytest
 from PyQt6.QtCore import QLocale, Qt
 
 from tarot_canvas.models.catalog import parse_index
+from tarot_canvas.models.deck import read_metadata
 from tarot_canvas.models.deck_types import Card, CardImage, CardKind
 from tarot_canvas.ui.catalog.downloads import DeckState, deck_downloads
 from tarot_canvas.ui.library.decks.model import (
@@ -50,20 +51,13 @@ def fake_deck(
 
     cards = [card(i, CardKind.MAJOR) for i in range(majors)]
     cards += [card(i, CardKind.MINOR) for i in range(minors)]
-    fields = {"author": author, **deck_fields}
     return SimpleNamespace(
-        deck_path=path or f"/decks/{name}",
-        get_name=lambda: name,
-        get_all_cards=lambda: cards,
-        get_cards_by_type=lambda t: [c for c in cards if c.kind.value == t],
-        get_identifier=lambda: identifier,
-        get_deck_id=lambda: None,
-        get_author=lambda: fields.get("artist") or fields.get("author"),
-        get_metadata_fields=lambda: dict(fields),
-        get_license=lambda: fields.get("license"),
-        get_attribution=lambda: fields.get("attribution"),
-        get_description=lambda: fields.get("description", ""),
-        _metadata={"deck": fields},
+        root_path=path or f"/decks/{name}",
+        metadata=read_metadata(
+            {"name": name, "author": author, "identifier": identifier, **deck_fields}
+        ),
+        cards=tuple(cards),
+        cards_of_kind=lambda kind: [c for c in cards if c.kind is kind],
     )
 
 
@@ -97,7 +91,7 @@ def test_cover_prefers_the_fool_then_falls_back(qapp):
 
 def test_cover_falls_back_to_any_card_with_art(qapp):
     deck = fake_deck("Deck", majors=0)
-    deck.get_cards_by_type = lambda t: (
+    deck.cards_of_kind = lambda kind: (
         [
             Card(
                 canonical_id="major_arcana.05",
@@ -107,7 +101,7 @@ def test_cover_falls_back_to_any_card_with_art(qapp):
                 images=(CardImage("/art/five.png", "raster"),),
             )
         ]
-        if t == "major_arcana"
+        if kind is CardKind.MAJOR
         else []
     )
     model = DeckListModel([deck])
@@ -127,7 +121,7 @@ def test_model_exposes_roles_the_delegate_paints(qapp):
     assert model.data(index) == "Rider-Waite-Smith"
     assert model.data(index, SubtitleRole) == "P. C. Smith"
     assert model.data(index, AuthorRole) == "P. C. Smith"
-    assert model.data(index, DeckRole).get_name() == "Rider-Waite-Smith"
+    assert model.data(index, DeckRole).metadata.name == "Rider-Waite-Smith"
 
 
 def test_model_row_count_is_flat(qapp):

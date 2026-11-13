@@ -378,11 +378,8 @@ class MarkdownEditor(QPlainTextEdit):
 
         # Find the card by name
         found_card = None
-        has_get_all_cards = hasattr(ref_deck, "get_all_cards")
-        logger.debug(f"Deck has get_all_cards method: {has_get_all_cards}")
-
         try:
-            cards = getattr(ref_deck, "get_all_cards", lambda: ref_deck._cards)()
+            cards = ref_deck.cards
             logger.debug(f"Retrieved {len(cards) if cards else 0} cards from deck")
 
             for card in cards:
@@ -443,7 +440,7 @@ class MarkdownEditor(QPlainTextEdit):
         # Find the card by name
         found_card = None
         try:
-            cards = getattr(ref_deck, "get_all_cards", lambda: ref_deck._cards)()
+            cards = ref_deck.cards
             logger.debug(f"Looking for card name: {text} among {len(cards) if cards else 0} cards")
 
             for card in cards:

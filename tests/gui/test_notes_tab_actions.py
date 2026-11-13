@@ -32,7 +32,7 @@ def no_dialogs(monkeypatch):
 
 def cards():
     deck = TarotDeck(str(MINIMAL_DECK_PATH))
-    return deck, [c for c in deck.get_all_cards() if c.default_image()]
+    return deck, [c for c in deck.cards if c.default_image()]
 
 
 def open_card_view(qtbot, *filenames, show=False):

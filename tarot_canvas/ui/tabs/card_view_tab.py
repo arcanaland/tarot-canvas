@@ -55,7 +55,7 @@ class CardViewTab(BaseTab):
         self._info_pane_width = 0
 
         if card is None and self.deck:
-            self.card = self.deck.get_random_card()
+            self.card = self.deck.random_card()
 
         # Set the tab name to the card name when it's created
         self.tab_name = self.card.display_name if self.card else CARD_VIEW["tab_fallback"]
@@ -466,7 +466,7 @@ class CardViewTab(BaseTab):
     def can_go(self, where):
         if self.card is None or self.deck is None:
             return False
-        cards = self.deck.get_all_cards()
+        cards = self.deck.cards
         index = self._card_index(cards)
         if where in ("previous", "first"):
             return index is not None and index > 0
@@ -496,20 +496,20 @@ class CardViewTab(BaseTab):
 
     def step_card(self, delta):
         """The previous or next card in the deck's order; nothing past either end"""
-        cards = self.deck.get_all_cards()
+        cards = self.deck.cards
         index = self._card_index(cards)
         if index is not None and 0 <= index + delta < len(cards):
             self.show_card(cards[index + delta])
 
     def show_card_at(self, index):
         """The card at index in the deck's order; negative counts from the end"""
-        cards = self.deck.get_all_cards()
+        cards = self.deck.cards
         if cards and cards[index].canonical_id != self.card.canonical_id:
             self.show_card(cards[index])
 
     def draw_card(self):
         """Any other card from this deck, the card view's Summon Card"""
         card_id = self.card.canonical_id
-        others = [c for c in self.deck.get_all_cards() if c.canonical_id != card_id]
+        others = [c for c in self.deck.cards if c.canonical_id != card_id]
         if others:
             self.show_card(random.choice(others))

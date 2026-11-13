@@ -44,8 +44,8 @@ class DeckManager:
                     try:
                         logger.debug(f"Loading deck from {deck_path}")
                         deck = TarotDeck(deck_path)
-                        self.decks[deck.get_name()] = deck
-                        logger.info(f"Loaded deck '{deck.get_name()}' from {deck_path}")
+                        self.decks[deck.metadata.name] = deck
+                        logger.info(f"Loaded deck '{deck.metadata.name}' from {deck_path}")
                     except Exception as e:
                         logger.error(f"Error loading deck {deck_path}: {e}")
 
@@ -98,7 +98,7 @@ class DeckManager:
         """(deck, card) for every deck that has card_id with its image on disk."""
         found = []
         for deck in self.get_all_decks():
-            card = deck.get_card_by_id(card_id)
+            card = deck.find_card(card_id)
             if card and card.default_image() and os.path.exists(card.default_image()):
                 found.append((deck, card))
         return found

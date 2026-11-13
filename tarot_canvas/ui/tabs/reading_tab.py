@@ -409,7 +409,7 @@ class ReadingTab(SpreadSlots, CanvasTab):
         if self.phase is Phase.STAGED:
             self.deck = self.pane.chosen_deck()
             # The next reading starts with it too
-            set_readings_deck(self.deck.deck_path if self.deck is not None else "")
+            set_readings_deck(self.deck.root_path if self.deck is not None else "")
             self.refresh_rows()
 
     def display_name(self):
@@ -495,7 +495,7 @@ class ReadingTab(SpreadSlots, CanvasTab):
 
     def _pool(self):
         """The deck's cards that can be drawn: those with a face to turn up"""
-        cards = list(self.deck.get_all_cards()) if self.deck is not None else []
+        cards = list(self.deck.cards) if self.deck is not None else []
         return [
             card for card in cards if card.default_image() and os.path.exists(card.default_image())
         ]
@@ -552,10 +552,10 @@ class ReadingTab(SpreadSlots, CanvasTab):
             self._landed.add(item)
 
         drawable = self._pool()
-        faceless = len(self.deck.get_all_cards()) - len(drawable)
+        faceless = len(self.deck.cards) - len(drawable)
         if faceless:
             logger.info(
-                f"Left {faceless} cards with no face out of the draw from {self.deck.get_name()}"
+                f"Left {faceless} cards with no face out of the draw from {self.deck.metadata.name}"
             )
         taken = self._taken_ids()
         pool = [card for card in drawable if card.canonical_id not in taken]

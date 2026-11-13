@@ -54,7 +54,7 @@ def tab(qtbot):
 
 @pytest.fixture
 def full_tab(qtbot, full_deck):
-    return shown(qtbot, full_deck.deck_path, width=1300, height=800)
+    return shown(qtbot, full_deck.root_path, width=1300, height=800)
 
 
 def indexes(tab, kind):
@@ -195,7 +195,7 @@ def test_nothing_selected_has_nothing_to_copy(tab):
 
 @pytest.mark.parametrize("width", [700, 1300])
 def test_each_heading_starts_a_line_and_no_card_shares_it(qtbot, full_deck, width):
-    tab = shown(qtbot, full_deck.deck_path, width=width, height=800)
+    tab = shown(qtbot, full_deck.root_path, width=width, height=800)
     grid = tab.grid
     headings = [grid.visualRect(index) for index in indexes(tab, KIND_HEADING)]
     cards = [grid.visualRect(index) for index in indexes(tab, KIND_CARD)]
@@ -209,7 +209,7 @@ def test_each_heading_starts_a_line_and_no_card_shares_it(qtbot, full_deck, widt
 
 
 def test_a_resize_lays_the_headings_out_again(qtbot, full_deck):
-    tab = shown(qtbot, full_deck.deck_path, width=1300, height=800)
+    tab = shown(qtbot, full_deck.root_path, width=1300, height=800)
     wide = tab.grid.height()
 
     def headings_span():
@@ -224,7 +224,7 @@ def test_a_resize_lays_the_headings_out_again(qtbot, full_deck):
 
 def test_a_resize_warns_neither_view(qtbot, qtlog, full_deck):
     # The grid and the tableau share a delegate over different models
-    tab = shown(qtbot, full_deck.deck_path, width=1300, height=800)
+    tab = shown(qtbot, full_deck.root_path, width=1300, height=800)
     tab.resize(700, 800)
     qtbot.waitUntil(lambda: tab.grid.width() < 1300)
     qtbot.wait(50)
@@ -498,7 +498,7 @@ def test_density_is_remembered_apart_from_the_librarys(full_tab):
 
 def test_a_remembered_density_is_where_the_slider_starts(qtbot, full_deck):
     get_settings().setValue(DECK_VIEW_DENSITY_KEY, units.DENSITY_SMALL)
-    tab = shown(qtbot, full_deck.deck_path)
+    tab = shown(qtbot, full_deck.root_path)
     assert tab.zoom_slider.key() == units.DENSITY_SMALL
     assert tab.delegate.density == units.DENSITY_SMALL
 

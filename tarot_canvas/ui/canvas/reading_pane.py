@@ -569,7 +569,7 @@ class ReadingPane(SidePane):
         self.deck_combo.setFrame(False)
         self.deck_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         for each in decks:
-            self.deck_combo.addItem(each.get_name(), each)
+            self.deck_combo.addItem(each.metadata.name, each)
             if each is deck:
                 self.deck_combo.setCurrentIndex(self.deck_combo.count() - 1)
         self.deck_label = QLabel()
@@ -625,7 +625,7 @@ class ReadingPane(SidePane):
         self.deck_combo.setVisible(staged)
         self.deck_combo.setEnabled(staged and draws)
         self.deck_label.setVisible(not staged)
-        self.deck_label.setText("\n".join(deck.get_name() for deck in decks))
+        self.deck_label.setText("\n".join(deck.metadata.name for deck in decks))
         self.reversals_check.setVisible(staged)
         self.reversals_check.setEnabled(staged and draws)
         told = not staged and reversals is not None

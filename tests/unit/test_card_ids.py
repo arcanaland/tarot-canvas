@@ -23,4 +23,4 @@ def test_a_deck_with_nothing_excluded_walks_the_canonical_order(tmp_path):
     )
     deck = TarotDeck(str(tmp_path))
 
-    assert tuple(c.canonical_id for c in deck.get_all_cards()) == CANONICAL_CARD_IDS
+    assert tuple(c.canonical_id for c in deck.cards) == CANONICAL_CARD_IDS

@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFontMetrics
 from PyQt6.QtWidgets import QAbstractItemView
@@ -143,7 +145,7 @@ def test_decks_changed_repopulates_the_deck_selector(qtbot, stub_deck_manager, m
     assert explorer.deck_selector.count() == 1
 
     second = TarotDeck(str(MINIMAL_DECK_PATH))
-    second._metadata["deck"]["name"] = "Second Deck"
+    second.metadata = replace(second.metadata, name="Second Deck")
     stub_deck_manager.get_all_decks = lambda: [minimal_deck, second]
     deck_events().decks_changed.emit()
 

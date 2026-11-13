@@ -35,7 +35,7 @@ def make_tab(qtbot, deck, width, height, deck_count=1, stub=None):
         stub.get_all_decks = lambda: [deck] * deck_count
         stub.get_reference_deck = lambda: deck
 
-    card = next(c for c in deck.get_all_cards() if c.default_image())
+    card = next(c for c in deck.cards if c.default_image())
     tab = CardViewTab(card=card, deck=deck)
     qtbot.addWidget(tab)
     tab.resize(width, height)
@@ -103,7 +103,9 @@ def test_card_fills_a_wide_pane_without_waiting_for_a_resize(qtbot, big_image_de
 
 def test_the_bars_do_not_pin_the_pane_wide(qtbot, big_image_deck, stub_deck_manager):
     """A long deck name must elide rather than force a minimum width on the pane."""
-    big_image_deck._metadata["deck"]["name"] = "A Deck With An Extravagantly Long Name " * 3
+    big_image_deck.metadata = replace(
+        big_image_deck.metadata, name="A Deck With An Extravagantly Long Name " * 3
+    )
     tab = make_tab(qtbot, big_image_deck, 700, 900, deck_count=2, stub=stub_deck_manager)
 
     button = tab.deck_bar.deck_button
@@ -114,7 +116,7 @@ def test_the_bars_do_not_pin_the_pane_wide(qtbot, big_image_deck, stub_deck_mana
 
 
 def test_the_deck_name_is_not_squeezed(qtbot, big_image_deck, stub_deck_manager):
-    big_image_deck._metadata["deck"]["name"] = "Rider-Waite-Smith"
+    big_image_deck.metadata = replace(big_image_deck.metadata, name="Rider-Waite-Smith")
     tab = make_tab(qtbot, big_image_deck, 700, 900, deck_count=2, stub=stub_deck_manager)
     button = tab.deck_bar.deck_button
 
@@ -173,7 +175,7 @@ def test_a_deck_outside_the_library_is_still_named(qtbot, big_image_deck, stub_d
     stub_deck_manager.get_all_decks = list
     tab = make_tab(qtbot, big_image_deck, 900, 900)
 
-    assert tab.deck_bar.deck_button.title() == big_image_deck.get_name()
+    assert tab.deck_bar.deck_button.title() == big_image_deck.metadata.name
     assert not tab.deck_bar.isVisibleTo(tab)
 
 
@@ -389,7 +391,7 @@ def test_a_deck_installed_after_a_card_view_is_deleted_does_not_crash(
     from tarot_canvas.models.deck_events import deck_events
 
     stub_deck_manager.get_all_decks = lambda: [big_image_deck]
-    card = next(c for c in big_image_deck.get_all_cards() if c.default_image())
+    card = next(c for c in big_image_deck.cards if c.default_image())
     tab = CardViewTab(card=card, deck=big_image_deck)  # not qtbot's: the test deletes it
     qtbot.wait(150)  # past the tab's 100 ms singleShot, which a deleted tab can't take
     tab.deleteLater()
@@ -575,7 +577,7 @@ def test_a_card_found_with_ctrl_p_takes_ctrl_digit_straight_away(qtbot, big_imag
     with qtbot.waitActive(window):
         window.show()
         window.activateWindow()
-    card = next(c for c in big_image_deck.get_all_cards() if c.default_image())
+    card = next(c for c in big_image_deck.cards if c.default_image())
     # What the palette does with the card picked
     window.handle_command_palette_selection(card, big_image_deck)
     tab = window.tab_widget.currentWidget()

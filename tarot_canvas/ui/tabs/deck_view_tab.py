@@ -384,7 +384,7 @@ class DeckViewTab(BaseTab):
             copy_cards_to_clipboard(cards, self.deck)
 
     def tab_title(self):
-        return self.deck.get_name()
+        return self.deck.metadata.name
 
     def tab_icon(self):
         return deck_icon()

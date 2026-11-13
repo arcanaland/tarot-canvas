@@ -21,7 +21,7 @@ def write_note(notes_base, card_id, filename, body):
 
 def open_card_view(qtbot, register=True):
     deck = TarotDeck(str(MINIMAL_DECK_PATH))
-    card = next(c for c in deck.get_all_cards() if c.default_image())
+    card = next(c for c in deck.cards if c.default_image())
     tab = CardViewTab(card=card, deck=deck)
     if register:
         qtbot.addWidget(tab)

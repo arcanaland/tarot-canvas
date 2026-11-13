@@ -159,7 +159,7 @@ def test_card_is_drawn_under_the_pointer(qtbot, minimal_deck):
     spot = QPoint(120, 90)
     hover_canvas(tab, spot)
 
-    tab.add_specific_card(minimal_deck.get_random_card())
+    tab.add_specific_card(minimal_deck.random_card())
 
     card = only_card(tab)
     centre = card.sceneBoundingRect().center()
@@ -173,7 +173,7 @@ def test_card_falls_back_to_the_view_centre_when_the_pointer_is_away(qtbot, mini
     hover_canvas(tab, QPoint(120, 90))
     QApplication.sendEvent(tab.view.viewport(), QEvent(QEvent.Type.Leave))
 
-    tab.add_specific_card(minimal_deck.get_random_card())
+    tab.add_specific_card(minimal_deck.random_card())
 
     centre = only_card(tab).sceneBoundingRect().center()
     view_centre = tab.view.mapToScene(tab.view.viewport().rect().center())
@@ -186,7 +186,7 @@ def test_repeated_draws_cascade_instead_of_stacking(qtbot, minimal_deck):
     tab = make_tab(qtbot)
     hover_canvas(tab, QPoint(120, 90))
 
-    positions = [tab.add_specific_card(minimal_deck.get_random_card()).pos() for _ in range(3)]
+    positions = [tab.add_specific_card(minimal_deck.random_card()).pos() for _ in range(3)]
     assert len({(p.x(), p.y()) for p in positions}) == 3
 
 
@@ -502,7 +502,7 @@ def test_flip_and_rotate_drive_the_orient_channel(qtbot):
 
 def test_a_flip_keeps_the_rotation(qtbot, minimal_deck):
     tab = make_tab(qtbot)
-    card = minimal_deck.get_all_cards()[0]
+    card = minimal_deck.cards[0]
     item = tab.add_specific_card(card, card_deck=minimal_deck)
 
     tab.on_rotate_card()
@@ -517,7 +517,7 @@ def test_a_flip_keeps_the_rotation(qtbot, minimal_deck):
 
 def test_a_card_summoned_reversed_is_drawn_upside_down(qtbot, minimal_deck):
     tab = make_tab(qtbot)
-    card = minimal_deck.get_all_cards()[0]
+    card = minimal_deck.cards[0]
 
     item = tab.add_specific_card(card, card_deck=minimal_deck, is_reversed=True)
 
@@ -565,7 +565,7 @@ def drag_over(tab, mime, viewport_pos):
 def test_a_dropped_card_lands_centred_under_the_drop(qtbot, minimal_deck):
     tab = make_tab(qtbot)
     spot = QPoint(160, 120)
-    card = minimal_deck.get_card_by_id("major_arcana.01")
+    card = minimal_deck.find_card("major_arcana.01")
 
     enter, move, drop = drag_over(tab, card_mime_data(card, minimal_deck), spot)
 
@@ -584,7 +584,7 @@ def test_a_drop_ignores_the_stale_pointer(qtbot, minimal_deck):
     """A drag delivers no Enter, so the tracked pointer is wherever it last was."""
     tab = make_tab(qtbot)
     hover_canvas(tab, QPoint(40, 40))
-    card = minimal_deck.get_card_by_id("major_arcana.00")
+    card = minimal_deck.find_card("major_arcana.00")
 
     drag_over(tab, card_mime_data(card, minimal_deck), QPoint(260, 200))
 
@@ -610,7 +610,7 @@ def test_the_toolbar_paste_button_follows_the_clipboard(qtbot, clipboard, minima
     assert not tab.paste_action.isEnabled()
     assert tab.paste_action.shortcut().isEmpty(), "Ctrl+V belongs to Edit > Paste Card"
 
-    copy_card_to_clipboard(minimal_deck.get_card_by_id("major_arcana.00"), minimal_deck)
+    copy_card_to_clipboard(minimal_deck.find_card("major_arcana.00"), minimal_deck)
     assert tab.paste_action.isEnabled()
 
     tab.paste_action.trigger()
@@ -619,7 +619,7 @@ def test_the_toolbar_paste_button_follows_the_clipboard(qtbot, clipboard, minima
 
 def test_a_copy_pastes_as_often_as_you_like(qtbot, clipboard, minimal_deck):
     tab = make_tab(qtbot)
-    card = minimal_deck.get_card_by_id("major_arcana.00")
+    card = minimal_deck.find_card("major_arcana.00")
     copy_card_to_clipboard(card, minimal_deck)
     spot = QPointF(40, 40)
 
@@ -634,7 +634,7 @@ def test_a_copy_pastes_as_often_as_you_like(qtbot, clipboard, minimal_deck):
 
 def test_pasting_once_does_not_stop_a_drop(qtbot, clipboard, minimal_deck):
     tab = make_tab(qtbot)
-    card = minimal_deck.get_card_by_id("major_arcana.00")
+    card = minimal_deck.find_card("major_arcana.00")
     copy_card_to_clipboard(card, minimal_deck)
     tab.paste_action.trigger()
 
@@ -653,7 +653,7 @@ def test_a_paste_naming_a_removed_deck_places_nothing(qtbot, clipboard, minimal_
     gone = TarotDeck(str(tmp_path / "gone"))
     tab = make_tab(qtbot)
 
-    assert tab.paste_card(card_mime_data(gone.get_random_card(), gone)) is None
+    assert tab.paste_card(card_mime_data(gone.random_card(), gone)) is None
     assert [i for i in tab.scene.items() if isinstance(i, DraggableCardItem)] == []
 
 
@@ -664,7 +664,7 @@ def test_pasting_three_cards_places_three_at_distinct_positions(
     ids = ["major_arcana.00", "minor_arcana.cups.two", "minor_arcana.swords.queen"]
     tab = make_tab(qtbot)
 
-    first = tab.paste_card(cards_mime_data([full_deck.get_card_by_id(i) for i in ids], full_deck))
+    first = tab.paste_card(cards_mime_data([full_deck.find_card(i) for i in ids], full_deck))
 
     placed = canvas_cards(tab)
     assert sorted(item.card_data.canonical_id for item in placed) == sorted(ids)
@@ -1232,9 +1232,9 @@ def menu_layout(menu):
 
 def test_right_clicking_an_unselected_card_selects_only_it(qtbot, stub_deck_manager, minimal_deck):
     tab = make_tab(qtbot)
-    other = tab.add_specific_card(minimal_deck.get_all_cards()[1], card_deck=minimal_deck)
+    other = tab.add_specific_card(minimal_deck.cards[1], card_deck=minimal_deck)
     first = tab.add_specific_card(
-        minimal_deck.get_all_cards()[0], card_deck=minimal_deck, at=other.pos() + QPointF(900, 0)
+        minimal_deck.cards[0], card_deck=minimal_deck, at=other.pos() + QPointF(900, 0)
     )
     first.setSelected(False)
     other.setSelected(True)
@@ -1316,7 +1316,7 @@ def swap_rows(menu):
 
 def test_swap_lists_the_decks_that_have_the_card(qtbot, minimal_deck, other_deck):
     tab = make_tab(qtbot)
-    card = tab.add_specific_card(minimal_deck.get_all_cards()[0], card_deck=minimal_deck)
+    card = tab.add_specific_card(minimal_deck.cards[0], card_deck=minimal_deck)
 
     swap, (here, there) = swap_rows(tab.card_menu(card_centre(card)))
 
@@ -1327,7 +1327,7 @@ def test_swap_lists_the_decks_that_have_the_card(qtbot, minimal_deck, other_deck
 
 def test_swap_is_disabled_with_no_other_deck(qtbot, stub_deck_manager, minimal_deck):
     tab = make_tab(qtbot)
-    card = tab.add_specific_card(minimal_deck.get_all_cards()[0], card_deck=minimal_deck)
+    card = tab.add_specific_card(minimal_deck.cards[0], card_deck=minimal_deck)
 
     swap, rows = swap_rows(tab.card_menu(card_centre(card)))
 
@@ -1337,7 +1337,7 @@ def test_swap_is_disabled_with_no_other_deck(qtbot, stub_deck_manager, minimal_d
 
 def test_swap_keeps_the_card_exactly_where_it_lay(qtbot, minimal_deck, other_deck):
     tab = make_tab(qtbot)
-    cards = minimal_deck.get_all_cards()
+    cards = minimal_deck.cards
     tab.add_specific_card(cards[1], card_deck=minimal_deck)
     card = tab.add_specific_card(cards[0], card_deck=minimal_deck, at=QPointF(900, 0))
     card.set_orient(90)
@@ -1363,13 +1363,11 @@ def test_swap_keeps_the_card_exactly_where_it_lay(qtbot, minimal_deck, other_dec
 
 def test_swap_turns_nothing_on_screen(qtbot, minimal_deck, other_deck):
     tab = make_tab(qtbot)
-    card = tab.add_specific_card(minimal_deck.get_all_cards()[0], card_deck=minimal_deck)
+    card = tab.add_specific_card(minimal_deck.cards[0], card_deck=minimal_deck)
     card.set_orient(90)
     card.settle_motion()
 
-    swapped = tab.swap_card(
-        card, other_deck, other_deck.get_card_by_id(card.card_data.canonical_id)
-    )
+    swapped = tab.swap_card(card, other_deck, other_deck.find_card(card.card_data.canonical_id))
 
     assert swapped.motion.orient_lag == 0.0
     assert swapped.motion.drawn_angle() == card.motion.drawn_angle()
@@ -1734,7 +1732,7 @@ def test_paste_on_the_ground_is_disabled_without_a_card(qtbot, clipboard):
 
 def test_paste_on_the_ground_lands_where_you_clicked(qtbot, clipboard, minimal_deck):
     tab = make_tab(qtbot)
-    copy_card_to_clipboard(minimal_deck.get_card_by_id("major_arcana.00"), minimal_deck)
+    copy_card_to_clipboard(minimal_deck.find_card("major_arcana.00"), minimal_deck)
     spot = QPointF(5000, 5000)
 
     ground_entry(tab.card_menu(spot), "window.paste_card").trigger()
@@ -1756,7 +1754,7 @@ def test_copy_and_cut_on_a_card_take_one_card(qtbot, clipboard, minimal_deck):
     tab = make_tab(qtbot)
     first, second = (
         tab.add_specific_card(card, card_deck=minimal_deck, at=QPointF(400 * i, 0))
-        for i, card in enumerate(minimal_deck.get_all_cards()[:2])
+        for i, card in enumerate(minimal_deck.cards[:2])
     )
     first.setSelected(True)
 

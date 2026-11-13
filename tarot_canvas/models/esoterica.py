@@ -523,7 +523,7 @@ class EsotericaManager:
 
         sources = self._enabled()
         if deck is not None:
-            identifier = deck.get_identifier()
+            identifier = deck.metadata.identifier
             sources = [source for source in sources if _is_shown_on(source, identifier)]
             sources.sort(key=lambda source: identifier not in _decks_about(source))
 
@@ -533,7 +533,7 @@ class EsotericaManager:
             written_at, divergent = canonical, False
             if deck is not None:
                 about_deck = identifier in _decks_about(source)
-                written_at, divergent = _seat(canonical, deck.get_pattern(), source["pattern"])
+                written_at, divergent = _seat(canonical, deck.metadata.pattern, source["pattern"])
             target = source["cards"].get(written_at)
             entries = _flatten(target) if isinstance(target, dict) else ()
             groups = _read_groups(source["groups"], canonical)

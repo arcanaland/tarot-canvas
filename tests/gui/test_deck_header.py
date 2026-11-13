@@ -1,8 +1,11 @@
+from types import SimpleNamespace
+
 import pytest
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QApplication
 
+from tarot_canvas.models.deck import read_metadata
 from tarot_canvas.models.deck_types import Card, CardKind
 from tarot_canvas.settings import DECK_HEADER_EXPANDED_KEY, get_settings
 from tarot_canvas.ui.library.decks import header as deck_header
@@ -16,7 +19,6 @@ from tarot_canvas.ui.widgets.cover_banner import (
 from tarot_canvas.ui.widgets.tag_chips import TagChips
 
 FULL_METADATA = {
-    "id": "rider-waite-smith",
     "schema_version": "1.0",
     "name": "Rider-Waite-Smith Tarot",
     "version": "1.1",
@@ -46,35 +48,12 @@ def make_deck(**overrides):
         for i in range(22)
     ]
 
-    def field(key, default=None):
-        value = fields.get(key)
-        return value if value not in (None, "") else default
-
-    class Deck:
-        deck_path = "/decks/rws"
-
-        def get_name(self):
-            return field("name", "Unknown Deck")
-
-        def get_version(self):
-            return field("version", "Unknown Version")
-
-        def get_description(self):
-            return field("description", "")
-
-        def get_author(self):
-            return field("author")
-
-        def get_all_cards(self):
-            return cards
-
-        def get_cards_by_type(self, card_type):
-            return [c for c in cards if c.kind.value == card_type]
-
-        def get_metadata_fields(self):
-            return dict(fields)
-
-    return Deck()
+    return SimpleNamespace(
+        root_path="/decks/rws",
+        metadata=read_metadata(fields),
+        cards=tuple(cards),
+        cards_of_kind=lambda kind: [c for c in cards if c.kind is kind],
+    )
 
 
 @pytest.fixture(autouse=True)

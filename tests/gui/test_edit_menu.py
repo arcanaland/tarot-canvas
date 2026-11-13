@@ -21,7 +21,7 @@ def cards_on(canvas):
 def canvas_with_cards(qtbot, deck, count=2, reversed_=False):
     window = make_shown_window(qtbot)
     canvas = window.new_canvas_tab()
-    for card in deck.get_all_cards()[:count]:
+    for card in deck.cards[:count]:
         canvas.add_specific_card(card, card_deck=deck, is_reversed=reversed_)
     activate(qtbot, window, canvas.view)
     return window, canvas
@@ -164,7 +164,7 @@ def test_ctrl_f_in_a_library_goes_to_its_search_field(qtbot):
 
 def test_ctrl_f_in_a_deck_view_goes_to_its_find_field(qtbot, full_deck):
     window = make_shown_window(qtbot)
-    tab = window.new_deck_view_tab(deck_path=full_deck.deck_path)
+    tab = window.new_deck_view_tab(deck_path=full_deck.root_path)
     activate(qtbot, window, tab.grid)
 
     qtbot.keyClick(tab.grid, Qt.Key.Key_F, CTRL)
@@ -188,7 +188,7 @@ def test_edit_copy_in_the_deck_view_copies_every_selected_card(qtbot, clipboard,
     from tarot_canvas.ui.deck_view.card_model import CardRole
 
     window = make_shown_window(qtbot)
-    tab = window.new_deck_view_tab(deck_path=full_deck.deck_path)
+    tab = window.new_deck_view_tab(deck_path=full_deck.root_path)
     activate(qtbot, window, tab.grid)
     assert not window.copy_card_action.isEnabled()
 

@@ -5,7 +5,7 @@ def card_in(deck, card_id):
     if deck is None:
         return None
     try:
-        return deck.get_card_by_id(card_id)
+        return deck.find_card(card_id)
     except Exception:
         return None
 

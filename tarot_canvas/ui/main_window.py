@@ -1363,7 +1363,7 @@ class MainWindow(QMainWindow):
             return
 
         # Create a deck view tab with the reference deck path
-        self.new_deck_view_tab(deck_path=reference_deck.deck_path)
+        self.new_deck_view_tab(deck_path=reference_deck.root_path)
         self.close_welcome_tab()
 
     def show_command_palette(self):

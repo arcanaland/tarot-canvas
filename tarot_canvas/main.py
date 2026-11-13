@@ -187,7 +187,7 @@ def main():
     main_window.show()
 
     # Process URI argument if provided
-    process_uri_argument(app.arguments(), main_window)
+    process_uri_argument(app.arguments()[1:], main_window)
 
     # Run the application event loop
     exit_code = app.exec()
@@ -216,39 +216,12 @@ def process_uri_argument(args, main_window):
         # Remove any leading/trailing slashes
         card_id = path.strip("/")
 
-        # Find the card
-        if card_id:
-            card_parts = card_id.split(".")
-
-            # Get reference deck
-            deck = deck_manager.get_reference_deck()
-
-            # Find the card
-            card = None
-            if deck and len(card_parts) >= 2:
-                # For minor arcana: minor_arcana.wands.queen
-                if card_parts[0] == "minor_arcana" and len(card_parts) == 3:
-                    card = deck.find_card_by_attributes(
-                        {"type": "minor_arcana", "suit": card_parts[1], "rank": card_parts[2]}
-                    )
-                # For major arcana: major_arcana.0
-                elif card_parts[0] == "major_arcana" and len(card_parts) == 2:
-                    card = deck.find_card_by_attributes(
-                        {"type": "major_arcana", "number": card_parts[1]}
-                    )
-                else:
-                    # Try to find by direct ID
-                    card = deck.get_card(card_id)
-            else:
-                # Try to find by direct ID if deck exists
-                if deck:
-                    card = deck.get_card(card_id)
-
-            # If card found, open it
-            if card:
-                main_window.open_card_view(card, deck)
-            else:
-                logger.warning(f"Card not found in the reference deck: {card_id}")
+        deck = deck_manager.get_reference_deck()
+        card = deck.find_card(card_id) if deck and card_id else None
+        if card:
+            main_window.open_card_view(card, deck)
+        elif card_id:
+            logger.warning(f"Card not found in the reference deck: {card_id}")
 
 
 if __name__ == "__main__":

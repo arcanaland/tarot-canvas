@@ -3,6 +3,7 @@
 from PyQt6.QtCore import QAbstractListModel, QLocale, QSortFilterProxyModel, Qt, pyqtSlot
 
 from tarot_canvas.models.catalog import available_entries
+from tarot_canvas.models.deck_types import CardKind
 from tarot_canvas.settings import get_recent_decks
 from tarot_canvas.ui.catalog.client import deck_catalog
 from tarot_canvas.ui.catalog.downloads import DeckState, deck_downloads
@@ -24,7 +25,7 @@ SORT_RECENT = "recent"
 
 def deck_cover_path(deck):
     """The Fool if the deck has one, else any major arcana card with art."""
-    major_arcana = deck.get_cards_by_type("major_arcana")
+    major_arcana = deck.cards_of_kind(CardKind.MAJOR)
     for card in major_arcana:
         if card.position == 0 and card.default_image():
             return card.default_image()
@@ -35,14 +36,11 @@ def deck_cover_path(deck):
 
 
 def deck_author(deck):
-    fields = deck._metadata.get("deck", {})
-    return fields.get("artist") or fields.get("author") or LIBRARY["unknown_author"]
+    return deck.metadata.artist or LIBRARY["unknown_author"]
 
 
 def is_majors_only(deck):
-    return bool(deck.get_cards_by_type("major_arcana")) and not deck.get_cards_by_type(
-        "minor_arcana"
-    )
+    return bool(deck.cards_of_kind(CardKind.MAJOR)) and not deck.cards_of_kind(CardKind.MINOR)
 
 
 def deck_subtitle(deck, abbreviated=False):
@@ -103,7 +101,7 @@ class DeckListModel(QAbstractListModel):
         deck = self._decks[index.row()]
 
         if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.AccessibleTextRole):
-            return deck.get_name()
+            return deck.metadata.name
         if role == DeckRole:
             return deck
         if role == SubtitleRole:
@@ -113,13 +111,13 @@ class DeckListModel(QAbstractListModel):
         if role == AuthorRole:
             return deck_author(deck)
         if role == CardCountRole:
-            return len(deck.get_all_cards())
+            return len(deck.cards)
         if role == DeckPathRole:
-            return deck.deck_path
+            return deck.root_path
         if role == SearchRole:
-            return f"{deck.get_name()} {deck_author(deck)}"
+            return f"{deck.metadata.name} {deck_author(deck)}"
         if role == Qt.ItemDataRole.ToolTipRole:
-            return f"{deck.get_name()}\n{deck_subtitle(deck)}"
+            return f"{deck.metadata.name}\n{deck_subtitle(deck)}"
         if role == StateRole:
             return DeckState.INSTALLED
         return None

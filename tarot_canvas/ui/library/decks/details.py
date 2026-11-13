@@ -41,13 +41,13 @@ def details_for(index):
 def _installed(index, deck):
     return DeckDetails(
         name=_text(index.data(Qt.ItemDataRole.DisplayRole)),
-        artist=_text(deck.get_author()),
+        artist=_text(deck.metadata.artist),
         cover_path=index.data(CoverPathRole),
         card_count=index.data(CardCountRole) or None,
-        version=_text(deck.get_metadata_fields().get("version")),
-        license=_text(deck.get_license()),
-        attribution=_text(deck.get_attribution()),
-        description=_text(deck.get_description()),
+        version=_text(deck.metadata.version),
+        license=_text(deck.metadata.license),
+        attribution=_text(deck.metadata.attribution),
+        description=_text(deck.metadata.description),
         size=None,
         state=DeckState.INSTALLED,
         progress=None,

@@ -134,7 +134,7 @@ def test_activation_opens_the_deck_in_a_tab(library, monkeypatch):
 
     index = library.decks_page.list_model.index(0, 0)
     library.decks_page.list_view.activated.emit(index)
-    assert opened == [index.data(DeckRole).deck_path]
+    assert opened == [index.data(DeckRole).root_path]
 
 
 def test_activation_records_recency(library, monkeypatch):
@@ -144,7 +144,7 @@ def test_activation_records_recency(library, monkeypatch):
     index = library.decks_page.list_model.index(0, 0)
     library.decks_page.list_view.activated.emit(index)
 
-    assert index.data(DeckRole).deck_path in get_recent_decks()
+    assert index.data(DeckRole).root_path in get_recent_decks()
 
 
 def test_sort_and_density_persist(library, qtbot):
@@ -339,7 +339,7 @@ def test_a_click_opens_the_pane_on_the_clicked_deck(shown_library, qtbot):
 def test_a_keyboard_move_opens_the_pane(shown_library, qtbot):
     shown_library.decks_page.list_view.setFocus()
     # Zodiac, which the default name sort puts second, so Left has somewhere to go
-    shown_library.decks_page.select_deck_path(DECKS[0].deck_path)
+    shown_library.decks_page.select_deck_path(DECKS[0].root_path)
     assert not shown_library.details_pane_is_open()
 
     qtbot.keyClick(shown_library.decks_page.list_view, Qt.Key.Key_Left)
@@ -355,7 +355,7 @@ def test_focusing_the_grid_does_not_open_the_pane(shown_library, qtbot):
 
 
 def test_selection_by_code_never_opens_the_pane(library):
-    library.decks_page.select_deck_path(DECKS[1].deck_path)
+    library.decks_page.select_deck_path(DECKS[1].root_path)
     library.decks_page.refresh()
     assert not library.details_pane_is_open()
     # but it does fill it, and enables the toggle
@@ -584,7 +584,7 @@ def test_open_opens_the_deck_tab(library, monkeypatch):
 
     assert library.decks_page.details_pane.action_button.text() == "Open"
     library.decks_page.details_pane.action_button.click()
-    assert opened == [library.decks_page.current_deck().deck_path]
+    assert opened == [library.decks_page.current_deck().root_path]
 
 
 def test_progress_moves_the_pane_bar(ghost_library, fake_downloads):

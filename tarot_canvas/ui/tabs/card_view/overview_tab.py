@@ -180,8 +180,8 @@ class OverviewTab(QWidget):
         if not self.deck:
             return None
         return (
-            f"<a href='deck:{html.escape(str(self.deck.deck_path))}'>"
-            f"{html.escape(self.deck.get_name())}</a>"
+            f"<a href='deck:{html.escape(str(self.deck.root_path))}'>"
+            f"{html.escape(self.deck.metadata.name)}</a>"
         )
 
     def update_subtitle(self):
@@ -222,7 +222,7 @@ class OverviewTab(QWidget):
                 not deck_path or deck_path == "None" or not os.path.exists(deck_path)
             ) and self._is_same_deck(reference_deck):
                 self.parent_tab.navigation_requested.emit(
-                    "open_deck_view", {"deck_path": reference_deck.deck_path}
+                    "open_deck_view", {"deck_path": reference_deck.root_path}
                 )
                 return
 
@@ -233,7 +233,7 @@ class OverviewTab(QWidget):
         """By path, not identity: installing a deck rebuilds every deck object"""
         if self.deck is None or other is None:
             return False
-        return deck_path_key(self.deck.deck_path) == deck_path_key(other.deck_path)
+        return deck_path_key(self.deck.root_path) == deck_path_key(other.root_path)
 
     def update_card_info(self, card, deck):
         """Update the overview tab with new card and deck information"""

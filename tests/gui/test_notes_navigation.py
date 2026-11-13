@@ -128,7 +128,7 @@ def test_a_note_in_the_pane_opens_that_note(window, notes_base):
 
 def test_writing_a_note_in_a_card_tab_reaches_the_library(window, qtbot, notes_base, minimal_deck):
     library = window.new_library_tab(view=LIBRARY_VIEW_NOTES)
-    window.open_card_view_tab(minimal_deck.get_card_by_id(FOOL), minimal_deck, show_notes=True)
+    window.open_card_view_tab(minimal_deck.find_card(FOOL), minimal_deck, show_notes=True)
     notes_tab = card_tabs(window)[0].notes_tab
 
     path = notes_base / FOOL / "1700000000_Written.md"
@@ -142,7 +142,7 @@ def test_writing_a_note_in_a_card_tab_reaches_the_library(window, qtbot, notes_b
 
 def test_an_autosave_over_an_untouched_note_says_nothing(window, notes_base, minimal_deck):
     """Otherwise the list rebuilds every thirty seconds for the life of the app."""
-    window.open_card_view_tab(minimal_deck.get_card_by_id(FOOL), minimal_deck)
+    window.open_card_view_tab(minimal_deck.find_card(FOOL), minimal_deck)
     notes_tab = card_tabs(window)[0].notes_tab
 
     path = notes_base / FOOL / "1700000000_Written.md"

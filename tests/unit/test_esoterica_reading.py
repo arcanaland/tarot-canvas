@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from tarot_canvas.models.deck_types import DeckMetadata
 from tarot_canvas.models.esoterica import (
     RWS,
     TDM,
@@ -589,7 +590,9 @@ THOTH = "land.arcana/pattern/thoth"
 
 
 def stub_deck(identifier=None, pattern=None):
-    return SimpleNamespace(get_identifier=lambda: identifier, get_pattern=lambda: pattern)
+    return SimpleNamespace(
+        metadata=DeckMetadata(name="Stub", identifier=identifier, pattern=pattern)
+    )
 
 
 def seated(text, cards=("00", "08", "11")):

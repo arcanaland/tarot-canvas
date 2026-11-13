@@ -4,7 +4,14 @@ import random
 import tomllib
 
 from tarot_canvas.models.card_ids import COURTS, MAJOR_ARCANA_COUNT, PIPS, SUITS, roman
-from tarot_canvas.models.deck_types import Card, CardImage, CardKind
+from tarot_canvas.models.deck_types import (
+    Card,
+    CardImage,
+    CardKind,
+    DeckLink,
+    DeckMetadata,
+    SuitInfo,
+)
 from tarot_canvas.utils.logger import logger
 
 CANONICAL_MAJOR_ARCANA_NAMES = {
@@ -35,6 +42,93 @@ CANONICAL_MAJOR_ARCANA_NAMES = {
 RASTER_EXTENSIONS = (".png", ".webp", ".jpg", ".jpeg")
 
 
+UNKNOWN_DECK = "Unknown Deck"
+
+METADATA_TEXT_FIELDS = (
+    "identifier",
+    "schema_version",
+    "version",
+    "description",
+    "license",
+    "attribution",
+    "publisher",
+    "website",
+    "copyright",
+    "created_date",
+    "updated_date",
+    "published_date",
+)
+
+
+def _text(value):
+    """A [deck] scalar as stripped text, or None when absent, empty or not a scalar."""
+    if value is None or isinstance(value, bool | dict | list | tuple):
+        return None
+    return str(value).strip() or None
+
+
+def _tags(value):
+    if isinstance(value, str):
+        value = [value]
+    if not isinstance(value, list | tuple):
+        return ()
+    return tuple(text for text in (str(tag).strip() for tag in value) if text)
+
+
+def _links(value):
+    """[deck].links with a string rel and an http(s) url, in declared order."""
+    if not isinstance(value, list):
+        return ()
+    links = []
+    for entry in value:
+        if not isinstance(entry, dict):
+            continue
+        rel, url, title = entry.get("rel"), entry.get("url"), entry.get("title")
+        if not isinstance(rel, str) or not isinstance(url, str):
+            continue
+        url = url.strip()
+        if not url.startswith(("http://", "https://")):
+            continue
+        title = title.strip() if isinstance(title, str) else ""
+        links.append(DeckLink(rel, url, title or None))
+    return tuple(links)
+
+
+def _pattern(table, root_path=None):
+    """The target of the deck's one `pattern` relation, or None."""
+    related = table.get("related")
+    if not isinstance(related, list):
+        return None
+    targets = [
+        entry.get("target")
+        for entry in related
+        if isinstance(entry, dict) and entry.get("rel") == "pattern"
+    ]
+    if len(targets) > 1:
+        logger.warning(
+            f"{root_path}: [deck].related names more than one pattern, "
+            f"so the deck is read as having none"
+        )
+        return None
+    if not targets or not isinstance(targets[0], str) or not targets[0].strip():
+        return None
+    return targets[0].strip()
+
+
+def read_metadata(table, root_path=None):
+    """DeckMetadata from a deck.toml's [deck] table."""
+    if not isinstance(table, dict):
+        table = {}
+    return DeckMetadata(
+        name=_text(table.get("name")) or UNKNOWN_DECK,
+        artist=_text(table.get("artist")) or _text(table.get("author")),
+        pattern=_pattern(table, root_path),
+        tags=_tags(table.get("tags")),
+        links=_links(table.get("links")),
+        **{field: _text(table.get(field)) for field in METADATA_TEXT_FIELDS},
+    )
+
+
 def rasters_by_stem(names):
     """{stem: file name} over RASTER_EXTENSIONS; a stem in several formats takes the first."""
     best = {}
@@ -47,80 +141,59 @@ def rasters_by_stem(names):
     return {stem: name for stem, (_, name) in best.items()}
 
 
-class TarotDeck:
-    """
-    Represents a Tarot deck with methods to load and access cards and their metadata.
+class TarotDeck:  # implements deck_types.Deck
+    """A deck read from its directory, behind the `Deck` surface."""
 
-    The class follows these conventions:
-    - load_*: Methods that read data from files
-    - get_*: Methods that return data already in memory
-    - find_*: Methods that search through existing data
-    """
-
-    def __init__(self, deck_path):
-        """
-        Initialize a TarotDeck from a deck directory.
-
-        Args:
-            deck_path (str): Path to the deck directory containing deck.toml
-        """
-        self.deck_path = deck_path
-        self._metadata = None
-        self._cards = None
-        self._suit_aliases = None
-        self._court_aliases = None
+    def __init__(self, root_path):
+        self.root_path = root_path
         self._card_backs = None
         self._default_back = None
-        self._excluded_cards = set()
-        self._excluded_reason = ""
         self._localized_names_cache = {}
         self._localized_alt_texts_cache = {}
         self._raster_folders = None
         self._raster_index = {}
 
-        # Load essential data immediately
-        self._metadata = self._load_metadata()
+        self._manifest = self._load_manifest()
+        self.metadata = read_metadata(self._manifest.get("deck"), root_path)
         self._suit_aliases = self._extract_suit_aliases()
         self._court_aliases = self._extract_court_aliases()
-        self._excluded_cards, self._excluded_reason = self._extract_excluded_cards()  # New
-        self._pattern = self._extract_pattern()
+        self._excluded_cards, self._excluded_reason = self._extract_excluded_cards()
 
-        # Load cards
-        self._cards = self._load_all_cards()
+        self._cards = tuple(self._load_all_cards())
 
     # --------------------------------
     # PRIVATE DATA LOADING METHODS
     # --------------------------------
 
-    def _load_metadata(self):
-        """Load metadata from deck.toml file."""
-        deck_file = os.path.join(self.deck_path, "deck.toml")
+    def _load_manifest(self):
+        """deck.toml, as read."""
+        deck_file = os.path.join(self.root_path, "deck.toml")
         if not os.path.exists(deck_file):
-            raise FileNotFoundError(f"deck.toml not found in {self.deck_path}")
+            raise FileNotFoundError(f"deck.toml not found in {self.root_path}")
 
         with open(deck_file, "rb") as f:
-            metadata = tomllib.load(f)
+            manifest = tomllib.load(f)
             logger.debug(
-                f"Loaded metadata for deck: {metadata.get('deck', {}).get('name', 'Unknown')}"
+                f"Loaded metadata for deck: {manifest.get('deck', {}).get('name', 'Unknown')}"
             )
-            return metadata
+            return manifest
 
     def _extract_suit_aliases(self):
         """Extract suit aliases from metadata."""
         aliases = {}
-        if "aliases" in self._metadata and "suits" in self._metadata["aliases"]:
-            for canonical_suit, custom_name in self._metadata["aliases"]["suits"].items():
+        if "aliases" in self._manifest and "suits" in self._manifest["aliases"]:
+            for canonical_suit, custom_name in self._manifest["aliases"]["suits"].items():
                 aliases[canonical_suit] = custom_name
 
         if aliases:
-            logger.debug(f"Deck '{self.get_name()}' has suit aliases: {aliases}")
+            logger.debug(f"Deck '{self.metadata.name}' has suit aliases: {aliases}")
         return aliases
 
     def _extract_court_aliases(self):
         """Extract court card aliases from metadata."""
         aliases = {}
-        if "aliases" in self._metadata and "courts" in self._metadata["aliases"]:
-            for canonical_court, custom_name in self._metadata["aliases"]["courts"].items():
+        if "aliases" in self._manifest and "courts" in self._manifest["aliases"]:
+            for canonical_court, custom_name in self._manifest["aliases"]["courts"].items():
                 aliases[canonical_court] = custom_name
         return aliases
 
@@ -129,8 +202,8 @@ class TarotDeck:
         excluded = set()
         reason = ""
 
-        if "deck" in self._metadata and "excluded_cards" in self._metadata["deck"]:
-            excluded_data = self._metadata["deck"]["excluded_cards"]
+        if "deck" in self._manifest and "excluded_cards" in self._manifest["deck"]:
+            excluded_data = self._manifest["deck"]["excluded_cards"]
             if "cards" in excluded_data and isinstance(excluded_data["cards"], list):
                 excluded.update(excluded_data["cards"])
 
@@ -138,33 +211,13 @@ class TarotDeck:
                 reason = excluded_data["reason"]
 
         if excluded:
-            logger.debug(f"Deck '{self.get_name()}' has {len(excluded)} excluded cards")
+            logger.debug(f"Deck '{self.metadata.name}' has {len(excluded)} excluded cards")
 
         return excluded, reason
 
-    def _extract_pattern(self):
-        """The target of the deck's one `pattern` relation, or None."""
-        related = self._metadata.get("deck", {}).get("related")
-        if not isinstance(related, list):
-            return None
-        targets = [
-            entry.get("target")
-            for entry in related
-            if isinstance(entry, dict) and entry.get("rel") == "pattern"
-        ]
-        if len(targets) > 1:
-            logger.warning(
-                f"{self.deck_path}: [deck].related names more than one pattern, "
-                f"so the deck is read as having none"
-            )
-            return None
-        if not targets or not isinstance(targets[0], str) or not targets[0].strip():
-            return None
-        return targets[0].strip()
-
     def _card_entry(self, card_id):
         """The [cards."<id>"] table for a card"""
-        cards = self._metadata.get("cards")
+        cards = self._manifest.get("cards")
         if not isinstance(cards, dict):
             return {}
 
@@ -203,7 +256,7 @@ class TarotDeck:
             cards.extend(self._load_minor_arcana_cards(suit))
 
         # Add custom cards if any
-        if "custom_cards" in self._metadata:
+        if "custom_cards" in self._manifest:
             # TODO: Add support for custom cards
             pass
 
@@ -212,9 +265,9 @@ class TarotDeck:
 
         excluded_count = len(cards) - len(filtered_cards)
         if excluded_count > 0:
-            logger.info(f"Excluded {excluded_count} cards from deck: {self.get_name()}")
+            logger.info(f"Excluded {excluded_count} cards from deck: {self.metadata.name}")
 
-        logger.info(f"Loaded {len(filtered_cards)} cards for deck: {self.get_name()}")
+        logger.info(f"Loaded {len(filtered_cards)} cards for deck: {self.metadata.name}")
         return filtered_cards
 
     def _load_major_arcana_cards(self):
@@ -278,7 +331,7 @@ class TarotDeck:
         alt_texts = self._load_localized_alt_texts()
 
         # Get display suit name (using alias if available)
-        display_suit = self.get_display_suit_name(suit)
+        display_suit = self._suit_name(suit)
 
         # Process numbered cards (ace through ten)
         for rank in PIPS:
@@ -340,7 +393,7 @@ class TarotDeck:
         card_id = f"minor_arcana.{suit}.{court}"
 
         # Get display court name (using alias if available)
-        display_court = self.get_display_court_name(court)
+        display_court = self.display_rank_name(court)
 
         # Try to get name from localized names, fallback to default with display names
         name = None
@@ -403,15 +456,15 @@ class TarotDeck:
         # Check in preferred order: h1200, h2400, h750, scalable, ansi32
         for folder in ["h1200", "h2400", "h750", "scalable"]:
             for ext in [".png", ".webp", ".jpg", ".jpeg", ".svg"]:
-                path = os.path.join(self.deck_path, folder, card_type, f"{card_id}{ext}")
+                path = os.path.join(self.root_path, folder, card_type, f"{card_id}{ext}")
                 if os.path.exists(path):
                     return path
 
         # Try to find an image in any "h" prefixed folder, prioritizing highest resolution
         h_folders = []
-        for item in os.listdir(self.deck_path):
+        for item in os.listdir(self.root_path):
             if (
-                os.path.isdir(os.path.join(self.deck_path, item))
+                os.path.isdir(os.path.join(self.root_path, item))
                 and item.startswith("h")
                 and item[1:].isdigit()
             ):
@@ -422,13 +475,13 @@ class TarotDeck:
 
         # Look in each folder in order of resolution
         for folder in h_folders:
-            pattern = os.path.join(self.deck_path, folder, card_type, f"{card_id}.*")
+            pattern = os.path.join(self.root_path, folder, card_type, f"{card_id}.*")
             matches = glob.glob(pattern)
             if matches:
                 return matches[0]
 
         # If not found in h folders, check any remaining folders
-        pattern = os.path.join(self.deck_path, "*", card_type, f"{card_id}.*")
+        pattern = os.path.join(self.root_path, "*", card_type, f"{card_id}.*")
         matches = glob.glob(pattern)
         if matches:
             return matches[0]
@@ -442,14 +495,14 @@ class TarotDeck:
         if self._raster_folders is None:
             self._raster_folders = {}
             try:
-                entries = sorted(os.listdir(self.deck_path))
+                entries = sorted(os.listdir(self.root_path))
             except OSError:
                 entries = []
             for item in entries:
                 if (
                     item.startswith("h")
                     and item[1:].isdigit()
-                    and os.path.isdir(os.path.join(self.deck_path, item))
+                    and os.path.isdir(os.path.join(self.root_path, item))
                 ):
                     self._raster_folders.setdefault(int(item[1:]), item)
         if card_type not in self._raster_index:
@@ -460,7 +513,7 @@ class TarotDeck:
         """{card_id: {height: path}} for one card type."""
         index = {}
         for height, folder in self._raster_folders.items():
-            directory = os.path.join(self.deck_path, folder, card_type)
+            directory = os.path.join(self.root_path, folder, card_type)
             try:
                 names = os.listdir(directory)
             except OSError:
@@ -475,7 +528,7 @@ class TarotDeck:
         The shape follows from the manifest's schema_version, never from the
         name file's contents (deck spec 7.2): a 2.0 file may carry alt text alone.
         """
-        major = str(self.get_schema_version() or "1.0").split(".")[0]
+        major = str(self.metadata.schema_version or "1.0").split(".")[0]
         return major.isdigit() and int(major) >= 2
 
     def _facet(self, data, facet):
@@ -495,7 +548,7 @@ class TarotDeck:
 
     def _name_file_tags(self, lang=None):
         """Name-file language tags to try most preferred first"""
-        requested = lang or self._deck_field("default_language")
+        requested = lang or _text(self._manifest.get("deck", {}).get("default_language"))
         tags = []
         if requested:
             parts = str(requested).split("-")
@@ -507,7 +560,7 @@ class TarotDeck:
     def _read_name_file(self, lang=None):
         """The first name file that exists, by preference order, or None."""
         for tag in self._name_file_tags(lang):
-            path = os.path.join(self.deck_path, "names", f"{tag}.toml")
+            path = os.path.join(self.root_path, "names", f"{tag}.toml")
             if os.path.exists(path):
                 with open(path, "rb") as f:
                     return tomllib.load(f)
@@ -534,9 +587,9 @@ class TarotDeck:
         more than one format the first in that order wins, as a face does.
         """
         # TODO(spec §6.5): card_backs/ under an image root, [card_backs.designs], and SVG
-        default_back = self._metadata.get("card_backs", {}).get("default", "classic")
+        default_back = self._manifest.get("card_backs", {}).get("default", "classic")
 
-        directory = os.path.join(self.deck_path, "card_backs")
+        directory = os.path.join(self.root_path, "card_backs")
         try:
             names = os.listdir(directory)
         except OSError:
@@ -551,267 +604,52 @@ class TarotDeck:
 
         return backs, default_back
 
+    def _suit_name(self, suit_key):
+        return self._suit_aliases.get(suit_key) or suit_key.capitalize()
+
     # --------------------------------
-    # PUBLIC DATA ACCESS METHODS
+    # PUBLIC SURFACE
     # --------------------------------
 
-    def get_name(self):
-        """Get the name of the deck."""
-        return self._metadata.get("deck", {}).get("name", "Unknown Deck")
+    @property
+    def cards(self):
+        return self._cards
 
-    def get_version(self):
-        """Get the version of the deck."""
-        return self._metadata.get("deck", {}).get("version", "Unknown Version")
+    @property
+    def suits(self):
+        """Canonical suits in SUITS order, then any other suit in the order its cards appear.
 
-    def get_description(self):
-        """Get the description of the deck."""
-        return self._metadata.get("deck", {}).get("description", "")
+        A canonical suit with no card left is `excluded`.
+        """
+        found = []
+        for card in self._cards:
+            if card.kind is CardKind.MINOR and card.suit_key and card.suit_key not in found:
+                found.append(card.suit_key)
+        keys = list(SUITS) + [suit for suit in found if suit not in SUITS]
+        return tuple(SuitInfo(key, self._suit_name(key), excluded=key not in found) for key in keys)
 
-    def get_metadata_fields(self):
-        """The whole `[deck]` table, as read from deck.toml."""
-        fields = self._metadata.get("deck", {})
-        return dict(fields) if isinstance(fields, dict) else {}
+    @property
+    def exclusion_reason(self):
+        return self._excluded_reason or None
 
-    def _deck_field(self, key):
-        """A `[deck]` scalar, or None when the deck.toml omits it."""
-        value = self._metadata.get("deck", {}).get(key)
-        return value if value not in (None, "") else None
+    def find_card(self, card_id):
+        return next((card for card in self._cards if card.canonical_id == card_id), None)
 
-    def get_author(self):
-        """author for 1.0, artist for 2.0"""
-        return self._deck_field("artist") or self._deck_field("author")
+    def cards_of_kind(self, kind):
+        return [card for card in self._cards if card.kind is kind]
 
-    def get_license(self):
-        """Get the licence the deck is distributed under, or None."""
-        return self._deck_field("license")
+    def cards_in_suit(self, suit_key):
+        return [card for card in self._cards if card.suit_key == suit_key]
 
-    def get_attribution(self):
-        """Get the attribution string a CC-BY-style licence requires, or None."""
-        return self._deck_field("attribution")
+    def random_card(self):
+        return random.choice(self._cards) if self._cards else None
 
-    def get_publisher(self):
-        """Get the publisher of the deck, or None."""
-        return self._deck_field("publisher")
-
-    def get_website(self):
-        """Get the deck's website, or None."""
-        return self._deck_field("website")
-
-    def get_deck_id(self):
-        """Get the v1 [deck].id or None."""
-        return self._deck_field("id")
-
-    def get_identifier(self):
-        """Get the v2 [deck].identifier or None."""
-        return self._deck_field("identifier")
-
-    def get_pattern(self):
-        """Get the identifier of the pattern the deck realizes, or None."""
-        return self._pattern
-
-    def get_schema_version(self):
-        """Get the deck-spec schema version the deck declares, or None."""
-        return self._deck_field("schema_version")
-
-    def get_created_date(self):
-        """Get the deck's creation date, or None."""
-        return self._deck_field("created_date")
-
-    def get_updated_date(self):
-        """Get the date the deck was last updated, or None."""
-        return self._deck_field("updated_date")
-
-    def get_tags(self):
-        """Get the deck's tags as a tuple; empty when the deck.toml omits them."""
-        tags = self._metadata.get("deck", {}).get("tags")
-        if not isinstance(tags, list | tuple):
-            return ()
-        return tuple(str(tag) for tag in tags if str(tag))
+    def display_rank_name(self, rank_key):
+        """A rank's name, using the deck's court aliases."""
+        return self._court_aliases.get(rank_key) or rank_key.capitalize()
 
     def get_card_backs(self):
         """Get available card back images and the default back."""
         if self._card_backs is None:
             self._card_backs, self._default_back = self._load_card_backs()
         return self._card_backs, self._default_back
-
-    def get_card_back_alt_text(self, back_name="classic", lang=None):
-        """Get alt text for a specific card back."""
-        alt_texts = self._load_localized_alt_texts(lang)
-        if alt_texts and "card_backs" in alt_texts and back_name in alt_texts["card_backs"]:
-            return alt_texts["card_backs"][back_name]
-        return None
-
-    def get_card_by_id(self, card_id):
-        """Get a card by its ID."""
-        for card in self._cards:
-            if card.canonical_id == card_id:
-                return card
-        return None
-
-    def get_random_card(self):
-        """Get a random card from the deck."""
-        if not self._cards:
-            return None
-        return random.choice(self._cards)
-
-    def get_cards_by_type(self, card_type):
-        """
-        Get all cards of a specific type from the deck.
-
-        Args:
-            card_type (str): Type of cards to retrieve (e.g., "major_arcana", "minor_arcana")
-
-        Returns:
-            list: Cards matching the type
-        """
-        return [card for card in self._cards if card.kind.value == card_type]
-
-    def get_suits(self):
-        """
-        Get all suits available in this deck.
-
-        Returns:
-            list: Canonical suits in SUITS order, then any other suit in the order its
-                cards appear (e.g., ["wands", "cups", "swords", "pentacles"])
-        """
-        found = []
-        for card in self._cards:
-            suit = card.suit_key
-            if card.kind is CardKind.MINOR and suit and suit not in found:
-                found.append(suit)
-        return [suit for suit in SUITS if suit in found] + [
-            suit for suit in found if suit not in SUITS
-        ]
-
-    def get_cards_by_suit(self, suit):
-        """
-        Get all cards of a specific suit from the deck.
-
-        Args:
-            suit (str): Suit name (e.g., "wands", "cups", "swords", "pentacles")
-
-        Returns:
-            list: Cards matching the suit
-        """
-        return [card for card in self._cards if card.suit_key == suit]
-
-    def get_display_suit_name(self, canonical_suit):
-        """
-        Get the display name for a suit, using aliases if available.
-
-        Args:
-            canonical_suit (str): The canonical suit name (e.g., "wands")
-
-        Returns:
-            str: The display name for the suit
-        """
-        if canonical_suit in self._suit_aliases:
-            display_name = self._suit_aliases[canonical_suit]
-            return display_name
-
-        return canonical_suit.capitalize()
-
-    def get_display_court_name(self, canonical_court):
-        """
-        Get the display name for a court card, using aliases if available.
-
-        Args:
-            canonical_court (str): The canonical court name (e.g., "page")
-
-        Returns:
-            str: The display name for the court card
-        """
-        if canonical_court in self._court_aliases:
-            return self._court_aliases[canonical_court]
-        return canonical_court.capitalize()
-
-    def get_canonical_suit_name(self, suit):
-        """
-        Get the canonical name for a suit, handling aliases.
-
-        Args:
-            suit (str): The suit name or alias
-
-        Returns:
-            str: The canonical suit name
-        """
-        # Check if this is an aliased suit name
-        for canonical, alias in self._suit_aliases.items():
-            if alias.lower() == suit.lower():
-                return canonical
-        return suit
-
-    def is_suit_excluded(self, suit):
-        """
-        Check if an entire suit is excluded from the deck.
-
-        Args:
-            suit (str): Canonical suit name to check
-
-        Returns:
-            bool: True if all cards of this suit are excluded
-        """
-        # Get all cards that would be in this suit
-        ranks = [
-            "ace",
-            "two",
-            "three",
-            "four",
-            "five",
-            "six",
-            "seven",
-            "eight",
-            "nine",
-            "ten",
-            "page",
-            "knight",
-            "queen",
-            "king",
-        ]
-
-        # Check if all possible cards in this suit are excluded
-        all_excluded = True
-        for rank in ranks:
-            card_id = f"minor_arcana.{suit}.{rank}"
-            if card_id not in self._excluded_cards:
-                all_excluded = False
-                break
-
-        return all_excluded
-
-    def get_exclusion_reason(self):
-        """Get the reason for card exclusions, if any."""
-        return self._excluded_reason
-
-    def get_all_cards(self):
-        """
-        Get all cards from the deck.
-
-        Returns:
-            list: Every card in the deck
-        """
-        return self._cards
-
-    # --------------------------------
-    # SEARCH/FIND METHODS
-    # --------------------------------
-
-    def find_card_by_attributes(self, attributes):
-        """
-        Find a card by matching its attributes.
-
-        Args:
-            attributes (dict): Dictionary of attributes to match
-
-        Returns:
-            Card or None if not found
-        """
-        for card in self._cards:
-            matches = True
-            for key, value in attributes.items():
-                if getattr(card, key, None) != value:
-                    matches = False
-                    break
-            if matches:
-                return card
-        return None

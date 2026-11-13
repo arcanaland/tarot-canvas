@@ -32,7 +32,7 @@ def window(qtbot, stub_deck_manager, spreads_base, notes_base):
 
 
 def with_art(deck):
-    return [card for card in deck.get_all_cards() if card.default_image()]
+    return [card for card in deck.cards if card.default_image()]
 
 
 def by_depth(tab):

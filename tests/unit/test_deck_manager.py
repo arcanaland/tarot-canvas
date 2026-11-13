@@ -55,4 +55,4 @@ def test_rescan_reloads_the_reference_deck(root, monkeypatch):
     monkeypatch.setattr(ReferenceDeck, "get_reference_deck_path", staticmethod(lambda: reference))
     manager.rescan()
 
-    assert manager.get_reference_deck().get_name() == "Rider-Waite-Smith"
+    assert manager.get_reference_deck().metadata.name == "Rider-Waite-Smith"

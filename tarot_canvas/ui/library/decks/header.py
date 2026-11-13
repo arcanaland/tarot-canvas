@@ -57,7 +57,6 @@ DETAIL_FIELDS = (
     ("updated_date", DECK_VIEW["field.updated_date"]),
     ("published_date", DECK_VIEW["field.published_date"]),
     ("tags", DECK_VIEW["field.tags"]),
-    ("id", DECK_VIEW["field.id"]),
     ("version", DECK_VIEW["field.version"]),
     ("schema_version", DECK_VIEW["field.schema_version"]),
 )
@@ -92,18 +91,16 @@ def format_value(value):
     return text or None
 
 
-def detail_rows(fields):
-    """Rows for the fields we have a label for, in DETAIL_FIELDS order.
+def field_value(metadata, key):
+    return None if key.startswith(LINK_PREFIX) else getattr(metadata, key)
 
-    A `[deck]` key outside DETAIL_FIELDS is not presented. Labelling it with its
-    raw TOML key read as a defect against 1.0 decks and does not survive 2.0,
-    which adds `identifier`, `packager`, `pips`, `redistribution`, `derivation`
-    and `license_files` to a table this widget renders in full.
-    """
+
+def detail_rows(metadata):
+    """Rows for the DeckMetadata fields we have a label for, in DETAIL_FIELDS order."""
     rows = []
     for key, label in DETAIL_FIELDS:
-        addresses = [display_address(url) for url in links_for(key, fields)]
-        text = "\n".join(filter(None, [format_value(fields.get(key)), *addresses]))
+        addresses = [display_address(url) for url in links_for(key, metadata)]
+        text = "\n".join(filter(None, [format_value(field_value(metadata, key)), *addresses]))
         if not text:
             continue
         if key in DATE_KEYS:
@@ -122,25 +119,7 @@ def wrapped_height(text, font, width):
     return bounds.height()
 
 
-def deck_links(fields):
-    """`[deck].links` as (rel, url, title), in declared order."""
-    raw = fields.get("links")
-    if not isinstance(raw, list):
-        return []
-
-    links = []
-    for entry in raw:
-        if not isinstance(entry, dict):
-            continue
-        rel, url, title = entry.get("rel"), entry.get("url"), entry.get("title")
-        if not isinstance(rel, str) or not isinstance(url, str) or not is_link(url.strip()):
-            continue
-        title = title.strip() if isinstance(title, str) else ""
-        links.append((rel, url.strip(), title or None))
-    return links
-
-
-def links_for(key, fields):
+def links_for(key, metadata):
     """URLs the detail row `key` presents."""
     if key.startswith(LINK_PREFIX):
         rel = key.removeprefix(LINK_PREFIX)
@@ -148,14 +127,14 @@ def links_for(key, fields):
         rel = "publisher"
     else:
         return []
-    return [url for link_rel, url, _ in deck_links(fields) if link_rel == rel]
+    return [link.url for link in metadata.links if link.rel == rel]
 
 
-def buy_link(fields):
+def buy_link(metadata):
     """The first `buy` link as (url, title), or None."""
-    for rel, url, title in deck_links(fields):
-        if rel == "buy":
-            return url, title
+    for link in metadata.links:
+        if link.rel == "buy":
+            return link.url, link.title
     return None
 
 
@@ -195,7 +174,9 @@ class DeckHeader(QWidget):
     def _build_cover(self):
         self.cover_label = QLabel()
         self.cover_label.setWordWrap(True)
-        self.cover_label.setAccessibleName(DECK_VIEW["cover_of"].format(name=self.deck.get_name()))
+        self.cover_label.setAccessibleName(
+            DECK_VIEW["cover_of"].format(name=self.deck.metadata.name)
+        )
         self._cover_path = deck_cover_path(self.deck)
         self._apply_cover(expanded=False)
         return self.cover_label
@@ -225,7 +206,7 @@ class DeckHeader(QWidget):
         title_row = QHBoxLayout()
         title_row.setSpacing(units.LARGE_SPACING)
 
-        self.title_label = QLabel(self.deck.get_name())
+        self.title_label = QLabel(self.deck.metadata.name)
         typography.apply(self.title_label, typography.Role.HEADING_1, primary=True)
         self.title_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         title_row.addWidget(self.title_label)
@@ -257,7 +238,7 @@ class DeckHeader(QWidget):
 
     def _build_buy_button(self):
         """A button to the deck's first `buy` link, labelled with its title if it has one."""
-        link = buy_link(self.deck.get_metadata_fields())
+        link = buy_link(self.deck.metadata)
         if link is None:
             return None
         url, title = link
@@ -276,22 +257,22 @@ class DeckHeader(QWidget):
         form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.FieldsStayAtSizeHint)
 
         self.detail_labels = {}
-        fields = self.deck.get_metadata_fields()
-        for label, value, key in detail_rows(fields):
+        metadata = self.deck.metadata
+        for label, value, key in detail_rows(metadata):
             name = QLabel(f"{label}:")
             name.setForegroundRole(QPalette.ColorRole.PlaceholderText)
 
             if key == "tags":
-                form.addRow(name, self._build_tag_chips(fields.get("tags")))
+                form.addRow(name, self._build_tag_chips(metadata.tags))
                 continue
 
             field = QLabel()
             field.setWordWrap(True)
             field.setFixedWidth(self.measure())
-            urls = links_for(key, fields)
+            urls = links_for(key, metadata)
             if urls:
                 field.setTextFormat(Qt.TextFormat.RichText)
-                field.setText(link_html(format_value(fields.get(key)), urls))
+                field.setText(link_html(format_value(field_value(metadata, key)), urls))
                 field.setOpenExternalLinks(True)
                 field.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
             elif key == "website" and is_link(value):
@@ -319,10 +300,10 @@ class DeckHeader(QWidget):
 
     def subtitle_text(self):
         parts = []
-        author = self.deck.get_author()
+        author = self.deck.metadata.artist
         if author:
             parts.append(author)
-        parts.append(DECK_VIEW["card_count"].format(count=len(self.deck.get_all_cards())))
+        parts.append(DECK_VIEW["card_count"].format(count=len(self.deck.cards)))
         return " · ".join(parts)
 
     def details_label_measure(self):

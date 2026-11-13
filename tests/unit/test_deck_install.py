@@ -43,7 +43,7 @@ def test_the_installed_deck_loads(tmp_path, places):
 
     root, staging = places
     dest = install_container(conformant(tmp_path), root / "test", staging)
-    assert TarotDeck(str(dest)).get_name() == "Test"
+    assert TarotDeck(str(dest)).metadata.name == "Test"
 
 
 def test_an_existing_dest_is_never_touched(tmp_path, places):

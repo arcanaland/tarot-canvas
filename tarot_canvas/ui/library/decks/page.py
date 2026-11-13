@@ -134,7 +134,7 @@ class DecksPage(LibraryListPage):
         return self._select_first(_is_deck_at(deck_path))
 
     def open_deck(self, deck):
-        record_deck_opened(deck.deck_path)
+        record_deck_opened(deck.root_path)
         self.list_model.refresh_recent()
         self.open_requested.emit(deck)
 
@@ -227,7 +227,7 @@ class DecksPage(LibraryListPage):
         if shown is None:
             return None
         if shown.deck is not None:
-            return self._source_row(_is_deck_at(shown.deck.deck_path))
+            return self._source_row(_is_deck_at(shown.deck.root_path))
         ghost = self._source_row(_is_ghost_of(shown.entry))
         if ghost is not None:
             return ghost
@@ -250,7 +250,7 @@ class DecksPage(LibraryListPage):
         with self._programmatic_selection():
             yield
             if deck is not None:
-                self.select_deck_path(deck.deck_path)
+                self.select_deck_path(deck.root_path)
             elif entry is not None and not self._select_first(_is_ghost_of(entry)):
                 self._select_first(_is_installed_copy_of(entry))
         self._update_empty_state()
@@ -278,7 +278,7 @@ class DecksPage(LibraryListPage):
 def _is_deck_at(deck_path):
     def matches(index):
         deck = index.data(DeckRole)
-        return deck is not None and deck.deck_path == deck_path
+        return deck is not None and deck.root_path == deck_path
 
     return matches
 

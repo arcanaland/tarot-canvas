@@ -180,7 +180,7 @@ def test_a_slot_menu_has_only_rotate_and_delete(qtbot):
 
 def test_a_pasted_card_becomes_a_slot(qtbot, clipboard, minimal_deck):
     tab = make_tab(qtbot)
-    card = minimal_deck.get_random_card()
+    card = minimal_deck.random_card()
     copy_card_to_clipboard(card, minimal_deck, False)
 
     tab.on_paste_card()
@@ -193,7 +193,7 @@ def test_a_pasted_card_becomes_a_slot(qtbot, clipboard, minimal_deck):
 
 def test_a_dropped_card_becomes_a_slot_where_it_landed(qtbot, minimal_deck):
     tab = make_tab(qtbot)
-    card = minimal_deck.get_random_card()
+    card = minimal_deck.random_card()
 
     tab.on_card_dropped(card_mime_data(card, minimal_deck, False), QPointF(70, 90))
 
@@ -1864,7 +1864,7 @@ def test_add_slot_here_adds_a_slot_where_you_clicked(qtbot):
 
 def test_paste_on_the_ground_adds_a_slot_where_you_clicked(qtbot, clipboard, minimal_deck):
     tab = make_tab(qtbot)
-    copy_card_to_clipboard(minimal_deck.get_random_card(), minimal_deck, False)
+    copy_card_to_clipboard(minimal_deck.random_card(), minimal_deck, False)
     spot = QPointF(5000, 5000)
     menu = tab.card_menu(spot)
 

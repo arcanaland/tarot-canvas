@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (
     QToolButton,
 )
 
-from tarot_canvas.models.deck_types import Card, CardKind
+from tarot_canvas.models.deck_types import Card, CardKind, DeckMetadata
 from tarot_canvas.models.esoterica import Entry, EsotericaManager, GroupReading, SourceReading
 from tarot_canvas.models.esoterica_events import esoterica_events
 from tarot_canvas.models.esoterica_registry import (
@@ -1226,9 +1226,8 @@ def test_the_help_button_is_named_and_tipped_by_its_constants(qtbot, stub_manage
 # A card the source wrote at another seat
 
 MARSEILLE = SimpleNamespace(
-    get_identifier=lambda: None,
-    get_pattern=lambda: "land.arcana/pattern/tarot-de-marseille",
-    get_card_by_id=lambda card_id: {
+    metadata=DeckMetadata(name="Marseille", pattern="land.arcana/pattern/tarot-de-marseille"),
+    find_card=lambda card_id: {
         "major_arcana.11": Card(
             canonical_id="major_arcana.11", kind=CardKind.MAJOR, display_name="La <Force>"
         )

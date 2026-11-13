@@ -13,7 +13,7 @@ def remembered_deck():
     wanted = deck_path_key(get_readings_deck())
     if wanted is not None:
         for deck in deck_manager.get_all_decks():
-            if deck_path_key(deck.deck_path) == wanted:
+            if deck_path_key(deck.root_path) == wanted:
                 return deck
     return deck_manager.get_reference_deck()
 
@@ -36,13 +36,13 @@ def _fill(menu, start):
         old.deleteLater()
     group = QActionGroup(menu)  # exclusive: the mark is the icon
     chosen = remembered_deck()
-    remembered = deck_path_key(chosen.deck_path) if chosen is not None else None
+    remembered = deck_path_key(chosen.root_path) if chosen is not None else None
     for deck in deck_manager.get_all_decks():
-        action = menu.addAction(deck.get_name().replace("&", "&&"))  # a deck name is no mnemonic
+        action = menu.addAction(deck.metadata.name.replace("&", "&&"))  # a deck name is no mnemonic
         action.setCheckable(True)
-        action.setChecked(deck_path_key(deck.deck_path) == remembered)
+        action.setChecked(deck_path_key(deck.root_path) == remembered)
         action.setActionGroup(group)
-        action.triggered.connect(lambda _checked, path=deck.deck_path: _choose(path, start))
+        action.triggered.connect(lambda _checked, path=deck.root_path: _choose(path, start))
 
 
 def _choose(deck_path, start):

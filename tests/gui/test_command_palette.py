@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import pytest
 from PyQt6.QtCore import Qt
 
-from tarot_canvas.models.deck_types import Card, CardImage, CardKind
+from tarot_canvas.models.deck_types import Card, CardImage, CardKind, DeckMetadata
 from tarot_canvas.ui import command_palette
 from tarot_canvas.ui.command_palette import THUMBNAIL_SIZE, CommandPalette
 from tarot_canvas.ui.covers.cache import CoverCache
@@ -41,7 +41,7 @@ def four_cards(stub_deck_manager):
             rank_key="ace",
         ),
     ]
-    deck = SimpleNamespace(_cards=cards, get_name=lambda: "Fixture")
+    deck = SimpleNamespace(cards=tuple(cards), metadata=DeckMetadata(name="Fixture"))
     stub_deck_manager.get_reference_deck = lambda: deck
     return cards
 
