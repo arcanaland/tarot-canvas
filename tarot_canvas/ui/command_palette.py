@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
 
 from tarot_canvas.models.card_search import CardTerms, Query
 from tarot_canvas.models.deck_manager import deck_manager
+from tarot_canvas.models.deck_types import CardKind
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.covers.cache import CoverCache
 from tarot_canvas.ui.strings import PALETTE
@@ -38,7 +39,7 @@ class CommandPaletteItem(QWidget):
         # Card thumbnail, decoded at display size; left empty if there is no image
         icon_label = QLabel()
         icon_label.setFixedSize(THUMBNAIL_SIZE)
-        pixmap = _THUMBNAILS.get(card.get("image"), THUMBNAIL_SIZE, device_pixel_ratio)
+        pixmap = _THUMBNAILS.get(card.default_image(), THUMBNAIL_SIZE, device_pixel_ratio)
         if pixmap is not None:
             icon_label.setPixmap(pixmap)
         layout.addWidget(icon_label)
@@ -47,15 +48,15 @@ class CommandPaletteItem(QWidget):
         info_layout = QVBoxLayout()
 
         # Card name - primary text
-        name_label = QLabel(card.get("name"))
+        name_label = QLabel(card.display_name)
         name_label.setStyleSheet("font-weight: bold;")
         info_layout.addWidget(name_label)
 
         # Card details - secondary text
-        card_type = card.get("type", "").replace("_", " ").title()
-        if card.get("type") == "minor_arcana":
-            suit = card.get("suit", "").title()
-            rank = card.get("rank", "").title()
+        card_type = card.kind.value.replace("_", " ").title()
+        if card.kind is CardKind.MINOR:
+            suit = (card.suit_key or "").title()
+            rank = (card.rank_key or "").title()
             details = f"{suit} {rank} - {deck.get_name()}"
         else:
             details = f"{card_type} - {deck.get_name()}"
@@ -94,7 +95,7 @@ class ResultItem(QListWidgetItem):
 
 
 class CommandPalette(QDialog):
-    card_selected = pyqtSignal(dict, object)  # Card data, Deck
+    card_selected = pyqtSignal(object, object)  # Card, Deck
 
     def __init__(self, parent=None, active_tab_type=None):
         super().__init__(parent)

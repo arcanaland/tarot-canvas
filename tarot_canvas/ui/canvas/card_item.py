@@ -68,7 +68,7 @@ class ContactShadowItem(QGraphicsPixmapItem):
 class DraggableCardItem(QGraphicsPixmapItem):
     """A card on the playground canvas"""
 
-    def __init__(self, pixmap, card_data, parent_tab=None, deck=None, reversed=False):
+    def __init__(self, pixmap, card_data, parent_tab=None, deck=None, reversed=False, seed=None):
         super().__init__(pixmap)
         self.card_data = card_data
         self.parent_tab = parent_tab
@@ -81,7 +81,7 @@ class DraggableCardItem(QGraphicsPixmapItem):
         self.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
 
         self.motion = MotionChannels(reversed=reversed)
-        self._drift = AmbientDrift(card_data.get("id") or card_data.get("name") or "")
+        self._drift = AmbientDrift(card_data.canonical_id if seed is None else seed)
         self._applied = None
         self._applied_corners = None
         self._view_scale = 1.0

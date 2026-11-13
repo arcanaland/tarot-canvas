@@ -50,9 +50,7 @@ VIEW_ICONS = {
 
 class DeckViewTab(BaseTab):
     card_clicked = pyqtSignal(str)  # Signal when a card is clicked
-    card_action_requested = pyqtSignal(
-        str, dict, object
-    )  # Signal for card actions (action, card, deck)
+    card_action_requested = pyqtSignal(str, object, object)  # action, card, deck
     new_canvas_requested = pyqtSignal(list, object)  # cards, deck
 
     def __init__(self, deck_path, parent=None):
@@ -282,8 +280,8 @@ class DeckViewTab(BaseTab):
 
     def on_card_clicked(self, index):
         card = index.data(CardRole)
-        if card and card.get("image"):
-            self.card_clicked.emit(card.get("image"))
+        if card and card.default_image():
+            self.card_clicked.emit(card.default_image())
 
     def on_card_activated(self, index):
         card = index.data(CardRole)

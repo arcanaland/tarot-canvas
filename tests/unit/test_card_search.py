@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import pytest
 
 from tarot_canvas.models.card_search import (
@@ -10,32 +12,41 @@ from tarot_canvas.models.card_search import (
     Query,
     roman,
 )
+from tarot_canvas.models.deck_types import Card, CardKind
 
-FOOL = {"id": "major_arcana.00", "name": "The Fool", "type": "major_arcana", "number": 0}
-MAGICIAN = {"id": "major_arcana.01", "name": "The Magician", "type": "major_arcana", "number": 1}
-EMPRESS = {"id": "major_arcana.03", "name": "The Empress", "type": "major_arcana", "number": 3}
-STRENGTH = {"id": "major_arcana.08", "name": "Strength", "type": "major_arcana", "number": 8}
-WHEEL = {
-    "id": "major_arcana.10",
-    "name": "Wheel of Fortune",
-    "type": "major_arcana",
-    "number": 10,
-}
-TOWER = {"id": "major_arcana.16", "name": "The Tower", "type": "major_arcana", "number": 16}
+FOOL = Card(
+    canonical_id="major_arcana.00", kind=CardKind.MAJOR, display_name="The Fool", position=0
+)
+MAGICIAN = Card(
+    canonical_id="major_arcana.01", kind=CardKind.MAJOR, display_name="The Magician", position=1
+)
+EMPRESS = Card(
+    canonical_id="major_arcana.03", kind=CardKind.MAJOR, display_name="The Empress", position=3
+)
+STRENGTH = Card(
+    canonical_id="major_arcana.08", kind=CardKind.MAJOR, display_name="Strength", position=8
+)
+WHEEL = Card(
+    canonical_id="major_arcana.10",
+    kind=CardKind.MAJOR,
+    display_name="Wheel of Fortune",
+    position=10,
+)
+TOWER = Card(
+    canonical_id="major_arcana.16", kind=CardKind.MAJOR, display_name="The Tower", position=16
+)
 
 
 def minor(rank, suit, display_rank=None):
-    card = {
-        "id": f"minor_arcana.{suit}.{rank}",
-        "name": f"{rank.title()} of {suit.title()}",
-        "type": "minor_arcana",
-        "suit": suit,
-        "display_suit": suit.title(),
-        "rank": rank,
-    }
-    if display_rank:
-        card["display_rank"] = display_rank
-    return card
+    return Card(
+        canonical_id=f"minor_arcana.{suit}.{rank}",
+        kind=CardKind.MINOR,
+        display_name=f"{rank.title()} of {suit.title()}",
+        suit_key=suit,
+        rank_key=rank,
+        display_suit=suit.title(),
+        display_rank=display_rank,
+    )
 
 
 ACE_OF_CUPS = minor("ace", "cups")
@@ -65,13 +76,13 @@ def test_a_rank_can_be_a_digit_a_word_or_a_numeral_in_any_order(text):
 
 
 def test_a_major_is_found_by_the_numeral_its_face_prints():
-    emperor = {
-        "id": "major_arcana.04",
-        "name": "L'Empereur",
-        "type": "major_arcana",
-        "number": 4,
-        "numeral": "IIII",
-    }
+    emperor = Card(
+        canonical_id="major_arcana.04",
+        kind=CardKind.MAJOR,
+        display_name="L'Empereur",
+        number="IIII",
+        position=4,
+    )
     assert tier(emperor, "iiii") == WORDS
     assert tier(emperor, "iv") == WORDS
     assert tier(emperor, "4") == WORDS
@@ -135,7 +146,7 @@ def test_synonyms_type_and_deck_rank_below_the_cards_own_words(card, text):
 
 
 def test_a_deck_alias_is_the_cards_own_word():
-    card = dict(PAGE_OF_PENTACLES, display_suit="Coins", name="Page of Coins")
+    card = replace(PAGE_OF_PENTACLES, display_suit="Coins", display_name="Page of Coins")
     assert tier(card, "coins page") == WORDS
 
 

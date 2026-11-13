@@ -252,10 +252,11 @@ def test_a_reading_row_shows_its_cards_minimap(window, readings_base):
 def test_a_reading_mark_is_a_slot_coloured_by_suit_and_face_down_while_unturned():
     from PyQt6.QtCore import QSize
 
+    from tarot_canvas.models.deck_types import CardKind
     from tarot_canvas.models.readings import ReadingCard
     from tarot_canvas.ui.canvas.reading_card import FACE_DOWN_MARK
     from tarot_canvas.ui.canvas.tab_icon import reading_marks
-    from tarot_canvas.ui.card_colours import card_colour
+    from tarot_canvas.ui.card_colours import colour_of
 
     reading = Reading(
         date=NOW,
@@ -267,13 +268,13 @@ def test_a_reading_mark_is_a_slot_coloured_by_suit_and_face_down_while_unturned(
 
     up, down = reading_marks(reading, QSize(10, 20))
 
-    assert up == (1, 2, 10, 20, 90, card_colour({"type": "minor_arcana", "suit": "cups"}), 3)
-    assert up[5] != card_colour({})
+    assert up == (1, 2, 10, 20, 90, colour_of(CardKind.MINOR, "cups"), 3)
+    assert up[5] != colour_of(None)
     assert down[5] == FACE_DOWN_MARK
     (major,) = reading_marks(
         Reading(date=NOW, cards=(ReadingCard(id="major_arcana.00"),)), QSize(1, 1)
     )
-    assert major[5] == card_colour({"type": "major_arcana"}) != card_colour({})
+    assert major[5] == colour_of(CardKind.MAJOR) != colour_of(None)
 
 
 def test_a_first_launch_on_a_small_laptop_shows_the_header(qtbot, window):

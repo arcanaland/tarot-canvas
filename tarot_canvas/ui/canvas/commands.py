@@ -11,8 +11,9 @@ class CardMoveCommand(QUndoCommand):
         self.item = item
         self.old_pos = old_pos
         self.new_pos = new_pos
+        card = item.card_data
         self.setText(
-            CANVAS["move_card"].format(name=item.card_data.get("name", CANVAS["card_fallback"]))
+            CANVAS["move_card"].format(name=card.display_name if card else CANVAS["card_fallback"])
         )
 
     def undo(self):

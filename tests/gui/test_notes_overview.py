@@ -21,7 +21,7 @@ def write_note(notes_base, card_id, filename, body):
 
 def open_card_view(qtbot, register=True):
     deck = TarotDeck(str(MINIMAL_DECK_PATH))
-    card = next(c for c in deck.get_all_cards() if c.get("image"))
+    card = next(c for c in deck.get_all_cards() if c.default_image())
     tab = CardViewTab(card=card, deck=deck)
     if register:
         qtbot.addWidget(tab)
@@ -70,7 +70,9 @@ def test_the_ghost_is_how_the_first_note_gets_written(qtbot, notes_base):
 
 def test_one_note_is_listed_with_its_opening_line(qtbot, notes_base):
     tab, card = open_card_view(qtbot)
-    write_note(notes_base, card["id"], "1700000000_Lyrics.md", "# Lyrics\n\nthe longest night\n")
+    write_note(
+        notes_base, card.canonical_id, "1700000000_Lyrics.md", "# Lyrics\n\nthe longest night\n"
+    )
     tab.notes_tab.load_card_notes(card)
     tab.overview_tab.refresh_notes()
 
@@ -84,7 +86,7 @@ def test_one_note_is_listed_with_its_opening_line(qtbot, notes_base):
 
 def test_a_stub_is_listed_but_shows_no_preview_line(qtbot, notes_base):
     tab, card = open_card_view(qtbot)
-    write_note(notes_base, card["id"], "1700000000_Stub.md", "# Stub\n\n")
+    write_note(notes_base, card.canonical_id, "1700000000_Stub.md", "# Stub\n\n")
     tab.notes_tab.load_card_notes(card)
     tab.overview_tab.refresh_notes()
 
@@ -98,7 +100,7 @@ def test_five_notes_are_capped_at_three_newest_first(qtbot, notes_base):
     tab, card = open_card_view(qtbot)
     for index in range(5):
         path = write_note(
-            notes_base, card["id"], f"17000000{index:02d}_N{index}.md", f"# N{index}\n"
+            notes_base, card.canonical_id, f"17000000{index:02d}_N{index}.md", f"# N{index}\n"
         )
 
         os.utime(path, (1700000000 + index, 1700000000 + index))
@@ -116,7 +118,7 @@ def test_five_notes_are_capped_at_three_newest_first(qtbot, notes_base):
 
 def test_a_nameless_note_is_listed_by_its_first_line(qtbot, notes_base):
     tab, card = open_card_view(qtbot)
-    write_note(notes_base, card["id"], "1700000000.md", "a line I came with\n")
+    write_note(notes_base, card.canonical_id, "1700000000.md", "a line I came with\n")
     tab.notes_tab.load_card_notes(card)
     tab.overview_tab.refresh_notes()
 
@@ -127,7 +129,7 @@ def test_a_nameless_note_never_shows_the_same_line_twice(qtbot, notes_base):
     tab, card = open_card_view(qtbot)
     write_note(
         notes_base,
-        card["id"],
+        card.canonical_id,
         "1700000000.md",
         "foo?\nand bar\n",
     )
@@ -142,7 +144,7 @@ def test_a_nameless_note_never_shows_the_same_line_twice(qtbot, notes_base):
 
 def test_a_one_line_nameless_note_is_a_one_line_row(qtbot, notes_base):
     tab, card = open_card_view(qtbot)
-    write_note(notes_base, card["id"], "1700000000.md", "the whole note\n")
+    write_note(notes_base, card.canonical_id, "1700000000.md", "the whole note\n")
     tab.notes_tab.load_card_notes(card)
     tab.overview_tab.refresh_notes()
 
@@ -154,7 +156,7 @@ def test_a_one_line_nameless_note_is_a_one_line_row(qtbot, notes_base):
 
 def test_the_rows_point_no_hand(qtbot, notes_base):
     tab, card = open_card_view(qtbot)
-    write_note(notes_base, card["id"], "1700000000_Lyrics.md", "# Lyrics\n\nbody\n")
+    write_note(notes_base, card.canonical_id, "1700000000_Lyrics.md", "# Lyrics\n\nbody\n")
     tab.notes_tab.load_card_notes(card)
     tab.overview_tab.refresh_notes()
     view = section(tab).list_view
@@ -167,7 +169,7 @@ def test_a_heading_the_user_wrote_titles_a_nameless_note(qtbot, notes_base):
     tab, card = open_card_view(qtbot)
     write_note(
         notes_base,
-        card["id"],
+        card.canonical_id,
         "1700000000.md",
         '# Lyrics\n\n"foobar"\n',
     )
@@ -182,7 +184,7 @@ def test_a_heading_the_user_wrote_titles_a_nameless_note(qtbot, notes_base):
 
 def test_clicking_a_row_raises_the_notes_tab_with_that_note_open(qtbot, notes_base):
     tab, card = open_card_view(qtbot)
-    path = write_note(notes_base, card["id"], "1700000000_Lyrics.md", "# Lyrics\n\nbody\n")
+    path = write_note(notes_base, card.canonical_id, "1700000000_Lyrics.md", "# Lyrics\n\nbody\n")
     tab.notes_tab.load_card_notes(card)
     tab.overview_tab.refresh_notes()
 

@@ -3,6 +3,7 @@ from PyQt6.QtCore import QRect, QSize, Qt
 from PyQt6.QtGui import QColor, QIcon, QImage, QPainter, QPalette
 from PyQt6.QtWidgets import QStyle, QStyleOptionViewItem
 
+from tarot_canvas.models.deck_types import Card, CardImage, CardKind
 from tarot_canvas.ui import units
 from tarot_canvas.ui.catalog.client import deck_catalog
 from tarot_canvas.ui.catalog.downloads import deck_downloads
@@ -157,9 +158,15 @@ def colours_in(image):
 def model_with_cover(tmp_path, colour="red"):
     deck = fake_deck("Rider-Waite-Smith", author="P. C. Smith", majors=22, minors=56)
     path = write_card(tmp_path, 600, 900, colour)
-    deck.get_cards_by_type = lambda t: (
-        [{"type": t, "number": 0, "image": path}] if t == "major_arcana" else [{"type": t}] * 56
+    fool = Card(
+        canonical_id="major_arcana.00",
+        kind=CardKind.MAJOR,
+        display_name="The Fool",
+        position=0,
+        images=(CardImage(path, "raster"),),
     )
+    pip = Card(canonical_id="minor_arcana.cups.ace", kind=CardKind.MINOR, display_name="Ace")
+    deck.get_cards_by_type = lambda t: [fool] if t == "major_arcana" else [pip] * 56
     return DeckListModel([deck])
 
 

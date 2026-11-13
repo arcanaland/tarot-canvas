@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (
     QStyleOptionGraphicsItem,
 )
 
+from tarot_canvas.models.deck_types import Card, CardKind
 from tarot_canvas.ui.canvas.alignment import logical_rect
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
 from tarot_canvas.ui.canvas.motion import SHADOW_Z_OFFSET, MotionChannels
@@ -45,7 +46,15 @@ def card(qapp):
     def build(reactive=True, in_scene=True):
         pixmap = QPixmap(CARD_W, CARD_H)
         pixmap.fill()
-        item = DraggableCardItem(pixmap, {"id": "major_arcana/star"}, StubTab(reactive))
+        item = DraggableCardItem(
+            pixmap,
+            Card(
+                canonical_id="major_arcana.17",
+                kind=CardKind.MAJOR,
+                display_name="The Star",
+            ),
+            StubTab(reactive),
+        )
         if in_scene:
             scene = QGraphicsScene()
             scene.addItem(item)

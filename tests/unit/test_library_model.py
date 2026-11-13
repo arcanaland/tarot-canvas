@@ -4,6 +4,7 @@ import pytest
 from PyQt6.QtCore import QLocale, Qt
 
 from tarot_canvas.models.catalog import parse_index
+from tarot_canvas.models.deck_types import Card, CardImage, CardKind
 from tarot_canvas.ui.catalog.downloads import DeckState, deck_downloads
 from tarot_canvas.ui.library.decks.model import (
     SORT_AUTHOR,
@@ -37,21 +38,24 @@ def fake_deck(
 ):
     """`deck_fields` are more [deck] keys: version, license, attribution, description"""
 
-    def card(index, card_type):
-        return {
-            "type": card_type,
-            "number": index,
-            "image": f"/decks/{name}/{card_type}/{index}.png" if images else None,
-        }
+    def card(index, kind):
+        path = f"/decks/{name}/{kind.value}/{index}.png"
+        return Card(
+            canonical_id=f"{kind.value}.{index}",
+            kind=kind,
+            display_name=str(index),
+            position=index,
+            images=(CardImage(path, "raster"),) if images else (),
+        )
 
-    cards = [card(i, "major_arcana") for i in range(majors)]
-    cards += [card(i, "minor_arcana") for i in range(minors)]
+    cards = [card(i, CardKind.MAJOR) for i in range(majors)]
+    cards += [card(i, CardKind.MINOR) for i in range(minors)]
     fields = {"author": author, **deck_fields}
     return SimpleNamespace(
         deck_path=path or f"/decks/{name}",
         get_name=lambda: name,
         get_all_cards=lambda: cards,
-        get_cards_by_type=lambda t: [c for c in cards if c["type"] == t],
+        get_cards_by_type=lambda t: [c for c in cards if c.kind.value == t],
         get_identifier=lambda: identifier,
         get_deck_id=lambda: None,
         get_author=lambda: fields.get("artist") or fields.get("author"),
@@ -94,7 +98,17 @@ def test_cover_prefers_the_fool_then_falls_back(qapp):
 def test_cover_falls_back_to_any_card_with_art(qapp):
     deck = fake_deck("Deck", majors=0)
     deck.get_cards_by_type = lambda t: (
-        [{"type": t, "number": 5, "image": "/art/five.png"}] if t == "major_arcana" else []
+        [
+            Card(
+                canonical_id="major_arcana.05",
+                kind=CardKind.MAJOR,
+                display_name="5",
+                position=5,
+                images=(CardImage("/art/five.png", "raster"),),
+            )
+        ]
+        if t == "major_arcana"
+        else []
     )
     model = DeckListModel([deck])
     assert model.data(model.index(0, 0), CoverPathRole) == "/art/five.png"

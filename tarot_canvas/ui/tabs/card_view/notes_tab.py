@@ -238,7 +238,7 @@ class NotesTab(QWidget):
 
     def load_card_notes(self, card):
         """Load existing notes for a card"""
-        card_id = card.get("id") if card else None
+        card_id = card.canonical_id if card else None
         self.set_anchor(notes_model.card_anchor(card_id) if card_id else None)
 
     def set_anchor(self, anchor):

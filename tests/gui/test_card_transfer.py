@@ -1,5 +1,6 @@
 import json
 import shutil
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -39,7 +40,7 @@ def test_a_card_survives_the_round_trip(qapp, minimal_deck, card):
 
         assert resolved is not None
         got_card, got_deck, got_reversed = resolved
-        assert got_card["id"] == "major_arcana.00"
+        assert got_card.canonical_id == "major_arcana.00"
         assert got_deck is minimal_deck
         assert got_reversed is is_reversed
 
@@ -108,12 +109,12 @@ def test_only_our_format_is_ever_a_card(qapp, minimal_deck, card):
 def test_other_apps_get_text_and_the_art(qapp, minimal_deck, card):
     mime = card_mime_data(card, minimal_deck)
 
-    assert mime.text() == f"{card['name']} \N{EM DASH} Minimal Test Deck"
+    assert mime.text() == f"{card.display_name} \N{EM DASH} Minimal Test Deck"
     assert mime.hasImage()
 
 
 def test_a_card_without_art_still_copies(qapp, minimal_deck, card):
-    mime = card_mime_data(dict(card, image=None), minimal_deck)
+    mime = card_mime_data(replace(card, images=()), minimal_deck)
 
     assert not mime.hasImage()
     assert card_from_mime(mime, [minimal_deck]) is not None
@@ -134,7 +135,7 @@ def test_several_cards_survive_the_round_trip_in_order(qapp, full_deck):
 
     resolved = cards_from_mime(cards_mime_data(cards, full_deck), [full_deck])
 
-    assert [card["id"] for card, _, _ in resolved] == THREE_CARDS
+    assert [card.canonical_id for card, _, _ in resolved] == THREE_CARDS
     assert all(deck is full_deck for _, deck, _ in resolved)
 
 
@@ -145,9 +146,9 @@ def test_a_several_card_payload_still_names_its_first_card_alone(qapp, full_deck
 
     assert payload(mime)["card_id"] == THREE_CARDS[0]
     assert payload(mime)["card_ids"] == THREE_CARDS
-    assert card_from_mime(mime, [full_deck])[0]["id"] == THREE_CARDS[0]
+    assert card_from_mime(mime, [full_deck])[0].canonical_id == THREE_CARDS[0]
     assert mime.text().splitlines() == [
-        f"{card['name']} \N{EM DASH} Full Test Deck" for card in cards
+        f"{card.display_name} \N{EM DASH} Full Test Deck" for card in cards
     ]
     assert not mime.hasImage()
 
@@ -156,7 +157,7 @@ def test_a_one_card_payload_reads_as_one_card(qapp, minimal_deck):
     mime = with_payload(v=1, card_id="major_arcana.01", deck_path=str(MINIMAL_DECK_PATH))
 
     resolved = cards_from_mime(mime, [minimal_deck])
-    assert [card["id"] for card, _, _ in resolved] == ["major_arcana.01"]
+    assert [card.canonical_id for card, _, _ in resolved] == ["major_arcana.01"]
 
 
 def test_an_unknown_card_among_several_is_skipped(qapp, minimal_deck):
@@ -168,7 +169,7 @@ def test_an_unknown_card_among_several_is_skipped(qapp, minimal_deck):
     )
 
     resolved = cards_from_mime(mime, [minimal_deck])
-    assert [card["id"] for card, _, _ in resolved] == ["major_arcana.00", "major_arcana.01"]
+    assert [card.canonical_id for card, _, _ in resolved] == ["major_arcana.00", "major_arcana.01"]
 
 
 def test_copying_several_cards_is_one_clipboard_write(qapp, clipboard, full_deck):
@@ -179,6 +180,6 @@ def test_copying_several_cards_is_one_clipboard_write(qapp, clipboard, full_deck
     copy_cards_to_clipboard(cards, full_deck)
 
     assert len(writes) == 1
-    assert [card["id"] for card, _, _ in cards_from_mime(clipboard.mimeData(), [full_deck])] == (
-        THREE_CARDS
-    )
+    assert [
+        card.canonical_id for card, _, _ in cards_from_mime(clipboard.mimeData(), [full_deck])
+    ] == (THREE_CARDS)

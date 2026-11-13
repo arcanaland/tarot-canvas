@@ -1,7 +1,10 @@
+from dataclasses import replace
+
 import pytest
 from PyQt6.QtCore import Qt
 
 from tarot_canvas.models.deck import TarotDeck
+from tarot_canvas.models.deck_types import Card, CardKind
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.deck_view.card_model import KIND_CARD, CardModel, CardRole, KindRole
 from tarot_canvas.ui.deck_view.tableau_model import (
@@ -22,7 +25,7 @@ def tableau(deck):
 
 def card_id(model, row, column):
     card = model.index(row, column).data(CardRole)
-    return card["id"] if card else None
+    return card.canonical_id if card else None
 
 
 def kind(model, row, column):
@@ -113,9 +116,11 @@ def test_a_missing_major_is_a_ghost_in_its_slot(tmp_path):
 
 
 def test_majors_take_their_slots_by_number(full_deck):
-    strength = full_deck.get_card_by_id("major_arcana.08")
-    justice = full_deck.get_card_by_id("major_arcana.11")
-    strength["number"], justice["number"] = 11, 8
+    swapped = {"major_arcana.08": 11, "major_arcana.11": 8}
+    full_deck._cards[:] = [
+        replace(card, position=swapped[card.canonical_id]) if card.canonical_id in swapped else card
+        for card in full_deck._cards
+    ]
     model = tableau(full_deck)
 
     assert card_id(model, 2, 0) == "major_arcana.11"
@@ -124,13 +129,13 @@ def test_majors_take_their_slots_by_number(full_deck):
 
 def test_a_fifth_suit_takes_a_fifth_column(full_deck):
     full_deck._cards.extend(
-        {
-            "id": f"minor_arcana.stars.{rank}",
-            "name": f"{rank} of Stars",
-            "type": "minor_arcana",
-            "suit": "stars",
-            "rank": rank,
-        }
+        Card(
+            canonical_id=f"minor_arcana.stars.{rank}",
+            kind=CardKind.MINOR,
+            display_name=f"{rank} of Stars",
+            suit_key="stars",
+            rank_key=rank,
+        )
         for rank in ("ace", "two")
     )
     model = tableau(full_deck)
@@ -145,7 +150,7 @@ def test_a_fifth_suit_takes_a_fifth_column(full_deck):
 
 
 def test_a_deck_without_suits_has_no_minor_block(full_deck):
-    full_deck._cards[:] = [c for c in full_deck._cards if c["type"] == "major_arcana"]
+    full_deck._cards[:] = [c for c in full_deck._cards if c.kind is CardKind.MAJOR]
     model = tableau(full_deck)
 
     assert model.rowCount() == 4
@@ -159,7 +164,7 @@ def test_every_card_cell_maps_to_its_card_and_back(full_deck):
     for row, column in cells:
         index = model.index(row, column)
         source = model.mapToSource(index)
-        assert source.data(CardRole)["id"] == index.data(CardRole)["id"]
+        assert source.data(CardRole).canonical_id == index.data(CardRole).canonical_id
         assert model.mapFromSource(source) == index
     assert not model.mapToSource(model.index(0, 0)).isValid()
 

@@ -172,6 +172,8 @@ class MainWindow(QMainWindow):
         deck_downloads().installed.connect(self.on_deck_installed)
 
         QGuiApplication.clipboard().dataChanged.connect(self.update_edit_actions)
+        # Which of the two zooms act on moves with the focus, and the art's zoom with the wheel
+        QApplication.instance().focusChanged.connect(self.on_focus_changed)
         self.update_edit_actions()
         self.update_zoom_actions()
         self.update_canvas_background_action()
@@ -296,8 +298,6 @@ class MainWindow(QMainWindow):
         self.reset_zoom_action = actions["window.reset_zoom"]
         view_menu.addActions([self.zoom_in_action, self.zoom_out_action, self.reset_zoom_action])
         typography.events().reading_scale_changed.connect(self.update_zoom_actions)
-        # Which of the two they act on moves with the focus, and the art's zoom with the wheel
-        QApplication.instance().focusChanged.connect(self.on_focus_changed)
         view_menu.aboutToShow.connect(self.update_zoom_actions)
 
         # The current canvas's own ground
@@ -804,7 +804,7 @@ class MainWindow(QMainWindow):
                     hasattr(tab, "id")
                     and hasattr(tab, "card")
                     and tab.card
-                    and tab.card.get("id") == card.get("id")
+                    and tab.card.canonical_id == card.canonical_id
                 ):
                     # Tab exists, just select it
                     self.raise_tab_into(tab, tab)
@@ -1244,7 +1244,7 @@ class MainWindow(QMainWindow):
                 hasattr(tab, "id")
                 and hasattr(tab, "card")
                 and tab.card
-                and tab.card.get("id") == card.get("id")
+                and tab.card.canonical_id == card.canonical_id
             ):
                 # Tab exists, just select it
                 self.raise_tab_into(tab, tab)
@@ -1266,11 +1266,11 @@ class MainWindow(QMainWindow):
                 # If it's a canvas tab, add the card to it
                 if hasattr(current_tab, "add_specific_card"):
                     current_tab.add_specific_card(card, deck)
-                    logger.debug(f"Adding card to canvas: {card['name']}")
+                    logger.debug(f"Adding card to canvas: {card.display_name}")
             else:
                 # For any other tab type, open a card view
                 self.open_card_view_tab(card, deck)
-                logger.debug(f"Opening card view for: {card['name']}")
+                logger.debug(f"Opening card view for: {card.display_name}")
 
     def open_card_view_tab(self, card, deck, show_notes=False):
         """Open a tab to view a specific card, or raise the one already open, and return it"""
@@ -1281,7 +1281,7 @@ class MainWindow(QMainWindow):
                 hasattr(tab, "id")
                 and hasattr(tab, "card")
                 and tab.card
-                and tab.card.get("id") == card.get("id")
+                and tab.card.canonical_id == card.canonical_id
             ):
                 # Tab exists, just select it
                 self.raise_tab_into(tab, tab)

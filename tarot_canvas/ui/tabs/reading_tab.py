@@ -216,7 +216,7 @@ class ReadingTab(SpreadSlots, CanvasTab):
             self.deal()
             return
         taken = self._taken_ids()
-        pool = [card for card in self._pool() if card.get("id") not in taken]
+        pool = [card for card in self._pool() if card.canonical_id not in taken]
         if not pool:
             logger.info("Every card of the reading's deck is on the table")
             return
@@ -496,7 +496,9 @@ class ReadingTab(SpreadSlots, CanvasTab):
     def _pool(self):
         """The deck's cards that can be drawn: those with a face to turn up"""
         cards = list(self.deck.get_all_cards()) if self.deck is not None else []
-        return [card for card in cards if card.get("image") and os.path.exists(card["image"])]
+        return [
+            card for card in cards if card.default_image() and os.path.exists(card.default_image())
+        ]
 
     def _taken_ids(self):
         """Ids of the cards the deck can't give again"""
@@ -506,7 +508,7 @@ class ReadingTab(SpreadSlots, CanvasTab):
             for card in self.cards()
             if not isinstance(card, SlotItem) and card.deck is self.deck
         ]
-        return {card.card_data.get("id") for card in (*placed, *loose)}
+        return {card.card_data.canonical_id for card in (*placed, *loose)}
 
     def _forget_by_hand(self):
         self._by_hand = None
@@ -556,7 +558,7 @@ class ReadingTab(SpreadSlots, CanvasTab):
                 f"Left {faceless} cards with no face out of the draw from {self.deck.get_name()}"
             )
         taken = self._taken_ids()
-        pool = [card for card in drawable if card.get("id") not in taken]
+        pool = [card for card in drawable if card.canonical_id not in taken]
         empty = [placement for placement in self.placements if placement.card is None]
         self._dealt = self._make_cards(empty, random.sample(pool, len(pool)))
         if len(self._dealt) < len(empty):
@@ -589,7 +591,7 @@ class ReadingTab(SpreadSlots, CanvasTab):
                 item = self.make_card_item(card, self.deck, reversed, item_type=ReadingCard)
                 if item is not None:
                     break
-                logger.info(f"Passed over {card.get('name')}: its art won't load")
+                logger.info(f"Passed over {card.display_name}: its art won't load")
             if item is None:
                 break
             size = item.face_pixmap().size()
@@ -600,7 +602,7 @@ class ReadingTab(SpreadSlots, CanvasTab):
             placement.fill(item)
             dealt.append(item)
             logger.debug(
-                f"Dealt {card.get('name')}{' (reversed)' if reversed else ''} "
+                f"Dealt {card.display_name}{' (reversed)' if reversed else ''} "
                 f"to {placement.number} {placement.slot.label!r}"
             )
         return dealt
@@ -686,7 +688,7 @@ class ReadingTab(SpreadSlots, CanvasTab):
         entries = [
             entry
             for entry in entries
-            if not isinstance(entry, tuple) or entry[0].card_data.get("id")
+            if not isinstance(entry, tuple) or entry[0].card_data is not None
         ]
         keys = [
             item_deck_key(entry[0]) if isinstance(entry, tuple) else entry.deck for entry in entries

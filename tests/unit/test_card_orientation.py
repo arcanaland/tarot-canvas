@@ -3,6 +3,7 @@
 import pytest
 from PyQt6.QtGui import QPixmap
 
+from tarot_canvas.models.deck_types import Card, CardKind
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
 
 
@@ -15,7 +16,16 @@ def make_card(reactive=False, reversed=False):
     pixmap = QPixmap(120, 200)
     pixmap.fill()
     tab = StubTab() if reactive else None
-    return DraggableCardItem(pixmap, {"id": "major_arcana/hermit"}, tab, reversed=reversed)
+    return DraggableCardItem(
+        pixmap,
+        Card(
+            canonical_id="major_arcana.09",
+            kind=CardKind.MAJOR,
+            display_name="The Hermit",
+        ),
+        tab,
+        reversed=reversed,
+    )
 
 
 @pytest.mark.parametrize(("reversed", "drawn"), [(False, 90.0), (True, 270.0)])

@@ -10,6 +10,7 @@ from PyQt6.QtGui import QColor, QImage
 from PyQt6.QtWidgets import QApplication
 
 from tarot_canvas.models.card_ids import COURTS, PIPS
+from tarot_canvas.models.deck_types import Card, CardImage, CardKind
 from tarot_canvas.ui import units
 from tarot_canvas.ui.canvas import detail
 from tarot_canvas.ui.deck_view import card_delegate
@@ -53,13 +54,13 @@ def test_the_majors_come_first_by_number_then_each_suit_ace_to_king(full_deck):
     cards = [model.index(row, 0).data(CardRole) for row in model.card_rows()]
 
     assert rows(model)[0] == (KIND_HEADING, "Major Arcana")
-    assert [card["number"] for card in cards[:22]] == list(range(22))
+    assert [card.position for card in cards[:22]] == list(range(22))
     headings = [text for kind, text in rows(model) if kind == KIND_HEADING]
     assert headings == ["Major Arcana", "Wands", "Cups", "Swords", "Pentacles"]
     for suit_index, suit in enumerate(["wands", "cups", "swords", "pentacles"]):
         suit_cards = cards[22 + 14 * suit_index : 22 + 14 * (suit_index + 1)]
-        assert [card["suit"] for card in suit_cards] == [suit] * 14
-        assert [card["rank"] for card in suit_cards] == list(PIPS + COURTS)
+        assert [card.suit_key for card in suit_cards] == [suit] * 14
+        assert [card.rank_key for card in suit_cards] == list(PIPS + COURTS)
     assert kinds.count(KIND_CARD) == 78
     assert len(kinds) == 78 + 5
 
@@ -137,7 +138,7 @@ def test_find_hides_the_note(minimal_deck):
 
 
 def test_a_major_with_no_number_goes_last(minimal_deck):
-    unnumbered = {"id": "x", "name": "Unnumbered", "type": "major_arcana"}
+    unnumbered = Card(canonical_id="x", kind=CardKind.MAJOR, display_name="Unnumbered")
     deck = SimpleNamespace(
         get_cards_by_type=lambda kind: [unnumbered, *minimal_deck.get_cards_by_type(kind)],
         get_suits=lambda: [],
@@ -160,11 +161,17 @@ def _art_deck(tmp_path, width, height):
     image.fill(QColor("red"))
     path = tmp_path / f"card-{width}x{height}.png"
     assert image.save(str(path))
-    return _one_card_deck({"name": "Test Card", "image": str(path), "type": "major_arcana"})
+    return _one_card_deck(str(path))
 
 
-def _one_card_deck(card):
-    card = {"id": "major_arcana.00", "number": 0, **card}
+def _one_card_deck(image):
+    card = Card(
+        canonical_id="major_arcana.00",
+        kind=CardKind.MAJOR,
+        display_name="Test Card",
+        position=0,
+        images=(CardImage(image, "raster"),) if image else (),
+    )
     return SimpleNamespace(
         get_cards_by_type=lambda kind: [card] if kind == "major_arcana" else [],
         get_suits=lambda: [],
@@ -237,7 +244,7 @@ def test_missing_art_paints_the_placeholder_and_asks_once(qtbot, tmp_path, monke
     monkeypatch.setattr(
         card_delegate, "paint_placeholder_well", lambda painter, well, palette: wells.append(well)
     )
-    view = _view(qtbot, _one_card_deck({"name": "Test Card", "image": str(tmp_path / "nope.png")}))
+    view = _view(qtbot, _one_card_deck(str(tmp_path / "nope.png")))
     view.viewport().grab()
     view.viewport().grab()
 
@@ -251,7 +258,7 @@ def test_a_card_with_no_art_at_all_paints_the_placeholder(qtbot, monkeypatch):
     monkeypatch.setattr(
         card_delegate, "paint_placeholder_well", lambda painter, well, palette: wells.append(well)
     )
-    view = _view(qtbot, _one_card_deck({"name": "Test Card", "image": None}))
+    view = _view(qtbot, _one_card_deck(None))
     view.viewport().grab()
     assert wells
 

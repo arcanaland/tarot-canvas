@@ -33,19 +33,19 @@ def cards_mime_data(cards, deck, is_reversed=False):
     first = cards[0]
     payload = {
         "v": PAYLOAD_VERSION,
-        "card_id": first["id"],
+        "card_id": first.canonical_id,
         "deck_path": os.fspath(deck.deck_path),
         "reversed": bool(is_reversed),
     }
 
     if len(cards) > 1:
-        payload["card_ids"] = [card["id"] for card in cards]
+        payload["card_ids"] = [card.canonical_id for card in cards]
 
     mime = QMimeData()
     mime.setData(CARD_MIME, json.dumps(payload).encode("utf-8"))
-    mime.setText("\n".join(f"{card['name']} \N{EM DASH} {deck.get_name()}" for card in cards))
+    mime.setText("\n".join(f"{card.display_name} \N{EM DASH} {deck.get_name()}" for card in cards))
+    image_path = first.default_image()
 
-    image_path = first.get("image")
     if len(cards) == 1 and image_path and os.path.exists(image_path):
         image = QImage(image_path)
         if not image.isNull():

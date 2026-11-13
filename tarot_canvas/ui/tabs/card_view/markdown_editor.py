@@ -386,9 +386,9 @@ class MarkdownEditor(QPlainTextEdit):
             logger.debug(f"Retrieved {len(cards) if cards else 0} cards from deck")
 
             for card in cards:
-                if card["name"].lower() == card_name.lower():
+                if card.display_name.lower() == card_name.lower():
                     found_card = card
-                    logger.debug(f"Found card: {card['name']} (id: {card.get('id', 'unknown')})")
+                    logger.debug(f"Found card: {card.display_name} (id: {card.canonical_id})")
                     break
 
             if not found_card:
@@ -447,9 +447,9 @@ class MarkdownEditor(QPlainTextEdit):
             logger.debug(f"Looking for card name: {text} among {len(cards) if cards else 0} cards")
 
             for card in cards:
-                if card["name"].lower() == text.lower():
+                if card.display_name.lower() == text.lower():
                     found_card = card
-                    logger.debug(f"Found matching card: {card['name']}")
+                    logger.debug(f"Found matching card: {card.display_name}")
                     break
 
             if not found_card:

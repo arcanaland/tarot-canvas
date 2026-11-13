@@ -2,6 +2,7 @@ import pytest
 from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtGui import QColor, QImage, QPixmap
 
+from tarot_canvas.models.deck_types import Card, CardKind
 from tarot_canvas.settings import (
     BACKGROUND_FILL_KEY,
     BACKGROUND_IMAGE_KEY,
@@ -84,7 +85,9 @@ def test_the_shadow_takes_the_images_tone_and_follows_it(qtbot, backgrounds_base
     tab = make_tab(qtbot)
     pixmap = QPixmap(120, 200)
     pixmap.fill(Qt.GlobalColor.white)
-    card = DraggableCardItem(pixmap, {"id": "card-0"}, tab)
+    card = DraggableCardItem(
+        pixmap, Card(canonical_id="card-0", kind=CardKind.MAJOR, display_name="card-0"), tab
+    )
     tab.scene.addItem(card)
 
     tone, opacity = shadow_for_ground(QColor("#f4f0e8"))

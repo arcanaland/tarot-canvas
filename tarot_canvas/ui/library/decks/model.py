@@ -26,11 +26,11 @@ def deck_cover_path(deck):
     """The Fool if the deck has one, else any major arcana card with art."""
     major_arcana = deck.get_cards_by_type("major_arcana")
     for card in major_arcana:
-        if card.get("number") == 0 and card.get("image"):
-            return card.get("image")
+        if card.position == 0 and card.default_image():
+            return card.default_image()
     for card in major_arcana:
-        if card.get("image"):
-            return card.get("image")
+        if card.default_image():
+            return card.default_image()
     return None
 
 

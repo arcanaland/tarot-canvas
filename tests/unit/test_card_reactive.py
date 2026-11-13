@@ -4,6 +4,7 @@ import pytest
 from PyQt6.QtCore import QPointF
 from PyQt6.QtGui import QPixmap
 
+from tarot_canvas.models.deck_types import Card, CardKind
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
 from tarot_canvas.ui.canvas.motion import (
     HOVER_TILT_DEG,
@@ -35,7 +36,13 @@ def card(qapp):
         pixmap = QPixmap(CARD_W, CARD_H)
         pixmap.fill()
         return DraggableCardItem(
-            pixmap, {"id": "major_arcana/hermit"}, StubTab(reactive) if with_tab else None
+            pixmap,
+            Card(
+                canonical_id="major_arcana.09",
+                kind=CardKind.MAJOR,
+                display_name="The Hermit",
+            ),
+            StubTab(reactive) if with_tab else None,
         )
 
     return build

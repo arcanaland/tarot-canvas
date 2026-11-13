@@ -96,7 +96,7 @@ def test_a_dragged_row_carries_its_card_and_deck(qtbot):
     mime = explorer.model.mimeData([index])
 
     card, deck, is_reversed = card_from_mime(mime, [row["deck"]])
-    assert card["id"] == row["card"]["id"]
+    assert card.canonical_id == row["card"].canonical_id
     assert deck is row["deck"]
     assert not is_reversed
     assert explorer.model.mimeTypes() == [CARD_MIME]
@@ -123,12 +123,15 @@ def test_a_card_row_offers_open_and_copy(qtbot, clipboard):
     assert list(actions) == ["Open Card", "Copy Card"]
 
     actions["Copy Card"].trigger()
-    assert card_from_mime(clipboard.mimeData(), [row["deck"]])[0]["id"] == row["card"]["id"]
+    assert (
+        card_from_mime(clipboard.mimeData(), [row["deck"]])[0].canonical_id
+        == row["card"].canonical_id
+    )
 
     with qtbot.waitSignal(explorer.card_action_requested) as opened:
         actions["Open Card"].trigger()
     assert opened.args[0] == "view_card"
-    assert opened.args[1]["id"] == row["card"]["id"]
+    assert opened.args[1].canonical_id == row["card"].canonical_id
 
 
 def test_decks_changed_repopulates_the_deck_selector(qtbot, stub_deck_manager, minimal_deck):

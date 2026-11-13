@@ -7,6 +7,7 @@ from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QPalette
 from PyQt6.QtWidgets import QFrame, QGridLayout, QLabel, QWidget
 
+from tarot_canvas.models.deck_types import Card, CardKind
 from tarot_canvas.models.esoterica import Entry, SourceReading
 from tarot_canvas.models.esoterica_events import esoterica_events
 from tarot_canvas.models.esoterica_registry import PASSAGES, Role
@@ -16,22 +17,22 @@ from tarot_canvas.ui.palette import muted_text
 from tarot_canvas.ui.tabs.card_view import overview_tab
 from tarot_canvas.ui.tabs.card_view.overview_tab import OverviewTab
 
-MAJOR = {
-    "name": "Wheel of Fortune",
-    "id": "major_arcana.10",
-    "type": "major_arcana",
-    "number": 10,
-    "numeral": "X",
-    "alt_text": "A large, ornate wheel bearing esoteric symbols.",
-}
+MAJOR = Card(
+    canonical_id="major_arcana.10",
+    kind=CardKind.MAJOR,
+    display_name="Wheel of Fortune",
+    number="X",
+    position=10,
+    alt_text="A large, ornate wheel bearing esoteric symbols.",
+)
 
-MINOR = {
-    "name": "Three of Cups",
-    "id": "minor_arcana.cups.3",
-    "type": "minor_arcana",
-    "suit": "cups",
-    "rank": "three",
-}
+MINOR = Card(
+    canonical_id="minor_arcana.cups.3",
+    kind=CardKind.MINOR,
+    display_name="Three of Cups",
+    suit_key="cups",
+    rank_key="three",
+)
 
 
 MCELROY = SourceReading(
@@ -112,7 +113,7 @@ def test_a_major_arcanum_has_its_type_and_number_then_its_deck_under_the_name(qt
 
 
 def test_a_minor_arcanum_has_its_type_suit_and_rank_under_the_name(qtbot):
-    tab = make_tab(qtbot, {**MINOR, "display_suit": "Chalices"}, FakeDeck())
+    tab = make_tab(qtbot, replace(MINOR, display_suit="Chalices"), FakeDeck())
 
     assert tab.subtitle.text() == "Minor Arcana · Chalices · Three"
 
@@ -124,25 +125,25 @@ def test_without_a_deck_there_is_no_deck_line(qtbot):
 
 
 def test_an_unnumbered_major_has_only_its_type(qtbot):
-    tab = make_tab(qtbot, {**MAJOR, "name": "Le Mat", "numeral": None})
+    tab = make_tab(qtbot, replace(MAJOR, display_name="Le Mat", number=None))
 
     assert tab.subtitle.text() == "Major Arcana"
 
 
 def test_a_major_titled_by_its_numeral_does_not_repeat_it(qtbot):
-    tab = make_tab(qtbot, {**MAJOR, "name": "XIII", "numeral": "XIII"})
+    tab = make_tab(qtbot, replace(MAJOR, display_name="XIII", number="XIII"))
 
     assert tab.subtitle.text() == "Major Arcana"
 
 
 def test_hovering_the_subtitle_gives_the_canonical_id(qtbot):
     tab = make_tab(qtbot, MAJOR)
-    assert tab.subtitle.toolTip() == MAJOR["id"]
-    assert tab.subtitle.accessibleDescription() == MAJOR["id"]
+    assert tab.subtitle.toolTip() == MAJOR.canonical_id
+    assert tab.subtitle.accessibleDescription() == MAJOR.canonical_id
 
     tab.update_card_info(MINOR, None)
-    assert tab.subtitle.toolTip() == MINOR["id"]
-    assert tab.subtitle.accessibleDescription() == MINOR["id"]
+    assert tab.subtitle.toolTip() == MINOR.canonical_id
+    assert tab.subtitle.accessibleDescription() == MINOR.canonical_id
 
 
 def test_switching_card_type_redraws_the_subtitle(qtbot):
@@ -239,10 +240,10 @@ def test_the_source_line_raises_the_esoterica_tab(qtbot, readings):
 def test_the_description_has_no_heading_and_the_card_id_is_not_shown(qtbot):
     tab = make_tab(qtbot, MAJOR)
 
-    assert tab.description_label.text() == MAJOR["alt_text"]
+    assert tab.description_label.text() == MAJOR.alt_text
     texts = [label.text() for label in tab.findChildren(QLabel) if label.isVisible()]
     assert "Description" not in texts
-    assert not [text for text in texts if MAJOR["id"] in text]
+    assert not [text for text in texts if MAJOR.canonical_id in text]
 
 
 def test_without_alt_text_there_is_no_description(qtbot):
@@ -273,7 +274,11 @@ MARSEILLE = SimpleNamespace(
     get_name=lambda: "Marseille",
     get_identifier=lambda: None,
     get_pattern=lambda: "land.arcana/pattern/tarot-de-marseille",
-    get_card_by_id=lambda card_id: {"major_arcana.11": {"name": "La Force"}}.get(card_id),
+    get_card_by_id=lambda card_id: {
+        "major_arcana.11": Card(
+            canonical_id="major_arcana.11", kind=CardKind.MAJOR, display_name="La Force"
+        )
+    }.get(card_id),
 )
 
 

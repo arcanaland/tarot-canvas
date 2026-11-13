@@ -2,6 +2,7 @@ import pytest
 from PyQt6.QtCore import QPointF, QRectF, QSize, QThreadPool
 from PyQt6.QtGui import QColor, QImage, QPixmap
 
+from tarot_canvas.models.deck_types import Card, CardImage, CardKind
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
 from tarot_canvas.ui.canvas.detail import (
     CARD_MAX_SIZE,
@@ -37,7 +38,15 @@ def art(tmp_path):
 @pytest.fixture
 def card(qapp, art):
     pixmap, source = load_card_art(art)
-    item = DraggableCardItem(pixmap, {"id": "major_arcana/moon", "image": art})
+    item = DraggableCardItem(
+        pixmap,
+        Card(
+            canonical_id="major_arcana.18",
+            kind=CardKind.MAJOR,
+            display_name="The Moon",
+            images=(CardImage(art, "raster"),),
+        ),
+    )
     item.set_art_source(art, source)
     return item
 
@@ -124,7 +133,9 @@ def test_a_level_arriving_after_the_zoom_moved_on_is_dropped(qtbot, card):
 def test_a_card_with_no_art_file_stays_at_level_one(qapp):
     pixmap = QPixmap(300, 500)
     pixmap.fill()
-    item = DraggableCardItem(pixmap, {"id": "card"})
+    item = DraggableCardItem(
+        pixmap, Card(canonical_id="card", kind=CardKind.MAJOR, display_name="card")
+    )
 
     item.set_detail(8.0)
 

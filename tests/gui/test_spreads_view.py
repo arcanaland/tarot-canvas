@@ -9,6 +9,7 @@ from PyQt6.QtGui import QColor, QImage, QPainter, QPalette, QPixmap
 from PyQt6.QtWidgets import QMenu, QMessageBox, QStyleOptionViewItem
 
 from tarot_canvas.models import spreads, staged_delete
+from tarot_canvas.models.deck_types import Card, CardKind
 from tarot_canvas.models.spread_events import spread_events
 from tarot_canvas.models.spreads import Position, Spread
 from tarot_canvas.settings import (
@@ -873,7 +874,9 @@ def test_closing_the_library_makes_a_pending_delete_final(window, spreads_base):
 
 
 def add_card(tab, centre, z, orient=0):
-    card = DraggableCardItem(_pixmap(), {"id": f"card{z}"}, tab)
+    card = DraggableCardItem(
+        _pixmap(), Card(canonical_id=f"card{z}", kind=CardKind.MAJOR, display_name=f"card{z}"), tab
+    )
     card.setPos(centre - card.boundingRect().center())
     card.setZValue(z)
     card.set_orient(orient)

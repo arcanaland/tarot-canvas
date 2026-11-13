@@ -122,7 +122,7 @@ class ReadingDetailsPane(QWidget):
     """A reading's Question, what it was, its layout on its ground beside its cards, its note"""
 
     open_requested = pyqtSignal(object)  # the reading's folder
-    card_requested = pyqtSignal(object, object)  # a turned card's dict, and its deck
+    card_requested = pyqtSignal(object, object)  # a turned card and its deck
     # The expand button was clicked, or Esc pressed while expanded: whether to expand
     expand_requested = pyqtSignal(bool)
 

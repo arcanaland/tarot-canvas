@@ -32,7 +32,7 @@ def no_dialogs(monkeypatch):
 
 def cards():
     deck = TarotDeck(str(MINIMAL_DECK_PATH))
-    return deck, [c for c in deck.get_all_cards() if c.get("image")]
+    return deck, [c for c in deck.get_all_cards() if c.default_image()]
 
 
 def open_card_view(qtbot, *filenames, show=False):
@@ -44,7 +44,7 @@ def open_card_view(qtbot, *filenames, show=False):
 
     from tarot_canvas.models import notes as notes_model
 
-    card_dir = notes_model.notes_base() / card["id"]
+    card_dir = notes_model.notes_base() / card.canonical_id
     paths = []
     for offset, name in enumerate(filenames):
         card_dir.mkdir(parents=True, exist_ok=True)
@@ -361,7 +361,7 @@ def test_closing_the_card_views_tab_makes_the_delete_final(qtbot, notes_base, no
     qtbot.addWidget(window)
     window.new_card_view_tab()
     card_view = window.tab_widget.currentWidget()
-    card_dir = notes_base / card_view.card["id"]
+    card_dir = notes_base / card_view.card.canonical_id
     card_dir.mkdir(parents=True)
     path = card_dir / "1700000000_Lyrics.md"
     path.write_text("# Lyrics\n\nbody\n", encoding="utf-8")

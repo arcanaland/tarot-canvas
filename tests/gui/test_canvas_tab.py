@@ -14,6 +14,7 @@ from PyQt6.QtGui import (
 )
 from PyQt6.QtWidgets import QApplication
 
+from tarot_canvas.models.deck_types import Card, CardImage, CardKind
 from tarot_canvas.settings import (
     BACKGROUND_COLOR_KEY,
     BACKGROUND_STYLE_KEY,
@@ -53,7 +54,9 @@ def add_cards(tab, count):
     pixmap = QPixmap(100, 160)
     pixmap.fill()
     for i in range(count):
-        item = DraggableCardItem(pixmap, {"id": f"card-{i}"})
+        item = DraggableCardItem(
+            pixmap, Card(canonical_id=f"card-{i}", kind=CardKind.MAJOR, display_name=f"card-{i}")
+        )
         item.setPos(i * 150, 0)
         tab.scene.addItem(item)
         item.setSelected(True)
@@ -497,7 +500,7 @@ def test_flip_and_rotate_drive_the_orient_channel(qtbot):
     assert card.orient == 0  # wraps rather than accumulating
 
 
-def test_a_flip_keeps_the_rotation_and_leaves_the_deck_alone(qtbot, minimal_deck):
+def test_a_flip_keeps_the_rotation(qtbot, minimal_deck):
     tab = make_tab(qtbot)
     card = minimal_deck.get_all_cards()[0]
     item = tab.add_specific_card(card, card_deck=minimal_deck)
@@ -506,12 +509,10 @@ def test_a_flip_keeps_the_rotation_and_leaves_the_deck_alone(qtbot, minimal_deck
     tab.on_flip_card()
     assert item.orient == 90
     assert item.is_reversed()
-    assert "reversed" not in minimal_deck.get_card_by_id(card["id"])
 
     tab.on_flip_card()
     assert item.orient == 90
     assert not item.is_reversed()
-    assert "reversed" not in minimal_deck.get_card_by_id(card["id"])
 
 
 def test_a_card_summoned_reversed_is_drawn_upside_down(qtbot, minimal_deck):
@@ -524,7 +525,6 @@ def test_a_card_summoned_reversed_is_drawn_upside_down(qtbot, minimal_deck):
     assert item.orient == 0
     item.settle_motion()
     assert item.motion.drawn_angle() == 180.0
-    assert "reversed" not in minimal_deck.get_card_by_id(card["id"])
 
 
 def test_applying_preferences_starts_and_stops_the_clock(qtbot):
@@ -573,7 +573,7 @@ def test_a_dropped_card_lands_centred_under_the_drop(qtbot, minimal_deck):
     assert move.isAccepted(), "QGraphicsView's own dragMoveEvent refuses what enter accepted"
     assert drop.isAccepted()
     placed = only_card(tab)
-    assert placed.card_data["id"] == "major_arcana.01"
+    assert placed.card_data.canonical_id == "major_arcana.01"
     centre = placed.sceneBoundingRect().center()
     expected = tab.view.mapToScene(spot)
     assert abs(centre.x() - expected.x()) <= 1
@@ -614,7 +614,7 @@ def test_the_toolbar_paste_button_follows_the_clipboard(qtbot, clipboard, minima
     assert tab.paste_action.isEnabled()
 
     tab.paste_action.trigger()
-    assert only_card(tab).card_data["id"] == "major_arcana.00"
+    assert only_card(tab).card_data.canonical_id == "major_arcana.00"
 
 
 def test_a_copy_pastes_as_often_as_you_like(qtbot, clipboard, minimal_deck):
@@ -667,8 +667,8 @@ def test_pasting_three_cards_places_three_at_distinct_positions(
     first = tab.paste_card(cards_mime_data([full_deck.get_card_by_id(i) for i in ids], full_deck))
 
     placed = canvas_cards(tab)
-    assert sorted(item.card_data["id"] for item in placed) == sorted(ids)
-    assert first.card_data["id"] == ids[0]
+    assert sorted(item.card_data.canonical_id for item in placed) == sorted(ids)
+    assert first.card_data.canonical_id == ids[0]
     assert len({(item.pos().x(), item.pos().y()) for item in placed}) == 3
     assert all(item.isSelected() for item in placed)
 
@@ -1113,8 +1113,14 @@ def test_zooming_in_sharpens_the_cards_on_screen_and_only_those(qtbot, tmp_path)
     image.save(path)
 
     tab = make_tab(qtbot)
-    tab.add_specific_card({"id": "near", "image": path}, at=QPointF(0, 0))
-    tab.add_specific_card({"id": "far", "image": path}, at=QPointF(50000, 0))
+    for card_id, x in (("near", 0), ("far", 50000)):
+        card = Card(
+            canonical_id=card_id,
+            kind=CardKind.MAJOR,
+            display_name=card_id,
+            images=(CardImage(path, "raster"),),
+        )
+        tab.add_specific_card(card, at=QPointF(x, 0))
     near, far = sorted(canvas_cards(tab), key=lambda card: card.pos().x())
     tab.view.centerOn(near)
 
@@ -1361,7 +1367,9 @@ def test_swap_turns_nothing_on_screen(qtbot, minimal_deck, other_deck):
     card.set_orient(90)
     card.settle_motion()
 
-    swapped = tab.swap_card(card, other_deck, other_deck.get_card_by_id(card.card_data["id"]))
+    swapped = tab.swap_card(
+        card, other_deck, other_deck.get_card_by_id(card.card_data.canonical_id)
+    )
 
     assert swapped.motion.orient_lag == 0.0
     assert swapped.motion.drawn_angle() == card.motion.drawn_angle()
@@ -1375,7 +1383,9 @@ def test_a_card_taking_anothers_place_keeps_its_centre_when_the_art_differs(qtbo
     card.set_orient(90)
     wider = QPixmap(140, 200)
     wider.fill()
-    replacement = DraggableCardItem(wider, {"id": "card-0"})
+    replacement = DraggableCardItem(
+        wider, Card(canonical_id="card-0", kind=CardKind.MAJOR, display_name="card-0")
+    )
 
     replacement.take_place_of(card)
 
@@ -1394,7 +1404,11 @@ def slots_and_cards(tab):
     pixmap.fill()
     cards = []
     for slot in slots:
-        card = DraggableCardItem(pixmap, {"id": slot.position_id}, tab)
+        card = DraggableCardItem(
+            pixmap,
+            Card(canonical_id=slot.position_id, kind=CardKind.MAJOR, display_name=slot.position_id),
+            tab,
+        )
         card.setPos(slot.pos())
         tab.scene.addItem(card)
         cards.append(card)
@@ -1524,7 +1538,7 @@ def test_the_tab_icon_paints_a_slot_in_its_colour(qtbot):
     tab.tab_minimap = True
     tab.refresh_tab_icon()
     (card, slot) = sorted(tab._tab_marks, key=lambda mark: mark.x)
-    assert card.colour == CARD_COLOURS["default"]
+    assert card.colour == CARD_COLOURS["major_arcana"]
     assert slot.colour == SLOT_COLOUR
 
 

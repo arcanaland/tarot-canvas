@@ -10,6 +10,7 @@ from PyQt6.QtGui import QColor, QImage, QLinearGradient, QPainter
 from PyQt6.QtWidgets import QApplication
 
 from bench.env import BenchError
+from tarot_canvas.models.deck_types import Card, CardKind
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
 from tarot_canvas.ui.canvas.detail import load_card_art
 from tarot_canvas.ui.canvas.renderer import RENDERER_ENV, forget_renderer_choice
@@ -182,7 +183,11 @@ class BenchCanvas:
         for i in range(count):
             pixmap, source_size, path = self.art[i % len(self.art)]
             # A copy per card, as though each were different art
-            card = DraggableCardItem(pixmap.copy(), {"id": f"bench-{i}"}, tab)
+            card = DraggableCardItem(
+                pixmap.copy(),
+                Card(canonical_id=f"bench-{i}", kind=CardKind.MAJOR, display_name=f"bench-{i}"),
+                tab,
+            )
             card.set_art_source(path, source_size)
             card.setZValue(tab.take_top_z())
             card.setPos(

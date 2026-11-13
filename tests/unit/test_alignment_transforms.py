@@ -5,6 +5,7 @@ from PyQt6.QtCore import QPointF, QRectF
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import QGraphicsRectItem
 
+from tarot_canvas.models.deck_types import Card, CardKind
 from tarot_canvas.ui.canvas.alignment import (
     align_items_horizontally,
     align_items_vertically,
@@ -114,8 +115,12 @@ def test_edge_alignment_sees_a_card_oriented_sideways(qapp, arrangement, argumen
     """A card's orientation lives in its motion transform, not in item.rotation()"""
     pixmap = QPixmap(300, 450)
     pixmap.fill()
-    upright = DraggableCardItem(pixmap, {"id": "upright"})
-    sideways = DraggableCardItem(pixmap, {"id": "sideways"})
+    upright = DraggableCardItem(
+        pixmap, Card(canonical_id="upright", kind=CardKind.MAJOR, display_name="upright")
+    )
+    sideways = DraggableCardItem(
+        pixmap, Card(canonical_id="sideways", kind=CardKind.MAJOR, display_name="sideways")
+    )
     sideways.setPos(40, 600)
     sideways.set_orient(orient)
 
@@ -129,7 +134,10 @@ def test_edge_alignment_sees_a_card_oriented_sideways(qapp, arrangement, argumen
 def card(orient=0, pos=None):
     pixmap = QPixmap(300, 450)
     pixmap.fill()
-    item = DraggableCardItem(pixmap, {"id": f"card-{orient}"})
+    item = DraggableCardItem(
+        pixmap,
+        Card(canonical_id=f"card-{orient}", kind=CardKind.MAJOR, display_name=f"card-{orient}"),
+    )
     item.setPos(pos or QPointF(0, 0))
     item.set_orient(orient)
     return item

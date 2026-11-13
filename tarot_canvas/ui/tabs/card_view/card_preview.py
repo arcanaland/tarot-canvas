@@ -2,6 +2,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import QFrame, QLabel, QVBoxLayout
 
+from tarot_canvas.models.deck_types import CardKind
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.strings import CARD_VIEW
 from tarot_canvas.utils.logger import logger
@@ -63,29 +64,24 @@ class CardPreviewWidget(QFrame):
             self.hide()
             return
 
-        logger.debug(f"Setting up preview for card: {card.get('name', 'Unknown')}")
+        logger.debug(f"Setting up preview for card: {card.display_name}")
 
-        # Set card name
-        card_name = card.get("name", "Unknown Card")
-        self.name_label.setText(card_name)
+        self.name_label.setText(card.display_name)
 
-        # Determine card type/suit
         card_type = ""
-        card_id = card.get("id", "")
-        if "major_arcana" in card_id:
+        if card.kind is CardKind.MAJOR:
             card_type = CARD_VIEW["major_arcana"]
-        elif "suit" in card:
-            card_type = f"{card['suit'].title()}"
-            if "rank" in card:
-                card_type += f" - {card['rank']}"
+        elif card.suit_key:
+            card_type = f"{card.suit_key.title()}"
+            if card.rank_key:
+                card_type += f" - {card.rank_key}"
 
         logger.debug(f"Card type/suit: {card_type}")
         self.type_label.setText(card_type)
 
-        if card.get("image"):
+        if card.default_image():
             try:
-                # Use the image path that's already stored in the card dictionary
-                image_path = card["image"]
+                image_path = card.default_image()
                 logger.debug(f"Trying to load image from: {image_path}")
 
                 pixmap = QPixmap(image_path)

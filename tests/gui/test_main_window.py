@@ -468,7 +468,7 @@ def test_the_go_menu_asks_the_card_view(qtbot):
     assert not go["next_deck"].isEnabled()  # the stub has one deck
 
     go["next"].trigger()
-    assert tab.card["id"] == cards[1]["id"]
+    assert tab.card.canonical_id == cards[1].canonical_id
 
     window.update_go_actions()
     assert go["previous"].isEnabled()
@@ -597,7 +597,7 @@ def test_a_deck_views_selection_opens_on_a_new_canvas(qtbot):
     assert isinstance(canvas, CanvasTab)
     assert window.tab_widget.count() == tabs_before + 1
     placed = [item for item in canvas.scene.items() if isinstance(item, DraggableCardItem)]
-    assert sorted(item.card_data["id"] for item in placed) == [
+    assert sorted(item.card_data.canonical_id for item in placed) == [
         "major_arcana.00",
         "major_arcana.01",
     ]
@@ -850,7 +850,7 @@ def test_opening_a_card_closes_the_welcome_tab(qtbot):
     tab = window.add_card_tab(CardViewTab())
 
     titles = [window.tab_widget.tabText(i) for i in range(window.tab_widget.count())]
-    assert titles == [tab.card["name"]]
+    assert titles == [tab.card.display_name]
 
 
 def test_a_new_card_view_is_labelled_as_it_is_added(qtbot):
@@ -861,7 +861,7 @@ def test_a_new_card_view_is_labelled_as_it_is_added(qtbot):
 
     tab = window.tab_widget.currentWidget()
     index = window.tab_widget.currentIndex()
-    assert window.tab_widget.tabText(index) == tab.card["name"]
+    assert window.tab_widget.tabText(index) == tab.card.display_name
     assert not window.tab_widget.tabIcon(index).isNull()
 
 
@@ -1057,8 +1057,8 @@ def test_a_card_copied_in_one_deck_is_pasted_from_that_deck(qtbot, clipboard, ot
 
     cards = [item for item in canvas.scene.items() if isinstance(item, DraggableCardItem)]
     assert len(cards) == 1
-    assert cards[0].card_data["id"] == "major_arcana.01"
-    assert cards[0].card_data["image"].startswith(str(other_deck.deck_path))
+    assert cards[0].card_data.canonical_id == "major_arcana.01"
+    assert cards[0].card_data.default_image().startswith(str(other_deck.deck_path))
 
 
 def test_a_canvas_card_opens_from_its_own_deck(qtbot, other_deck):
@@ -1110,7 +1110,7 @@ def test_ctrl_c_copies_the_card_and_ctrl_v_places_it(qtbot, clipboard):
     ctrl(qtbot, canvas.view, Qt.Key.Key_V)
 
     cards = [item for item in canvas.scene.items() if isinstance(item, DraggableCardItem)]
-    assert [c.card_data["id"] for c in cards] == [card_view.card["id"]]
+    assert [c.card_data.canonical_id for c in cards] == [card_view.card.canonical_id]
 
     ctrl(qtbot, canvas.view, Qt.Key.Key_V)
     cards = [item for item in canvas.scene.items() if isinstance(item, DraggableCardItem)]

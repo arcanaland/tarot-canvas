@@ -2,14 +2,16 @@ import logging
 
 import pytest
 
+from tarot_canvas.models.deck_types import Card, CardKind
+
 
 def test_minimal_deck_loads_expected_cards(minimal_deck):
     cards = minimal_deck.get_all_cards()
 
     assert len(cards) == 2
-    assert {c["id"] for c in cards} == {"major_arcana.00", "major_arcana.01"}
+    assert {c.canonical_id for c in cards} == {"major_arcana.00", "major_arcana.01"}
 
-    names = {c["id"]: c["name"] for c in cards}
+    names = {c.canonical_id: c.display_name for c in cards}
     assert names["major_arcana.00"] == "The Fool"
     assert names["major_arcana.01"] == "The Magician"
 
@@ -45,12 +47,12 @@ def test_cards_table_supplies_names_a_deck_prints_on_its_artwork(tmp_path):
         name = "As de Coupe"
         """,
     )
-    by_id = {c["id"]: c for c in deck.get_all_cards()}
-    assert by_id["major_arcana.00"]["name"] == "Le Mat"
-    assert by_id["major_arcana.00"]["alt_text"] == "A wanderer at a cliff edge."
-    assert by_id["minor_arcana.cups.ace"]["name"] == "As de Coupe"
+    by_id = {c.canonical_id: c for c in deck.get_all_cards()}
+    assert by_id["major_arcana.00"].display_name == "Le Mat"
+    assert by_id["major_arcana.00"].alt_text == "A wanderer at a cliff edge."
+    assert by_id["minor_arcana.cups.ace"].display_name == "As de Coupe"
     # A card the table does not name still composes from suit and rank.
-    assert by_id["minor_arcana.cups.two"]["name"] == "Two of Cups"
+    assert by_id["minor_arcana.cups.two"].display_name == "Two of Cups"
 
 
 def test_a_name_file_outranks_the_cards_table(tmp_path):
@@ -71,8 +73,8 @@ def test_a_name_file_outranks_the_cards_table(tmp_path):
         00 = "The Fool"
         """,
     )
-    by_id = {c["id"]: c for c in deck.get_all_cards()}
-    assert by_id["major_arcana.00"]["name"] == "The Fool"
+    by_id = {c.canonical_id: c for c in deck.get_all_cards()}
+    assert by_id["major_arcana.00"].display_name == "The Fool"
 
 
 def test_schema_2_0_name_files_nest_under_their_facet(tmp_path):
@@ -96,10 +98,10 @@ def test_schema_2_0_name_files_nest_under_their_facet(tmp_path):
         00 = "A wanderer at a cliff edge."
         """,
     )
-    by_id = {c["id"]: c for c in deck.get_all_cards()}
-    assert by_id["major_arcana.00"]["name"] == "The Fool"
-    assert by_id["major_arcana.00"]["alt_text"] == "A wanderer at a cliff edge."
-    assert by_id["minor_arcana.cups.ace"]["name"] == "Ace of Chalices"
+    by_id = {c.canonical_id: c for c in deck.get_all_cards()}
+    assert by_id["major_arcana.00"].display_name == "The Fool"
+    assert by_id["major_arcana.00"].alt_text == "A wanderer at a cliff edge."
+    assert by_id["minor_arcana.cups.ace"].display_name == "Ace of Chalices"
 
 
 def test_a_2_0_name_file_with_only_alt_text_is_still_2_0(tmp_path):
@@ -126,10 +128,10 @@ def test_a_2_0_name_file_with_only_alt_text_is_still_2_0(tmp_path):
         ace = "A hand holds a cup."
         """,
     )
-    by_id = {c["id"]: c for c in deck.get_all_cards()}
-    assert by_id["major_arcana.00"]["name"] == "The Fool"
-    assert by_id["major_arcana.00"]["alt_text"] == "A wanderer at a cliff edge."
-    assert by_id["minor_arcana.cups.ace"]["alt_text"] == "A hand holds a cup."
+    by_id = {c.canonical_id: c for c in deck.get_all_cards()}
+    assert by_id["major_arcana.00"].display_name == "The Fool"
+    assert by_id["major_arcana.00"].alt_text == "A wanderer at a cliff edge."
+    assert by_id["minor_arcana.cups.ace"].alt_text == "A hand holds a cup."
 
 
 def test_schema_1_0_name_files_still_load(tmp_path):
@@ -152,10 +154,10 @@ def test_schema_1_0_name_files_still_load(tmp_path):
         00 = "A wanderer at a cliff edge."
         """,
     )
-    by_id = {c["id"]: c for c in deck.get_all_cards()}
-    assert by_id["major_arcana.00"]["name"] == "The Fool"
-    assert by_id["major_arcana.00"]["alt_text"] == "A wanderer at a cliff edge."
-    assert by_id["minor_arcana.cups.ace"]["name"] == "Ace of Chalices"
+    by_id = {c.canonical_id: c for c in deck.get_all_cards()}
+    assert by_id["major_arcana.00"].display_name == "The Fool"
+    assert by_id["major_arcana.00"].alt_text == "A wanderer at a cliff edge."
+    assert by_id["minor_arcana.cups.ace"].display_name == "Ace of Chalices"
 
 
 def test_artist_is_read_as_the_author_in_2_0(tmp_path):
@@ -217,11 +219,11 @@ def test_canonical_majors_need_no_declaration(tmp_path):
         version = "1.0"
         """,
     )
-    by_id = {c["id"]: c for c in deck.get_all_cards()}
-    assert by_id["major_arcana.00"]["name"] == "The Fool"
-    assert by_id["major_arcana.13"]["name"] == "Death"
-    assert by_id["major_arcana.21"]["name"] == "The World"
-    assert by_id["minor_arcana.cups.ace"]["name"] == "Ace of Cups"
+    by_id = {c.canonical_id: c for c in deck.get_all_cards()}
+    assert by_id["major_arcana.00"].display_name == "The Fool"
+    assert by_id["major_arcana.13"].display_name == "Death"
+    assert by_id["major_arcana.21"].display_name == "The World"
+    assert by_id["minor_arcana.cups.ace"].display_name == "Ace of Cups"
 
 
 def test_a_deck_name_outranks_the_canonical_one(tmp_path):
@@ -237,9 +239,9 @@ def test_a_deck_name_outranks_the_canonical_one(tmp_path):
         "major_arcana.00" = { name = "Le Mat" }
         """,
     )
-    by_id = {c["id"]: c for c in deck.get_all_cards()}
-    assert by_id["major_arcana.00"]["name"] == "Le Mat"
-    assert by_id["major_arcana.01"]["name"] == "The Magician"  # still canonical
+    by_id = {c.canonical_id: c for c in deck.get_all_cards()}
+    assert by_id["major_arcana.00"].display_name == "Le Mat"
+    assert by_id["major_arcana.01"].display_name == "The Magician"  # still canonical
 
 
 def test_an_unnamed_face_is_not_given_a_canonical_name(tmp_path):
@@ -257,11 +259,11 @@ def test_an_unnamed_face_is_not_given_a_canonical_name(tmp_path):
         "major_arcana.04" = { unnamed = true, number = "IIII" }
         """,
     )
-    by_id = {c["id"]: c for c in deck.get_all_cards()}
-    assert by_id["major_arcana.13"]["name"] != "Death"
-    assert by_id["major_arcana.13"]["name"] == "XIII"
+    by_id = {c.canonical_id: c for c in deck.get_all_cards()}
+    assert by_id["major_arcana.13"].display_name != "Death"
+    assert by_id["major_arcana.13"].display_name == "XIII"
     # A declared number is the better label for an untitled face.
-    assert by_id["major_arcana.04"]["name"] == "IIII"
+    assert by_id["major_arcana.04"].display_name == "IIII"
 
 
 def test_a_major_shows_the_numeral_its_face_prints(tmp_path):
@@ -280,14 +282,14 @@ def test_a_major_shows_the_numeral_its_face_prints(tmp_path):
         "major_arcana.09" = { number = "VIIII" }
         """,
     )
-    by_id = {c["id"]: c for c in deck.get_all_cards()}
-    assert by_id["major_arcana.09"]["numeral"] == "VIIII"
-    assert by_id["major_arcana.00"]["numeral"] is None
-    assert by_id["major_arcana.01"]["numeral"] is None
-    assert by_id["major_arcana.14"]["numeral"] == "XIV"
-    assert by_id["major_arcana.04"]["numeral"] == "IV"
+    by_id = {c.canonical_id: c for c in deck.get_all_cards()}
+    assert by_id["major_arcana.09"].number == "VIIII"
+    assert by_id["major_arcana.00"].number is None
+    assert by_id["major_arcana.01"].number is None
+    assert by_id["major_arcana.14"].number == "XIV"
+    assert by_id["major_arcana.04"].number == "IV"
     # The number stays the slot
-    assert by_id["major_arcana.09"]["number"] == 9
+    assert by_id["major_arcana.09"].position == 9
 
 
 def test_an_undeclared_zero_is_printed_as_zero(tmp_path):
@@ -300,8 +302,8 @@ def test_an_undeclared_zero_is_printed_as_zero(tmp_path):
         version = "1.0"
         """,
     )
-    by_id = {c["id"]: c for c in deck.get_all_cards()}
-    assert by_id["major_arcana.00"]["numeral"] == "0"
+    by_id = {c.canonical_id: c for c in deck.get_all_cards()}
+    assert by_id["major_arcana.00"].number == "0"
 
 
 def test_a_supplied_name_is_used_where_the_face_prints_none(tmp_path):
@@ -318,8 +320,8 @@ def test_a_supplied_name_is_used_where_the_face_prints_none(tmp_path):
         "major_arcana.13" = { unnamed = true, supplied_name = { text = "Time", lang = "en", source = "booklet" } }
         """,
     )
-    by_id = {c["id"]: c for c in deck.get_all_cards()}
-    assert by_id["major_arcana.13"]["name"] == "Time"
+    by_id = {c.canonical_id: c for c in deck.get_all_cards()}
+    assert by_id["major_arcana.13"].display_name == "Time"
 
 
 PATTERN_DECK = """
@@ -372,8 +374,14 @@ def test_suits_come_in_canonical_order_not_alphabetical(full_deck):
 
 def test_a_suit_outside_the_canonical_four_comes_last(full_deck):
     cards = full_deck.get_all_cards()
-    first_sword = next(i for i, card in enumerate(cards) if card.get("suit") == "swords")
-    star = {"id": "minor_arcana.stars.ace", "type": "minor_arcana", "suit": "stars", "rank": "ace"}
+    first_sword = next(i for i, card in enumerate(cards) if card.suit_key == "swords")
+    star = Card(
+        canonical_id="minor_arcana.stars.ace",
+        kind=CardKind.MINOR,
+        display_name="Ace of Stars",
+        suit_key="stars",
+        rank_key="ace",
+    )
     full_deck._cards = cards[:first_sword] + [star] + cards[first_sword:]
 
     assert full_deck.get_suits() == ["wands", "cups", "swords", "pentacles", "stars"]
