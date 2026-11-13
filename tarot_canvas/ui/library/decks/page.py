@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import QAbstractItemView, QListView
 
 from tarot_canvas.models.catalog import is_installed
 from tarot_canvas.models.deck_events import deck_events
-from tarot_canvas.models.deck_manager import deck_manager
+from tarot_canvas.models.deck_library import deck_library
 from tarot_canvas.settings import (
     LIBRARY_SORT_DEFAULT,
     LIBRARY_SORT_KEY,
@@ -50,7 +50,7 @@ class DecksPage(LibraryListPage):
 
     def __init__(self, parent=None):
         settings = get_settings()
-        decks_model = DeckListModel(deck_manager.get_all_decks(), entries=deck_catalog().entries())
+        decks_model = DeckListModel(deck_library.decks(), entries=deck_catalog().entries())
         proxy = DeckFilterProxyModel()
         proxy.setSourceModel(decks_model)
         proxy.set_sort_key(settings.value(LIBRARY_SORT_KEY, LIBRARY_SORT_DEFAULT, type=str))
@@ -148,7 +148,7 @@ class DecksPage(LibraryListPage):
     def refresh(self):
         """Reload the deck list, keeping the selected deck selected if it survives."""
         with self._selection_kept():
-            self.decks_model.set_decks(deck_manager.get_all_decks())
+            self.decks_model.set_decks(deck_library.decks())
             self.list_model.refresh_recent()
 
     @pyqtSlot()

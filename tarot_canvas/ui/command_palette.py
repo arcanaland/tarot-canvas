@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import (
 )
 
 from tarot_canvas.models.card_search import CardTerms, Query
-from tarot_canvas.models.deck_manager import deck_manager
+from tarot_canvas.models.deck_library import deck_library
 from tarot_canvas.models.deck_types import CardKind
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.covers.cache import CoverCache
@@ -153,7 +153,7 @@ class CommandPalette(QDialog):
         self.cards = []
 
         # Get the reference deck
-        reference_deck = deck_manager.get_reference_deck()
+        reference_deck = deck_library.reference()
 
         # Only load cards from the reference deck
         if reference_deck:

@@ -32,8 +32,8 @@ def big_image_deck(tmp_path):
 
 def make_tab(qtbot, deck, width, height, deck_count=1, stub=None):
     if stub is not None:
-        stub.get_all_decks = lambda: [deck] * deck_count
-        stub.get_reference_deck = lambda: deck
+        stub.decks = lambda: [deck] * deck_count
+        stub.reference = lambda: deck
 
     card = next(c for c in deck.cards if c.default_image())
     tab = CardViewTab(card=card, deck=deck)
@@ -72,17 +72,17 @@ def fits_in_viewport(view):
 
 
 @pytest.mark.parametrize("width", [1600, 1000, 700, 500])
-def test_image_pane_never_clips_its_contents(qtbot, big_image_deck, stub_deck_manager, width):
+def test_image_pane_never_clips_its_contents(qtbot, big_image_deck, stub_deck_library, width):
     """The card pane must shrink with the window instead of overflowing it."""
-    tab = make_tab(qtbot, big_image_deck, width, 900, deck_count=2, stub=stub_deck_manager)
+    tab = make_tab(qtbot, big_image_deck, width, 900, deck_count=2, stub=stub_deck_library)
 
     view = tab.image_view
     assert tab.image_container.width() <= tab.width()
     assert fits_in_viewport(view)
 
 
-def test_card_is_scaled_to_fit_the_visible_pane(qtbot, big_image_deck, stub_deck_manager):
-    tab = make_tab(qtbot, big_image_deck, 900, 900, deck_count=2, stub=stub_deck_manager)
+def test_card_is_scaled_to_fit_the_visible_pane(qtbot, big_image_deck, stub_deck_library):
+    tab = make_tab(qtbot, big_image_deck, 900, 900, deck_count=2, stub=stub_deck_library)
 
     view = tab.image_view
     assert view.is_at_fit()
@@ -101,12 +101,12 @@ def test_card_fills_a_wide_pane_without_waiting_for_a_resize(qtbot, big_image_de
     assert image.width() > viewport.width() * 0.9
 
 
-def test_the_bars_do_not_pin_the_pane_wide(qtbot, big_image_deck, stub_deck_manager):
+def test_the_bars_do_not_pin_the_pane_wide(qtbot, big_image_deck, stub_deck_library):
     """A long deck name must elide rather than force a minimum width on the pane."""
     big_image_deck.metadata = replace(
         big_image_deck.metadata, name="A Deck With An Extravagantly Long Name " * 3
     )
-    tab = make_tab(qtbot, big_image_deck, 700, 900, deck_count=2, stub=stub_deck_manager)
+    tab = make_tab(qtbot, big_image_deck, 700, 900, deck_count=2, stub=stub_deck_library)
 
     button = tab.deck_bar.deck_button
     assert button.width() <= DeckBar.MAX_BUTTON_WIDTH
@@ -115,9 +115,9 @@ def test_the_bars_do_not_pin_the_pane_wide(qtbot, big_image_deck, stub_deck_mana
     assert tab.card_bar.minimumSizeHint().width() < CardViewTab.MIN_IMAGE_PANE_WIDTH
 
 
-def test_the_deck_name_is_not_squeezed(qtbot, big_image_deck, stub_deck_manager):
+def test_the_deck_name_is_not_squeezed(qtbot, big_image_deck, stub_deck_library):
     big_image_deck.metadata = replace(big_image_deck.metadata, name="Rider-Waite-Smith")
-    tab = make_tab(qtbot, big_image_deck, 700, 900, deck_count=2, stub=stub_deck_manager)
+    tab = make_tab(qtbot, big_image_deck, 700, 900, deck_count=2, stub=stub_deck_library)
     button = tab.deck_bar.deck_button
 
     for width in (280, 400, 900):
@@ -141,38 +141,38 @@ def test_the_card_bar_fits_the_default_windows_pane(qtbot, big_image_deck):
     qtbot.waitUntil(lambda: all(bar.widgetForAction(a).isVisible() for a in bar.actions()))
 
 
-def test_the_deck_is_above_the_card_and_the_verbs_below(qtbot, big_image_deck, stub_deck_manager):
-    tab = make_tab(qtbot, big_image_deck, 900, 900, deck_count=2, stub=stub_deck_manager)
+def test_the_deck_is_above_the_card_and_the_verbs_below(qtbot, big_image_deck, stub_deck_library):
+    tab = make_tab(qtbot, big_image_deck, 900, 900, deck_count=2, stub=stub_deck_library)
 
     assert tab.deck_bar.geometry().bottom() < tab.image_view.geometry().top()
     assert tab.card_bar.geometry().top() > tab.image_view.geometry().bottom()
 
 
-def test_one_deck_spends_no_row_on_the_deck(qtbot, big_image_deck, stub_deck_manager):
-    tab = make_tab(qtbot, big_image_deck, 900, 900, deck_count=1, stub=stub_deck_manager)
+def test_one_deck_spends_no_row_on_the_deck(qtbot, big_image_deck, stub_deck_library):
+    tab = make_tab(qtbot, big_image_deck, 900, 900, deck_count=1, stub=stub_deck_library)
 
     assert not tab.deck_bar.isVisibleTo(tab)
     assert tab.card_bar.isVisibleTo(tab)
     assert tab.card_bar.copy_action.isEnabled()
 
 
-def test_two_decks_show_the_deck_bar(qtbot, big_image_deck, stub_deck_manager):
-    tab = make_tab(qtbot, big_image_deck, 900, 900, deck_count=2, stub=stub_deck_manager)
+def test_two_decks_show_the_deck_bar(qtbot, big_image_deck, stub_deck_library):
+    tab = make_tab(qtbot, big_image_deck, 900, 900, deck_count=2, stub=stub_deck_library)
 
     assert tab.deck_bar.isVisibleTo(tab)
     assert len(tab.deck_bar.compatible_decks) == 2
 
 
-def test_the_deck_picker_is_centred(qtbot, big_image_deck, stub_deck_manager):
-    tab = make_tab(qtbot, big_image_deck, 900, 900, deck_count=2, stub=stub_deck_manager)
+def test_the_deck_picker_is_centred(qtbot, big_image_deck, stub_deck_library):
+    tab = make_tab(qtbot, big_image_deck, 900, 900, deck_count=2, stub=stub_deck_library)
     bar, button = tab.deck_bar, tab.deck_bar.deck_button
 
     bar_centre = bar.mapTo(tab, bar.rect().center()).x()
     assert abs(button.mapTo(tab, button.rect().center()).x() - bar_centre) <= 1
 
 
-def test_a_deck_outside_the_library_is_still_named(qtbot, big_image_deck, stub_deck_manager):
-    stub_deck_manager.get_all_decks = list
+def test_a_deck_outside_the_library_is_still_named(qtbot, big_image_deck, stub_deck_library):
+    stub_deck_library.decks = list
     tab = make_tab(qtbot, big_image_deck, 900, 900)
 
     assert tab.deck_bar.deck_button.title() == big_image_deck.metadata.name
@@ -325,8 +325,8 @@ def test_d_draws_another_card(qtbot, big_image_deck):
     assert tab.tab_name == tab.card.display_name
 
 
-def test_brackets_step_through_the_decks(qtbot, big_image_deck, minimal_deck, stub_deck_manager):
-    stub_deck_manager.get_all_decks = lambda: [big_image_deck, minimal_deck]
+def test_brackets_step_through_the_decks(qtbot, big_image_deck, minimal_deck, stub_deck_library):
+    stub_deck_library.decks = lambda: [big_image_deck, minimal_deck]
     tab = make_tab(qtbot, big_image_deck, 1200, 900)
 
     press(qtbot, tab, Qt.Key.Key_BracketRight)
@@ -337,8 +337,8 @@ def test_brackets_step_through_the_decks(qtbot, big_image_deck, minimal_deck, st
     assert tab.deck is big_image_deck
 
 
-def test_the_deck_menu_shows_each_decks_art(qtbot, big_image_deck, minimal_deck, stub_deck_manager):
-    stub_deck_manager.get_all_decks = lambda: [big_image_deck, minimal_deck]
+def test_the_deck_menu_shows_each_decks_art(qtbot, big_image_deck, minimal_deck, stub_deck_library):
+    stub_deck_library.decks = lambda: [big_image_deck, minimal_deck]
     tab = make_tab(qtbot, big_image_deck, 1200, 900)
     bar = tab.deck_bar
 
@@ -352,8 +352,8 @@ def test_the_deck_menu_shows_each_decks_art(qtbot, big_image_deck, minimal_deck,
     assert bar.current_index == 1
 
 
-def test_brackets_do_nothing_with_one_deck(qtbot, big_image_deck, stub_deck_manager):
-    tab = make_tab(qtbot, big_image_deck, 1200, 900, deck_count=1, stub=stub_deck_manager)
+def test_brackets_do_nothing_with_one_deck(qtbot, big_image_deck, stub_deck_library):
+    tab = make_tab(qtbot, big_image_deck, 1200, 900, deck_count=1, stub=stub_deck_library)
 
     press(qtbot, tab, Qt.Key.Key_BracketRight)
 
@@ -361,12 +361,12 @@ def test_brackets_do_nothing_with_one_deck(qtbot, big_image_deck, stub_deck_mana
 
 
 def test_a_deck_installed_while_the_card_is_open_joins_its_deck_bar(
-    qtbot, big_image_deck, minimal_deck, stub_deck_manager
+    qtbot, big_image_deck, minimal_deck, stub_deck_library
 ):
     from tarot_canvas.models.deck_events import deck_events
 
     installed = [big_image_deck]
-    stub_deck_manager.get_all_decks = lambda: list(installed)
+    stub_deck_library.decks = lambda: list(installed)
     tab = make_tab(qtbot, big_image_deck, 1200, 900)
     assert not tab.can_go("next_deck")
     assert not tab.deck_bar.isVisibleTo(tab)
@@ -383,14 +383,14 @@ def test_a_deck_installed_while_the_card_is_open_joins_its_deck_bar(
 
 
 def test_a_deck_installed_after_a_card_view_is_deleted_does_not_crash(
-    qtbot, big_image_deck, stub_deck_manager
+    qtbot, big_image_deck, stub_deck_library
 ):
     from PyQt6 import sip
     from PyQt6.QtCore import QCoreApplication, QEvent
 
     from tarot_canvas.models.deck_events import deck_events
 
-    stub_deck_manager.get_all_decks = lambda: [big_image_deck]
+    stub_deck_library.decks = lambda: [big_image_deck]
     card = next(c for c in big_image_deck.cards if c.default_image())
     tab = CardViewTab(card=card, deck=big_image_deck)  # not qtbot's: the test deletes it
     qtbot.wait(150)  # past the tab's 100 ms singleShot, which a deleted tab can't take
@@ -465,8 +465,8 @@ def test_the_pane_refits_when_it_is_resized(qtbot, big_image_deck):
     assert fits_in_viewport(view)
 
 
-def test_switching_decks_resets_the_zoom(qtbot, big_image_deck, stub_deck_manager):
-    tab = make_tab(qtbot, big_image_deck, 1200, 900, deck_count=2, stub=stub_deck_manager)
+def test_switching_decks_resets_the_zoom(qtbot, big_image_deck, stub_deck_library):
+    tab = make_tab(qtbot, big_image_deck, 1200, 900, deck_count=2, stub=stub_deck_library)
     view = tab.image_view
     view.zoom_to(4.0 * view.native_scale())
     assert not view.is_at_fit()

@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from tarot_canvas.models.deck import TarotDeck
+from tarot_canvas.models.deck_library import deck_library
 from tarot_canvas.settings import (
     DECK_VIEW_DENSITY_DEFAULT,
     DECK_VIEW_DENSITY_KEY,
@@ -65,8 +65,7 @@ class DeckViewTab(BaseTab):
         self.load_deck(self.deck_path)
 
     def load_deck(self, deck_path):
-        # Load the deck
-        self.deck = TarotDeck(deck_path)
+        self.deck = deck_library.load(deck_path)
 
         self.tab_label_changed.emit()
 

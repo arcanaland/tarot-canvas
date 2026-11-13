@@ -23,14 +23,15 @@ os.environ["XDG_CACHE_HOME"] = str(_TEST_HOME / ".cache")
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 MINIMAL_DECK_PATH = FIXTURES_DIR / "decks" / "minimal"
 
-# Modules that bind `deck_manager` at import time via
-# `from tarot_canvas.models.deck_manager import deck_manager`
-DECK_MANAGER_CONSUMERS = [
+# Modules that bind `deck_library` at import time via
+# `from tarot_canvas.models.deck_library import deck_library`
+DECK_LIBRARY_CONSUMERS = [
     "tarot_canvas.ui.command_palette",
     "tarot_canvas.ui.canvas.detail",
     "tarot_canvas.ui.tabs.canvas_tab",
     "tarot_canvas.ui.main_window",
     "tarot_canvas.ui.tabs.card_view_tab",
+    "tarot_canvas.ui.tabs.deck_view_tab",
     "tarot_canvas.ui.library.tab",
     "tarot_canvas.ui.library.decks.page",
     "tarot_canvas.ui.tabs.reading_tab",
@@ -311,28 +312,27 @@ def full_deck(tmp_path, qapp):
 
 
 @pytest.fixture(autouse=True)
-def stub_deck_manager(monkeypatch, minimal_deck):
-    """Replace the import-time `deck_manager` global everywhere"""
-    stub = SimpleNamespace(
-        decks={},
-        reference_deck=minimal_deck,
-        get_reference_deck=lambda: minimal_deck,
-        get_deck_names=lambda: [],
-        get_deck=lambda name: None,
-        get_all_decks=lambda: [minimal_deck],
-        rescan=lambda: None,
-    )
-    from tarot_canvas.models.deck_manager import DeckManager
+def stub_deck_library(monkeypatch, minimal_deck):
+    """Replace the import-time `deck_library` global everywhere"""
+    from tarot_canvas.models.deck_library import DeckLibrary
 
-    # The real join, run over whatever get_all_decks a test swaps in
-    stub.decks_containing = partial(DeckManager.decks_containing, stub)
-    for module_path in DECK_MANAGER_CONSUMERS:
-        monkeypatch.setattr(f"{module_path}.deck_manager", stub, raising=False)
+    stub = SimpleNamespace(
+        reference=lambda: minimal_deck,
+        decks=lambda: [minimal_deck],
+        rescan=lambda: None,
+        path_key=DeckLibrary.path_key,
+        _loaded={DeckLibrary.path_key(minimal_deck.root_path): minimal_deck},
+    )
+    # The real join and cache, run over whatever decks a test swaps in
+    stub.decks_containing = partial(DeckLibrary.decks_containing, stub)
+    stub.load = partial(DeckLibrary.load, stub)
+    for module_path in DECK_LIBRARY_CONSUMERS:
+        monkeypatch.setattr(f"{module_path}.deck_library", stub, raising=False)
     return stub
 
 
 @pytest.fixture
-def other_deck(tmp_path, stub_deck_manager, minimal_deck):
+def other_deck(tmp_path, stub_deck_library, minimal_deck):
     """A second installed deck with the same cards, to tell the copied deck apart."""
     import shutil
 
@@ -340,5 +340,5 @@ def other_deck(tmp_path, stub_deck_manager, minimal_deck):
 
     shutil.copytree(MINIMAL_DECK_PATH, tmp_path / "other")
     deck = TarotDeck(str(tmp_path / "other"))
-    stub_deck_manager.get_all_decks = lambda: [minimal_deck, deck]
+    stub_deck_library.decks = lambda: [minimal_deck, deck]
     return deck

@@ -13,7 +13,7 @@ ART = MINIMAL_DECK_PATH / "h750" / "major_arcana"
 
 
 @pytest.fixture(autouse=True)
-def four_cards(stub_deck_manager):
+def four_cards(stub_deck_library):
     """Three majors, one without art, and a minor that "the" does not match"""
     cards = [
         Card(
@@ -42,7 +42,7 @@ def four_cards(stub_deck_manager):
         ),
     ]
     deck = SimpleNamespace(cards=tuple(cards), metadata=DeckMetadata(name="Fixture"))
-    stub_deck_manager.get_reference_deck = lambda: deck
+    stub_deck_library.reference = lambda: deck
     return cards
 
 

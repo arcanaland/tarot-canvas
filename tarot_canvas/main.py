@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
-from tarot_canvas.models.deck_manager import deck_manager
+from tarot_canvas.models.deck_library import deck_library
 from tarot_canvas.models.reference_deck import ReferenceDeck
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.main_window import MainWindow
@@ -165,11 +165,10 @@ def main():
             logger.error("Reference deck download failed or was cancelled")
             return 1
 
-        # Reload deck manager after download
         try:
-            # Reinitialize deck manager to load the newly downloaded deck
-            deck_manager.load_reference_deck()
-            if not deck_manager.get_reference_deck():
+            # Scan again to pick up the newly downloaded deck
+            deck_library.rescan()
+            if not deck_library.reference():
                 logger.error("Failed to load reference deck after download")
                 QMessageBox.critical(
                     None,
@@ -216,7 +215,7 @@ def process_uri_argument(args, main_window):
         # Remove any leading/trailing slashes
         card_id = path.strip("/")
 
-        deck = deck_manager.get_reference_deck()
+        deck = deck_library.reference()
         card = deck.find_card(card_id) if deck and card_id else None
         if card:
             main_window.open_card_view(card, deck)

@@ -136,7 +136,7 @@ def test_a_card_row_offers_open_and_copy(qtbot, clipboard):
     assert opened.args[1].canonical_id == row["card"].canonical_id
 
 
-def test_decks_changed_repopulates_the_deck_selector(qtbot, stub_deck_manager, minimal_deck):
+def test_decks_changed_repopulates_the_deck_selector(qtbot, stub_deck_library, minimal_deck):
     from tarot_canvas.models.deck import TarotDeck
     from tarot_canvas.models.deck_events import deck_events
     from tests.conftest import MINIMAL_DECK_PATH
@@ -146,7 +146,7 @@ def test_decks_changed_repopulates_the_deck_selector(qtbot, stub_deck_manager, m
 
     second = TarotDeck(str(MINIMAL_DECK_PATH))
     second.metadata = replace(second.metadata, name="Second Deck")
-    stub_deck_manager.get_all_decks = lambda: [minimal_deck, second]
+    stub_deck_library.decks = lambda: [minimal_deck, second]
     deck_events().decks_changed.emit()
 
     items = [explorer.deck_selector.itemText(i) for i in range(explorer.deck_selector.count())]

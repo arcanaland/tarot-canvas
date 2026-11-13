@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
 )
 
 from tarot_canvas.models.deck_events import deck_events
-from tarot_canvas.models.deck_manager import deck_manager
+from tarot_canvas.models.deck_library import deck_library
 from tarot_canvas.settings import READING_TEXT_SCALE_DEFAULT, READING_TEXT_SCALE_STEPS
 from tarot_canvas.ui import commands, typography
 from tarot_canvas.ui.card_colours import card_colour
@@ -48,8 +48,8 @@ class CardViewTab(BaseTab):
         # The library's notes list opens a card to read what is written on it
         self._show_notes = show_notes
         self.card = card
-        self.deck = deck or deck_manager.get_reference_deck()
-        self.deck_manager = deck_manager
+        self.deck = deck or deck_library.reference()
+        self.deck_library = deck_library
         self.id = f"card_{id(self)}"
         # How wide to bring the info pane back when it is toggled open
         self._info_pane_width = 0
@@ -117,7 +117,7 @@ class CardViewTab(BaseTab):
 
         self.load_image()
 
-        self.deck_bar.update_decks(self.card, self.deck, deck_manager)
+        self.deck_bar.update_decks(self.card, self.deck, deck_library)
         self.sync_deck_bar()
         # A slot, so Qt drops the app-wide connection when the tab is deleted
         deck_events().decks_changed.connect(self.on_decks_changed)
@@ -415,7 +415,7 @@ class CardViewTab(BaseTab):
                 self.esoterica_tab.update_card_info(card, self.deck)
             self.tab_label_changed.emit()
 
-            self.deck_bar.update_decks(card, self.deck, self.deck_manager)
+            self.deck_bar.update_decks(card, self.deck, self.deck_library)
             self.sync_deck_bar()
         finally:
             self.setUpdatesEnabled(True)
@@ -429,7 +429,7 @@ class CardViewTab(BaseTab):
         """A deck installed: list again the decks that have this card, for the bar and Go"""
         if self.card is None or self.deck is None:
             return
-        self.deck_bar.update_decks(self.card, self.deck, self.deck_manager)
+        self.deck_bar.update_decks(self.card, self.deck, self.deck_library)
         self.sync_deck_bar()
 
     # -- zoom --------------------------------------------------------------

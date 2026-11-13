@@ -48,23 +48,23 @@ def _reference_deck():
     return TarotDeck(str(MINIMAL_DECK_PATH))
 
 
-def deck_manager_stub(decks):
+def deck_library_stub(decks):
     """The notes list draws the reference deck, so a library needs one either way."""
     return SimpleNamespace(
-        get_all_decks=lambda: list(decks),
-        get_reference_deck=_reference_deck,
+        decks=lambda: list(decks),
+        reference=_reference_deck,
     )
 
 
-def stub_deck_manager(monkeypatch, stub):
+def stub_deck_library(monkeypatch, stub):
     """The tab reads the reference deck, its Decks page every deck"""
     for module in ("tarot_canvas.ui.library.tab", "tarot_canvas.ui.library.decks.page"):
-        monkeypatch.setattr(f"{module}.deck_manager", stub)
+        monkeypatch.setattr(f"{module}.deck_library", stub)
 
 
 @pytest.fixture
 def library(qtbot, monkeypatch):
-    stub_deck_manager(monkeypatch, deck_manager_stub(DECKS))
+    stub_deck_library(monkeypatch, deck_library_stub(DECKS))
     tab = LibraryTab()
     qtbot.addWidget(tab)
     return tab
@@ -162,7 +162,7 @@ def test_sort_and_density_persist(library, qtbot):
 def test_saved_density_is_restored_on_a_new_tab(library, qtbot, monkeypatch):
     library.zoom_slider.slider.setValue(units.DENSITIES.index(units.DENSITY_SMALL))
 
-    stub_deck_manager(monkeypatch, deck_manager_stub(DECKS))
+    stub_deck_library(monkeypatch, deck_library_stub(DECKS))
     reopened = LibraryTab()
     qtbot.addWidget(reopened)
     assert reopened.decks_page.row_delegate.density == units.DENSITY_SMALL
@@ -192,7 +192,7 @@ def test_decks_changed_refreshes_an_open_library(qtbot, monkeypatch):
     from tarot_canvas.models.deck_events import deck_events
 
     decks = list(DECKS)
-    stub_deck_manager(monkeypatch, deck_manager_stub(decks))
+    stub_deck_library(monkeypatch, deck_library_stub(decks))
     tab = LibraryTab()
     qtbot.addWidget(tab)
     assert tab.decks_page.list_model.rowCount() == 2
@@ -209,7 +209,7 @@ def test_decks_changed_after_a_library_is_deleted_does_not_crash(qtbot, monkeypa
 
     from tarot_canvas.models.deck_events import deck_events
 
-    stub_deck_manager(monkeypatch, deck_manager_stub(DECKS))
+    stub_deck_library(monkeypatch, deck_library_stub(DECKS))
     tab = LibraryTab()
     tab.show()
     tab.close()
@@ -225,7 +225,7 @@ def test_decks_changed_after_a_library_is_closed_does_not_crash(qtbot, monkeypat
     """A closed tab is removeTab'd, not deleted, so it lives on hidden and refreshes."""
     from tarot_canvas.models.deck_events import deck_events
 
-    stub_deck_manager(monkeypatch, deck_manager_stub(DECKS))
+    stub_deck_library(monkeypatch, deck_library_stub(DECKS))
     tab = LibraryTab()
     qtbot.addWidget(tab)
     tab.show()
@@ -254,7 +254,7 @@ def switches_unset(qapp):
 @pytest.fixture
 def installed(monkeypatch):
     decks = list(DECKS)
-    stub_deck_manager(monkeypatch, deck_manager_stub(decks))
+    stub_deck_library(monkeypatch, deck_library_stub(decks))
     return decks
 
 
@@ -380,7 +380,7 @@ def test_a_close_is_remembered_and_selection_stops_opening_the_pane(
     click(shown_library, qtbot, 1)
     assert not shown_library.details_pane_is_open()
 
-    stub_deck_manager(monkeypatch, deck_manager_stub(DECKS))
+    stub_deck_library(monkeypatch, deck_library_stub(DECKS))
     reopened = LibraryTab()
     qtbot.addWidget(reopened)
     with qtbot.waitExposed(reopened):
@@ -606,7 +606,7 @@ def test_a_shown_ghost_that_installs_becomes_its_deck(ghost_library, installed, 
 
     installed.append(fake_deck("Aquatic Tarot", identifier=AQUATIC.identifier))
     fake_downloads[0].succeeded.emit(str(fake_downloads[0].dest))
-    deck_events().decks_changed.emit()  # the stub deck_manager's rescan emits nothing
+    deck_events().decks_changed.emit()  # the stub deck_library's rescan emits nothing
 
     assert ghost_of(ghost_library) is None
     assert ghost_library.decks_page.current_deck() is installed[-1]
@@ -791,7 +791,7 @@ def test_the_esoterica_view_hides_sort_size_and_open_deck(sources, library, qtbo
 def test_the_esoterica_view_is_restored(qtbot, monkeypatch, sources):
     from tarot_canvas.settings import LIBRARY_VIEW_ESOTERICA, LIBRARY_VIEW_KEY
 
-    stub_deck_manager(monkeypatch, deck_manager_stub(DECKS))
+    stub_deck_library(monkeypatch, deck_library_stub(DECKS))
     get_settings().setValue(LIBRARY_VIEW_KEY, LIBRARY_VIEW_ESOTERICA)
 
     tab = LibraryTab()
@@ -985,7 +985,7 @@ def test_the_share_below_is_saved_for_the_next_library(sources, shown_library, q
 def test_a_share_below_out_of_range_opens_at_the_default(sources, qtbot, monkeypatch, saved):
     from tarot_canvas.settings import LIBRARY_DETAILS_BELOW_SHARE_KEY
 
-    stub_deck_manager(monkeypatch, deck_manager_stub(DECKS))
+    stub_deck_library(monkeypatch, deck_library_stub(DECKS))
     get_settings().setValue(LIBRARY_DETAILS_BELOW_SHARE_KEY, saved)
 
     tab = LibraryTab()

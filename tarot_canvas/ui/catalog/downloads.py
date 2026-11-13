@@ -6,7 +6,7 @@ from functools import partial
 from PyQt6.QtCore import QObject, pyqtSignal
 
 from tarot_canvas.models.deck_install import install_dir_name
-from tarot_canvas.models.deck_manager import deck_manager
+from tarot_canvas.models.deck_library import deck_library
 from tarot_canvas.utils.package_download import DownloadFailure, FailureKind, PackageDownload
 from tarot_canvas.utils.path_helper import get_decks_directory, get_staging_directory
 
@@ -91,7 +91,7 @@ class DeckDownloads(QObject):
     def _on_succeeded(self, slug, _path):
         entry = self._finish(slug)
         # The rescan's decks_changed turns the ghost into the installed deck
-        deck_manager.rescan()
+        deck_library.rescan()
         self.installed.emit(entry)
         self.changed.emit(slug)
 

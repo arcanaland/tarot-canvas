@@ -36,9 +36,9 @@ class NoteLinks:
     about, if any; open_here(path) opens a note of that card where it is being edited.
     """
 
-    def __init__(self, tab, deck_manager, card_id, open_here=None):
+    def __init__(self, tab, deck_library, card_id, open_here=None):
         self.tab = tab
-        self.deck_manager = deck_manager
+        self.deck_library = deck_library
         self.card_id = card_id
         self.open_here = open_here
         self.notes_index = {}  # card_id -> [Note], the whole card library
@@ -54,7 +54,7 @@ class NoteLinks:
         }
 
     def _can_navigate(self):
-        return self.tab is not None and self.deck_manager is not None
+        return self.tab is not None and self.deck_library is not None
 
     def suggestions(self):
         """Get suggestions for auto-completion when linking"""
@@ -69,14 +69,14 @@ class NoteLinks:
 
         if self._can_navigate():
             # Add all cards from reference deck
-            ref_deck = self.deck_manager.get_reference_deck()
+            ref_deck = self.deck_library.reference()
             if ref_deck:
                 cards = ref_deck.cards
                 for card in cards:
                     suggestions.append(f"card:{card.display_name}")
 
             # Add all decks
-            for deck in self.deck_manager.get_all_decks():
+            for deck in self.deck_library.decks():
                 suggestions.append(f"deck:{deck.metadata.name}")
 
         return suggestions
@@ -95,7 +95,7 @@ class NoteLinks:
         """Navigate to a specific card by name"""
         if not self._can_navigate():
             return
-        ref_deck = self.deck_manager.get_reference_deck()
+        ref_deck = self.deck_library.reference()
         if ref_deck:
             cards = ref_deck.cards
             for card in cards:
@@ -109,7 +109,7 @@ class NoteLinks:
         """Navigate to a specific deck by name"""
         if not self._can_navigate():
             return
-        for deck in self.deck_manager.get_all_decks():
+        for deck in self.deck_library.decks():
             if deck.metadata.name.lower() == deck_name.lower():
                 self.tab.navigation_requested.emit("open_deck_view", {"deck_path": deck.root_path})
                 return
@@ -143,7 +143,7 @@ class NoteLinks:
 
         # A note of another card opens in that card's view
         if note_info.card_id != self.card_id() and self._can_navigate():
-            ref_deck = self.deck_manager.get_reference_deck()
+            ref_deck = self.deck_library.reference()
             if ref_deck:
                 cards = ref_deck.cards
                 for card in cards:

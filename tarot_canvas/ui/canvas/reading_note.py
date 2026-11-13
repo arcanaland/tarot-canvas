@@ -6,7 +6,7 @@ from pathlib import Path
 from PyQt6.QtCore import QTimer, pyqtSlot
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
-from tarot_canvas.models.deck_manager import deck_manager
+from tarot_canvas.models.deck_library import deck_library
 from tarot_canvas.models.notes import read_directory
 from tarot_canvas.models.reading_events import reading_events
 from tarot_canvas.ui import typography, units
@@ -74,11 +74,11 @@ class ReadingNote(QWidget):
         self.editor.setFrameShape(QFrame.Shape.NoFrame)
         self.editor.setPlaceholderText(READINGS["notes_hint"])
         self.editor.setAccessibleName(CARD_VIEW["tab_notes"])
-        self.editor.set_deck_manager(deck_manager)
+        self.editor.set_deck_library(deck_library)
         header.setBuddy(self.editor)
         layout.addWidget(self.editor, 1)
 
-        self.links = NoteLinks(tab, deck_manager, lambda: None)
+        self.links = NoteLinks(tab, deck_library, lambda: None)
         self.editor.linkClicked.connect(self.follow)
 
         if self.path is not None:

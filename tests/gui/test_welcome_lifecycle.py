@@ -20,7 +20,7 @@ def discard_on_teardown(monkeypatch):
 
 
 @pytest.fixture
-def make_window(qtbot, stub_deck_manager, spreads_base):
+def make_window(qtbot, stub_deck_library, spreads_base):
     def make():
         window = MainWindow()
         qtbot.addWidget(window)

@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
 )
 
 from tarot_canvas.models.deck_events import deck_events
-from tarot_canvas.models.deck_manager import deck_manager
+from tarot_canvas.models.deck_library import deck_library
 from tarot_canvas.models.deck_types import CardKind
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.card_transfer import CARD_MIME, card_mime_data, copy_card_to_clipboard
@@ -192,7 +192,7 @@ class CardExplorerPanel(QWidget):
     def populate_deck_selector(self):
         """Fill the deck selector dropdown with available decks"""
         # Get all available decks
-        self.available_decks = deck_manager.get_all_decks()
+        self.available_decks = deck_library.decks()
 
         # Add decks to combo box
         self.deck_selector.clear()

@@ -58,7 +58,7 @@ class NotesTab(QWidget):
         self.anchor = None
         self.anchor_notes = []  # [Note] in the anchor's directory, newest first
         self.links = NoteLinks(
-            parent, getattr(parent, "deck_manager", None), self.card_id, self.open_note_path
+            parent, getattr(parent, "deck_library", None), self.card_id, self.open_note_path
         )
         self.current_file_path = None
 
@@ -257,8 +257,8 @@ class NotesTab(QWidget):
             return
 
         # Ensure deck manager reference is passed to editor
-        if hasattr(self.parent_tab, "deck_manager"):
-            self.note_editor.set_deck_manager(self.parent_tab.deck_manager)
+        if hasattr(self.parent_tab, "deck_library"):
+            self.note_editor.set_deck_library(self.parent_tab.deck_library)
             logger.debug("Passed deck manager to editor")
 
         # The directory is made when the first note is written, not when a card is opened

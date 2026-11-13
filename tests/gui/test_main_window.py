@@ -426,9 +426,9 @@ def test_the_bar_fullscreen_button_tracks_the_state(qtbot):
     assert not action.isChecked()
 
 
-def test_the_deck_bar_stays_down_while_fullscreen(qtbot, minimal_deck, stub_deck_manager):
+def test_the_deck_bar_stays_down_while_fullscreen(qtbot, minimal_deck, stub_deck_library):
     """Stepping to another card in fullscreen must not bring the header back."""
-    stub_deck_manager.get_all_decks = lambda: [minimal_deck, minimal_deck]
+    stub_deck_library.decks = lambda: [minimal_deck, minimal_deck]
     window, tab = make_window_with_card_view(qtbot)
     assert tab.deck_bar.isVisibleTo(tab)
 
@@ -930,13 +930,13 @@ def deck_link(tab):
     ],
 )
 def test_the_deck_link_opens_the_deck_however_the_card_was_opened(
-    qtbot, open_a_card, stub_deck_manager
+    qtbot, open_a_card, stub_deck_library
 ):
     window = MainWindow()
     qtbot.addWidget(window)
     window.show()
     qtbot.waitExposed(window)
-    deck = stub_deck_manager.get_reference_deck()
+    deck = stub_deck_library.reference()
     open_a_card(window, deck.random_card(), deck)
     tab = window.tab_widget.currentWidget()
 

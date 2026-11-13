@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
     QWidgetAction,
 )
 
-from tarot_canvas.ui.card_transfer import deck_path_key
+from tarot_canvas.models.deck_library import DeckLibrary
 from tarot_canvas.ui.commands import set_menu_text, set_tooltip_with_keys
 from tarot_canvas.ui.strings import CARD_VIEW
 
@@ -125,17 +125,17 @@ class DeckBar(QWidget):
     def has_choice(self):
         return len(self.compatible_decks) > 1
 
-    def update_decks(self, card, current_deck, deck_manager):
+    def update_decks(self, card, current_deck, deck_library):
         """List every deck that has this card, current_deck selected."""
         card_id = card.canonical_id if card else None
-        self.compatible_decks = deck_manager.decks_containing(card_id) if card_id else []
+        self.compatible_decks = deck_library.decks_containing(card_id) if card_id else []
 
-        current = deck_path_key(current_deck.root_path)
+        current = DeckLibrary.path_key(current_deck.root_path)
         current_index = next(
             (
                 i
                 for i, (deck, _) in enumerate(self.compatible_decks)
-                if deck_path_key(deck.root_path) == current
+                if DeckLibrary.path_key(deck.root_path) == current
             ),
             None,
         )
@@ -182,7 +182,9 @@ class DeckBar(QWidget):
         if not 0 <= index < len(self.compatible_decks):
             return
         new_deck, new_card = self.compatible_decks[index]
-        if deck_path_key(new_deck.root_path) == deck_path_key(self.tab.deck.root_path):
+        if DeckLibrary.path_key(new_deck.root_path) == DeckLibrary.path_key(
+            self.tab.deck.root_path
+        ):
             return
         self.tab.show_card(new_card, new_deck)
 

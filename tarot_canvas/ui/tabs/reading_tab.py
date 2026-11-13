@@ -9,7 +9,7 @@ from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QSplitter, QVBoxLayout, QWidget
 
 from tarot_canvas.models import readings
-from tarot_canvas.models.deck_manager import deck_manager
+from tarot_canvas.models.deck_library import deck_library
 from tarot_canvas.models.readings import Reading
 from tarot_canvas.settings import (
     get_readings_reversals,
@@ -127,7 +127,7 @@ class ReadingTab(SpreadSlots, CanvasTab):
             self.positions,
             spread.name,
             spread.description,
-            deck_manager.get_all_decks(),
+            deck_library.decks(),
             remembered,
         )
         self.pane.dock(self.splitter)

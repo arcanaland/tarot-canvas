@@ -278,7 +278,7 @@ def test_the_spread_designer_offers_no_ground(qtbot):
 
 
 @pytest.fixture
-def window(qtbot, stub_deck_manager, spreads_base, notes_base, monkeypatch):
+def window(qtbot, stub_deck_library, spreads_base, notes_base, monkeypatch):
     monkeypatch.setattr(
         "tarot_canvas.ui.main_window.QMessageBox.warning",
         lambda *_: QMessageBox.StandardButton.Discard,
