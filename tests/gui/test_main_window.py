@@ -16,7 +16,7 @@ from tarot_canvas.ui import main_window as main_window_module
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
 from tarot_canvas.ui.card_transfer import CARD_MIME
 from tarot_canvas.ui.library.tab import LibraryTab
-from tarot_canvas.ui.main_window import MainWindow
+from tarot_canvas.ui.main_window import MainWindow, corner_search_button
 from tarot_canvas.ui.strings import COMMANDS
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
@@ -871,6 +871,32 @@ def test_the_search_button_is_still_reachable(qtbot):
     qtbot.addWidget(window)
     corner = window.tab_widget.cornerWidget(Qt.Corner.TopRightCorner)
     assert len(corner.findChildren(QToolButton)) == 2
+
+
+SEARCH_BUTTON_STYLESHEET = """
+            QToolButton {
+                border: none;
+                background-color: transparent;
+                margin: 2px;
+            }
+            QToolButton:hover {
+                background-color: rgba(128, 128, 128, 0.2);
+                border-radius: 2px;
+            }
+        """
+
+
+def test_only_the_mac_search_button_takes_the_styles_own_metrics(qtbot):
+    """Under macOS a stylesheet sets it higher than the + beside it."""
+    linux = corner_search_button(platform="linux")
+    mac = corner_search_button(platform="darwin")
+    qtbot.addWidget(linux)
+    qtbot.addWidget(mac)
+
+    assert linux.styleSheet() == SEARCH_BUTTON_STYLESHEET
+    assert not linux.autoRaise()
+    assert mac.styleSheet() == ""
+    assert mac.autoRaise()
 
 
 def help_menu(window):

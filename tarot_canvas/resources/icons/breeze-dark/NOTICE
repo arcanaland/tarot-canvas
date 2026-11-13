@@ -1,0 +1,4 @@
+These icons are modified from breeze-icons 7d402d46.
+On 2026-10-05, the ColorScheme-Text and ColorScheme-Background colours
+in each SVG's current-color-scheme style were changed to #fcfcfc and #2a2e32,
+by scripts/bundle_breeze_icons.py. Nothing else was changed.
