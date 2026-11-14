@@ -353,3 +353,29 @@ def test_the_view_menu_zooms_the_text_once_focus_leaves_the_art(qtbot):
 
     assert get_reading_text_scale() == 90
     assert view.is_at_fit()
+
+
+def test_on_the_mac_the_passages_still_scale(qtbot, qapp, startup_style):
+    """An app stylesheet broke this: the prose label stopped inheriting the reading font"""
+    from tarot_canvas.utils.theme_manager import ThemeManager, ThemeType
+
+    manager = ThemeManager()
+    manager._current_theme = ThemeType.DARK
+    manager._apply_theme(platform="darwin")
+
+    test_the_passages_scale_and_the_card_name_does_not(qtbot)
+
+
+@pytest.fixture
+def startup_style(qapp):
+    from PyQt6.QtGui import QIcon, QPalette
+
+    style, palette = qapp.style().name(), QPalette(qapp.palette())
+    icon_paths, icon_theme = QIcon.themeSearchPaths(), QIcon.themeName()
+    yield
+    qapp.setStyle(style)
+    qapp.setPalette(palette)
+    qapp.setProperty("KDE_COLOR_SCHEME_PATH", None)
+    qapp.styleHints().unsetColorScheme()
+    QIcon.setThemeSearchPaths(icon_paths)
+    QIcon.setThemeName(icon_theme)

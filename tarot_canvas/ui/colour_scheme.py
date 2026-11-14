@@ -1,6 +1,7 @@
 """QPalette parsed from a KDE color scheme file (poor man's KColorScheme)"""
 
 import configparser
+from importlib.resources import files
 from pathlib import Path
 
 from PyQt6.QtGui import QColor, QPalette
@@ -8,6 +9,8 @@ from PyQt6.QtGui import QColor, QPalette
 from tarot_canvas.ui.palette import blend
 
 SCHEME_DIR = Path("/usr/share/color-schemes")
+# Breeze's two schemes, trimmed to ROLES; the Mac has no SCHEME_DIR, so it reads these
+BUNDLED_SCHEME_DIR = Path(str(files("tarot_canvas.resources").joinpath("color-schemes")))
 LIGHT_SCHEME = "BreezeLight.colors"
 DARK_SCHEME = "BreezeDark.colors"
 
