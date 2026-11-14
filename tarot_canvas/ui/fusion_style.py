@@ -1,10 +1,4 @@
-"""Fusion, finished where it still looks dated: the Mac's widget style
-
-A proxy rather than an app stylesheet: any app stylesheet puts every widget under
-QStyleSheetStyle, which stops a label inheriting its parent's font, so the reading size
-never reached the Esoterica prose. Nothing else goes here; a fix for one widget belongs on
-that widget.
-"""
+"""Fusion style to mimic Breeze for Mac and Windows"""
 
 from PyQt6.QtCore import QRect, QRectF, Qt
 from PyQt6.QtGui import QColor, QIcon, QPainter, QPalette
