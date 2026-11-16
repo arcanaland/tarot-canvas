@@ -134,7 +134,7 @@ class WelcomeTab(QScrollArea):
         manage_spreads,
         show_faqs,
         report_bug,
-        get_involved,
+        show_community,
         parent=None,
     ):
         super().__init__(parent)
@@ -215,7 +215,7 @@ class WelcomeTab(QScrollArea):
         self.help_links = (
             _link(MAIN_WINDOW["welcome_faqs"], show_faqs),
             _link(without_mnemonic(MAIN_WINDOW["report_bug"]), report_bug),
-            _link(MAIN_WINDOW["welcome_get_involved"], get_involved),
+            _link(without_mnemonic(MAIN_WINDOW["community"]), show_community),
         )
         for link in self.help_links:
             help_column.addWidget(link, 0, Qt.AlignmentFlag.AlignLeft)

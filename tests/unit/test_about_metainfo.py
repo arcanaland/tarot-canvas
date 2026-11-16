@@ -133,3 +133,14 @@ def test_malformed_metainfo_falls_back(monkeypatch):
 
 def test_the_bundled_metainfo_has_releases():
     assert load_about_data().releases
+
+
+DISCUSSIONS = "https://github.com/arcanaland/tarot-canvas/discussions"
+
+
+def test_the_bundled_metainfo_declares_the_community():
+    assert load_about_data().community == DISCUSSIONS
+
+
+def test_the_fallback_declares_the_community():
+    assert AboutData().community == DISCUSSIONS

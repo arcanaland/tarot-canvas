@@ -187,11 +187,7 @@ def test_the_help_links_open_the_metainfos_urls(window, monkeypatch):
         link.linkActivated.emit("#")
 
     about = load_about_data()
-    assert opened == [about.faq, about.bugtracker, about.contribute]
-
-
-def test_contribute_is_the_metainfos():
-    assert load_about_data().contribute == "https://github.com/arcanaland/tarot-canvas"
+    assert opened == [about.faq, about.bugtracker, about.community]
 
 
 @pytest.mark.parametrize(
