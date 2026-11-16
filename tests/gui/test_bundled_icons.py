@@ -4,8 +4,10 @@ import configparser
 from pathlib import Path
 
 import pytest
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QColor, QIcon
 
+from tarot_canvas.ui.tabs.card_view.notes_list import EMPTY_ICON
+from tarot_canvas.ui.widgets.placeholder_message import ICON_SIZE, tint_icon
 from tarot_canvas.utils.theme_manager import ICON_THEMES
 
 THEMES = ("breeze", "breeze-dark")
@@ -59,3 +61,26 @@ def test_qt_finds_an_icon_no_platform_table_has(icon_theme, theme):
     QIcon.setThemeName(theme)
 
     assert not QIcon.fromTheme("sidebar-expand-right").isNull()
+
+
+def drawn_extent(icon, side):
+    """How many pixels across the opaque part of the icon spans when painted at side"""
+    image = tint_icon(icon, side, 1.0, QColor("black"))
+    columns = [
+        x
+        for x in range(image.width())
+        for y in range(image.height())
+        if image.pixelColor(x, y).alpha()
+    ]
+    return max(columns) - min(columns) + 1
+
+
+@pytest.mark.parametrize("theme", THEMES)
+def test_an_empty_state_icon_fills_its_slot(icon_theme, theme):
+    """Qt doesn't scale a Fixed directory past its size, so a 96 px slot drew a 22 px glyph"""
+    QIcon.setThemeSearchPaths([ICON_THEMES])
+    QIcon.setThemeName(theme)
+    icon = QIcon.fromTheme(EMPTY_ICON)
+
+    assert drawn_extent(icon, ICON_SIZE) > ICON_SIZE // 2
+    assert drawn_extent(icon, 16) <= 16

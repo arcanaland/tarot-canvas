@@ -13,7 +13,6 @@ from tarot_canvas.settings import (
 )
 from tarot_canvas.ui import colour_scheme
 from tarot_canvas.ui.colour_scheme import palette_from_scheme
-from tarot_canvas.utils import theme_manager
 from tarot_canvas.utils.theme_manager import SCHEME_PATH_PROPERTY, ThemeManager, ThemeType
 
 Role = QPalette.ColorRole
@@ -38,9 +37,12 @@ def window_lightness():
 def startup(qapp):
     """The palette and icon theme the app had before any theme, put back afterwards"""
     before = QPalette(qapp.palette())
+    style = qapp.style().name()
     icon_paths, icon_theme = QIcon.themeSearchPaths(), QIcon.themeName()
     yield before
     qapp.setProperty(SCHEME_PATH_PROPERTY, None)
+    qapp.setStyleSheet("")  # the Mac path sets one
+    qapp.setStyle(style)
     qapp.setPalette(QPalette())
     qapp.styleHints().unsetColorScheme()
     # Last: on the Mac path, a scheme change sets the icon theme
@@ -49,9 +51,11 @@ def startup(qapp):
 
 
 @pytest.fixture
-def manager(startup):
+def manager(startup, qapp):
+    """apply_at_startup on Linux, whatever the host; the Mac tests pass platform="darwin" """
     manager = ThemeManager()
-    manager.apply_at_startup()
+    manager._startup_style = qapp.style().name()
+    manager._apply_theme(platform="linux")
     return manager
 
 
@@ -140,17 +144,32 @@ def test_a_missing_scheme_follows_the_system_and_says_so(
 
 
 @pytest.mark.parametrize("theme", list(ThemeType))
-def test_the_mac_reads_no_scheme_and_sets_no_palette(manager, startup, theme, monkeypatch):
-    def unread(path):
-        raise AssertionError(f"read {path}")
-
-    monkeypatch.setattr(colour_scheme, "palette_from_scheme", unread)
-    # The macOS style doesn't exist here; handing back the current one leaves the style be
-    monkeypatch.setattr(theme_manager.QStyleFactory, "create", lambda name: QApplication.style())
+def test_the_mac_reads_the_bundled_scheme_not_the_hosts(manager, theme, tmp_path, monkeypatch):
+    monkeypatch.setattr(colour_scheme, "SCHEME_DIR", tmp_path)  # nothing there
 
     apply(manager, theme, platform="darwin")
 
-    assert colours(QApplication.instance().palette()) == colours(startup)
+    path = QApplication.instance().property(SCHEME_PATH_PROPERTY)
+    assert path.startswith(str(colour_scheme.BUNDLED_SCHEME_DIR))
+
+
+def test_on_the_mac_the_card_explorer_header_follows_the_theme(qtbot, manager):
+    """A widget's own stylesheet cascades under the app's; the palette must still reach it"""
+    from PyQt6.QtWidgets import QLabel
+
+    from tarot_canvas.ui.card_explorer import CardExplorerPanel
+
+    apply(manager, ThemeType.DARK, platform="darwin")
+    explorer = CardExplorerPanel()
+    qtbot.addWidget(explorer)
+    explorer.show()
+    header = next(
+        label for label in explorer.findChildren(QLabel) if label.text() == "Card Explorer"
+    )
+    qtbot.waitUntil(lambda: header.palette().color(Role.WindowText).lightness() > 128)
+
+    apply(manager, ThemeType.LIGHT, platform="darwin")
+    qtbot.waitUntil(lambda: header.palette().color(Role.WindowText).lightness() < 128)
 
 
 @pytest.mark.parametrize("theme", list(ThemeType))

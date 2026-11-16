@@ -54,13 +54,32 @@ def isolated_settings():
     yield
 
 
+_startup_style = None
+
+
+@pytest.fixture(autouse=True)
+def startup_app_style():
+    """Put back the app's style when a test changed it. On a Mac host a theme change installs
+    the Mac's Fusion proxy, which has no name, and the next test's startup style was ''."""
+    global _startup_style
+    from PyQt6.QtWidgets import QApplication
+
+    app = QApplication.instance()
+    if app is not None and _startup_style is None:
+        _startup_style = app.style().name()
+    yield
+    app = QApplication.instance()
+    if app is not None and _startup_style and app.style().name() != _startup_style:
+        app.setStyle(_startup_style)
+
+
 @pytest.fixture(autouse=True)
 def colour_schemes(monkeypatch):
-    """Light and Dark read the fixture schemes, not the host's /usr/share."""
+    """Light and Dark read the bundled schemes, not the host's /usr/share."""
     from tarot_canvas.ui import colour_scheme
 
-    monkeypatch.setattr(colour_scheme, "SCHEME_DIR", FIXTURES_DIR / "color-schemes")
-    return FIXTURES_DIR / "color-schemes"
+    monkeypatch.setattr(colour_scheme, "SCHEME_DIR", colour_scheme.BUNDLED_SCHEME_DIR)
+    return colour_scheme.BUNDLED_SCHEME_DIR
 
 
 @pytest.fixture

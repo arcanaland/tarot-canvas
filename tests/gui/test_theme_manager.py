@@ -2,7 +2,9 @@ from types import SimpleNamespace
 
 import pytest
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QPalette
 
+from tarot_canvas.ui import colour_scheme
 from tarot_canvas.utils import theme_manager
 from tarot_canvas.utils.theme_manager import ThemeManager, ThemeType
 
@@ -70,7 +72,14 @@ class FakeApp:
         self.styles = []
         self.palette = None
         self.stylesheet = None
+        self.properties = {}
         self.hints = FakeHints()
+
+    def setProperty(self, name, value):
+        self.properties[name] = value
+
+    def property(self, name):
+        return self.properties.get(name)
 
     def setStyle(self, style):
         self.styles.append(style.name)
@@ -95,6 +104,10 @@ def app(monkeypatch):
     monkeypatch.setattr(theme_manager, "QApplication", SimpleNamespace(instance=lambda: fake))
     monkeypatch.setattr(theme_manager, "QIcon", fake.icons)
     monkeypatch.setattr(theme_manager.QStyleFactory, "create", FakeStyle)
+    # A QProxyStyle can't wrap a fake; tests/gui/test_fusion_style.py draws the real one
+    monkeypatch.setattr(
+        theme_manager.fusion_style, "breeze_fusion", lambda: FakeStyle("BreezeFusion")
+    )
     # _get_system_style asks the host, and the Linux paths must not see a Mac
     monkeypatch.setattr("platform.system", lambda: "Linux")
     # The Flatpak path writes these
@@ -112,14 +125,65 @@ def apply(theme, platform, flatpak=False, styles=("Windows", "Fusion")):
     return manager
 
 
+def window_colour(palette):
+    return palette.color(QPalette.ColorRole.Window).name()
+
+
+def bundled_window_colour(name):
+    return window_colour(colour_scheme.palette_from_scheme(colour_scheme.BUNDLED_SCHEME_DIR / name))
+
+
 @pytest.mark.parametrize("flatpak", [False, True])
 @pytest.mark.parametrize("theme", list(ThemeType))
-def test_macos_keeps_the_native_style_under_every_theme(app, theme, flatpak):
-    apply(theme, "darwin", flatpak=flatpak, styles=("Breeze", "Fusion"))
+def test_macos_draws_fusion_under_every_theme(app, theme, flatpak):
+    apply(theme, "darwin", flatpak=flatpak, styles=("Breeze", "Fusion", "macOS"))
 
-    assert app.styles == ["macOS"]
-    assert app.palette is None
-    assert app.stylesheet == ""
+    assert app.styles == ["BreezeFusion"]
+    assert app.stylesheet == ""  # any app stylesheet stops fonts reaching child labels
+
+
+@pytest.mark.parametrize(
+    "theme, os_scheme, scheme",
+    [
+        (ThemeType.LIGHT, Qt.ColorScheme.Dark, colour_scheme.LIGHT_SCHEME),
+        (ThemeType.DARK, Qt.ColorScheme.Light, colour_scheme.DARK_SCHEME),
+        (ThemeType.SYSTEM, Qt.ColorScheme.Light, colour_scheme.LIGHT_SCHEME),
+        (ThemeType.SYSTEM, Qt.ColorScheme.Dark, colour_scheme.DARK_SCHEME),
+        (ThemeType.SYSTEM, Qt.ColorScheme.Unknown, colour_scheme.LIGHT_SCHEME),
+    ],
+)
+def test_macos_paints_the_bundled_breeze_scheme(app, theme, os_scheme, scheme):
+    app.hints.scheme = os_scheme
+    apply(theme, "darwin")
+
+    assert window_colour(app.palette) == bundled_window_colour(scheme)
+    path = colour_scheme.BUNDLED_SCHEME_DIR / scheme
+    assert app.property(theme_manager.SCHEME_PATH_PROPERTY) == str(path)
+
+
+def test_macos_system_palette_follows_the_os_live(app):
+    apply(ThemeType.SYSTEM, "darwin")
+
+    app.hints.colorSchemeChanged.emit(Qt.ColorScheme.Dark)
+    assert window_colour(app.palette) == bundled_window_colour(colour_scheme.DARK_SCHEME)
+    app.hints.colorSchemeChanged.emit(Qt.ColorScheme.Light)
+    assert window_colour(app.palette) == bundled_window_colour(colour_scheme.LIGHT_SCHEME)
+
+
+def test_macos_unreadable_scheme_falls_back_to_fusions_palette(app, monkeypatch, tmp_path):
+    monkeypatch.setattr(colour_scheme, "BUNDLED_SCHEME_DIR", tmp_path)
+    apply(ThemeType.SYSTEM, "darwin")
+
+    app.hints.colorSchemeChanged.emit(Qt.ColorScheme.Dark)  # must not raise
+    assert app.palette == QPalette()
+    assert app.property(theme_manager.SCHEME_PATH_PROPERTY) is None
+
+
+@pytest.mark.parametrize("name", [colour_scheme.LIGHT_SCHEME, colour_scheme.DARK_SCHEME])
+def test_the_bundled_schemes_keep_breezes_licence(name):
+    text = (colour_scheme.BUNDLED_SCHEME_DIR / name).read_text()
+
+    assert "SPDX-License-Identifier: LGPL-2.0-or-later" in text
 
 
 @pytest.mark.parametrize(

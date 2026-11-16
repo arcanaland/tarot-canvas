@@ -8,7 +8,7 @@ from PyQt6.QtGui import QIcon, QPalette
 from PyQt6.QtWidgets import QApplication, QStyleFactory
 
 from tarot_canvas.settings import THEME_KEY, get_settings, get_theme
-from tarot_canvas.ui import colour_scheme
+from tarot_canvas.ui import colour_scheme, fusion_style
 from tarot_canvas.utils.logger import logger
 
 SCHEME_PATH_PROPERTY = "KDE_COLOR_SCHEME_PATH"
@@ -120,7 +120,8 @@ class ThemeManager(QObject):
         self._renew_style(app)
 
     def _apply_theme_macos(self, app, theme):
-        app.setStyle(QStyleFactory.create("macOS"))
+        """Fusion in Breeze's colours; macOS still draws the window chrome"""
+        app.setStyle(fusion_style.breeze_fusion())
         app.setStyleSheet("")
 
         hints = app.styleHints()
@@ -130,12 +131,12 @@ class ThemeManager(QObject):
             hints.setColorScheme(Qt.ColorScheme.Dark)
         else:  # SYSTEM
             hints.unsetColorScheme()
-        logger.info(f"Applying {theme.value} theme with the macOS style")
+        logger.info(f"Applying {theme.value} theme with the Fusion style")
 
         self._use_bundled_icons(hints)
 
     def _use_bundled_icons(self, hints):
-        """Draw icons from bundled Breeze"""
+        """Draw icons and colours from bundled Breeze, following the OS scheme under System"""
         paths = QIcon.themeSearchPaths()
         if ICON_THEMES not in paths:
             QIcon.setThemeSearchPaths([ICON_THEMES, *paths])
@@ -149,7 +150,26 @@ class ThemeManager(QObject):
             scheme = Qt.ColorScheme.Light
         elif self._current_theme == ThemeType.DARK:
             scheme = Qt.ColorScheme.Dark
-        QIcon.setThemeName("breeze-dark" if scheme == Qt.ColorScheme.Dark else "breeze")
+        icon_theme = "breeze-dark" if scheme == Qt.ColorScheme.Dark else "breeze"
+        QIcon.setThemeName(icon_theme)
+        self._apply_bundled_palette(icon_theme)
+
+    def _apply_bundled_palette(self, icon_theme):
+        """Breeze's scheme as the palette, so Fusion paints in Breeze's colours"""
+        app = QApplication.instance()
+        dark = icon_theme == "breeze-dark"
+        name = colour_scheme.DARK_SCHEME if dark else colour_scheme.LIGHT_SCHEME
+        path = colour_scheme.BUNDLED_SCHEME_DIR / name
+        try:
+            palette = colour_scheme.palette_from_scheme(path)
+        except (OSError, KeyError, ValueError, configparser.Error) as e:
+            # A colorSchemeChanged slot must not raise, so draw Fusion's own palette instead
+            logger.warning(f"Cannot read colour scheme {path} ({e}); drawing Fusion's palette")
+            app.setProperty(SCHEME_PATH_PROPERTY, None)
+            app.setPalette(QPalette())
+            return
+        app.setProperty(SCHEME_PATH_PROPERTY, str(path))
+        app.setPalette(palette)
 
     def _apply_system_theme(self, app):
         """The style and palette the app started with"""

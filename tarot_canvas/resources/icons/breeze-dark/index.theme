@@ -12,7 +12,9 @@ Type=Fixed
 [actions/22]
 Size=22
 Context=Actions
-Type=Fixed
+Type=Scalable
+MinSize=22
+MaxSize=256
 
 [status/16]
 Size=16
@@ -22,7 +24,9 @@ Type=Fixed
 [status/22]
 Size=22
 Context=Status
-Type=Fixed
+Type=Scalable
+MinSize=22
+MaxSize=256
 
 [places/16]
 Size=16
@@ -32,4 +36,6 @@ Type=Fixed
 [places/22]
 Size=22
 Context=Places
-Type=Fixed
+Type=Scalable
+MinSize=22
+MaxSize=256

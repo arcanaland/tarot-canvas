@@ -29,6 +29,8 @@ GPL = ROOT / "LICENSES" / "GPL-3.0-or-later.txt"
 
 CONTEXTS = {"actions": "Actions", "status": "Status", "places": "Places"}
 SIZES = (16, 22)
+# The largest size scales up to this, for an empty state's icon (placeholder_message.ICON_SIZE)
+MAX_SIZE = 256
 
 # Breeze generates its dark theme at build time, by rewriting each icon's
 # current-color-scheme stylesheet (tools/generate-symbolic-dark.cpp); these
@@ -94,9 +96,19 @@ def index_theme(name, directories, commit):
         "Comment=Breeze by the KDE VDG",
         f"Directories={','.join(f'{c}/{s}' for c, s in directories)}",
     ]
+    largest = {}
+    for context, size in directories:
+        largest[context] = max(size, largest.get(context, size))
     for context, size in directories:
         lines += ["", f"[{context}/{size}]", f"Size={size}"]
-        lines += [f"Context={CONTEXTS[context]}", "Type=Fixed"]
+        lines += [f"Context={CONTEXTS[context]}"]
+        if size == largest[context]:
+            # Qt never draws a Fixed icon past its size, and has no KIconEngine to scale the
+            # SVG, so an empty state's 96 px icon came out 22 px. Smaller requests still match
+            # the Fixed sizes exactly.
+            lines += ["Type=Scalable", f"MinSize={size}", f"MaxSize={MAX_SIZE}"]
+        else:
+            lines += ["Type=Fixed"]
     return "\n".join(lines) + "\n"
 
 
