@@ -3,6 +3,7 @@
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QMenu
 
+from tarot_canvas.models import library_curation as curation
 from tarot_canvas.models import spreads
 from tarot_canvas.ui import commands
 from tarot_canvas.ui.canvas.detail import card_unit_size
@@ -21,15 +22,25 @@ def spread_menu(parent, start, browse, blank=None):
     return menu
 
 
+def _smallest_first(rows):
+    """As the Library's slot-count sort: a single card leads"""
+    return sorted(rows, key=lambda row: (len(row[1].positions), spread_title(row[1]).casefold()))
+
+
 def sections():
-    """The menu's (folder, Spread) rows, in sections, the user's first as in the Library"""
-    # Smallest first, as the Library's slot-count sort: a single card leads
-    included = sorted(
-        spreads.scan_included(),
-        key=lambda row: (len(row[1].positions), spread_title(row[1]).casefold()),
-    )
+    """The menu's (folder, Spread) rows, in sections: pinned, the user's, then the included
+
+    A pinned spread shows only under Pinned, and a hidden one not at all.
+    """
+    pinned, hidden = curation.spread_pins(), curation.spread_hides()
     own = sorted(spreads.scan(), key=lambda row: spreads.edited_at(row[0]), reverse=True)
-    return [rows for rows in (own[:MAX_OWN], included) if rows]
+    included = spreads.scan_included()
+    pins = [row for row in own + included if curation.spread_key(row[0]) in pinned]
+    own = [row for row in own if curation.spread_key(row[0]) not in pinned]
+    included = [row for row in included if curation.spread_key(row[0]) not in pinned | hidden]
+    return [
+        rows for rows in (_smallest_first(pins), own[:MAX_OWN], _smallest_first(included)) if rows
+    ]
 
 
 def _fill(menu, start, browse, blank):

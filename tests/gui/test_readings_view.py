@@ -38,7 +38,7 @@ from tarot_canvas.ui.library.readings.model import (
     spatial_order,
 )
 from tarot_canvas.ui.library.readings.page import ReadingsPage
-from tarot_canvas.ui.library.roles import BadgeRole, SubtitleRole
+from tarot_canvas.ui.library.roles import BadgeRole, PinnedRole, SubtitleRole
 from tarot_canvas.ui.library.section_row import is_section
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.strings import READINGS, SPREADS
@@ -723,6 +723,7 @@ def test_the_menu_deletes_through_the_library(three, window):
     ]
     assert entries == [
         READINGS["library_open"],
+        READINGS["library_pin"],
         READINGS["library_rename"],
         READINGS["library_delete"],
     ]
@@ -1038,3 +1039,102 @@ def test_a_hidden_journal_reads_the_readings_again_only_once_shown(
     window.tab_widget.setCurrentWidget(library)
     assert scans == [1]
     assert "Changed" in labels(page)
+
+
+# -- In progress and Pinned --------------------------------------------------
+
+
+def pin(page, label, text=READINGS["library_pin"]):
+    index = next(
+        page.list_model.index(row, 0)
+        for row in range(page.list_model.rowCount())
+        if page.list_model.index(row, 0).data() == label
+    )
+    next(action for action in page.row_menu(index).actions() if action.text() == text).trigger()
+    page.refresh()  # as the page does when it's on screen
+
+
+def dealing(base, folder, when, question):
+    return keep(
+        base,
+        folder,
+        when,
+        question,
+        spread=PAST_PRESENT_FUTURE,
+        cards=[ReadingCard(id="major_arcana.fool", position="past", turned=False)],
+    )
+
+
+def test_a_pinned_reading_leads_under_pinned_and_leaves_its_month(two_months, page):
+    pin(page, "October")
+
+    assert shown(page) == [
+        READINGS["library_section_pinned"].upper(),
+        "October",
+        heading(2026, 11),
+        "Late November",
+        "Early November",
+    ]
+    assert next(
+        index
+        for index in map(
+            lambda row: page.list_model.index(row, 0), range(page.list_model.rowCount())
+        )
+        if index.data() == "October"
+    ).data(PinnedRole)
+
+    pin(page, "October", READINGS["library_unpin"])
+    assert READINGS["library_section_pinned"].upper() not in shown(page)
+
+
+def test_an_unfinished_reading_leads_in_progress_above_pinned_under_every_sort(
+    two_months, readings_base, page
+):
+    dealing(readings_base, "4", month(2026, 9), "Still dealing")
+    page.refresh()
+    pin(page, "Early November")
+
+    for sort in (SORT_NEWEST, SORT_OLDEST):
+        page.set_sort_key(sort)
+        assert shown(page)[:4] == [
+            READINGS["library_section_in_progress"].upper(),
+            "Still dealing",
+            READINGS["library_section_pinned"].upper(),
+            "Early November",
+        ]
+    page.set_sort_key(SORT_EDITED)
+    # By last edit the sections keep their headings, and the rest has none
+    assert shown(page)[:4] == [
+        READINGS["library_section_in_progress"].upper(),
+        "Still dealing",
+        READINGS["library_section_pinned"].upper(),
+        "Early November",
+    ]
+    assert sorted(shown(page)[4:]) == ["Late November", "October"]
+
+
+def test_a_pinned_unfinished_reading_shows_only_in_progress(readings_base, page):
+    dealing(readings_base, "1", NOW, "Still dealing")
+    page.refresh()
+    pin(page, "Still dealing")
+
+    assert shown(page) == [READINGS["library_section_in_progress"].upper(), "Still dealing"]
+
+
+def test_the_canvases_filter_has_no_in_progress(readings_base, page):
+    dealing(readings_base, "1", NOW, "Still dealing")
+    page.refresh()
+
+    page.set_filter_key(FILTER_CANVASES)
+
+    assert READINGS["library_section_in_progress"].upper() not in shown(page)
+
+
+def test_a_deleted_reading_takes_its_pin_once_the_delete_is_final(three, page, curation_file):
+    pin(page, "Newest")
+    assert '"3"' in curation_file.read_text()
+
+    page.delete(three[1])
+    page.commit_pending_delete()
+
+    assert '"3"' not in curation_file.read_text()

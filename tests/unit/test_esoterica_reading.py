@@ -15,7 +15,7 @@ from tarot_canvas.models.esoterica import (
     groups_for,
 )
 from tarot_canvas.models.esoterica_registry import PASSAGES, SYMBOLS, Role
-from tarot_canvas.settings import set_esoterica_disabled
+from tarot_canvas.models.library_curation import set_esoterica_disabled
 
 FROM_PATH = object()
 

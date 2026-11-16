@@ -22,7 +22,7 @@ from tarot_canvas.models.esoterica_registry import (
     role_of,
     sort_key,
 )
-from tarot_canvas.settings import get_esoterica_disabled
+from tarot_canvas.models.library_curation import esoterica_disabled
 from tarot_canvas.utils.path_helper import get_esoterica_directories
 
 log = logging.getLogger(__name__)
@@ -504,7 +504,7 @@ class EsotericaManager:
         esoterica_events().sources_changed.emit()
 
     def _enabled(self):
-        disabled = set(get_esoterica_disabled())
+        disabled = set(esoterica_disabled())
         return [source for key, source in self.sources.items() if key not in disabled]
 
     def has_sources(self):

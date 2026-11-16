@@ -5,6 +5,7 @@ import os
 import pytest
 from PyQt6.QtWidgets import QMessageBox, QPushButton
 
+from tarot_canvas.models import library_curation as curation
 from tarot_canvas.models import spreads
 from tarot_canvas.models.spreads import Position, Spread
 from tarot_canvas.settings import LIBRARY_VIEW_SPREADS
@@ -193,3 +194,36 @@ def test_the_designers_button_says_start_reading(qtbot):
 
     assert tab.start_reading_action.text() == READINGS["open"]
     assert tab.start_reading_action in tab.toolbar.actions()
+
+
+def test_pinned_spreads_lead_and_hidden_ones_leave_the_menu(window, included_base, spreads_base):
+    save(included_base, "cross", "Celtic Cross", 1, count=10)
+    save(included_base, "three", "Three Card", 1, count=3)
+    save(included_base, "single", "Single Card", 1, count=1)
+    save(spreads_base, "old", "Old", 100, count=2)
+    save(spreads_base, "new", "New", 200)
+    curation.set_spread_pinned(included_base / "cross", True)
+    curation.set_spread_pinned(spreads_base / "old", True)
+    curation.set_spread_hidden(included_base / "single", True)
+
+    assert entries(filled(window.new_reading_menu)) == [
+        "Old",  # smallest first, as Included is
+        "Celtic Cross",
+        None,
+        "New",
+        None,
+        "Three Card",
+        None,
+        READINGS["browse_spreads"],
+    ]
+
+
+def test_pinned_spreads_dont_count_against_the_users_few(window, spreads_base):
+    for number in range(MAX_OWN + 1):
+        save(spreads_base, str(number), f"Mine {number}", 100 + number)
+    curation.set_spread_pinned(spreads_base / str(MAX_OWN), True)
+
+    listed = entries(filled(window.new_reading_menu))
+
+    assert listed[:2] == [f"Mine {MAX_OWN}", None]
+    assert listed[2 : 2 + MAX_OWN] == [f"Mine {n}" for n in range(MAX_OWN - 1, -1, -1)]

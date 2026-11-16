@@ -186,6 +186,17 @@ def readings_base(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def curation_file(tmp_path, monkeypatch):
+    """Pins, hides and disabled sources are kept in a fresh library.toml."""
+    from tarot_canvas.models import library_curation
+
+    file = tmp_path / "library.toml"
+    monkeypatch.setattr(library_curation, "curation_file", lambda: file)
+    monkeypatch.setattr(library_curation, "_cache", None)
+    return file
+
+
+@pytest.fixture(autouse=True)
 def fresh_reading_events(monkeypatch):
     """A ReadingEvents per test, so no test's emit reaches an earlier test's widgets."""
     monkeypatch.setattr("tarot_canvas.models.reading_events._instance", None)

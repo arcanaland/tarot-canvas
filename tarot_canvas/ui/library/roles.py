@@ -10,6 +10,12 @@ PreviewRole = Qt.ItemDataRole.UserRole + 15
 BadgeRole = Qt.ItemDataRole.UserRole + 16
 # True on a heading row. A model answers it and gives the row no flags, so it is never selected
 SectionRole = Qt.ItemDataRole.UserRole + 40
+# Whether the user pinned the row (curation, in models.library_curation)
+PinnedRole = Qt.ItemDataRole.UserRole + 41
+# Whether the row is drawn faded: a hidden spread a search or Show brought back
+DimmedRole = Qt.ItemDataRole.UserRole + 42
+# True on a quiet row that does something when clicked or Entered, rather than being an item
+ToggleRole = Qt.ItemDataRole.UserRole + 43
 
 SORT_NAME = "name"
 SORT_COUNT = "count"
