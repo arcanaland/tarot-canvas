@@ -1,3 +1,4 @@
+import logging
 import os
 import shutil
 import zipfile
@@ -5,8 +6,9 @@ import zipfile
 import requests
 
 from tarot_canvas.ui.strings import SETUP
-from tarot_canvas.utils.logger import logger
 from tarot_canvas.utils.path_helper import get_data_directory
+
+log = logging.getLogger(__name__)
 
 
 class ReferenceDeck:
@@ -39,11 +41,11 @@ class ReferenceDeck:
         try:
             if os.path.isfile(retired):
                 os.remove(retired)
-                logger.info(f"Removed the reference deck's retired back: {retired}")
+                log.info("Removed the reference deck's retired back: %s", retired)
             if os.path.isdir(backs_dir) and not os.listdir(backs_dir):
                 os.rmdir(backs_dir)
         except OSError as e:
-            logger.error(f"Could not remove the reference deck's retired back: {e}")
+            log.exception("Could not remove the reference deck's retired back: %s", e)
 
     @staticmethod
     def download_reference_deck(progress_callback=None):

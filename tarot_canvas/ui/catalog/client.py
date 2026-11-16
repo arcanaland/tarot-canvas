@@ -41,7 +41,7 @@ COVER_SUFFIXES = frozenset({".jpg", ".webp", ".png"})
 
 TRANSFER_TIMEOUT_MS = 30_000
 
-log = logging.getLogger("TarotCanvas.catalog")
+log = logging.getLogger(__name__)
 
 
 class QtTransport(QObject):

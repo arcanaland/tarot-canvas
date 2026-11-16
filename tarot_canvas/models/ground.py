@@ -1,5 +1,6 @@
 """What a canvas's ground is: the Background preferences as one value, which a reading can keep"""
 
+import logging
 import re
 from dataclasses import dataclass, replace
 
@@ -25,7 +26,8 @@ from tarot_canvas.settings import (
     get_background_style,
     get_settings,
 )
-from tarot_canvas.utils.logger import logger
+
+log = logging.getLogger(__name__)
 
 # The types drawn in a GroundHue, which show the hue row
 HUED_STYLES = ("gradient", "swirl")
@@ -106,9 +108,7 @@ class Ground:
         try:
             return cls._from_table(table, base)
         except ValueError as error:
-            logger.warning(
-                f"Ignored an unreadable ground, so the canvas takes the default: {error}"
-            )
+            log.warning("Ignored an unreadable ground, so the canvas takes the default: %s", error)
             return None
 
     @classmethod
@@ -129,9 +129,7 @@ class Ground:
             fields["image"] = _text(table, "image")
             positioning = _text(table, "positioning", BACKGROUND_POSITIONING_DEFAULT)
             if positioning not in BACKGROUND_POSITIONINGS:
-                logger.warning(
-                    f"No such positioning {positioning!r}, so the ground takes the default"
-                )
+                log.warning("No such positioning %r, so the ground takes the default", positioning)
                 positioning = BACKGROUND_POSITIONING_DEFAULT
             fields["positioning"] = positioning
             if "fill" in table:
@@ -161,6 +159,6 @@ def drawn(ground, settings=None):
     if ground.style == "image":
         path = backgrounds.background_path(ground.image)
         if path is None or not path.is_file():
-            logger.info(f"No background image {ground.image!r}, so the canvas draws the default")
+            log.info("No background image %r, so the canvas draws the default", ground.image)
             return default
     return ground

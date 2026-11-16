@@ -1,14 +1,16 @@
 """The images a canvas ground can be, as copies the app owns"""
 
 import filecmp
+import logging
 import os
 import shutil
 from pathlib import Path
 
 from PyQt6.QtGui import QImageReader
 
-from tarot_canvas.utils.logger import logger
 from tarot_canvas.utils.path_helper import get_data_directory
+
+log = logging.getLogger(__name__)
 
 BACKGROUNDS_SUBPATH = "tarot-canvas/backgrounds"
 PART_SUFFIX = ".part"
@@ -59,7 +61,7 @@ def add_background(source):
     """
     source = Path(source)
     if not QImageReader(str(source)).canRead():
-        logger.warning(f"Not adding {source} as a background: not a readable image")
+        log.warning("Not adding %s as a background: not a readable image", source)
         return None
     suffix = source.suffix.lower()
     if suffix not in image_suffixes():
@@ -77,7 +79,7 @@ def add_background(source):
         shutil.copyfile(source, part)
         os.replace(part, base / name)
     except OSError as error:
-        logger.error(f"Could not copy {source} into {base}: {error}")
+        log.exception("Could not copy %s into %s: %s", source, base, error)
         if part is not None:
             part.unlink(missing_ok=True)
         return None
@@ -91,4 +93,4 @@ def remove_background(name):
     try:
         path.unlink(missing_ok=True)
     except OSError as error:
-        logger.error(f"Could not remove the background {path}: {error}")
+        log.exception("Could not remove the background %s: %s", path, error)

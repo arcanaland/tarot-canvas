@@ -22,7 +22,7 @@ HEADLESS_PLATFORMS = ("offscreen", "minimal")
 SOFTWARE_RENDERERS = ("llvmpipe", "softpipe", "swrast", "software rasterizer")
 GL_RENDERER = 0x1F01
 
-log = logging.getLogger("TarotCanvas.canvas")
+log = logging.getLogger(__name__)
 
 
 def choose(platform, system, forced, enabled, failed, probe):

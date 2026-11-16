@@ -23,7 +23,7 @@ from tarot_canvas.ui.canvas.ground import GROUND_HUE_DEFAULT, GROUND_HUES
 from tarot_canvas.ui.canvas.motion import TICK_MS
 from tarot_canvas.ui.canvas.renderer import canvas_renderer_rule
 
-log = logging.getLogger("TarotCanvas.canvas")
+log = logging.getLogger(__name__)
 
 # Where t sits when the ground is still
 STILL_T = 7.0

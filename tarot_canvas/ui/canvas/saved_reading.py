@@ -1,5 +1,6 @@
 """Tab for a saved reading"""
 
+import logging
 from dataclasses import replace
 from pathlib import Path
 
@@ -9,7 +10,8 @@ from PyQt6.QtWidgets import QApplication
 from tarot_canvas.models import readings
 from tarot_canvas.models.reading_events import reading_events
 from tarot_canvas.ui.canvas.saved_canvas import AUTOSAVE_MS, reading_label
-from tarot_canvas.utils.logger import logger
+
+log = logging.getLogger(__name__)
 
 
 class SavedReading(QObject):
@@ -96,12 +98,12 @@ class SavedReading(QObject):
         self.timer.stop()
         # Deleted from the Library, the folder stays gone
         if not self.path.is_dir():
-            logger.warning(f"Did not save reading {self.path}: its folder is gone")
+            log.warning("Did not save reading %s: its folder is gone", self.path)
             return False
         try:
             readings.save(self.path, self.reading())
         except OSError as error:
-            logger.error(f"Could not save reading {self.path}: {error}")
+            log.exception("Could not save reading %s: %s", self.path, error)
             return False
         reading_events().readings_changed.emit()
         return True

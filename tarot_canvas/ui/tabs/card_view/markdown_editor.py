@@ -1,3 +1,5 @@
+import logging
+
 from PyQt6.QtCore import QRegularExpression, QStringListModel, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QColor, QFont, QSyntaxHighlighter, QTextCharFormat, QTextCursor
 from PyQt6.QtWidgets import QCompleter, QPlainTextEdit
@@ -5,7 +7,8 @@ from PyQt6.QtWidgets import QCompleter, QPlainTextEdit
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.strings import NOTES
 from tarot_canvas.ui.tabs.card_view.card_preview import CardPreviewWidget
-from tarot_canvas.utils.logger import logger
+
+log = logging.getLogger(__name__)
 
 
 class MarkdownHighlighter(QSyntaxHighlighter):
@@ -117,7 +120,7 @@ class MarkdownEditor(QPlainTextEdit):
     def set_deck_library(self, deck_library):
         """Set the deck manager reference directly"""
         self.deck_library = deck_library
-        logger.debug(f"Deck library set: {self.deck_library is not None}")
+        log.debug("Deck library set: %s", self.deck_library is not None)
 
     def keyPressEvent(self, event):
         """Handle key press events for auto-completion and formatting"""
@@ -310,7 +313,7 @@ class MarkdownEditor(QPlainTextEdit):
     def check_hover_position(self):
         """Check if mouse is hovering over a card link"""
         if not self.hover_position:
-            logger.debug("No hover position stored")
+            log.debug("No hover position stored")
             return
 
         # Get text cursor at mouse position
@@ -320,35 +323,35 @@ class MarkdownEditor(QPlainTextEdit):
         text = self.toPlainText()
         pos = cursor.position()
 
-        logger.debug(f"Checking hover at position {pos} of {len(text)} chars")
+        log.debug("Checking hover at position %s of %s chars", pos, len(text))
 
         # Check for card links specifically
         link_start = text.rfind("[[card:", 0, pos)
         if link_start == -1:
             link_start = text.rfind("[[", 0, pos)
             if link_start == -1:
-                logger.debug("No [[ link start found near hover position")
+                log.debug("No [[ link start found near hover position")
                 self.preview.hide()
                 return
 
         link_end = text.find("]]", link_start)
         if link_end == -1 or pos > link_end:
-            logger.debug(f"No ]] link end found, or position {pos} is after link end {link_end}")
+            log.debug("No ]] link end found, or position %s is after link end %s", pos, link_end)
             self.preview.hide()
             return
 
         # Extract link text
         link_text = text[link_start + 2 : link_end]
-        logger.debug(f"Detected hover over link: [[{link_text}]]")
+        log.debug("Detected hover over link: [[%s]]", link_text)
 
         # If it's a card link, show preview
         if link_text.startswith("card:"):
             card_name = link_text[5:]
-            logger.debug(f"Processing card link: {card_name}")
+            log.debug("Processing card link: %s", card_name)
             self.show_card_preview(card_name, self.hover_position)
         else:
             # Check if the text corresponds to a card name
-            logger.debug(f"Checking if '{link_text}' is a card name")
+            log.debug("Checking if '%s' is a card name", link_text)
             self.check_if_card_and_preview(link_text, self.hover_position)
 
     def show_card_preview(self, card_name, position):
@@ -360,19 +363,19 @@ class MarkdownEditor(QPlainTextEdit):
         elif hasattr(self.parent_tab, "deck_library"):
             deck_library = self.parent_tab.deck_library
         else:
-            logger.debug("No deck manager available")
+            log.debug("No deck manager available")
             self.preview.hide()
             return
 
         if deck_library is None:
-            logger.debug("deck_library is None")
+            log.debug("deck_library is None")
             self.preview.hide()
             return
 
         ref_deck = deck_library.reference()
 
         if not ref_deck:
-            logger.debug("Reference deck not found")
+            log.debug("Reference deck not found")
             self.preview.hide()
             return
 
@@ -380,36 +383,33 @@ class MarkdownEditor(QPlainTextEdit):
         found_card = None
         try:
             cards = ref_deck.cards
-            logger.debug(f"Retrieved {len(cards) if cards else 0} cards from deck")
+            log.debug("Retrieved %s cards from deck", len(cards) if cards else 0)
 
             for card in cards:
                 if card.display_name.lower() == card_name.lower():
                     found_card = card
-                    logger.debug(f"Found card: {card.display_name} (id: {card.canonical_id})")
+                    log.debug("Found card: %s (id: %s)", card.display_name, card.canonical_id)
                     break
 
             if not found_card:
-                logger.debug(f"No card found with name: {card_name}")
+                log.debug("No card found with name: %s", card_name)
                 self.preview.hide()
                 return
 
             # Set card in preview
-            logger.debug("Setting card in preview widget")
+            log.debug("Setting card in preview widget")
             self.preview.set_card(found_card, ref_deck)
 
             # Position the preview widget near the current position
             global_pos = self.mapToGlobal(position)
             preview_x = global_pos.x() + 20
             preview_y = global_pos.y() - 20
-            logger.debug(f"Positioning preview at ({preview_x}, {preview_y})")
+            log.debug("Positioning preview at (%s, %s)", preview_x, preview_y)
             self.preview.move(preview_x, preview_y)
             self.preview.show()
-            logger.debug("Preview widget shown")
+            log.debug("Preview widget shown")
         except Exception as e:
-            logger.error(f"Error showing card preview: {e}")
-            import traceback
-
-            logger.debug(traceback.format_exc())
+            log.exception("Error showing card preview: %s", e)
             self.preview.hide()
 
     def check_if_card_and_preview(self, text, position):
@@ -421,19 +421,19 @@ class MarkdownEditor(QPlainTextEdit):
         elif hasattr(self.parent_tab, "deck_library"):
             deck_library = self.parent_tab.deck_library
         else:
-            logger.debug("No deck manager available")
+            log.debug("No deck manager available")
             self.preview.hide()
             return
 
         if deck_library is None:
-            logger.debug("deck_library is None")
+            log.debug("deck_library is None")
             self.preview.hide()
             return
 
         ref_deck = deck_library.reference()
 
         if not ref_deck:
-            logger.debug("Reference deck not found")
+            log.debug("Reference deck not found")
             self.preview.hide()
             return
 
@@ -441,36 +441,33 @@ class MarkdownEditor(QPlainTextEdit):
         found_card = None
         try:
             cards = ref_deck.cards
-            logger.debug(f"Looking for card name: {text} among {len(cards) if cards else 0} cards")
+            log.debug("Looking for card name: %s among %s cards", text, len(cards) if cards else 0)
 
             for card in cards:
                 if card.display_name.lower() == text.lower():
                     found_card = card
-                    logger.debug(f"Found matching card: {card.display_name}")
+                    log.debug("Found matching card: %s", card.display_name)
                     break
 
             if not found_card:
-                logger.debug(f"No card found matching: {text}")
+                log.debug("No card found matching: %s", text)
                 self.preview.hide()
                 return
 
             # Set card in preview
-            logger.debug("Setting card in preview widget")
+            log.debug("Setting card in preview widget")
             self.preview.set_card(found_card, ref_deck)
 
             # Position the preview widget near the current position
             global_pos = self.mapToGlobal(position)
             preview_x = global_pos.x() + 20
             preview_y = global_pos.y() - 20
-            logger.debug(f"Positioning preview at ({preview_x}, {preview_y})")
+            log.debug("Positioning preview at (%s, %s)", preview_x, preview_y)
             self.preview.move(preview_x, preview_y)
             self.preview.show()
-            logger.debug("Preview widget shown")
+            log.debug("Preview widget shown")
         except Exception as e:
-            logger.error(f"Error checking for card preview: {e}")
-            import traceback
-
-            logger.debug(traceback.format_exc())
+            log.exception("Error checking for card preview: %s", e)
             self.preview.hide()
 
     def leaveEvent(self, event):

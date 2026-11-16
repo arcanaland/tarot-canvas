@@ -22,8 +22,9 @@ from tarot_canvas.models.reference_deck import ReferenceDeck
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.strings import MAIN_WINDOW, SETUP
+from tarot_canvas.utils import crash_log
 from tarot_canvas.utils.bundle_name import set_bundle_name
-from tarot_canvas.utils.logger import logger
+from tarot_canvas.utils.logger import configure_logging, logger
 from tarot_canvas.utils.theme_manager import ThemeManager
 
 
@@ -132,6 +133,9 @@ class SetupDialog(QDialog):
 
 
 def main():
+    log_file = configure_logging()
+    crash_log.install(log_file, abort=crash_log.is_devel())
+
     # Suppress Qt warnings about Wayland
     os.environ["QT_LOGGING_RULES"] = "qt.qpa.wayland=false"
 

@@ -16,7 +16,7 @@ from tarot_canvas.utils.path_helper import get_cache_directory
 FLATPAK_INFO = Path("/.flatpak-info")
 GL_EXTENSION = "org.freedesktop.Platform.GL"
 
-log = logging.getLogger("TarotCanvas.canvas")
+log = logging.getLogger(__name__)
 
 
 def marker_key(app_version, qt_version, kernel, flatpak_info):

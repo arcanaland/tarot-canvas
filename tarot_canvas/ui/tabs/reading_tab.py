@@ -1,5 +1,6 @@
 """A tarot reading dealt from a spread"""
 
+import logging
 import os
 import random
 from dataclasses import replace
@@ -56,7 +57,8 @@ from tarot_canvas.ui.library.decks.menu import remembered_deck
 from tarot_canvas.ui.strings import CANVAS, READINGS, SPREADS
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.spread_slots import SpreadSlots
-from tarot_canvas.utils.logger import logger
+
+log = logging.getLogger(__name__)
 
 # Seconds between turns under Reveal All
 TURN_ALL_GAP_S = 0.15
@@ -218,7 +220,7 @@ class ReadingTab(SpreadSlots, CanvasTab):
         taken = self._taken_ids()
         pool = [card for card in self._pool() if card.canonical_id not in taken]
         if not pool:
-            logger.info("Every card of the reading's deck is on the table")
+            log.info("Every card of the reading's deck is on the table")
             return
         self.add_specific_card(random.choice(pool), self.deck, self._draw_reversed(), at)
 
@@ -554,15 +556,17 @@ class ReadingTab(SpreadSlots, CanvasTab):
         drawable = self._pool()
         faceless = len(self.deck.cards) - len(drawable)
         if faceless:
-            logger.info(
-                f"Left {faceless} cards with no face out of the draw from {self.deck.metadata.name}"
+            log.info(
+                "Left %s cards with no face out of the draw from %s",
+                faceless,
+                self.deck.metadata.name,
             )
         taken = self._taken_ids()
         pool = [card for card in drawable if card.canonical_id not in taken]
         empty = [placement for placement in self.placements if placement.card is None]
         self._dealt = self._make_cards(empty, random.sample(pool, len(pool)))
         if len(self._dealt) < len(empty):
-            logger.info(f"Short deal: {len(self._dealt)} cards for {len(empty)} positions")
+            log.info("Short deal: %s cards for %s positions", len(self._dealt), len(empty))
             filled = len(self.placements) - len(empty) + len(self._dealt)
             self._toast(READINGS["short_deal"].format(dealt=filled, positions=len(self.placements)))
         self.dealt_reversals = self.reversals() if self._dealt else None
@@ -591,7 +595,7 @@ class ReadingTab(SpreadSlots, CanvasTab):
                 item = self.make_card_item(card, self.deck, reversed, item_type=ReadingCard)
                 if item is not None:
                     break
-                logger.info(f"Passed over {card.display_name}: its art won't load")
+                log.info("Passed over %s: its art won't load", card.display_name)
             if item is None:
                 break
             size = item.face_pixmap().size()
@@ -601,9 +605,12 @@ class ReadingTab(SpreadSlots, CanvasTab):
             item.lie_face_down(*backs[key])
             placement.fill(item)
             dealt.append(item)
-            logger.debug(
-                f"Dealt {card.display_name}{' (reversed)' if reversed else ''} "
-                f"to {placement.number} {placement.slot.label!r}"
+            log.debug(
+                "Dealt %s%s to %s %r",
+                card.display_name,
+                " (reversed)" if reversed else "",
+                placement.number,
+                placement.slot.label,
             )
         return dealt
 
@@ -652,7 +659,7 @@ class ReadingTab(SpreadSlots, CanvasTab):
         try:
             path = readings.new_reading_dir()
         except OSError as error:
-            logger.error(f"Could not make a folder for a reading: {error}")
+            log.exception("Could not make a folder for a reading: %s", error)
             return
         self.save_as(path, Reading(date=when))
         self.saved_reading.write()
@@ -738,9 +745,7 @@ class ReadingTab(SpreadSlots, CanvasTab):
         for card in reading.cards:
             placement = by_position.get(card.position) if card.position else None
             if placement is not None and placement.card is not None:
-                logger.warning(
-                    f"Card {card.id!r} shares position {card.position!r}, so it is loose"
-                )
+                log.warning("Card %r shares position %r, so it is loose", card.id, card.position)
                 placement = None
             face_down = placement is not None and not card.turned
             deck = resolved[card.deck]

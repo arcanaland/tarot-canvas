@@ -11,7 +11,7 @@ from tarot_canvas.ui.canvas.card_item import DraggableCardItem
 from tarot_canvas.ui.canvas.renderer import canvas_uses_gl, gl_failed, watch_first_canvas
 from tarot_canvas.ui.card_transfer import has_card
 
-log = logging.getLogger("TarotCanvas.canvas")
+log = logging.getLogger(__name__)
 
 MIN_ZOOM = 0.1
 MAX_ZOOM = 8.0

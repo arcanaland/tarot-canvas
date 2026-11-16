@@ -1,4 +1,5 @@
 import html
+import logging
 from importlib.resources import files
 from itertools import groupby
 from math import ceil
@@ -55,7 +56,8 @@ from tarot_canvas.ui.widgets.placeholder_message import (
     PlaceholderMessage,
     TintedIcon,
 )
-from tarot_canvas.utils.logger import logger
+
+log = logging.getLogger(__name__)
 
 PLACEHOLDER_ICON = files("tarot_canvas.resources.icons").joinpath("esoterica.svg")
 
@@ -705,27 +707,27 @@ class EsotericaTab(QWidget):
             return
 
         if not card:
-            logger.debug("No card provided to EsotericaTab.update_card_info")
+            log.debug("No card provided to EsotericaTab.update_card_info")
             self.show_no_content()
             return
 
         # Get the card ID
         card_id = card.canonical_id
         if not card_id:
-            logger.debug("Card has no ID")
+            log.debug("Card has no ID")
             self.show_no_content()
             return
 
-        logger.debug(f"Reading esoterica for card: {card_id}")
+        log.debug("Reading esoterica for card: %s", card_id)
 
         readings = get_esoterica_manager().read_card(card_id, deck=self.deck)
 
         if not readings:
-            logger.debug(f"No esoterica found for card: {card_id}")
+            log.debug("No esoterica found for card: %s", card_id)
             self.show_no_content()
             return
 
-        logger.debug(f"Found {len(readings)} sources for card: {card_id}")
+        log.debug("Found %s sources for card: %s", len(readings), card_id)
 
         # We have content, hide the no content label
         self.no_content.setVisible(False)

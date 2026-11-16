@@ -1,3 +1,4 @@
+import logging
 import re
 from collections.abc import Mapping
 from pathlib import Path
@@ -5,8 +6,9 @@ from typing import NamedTuple
 
 from tarot_canvas.models.card_ids import CANONICAL_CARD_IDS
 from tarot_canvas.models.coverage import CellState
-from tarot_canvas.utils.logger import logger
 from tarot_canvas.utils.path_helper import get_data_directory
+
+log = logging.getLogger(__name__)
 
 NOTES_SUBPATH = "tarot-canvas/notes"
 
@@ -61,7 +63,7 @@ def _lines(path):
         with open(path, encoding="utf-8") as handle:
             return [line.strip() for line in handle.read().splitlines() if line.strip()]
     except (OSError, UnicodeDecodeError) as error:
-        logger.debug(f"Could not read note {path}: {error}")
+        log.debug("Could not read note %s: %s", path, error)
         return []
 
 
@@ -100,7 +102,7 @@ def read_directory(directory):
     try:
         entries = sorted(directory.glob("*.md"))
     except OSError as error:
-        logger.debug(f"Could not list notes in {directory}: {error}")
+        log.debug("Could not list notes in %s: %s", directory, error)
         return notes
 
     for path in entries:
@@ -110,7 +112,7 @@ def read_directory(directory):
         try:
             modified = path.stat().st_mtime
         except OSError as error:
-            logger.debug(f"Could not stat note {path}: {error}")
+            log.debug("Could not stat note %s: %s", path, error)
             continue
 
         lines = _lines(path)

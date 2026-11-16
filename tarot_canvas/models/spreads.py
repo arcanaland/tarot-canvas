@@ -1,3 +1,4 @@
+import logging
 import re
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -12,8 +13,9 @@ from tarot_canvas.models.toml_files import (
     with_app_table,
     write_toml,
 )
-from tarot_canvas.utils.logger import logger
 from tarot_canvas.utils.path_helper import BUNDLED_SPREADS_PATH, get_data_directory
+
+log = logging.getLogger(__name__)
 
 SPREADS_SUBPATH = "tarot-canvas/spreads"
 SPREAD_FILE = "spread.toml"
@@ -199,7 +201,7 @@ def scan(base=None):
         try:
             spreads.append((folder, load(folder)))
         except (OSError, ValueError) as error:
-            logger.warning(f"Skipping unreadable spread {folder}: {error}")
+            log.warning("Skipping unreadable spread %s: %s", folder, error)
     return spreads
 
 

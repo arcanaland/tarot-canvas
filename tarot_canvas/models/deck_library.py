@@ -1,13 +1,15 @@
 """Every deck the app knows, loaded once each and keyed by resolved path."""
 
+import logging
 import os
 from collections import defaultdict
 
 from tarot_canvas.models.deck import TarotDeck
 from tarot_canvas.models.deck_events import deck_events
 from tarot_canvas.models.reference_deck import ReferenceDeck
-from tarot_canvas.utils.logger import logger
 from tarot_canvas.utils.path_helper import get_decks_directory
+
+log = logging.getLogger(__name__)
 
 
 class DeckLibrary:
@@ -67,7 +69,7 @@ class DeckLibrary:
         self._loaded = {}
         self._load_reference()
         for root in self._deck_roots():
-            logger.info(f"Loading decks from {root}")
+            log.info("Loading decks from %s", root)
             for name in os.listdir(root):
                 path = os.path.join(root, name)
                 if not os.path.isfile(os.path.join(path, "deck.toml")):
@@ -78,21 +80,21 @@ class DeckLibrary:
                 try:
                     deck = self.load(path)
                 except Exception as e:
-                    logger.error(f"Error loading deck {path}: {e}")
+                    log.exception("Error loading deck %s: %s", path, e)
                     continue
                 self._scanned[key] = deck
-                logger.info(f"Loaded deck '{deck.metadata.name}' from {path}")
+                log.info("Loaded deck '%s' from %s", deck.metadata.name, path)
         self._warn_on_shared_identifiers()
 
     def _load_reference(self):
         if not ReferenceDeck.is_reference_deck_present():
-            logger.warning("Reference deck not found")
+            log.warning("Reference deck not found")
             return
         try:
             self._reference = self.load(ReferenceDeck.get_reference_deck_path())
-            logger.info("Reference deck loaded successfully")
+            log.info("Reference deck loaded successfully")
         except Exception as e:
-            logger.error(f"Error loading reference deck: {e}")
+            log.exception("Error loading reference deck: %s", e)
 
     @staticmethod
     def _deck_roots():
@@ -108,8 +110,11 @@ class DeckLibrary:
                 paths[deck.metadata.identifier].append(os.fspath(deck.root_path))
         for identifier, shared in paths.items():
             if len(shared) > 1:
-                logger.warning(
-                    f"{len(shared)} decks share the identifier '{identifier}': {', '.join(shared)}"
+                log.warning(
+                    "%s decks share the identifier '%s': %s",
+                    len(shared),
+                    identifier,
+                    ", ".join(shared),
                 )
 
 
