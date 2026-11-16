@@ -213,6 +213,10 @@ devel-uninstall:
 quality *ARGS:
   ../scripts/flathub_quality.py {{ARGS}}
 
+# Calculate install/update stats from Flathub
+stats *ARGS:
+  ../scripts/flathub_stats.py {{ARGS}}
+
 # Resize the open app to a specific size and take a screenshot
 shot NAME W='998' H='698':
   ../scripts/flathub_screenshot.py {{NAME}} {{W}} {{H}}

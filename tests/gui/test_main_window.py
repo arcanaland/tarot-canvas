@@ -17,7 +17,7 @@ from tarot_canvas.ui.canvas.card_item import DraggableCardItem
 from tarot_canvas.ui.card_transfer import CARD_MIME
 from tarot_canvas.ui.library.tab import LibraryTab
 from tarot_canvas.ui.main_window import MainWindow, corner_search_button
-from tarot_canvas.ui.strings import COMMANDS
+from tarot_canvas.ui.strings import COMMANDS, MAIN_WINDOW
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tarot_canvas.ui.tabs.deck_view_tab import DeckViewTab
@@ -916,9 +916,27 @@ def test_help_menu_offers_a_path_to_the_bug_tracker(qtbot):
         "Welcome",
         "Frequently Asked Questions",
         "Report Bug",
+        "Community and Q/A",
         "",  # separator
         "About Tarot Canvas",
     ]
+
+
+def test_the_help_menu_opens_the_community(qtbot, monkeypatch):
+    from tarot_canvas.about import load_about_data
+    from tarot_canvas.ui import main_window as main_window_module
+
+    opened = []
+    monkeypatch.setattr(
+        main_window_module.QDesktopServices, "openUrl", lambda url: opened.append(url.toString())
+    )
+    window = MainWindow()
+    qtbot.addWidget(window)
+
+    (action,) = (a for a in help_menu(window).actions() if a.text() == MAIN_WINDOW["community"])
+    action.trigger()
+
+    assert opened == [load_about_data().community]
 
 
 def test_the_faq_url_also_comes_from_the_metainfo(qtbot, monkeypatch):

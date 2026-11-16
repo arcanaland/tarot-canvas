@@ -426,6 +426,11 @@ class MainWindow(QMainWindow):
         report_bug_action.triggered.connect(self.report_bug)
         help_menu.addAction(report_bug_action)
 
+        community_action = QAction(MAIN_WINDOW["community"], self)
+        community_action.setIcon(QIcon.fromTheme("system-users"))
+        community_action.triggered.connect(self.show_community)
+        help_menu.addAction(community_action)
+
         help_menu.addSeparator()
 
         about_action = QAction(MAIN_WINDOW["about"], self)
@@ -551,7 +556,7 @@ class MainWindow(QMainWindow):
             manage_spreads=partial(self.new_library_tab, LIBRARY_VIEW_SPREADS),
             show_faqs=self.show_faqs,
             report_bug=self.report_bug,
-            get_involved=self.get_involved,
+            show_community=self.show_community,
         )
         welcome_tab.setObjectName(WELCOME_TAB_NAME)
         self.tab_widget.addTab(
@@ -1310,11 +1315,11 @@ class MainWindow(QMainWindow):
         if bugtracker:
             QDesktopServices.openUrl(QUrl(bugtracker))
 
-    def get_involved(self):
-        """Open the contribution page declared in the metainfo XML"""
-        contribute = load_about_data().contribute
-        if contribute:
-            QDesktopServices.openUrl(QUrl(contribute))
+    def show_community(self):
+        """Open the community forum declared in the metainfo XML"""
+        community = load_about_data().community
+        if community:
+            QDesktopServices.openUrl(QUrl(community))
 
     def show_about(self):
         dialog = AboutDialog(self)
