@@ -1,9 +1,4 @@
-"""Which Library items the user has pinned, hidden or turned off: tarot-canvas/library.toml
-
-Curation is lists of stable keys, one table per Library view. It is user data beside
-spreads/ and readings/, so it travels with them; settings that describe one machine stay in
-QSettings. A key with nothing behind it is kept, so a pin can arrive before its reading.
-"""
+"""Which Library items the user has pinned, hidden or turned off (stored in library.toml)"""
 
 import logging
 import os
@@ -82,11 +77,7 @@ def keys(view, kind):
 
 
 def _write(change):
-    """Re-read the file, let change(table) edit it, and write it back if it changed
-
-    An unreadable file is replaced only by a real change, which is the user's; until then it is
-    left for them to fix. Unknown tables and keys are carried through.
-    """
+    """Re-read the file, let change(table) edit it, and write it back if it changed"""
     global _cache
     _cache = None  # another window may have written since
     current = _load() or {}
@@ -119,10 +110,7 @@ def _set_list(table, view, kind, listed):
 
 
 def update(view, add=(), remove=()):
-    """Add and remove keys across kinds of one view in one write; whether anything changed
-
-    add and remove are (kind, key) pairs. A key is added at the end, and never twice.
-    """
+    """Add and remove keys across kinds of one view"""
 
     def change(table):
         changed = False
@@ -220,11 +208,7 @@ def forget_reading(path):
 
 
 def _migrate_esoterica_disabled():
-    """Move esoterica/disabled out of QSettings, once
-
-    The key stays put while the file can't be read or written, and the next read retries.
-    Returns the legacy list while it is still the one in force, else None.
-    """
+    """Move esoterica/disabled out of QSettings (one-time)"""
     settings = get_settings()
     if not settings.contains(LEGACY_ESOTERICA_DISABLED_KEY):
         return None
