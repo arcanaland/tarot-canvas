@@ -1,3 +1,5 @@
+import logging
+
 from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QCursor, QIcon
 from PyQt6.QtWidgets import QMenu
@@ -26,7 +28,8 @@ from tarot_canvas.ui.library.spreads.model import (
 )
 from tarot_canvas.ui.library.spreads.row_delegate import SpreadRowDelegate
 from tarot_canvas.ui.strings import LIBRARY, READINGS, SPREADS
-from tarot_canvas.utils.logger import logger
+
+log = logging.getLogger(__name__)
 
 SORT_CHOICES = [
     (SPREADS["sort_newest"], SORT_NEWEST),
@@ -278,6 +281,6 @@ class SpreadsPage(DeletableListPage):
 
     def delete(self, path):
         if spreads.is_included(path):
-            logger.error(f"Refusing to delete included spread {path}")
+            log.error("Refusing to delete included spread %s", path)
             return
         super().delete(path)

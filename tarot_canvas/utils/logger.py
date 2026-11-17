@@ -1,6 +1,5 @@
 import datetime
 import logging
-from typing import ClassVar
 
 from tarot_canvas.utils.path_helper import get_data_directory
 
@@ -45,7 +44,7 @@ def configure_logging(log_dir=None):
     root.addHandler(file_handler)
     root.addHandler(console_handler)
 
-    root.info(f"Logger initialized. Log file: {_log_file}")
+    root.info("Logger initialized. Log file: %s", _log_file)
 
     # After the new file exists, so this run is always one of the newest
     prune_logs(log_dir)
@@ -67,85 +66,11 @@ def prune_logs(log_dir, keep_newest=KEEP_NEWEST, keep_days=KEEP_DAYS, now=None):
             continue
         try:
             path.unlink()
-            log.info(f"Deleted old log file: {path}")
+            log.info("Deleted old log file: %s", path)
         except OSError as e:
-            log.warning(f"Failed to delete old log file {path}: {e}")
+            log.warning("Failed to delete old log file %s: %s", path, e)
 
 
 def get_log_file_path():
     """This run's log file, or None when logging was never configured."""
     return _log_file
-
-
-class TarotLogger:
-    """Logs to the tarot_canvas logger and tells the log viewer"""
-
-    _logger = logging.getLogger(LOGGER_NAME)
-    _subscribers: ClassVar[list] = []
-
-    @classmethod
-    def debug(cls, message):
-        """Log a debug message"""
-        cls._logger.debug(message)
-        cls._notify_subscribers(logging.DEBUG, message)
-
-    @classmethod
-    def info(cls, message):
-        """Log an info message"""
-        cls._logger.info(message)
-        cls._notify_subscribers(logging.INFO, message)
-
-    @classmethod
-    def warning(cls, message):
-        """Log a warning message"""
-        cls._logger.warning(message)
-        cls._notify_subscribers(logging.WARNING, message)
-
-    @classmethod
-    def error(cls, message):
-        """Log an error message"""
-        cls._logger.error(message)
-        cls._notify_subscribers(logging.ERROR, message)
-
-    @classmethod
-    def exception(cls, message):
-        """Log an error message with the traceback of the exception being handled"""
-        cls._logger.exception(message)
-        cls._notify_subscribers(logging.ERROR, message)
-
-    @classmethod
-    def critical(cls, message):
-        """Log a critical message"""
-        cls._logger.critical(message)
-        cls._notify_subscribers(logging.CRITICAL, message)
-
-    @classmethod
-    def subscribe(cls, callback):
-        """Add a subscriber to receive log messages"""
-        if callback not in cls._subscribers:
-            cls._subscribers.append(callback)
-
-    @classmethod
-    def unsubscribe(cls, callback):
-        """Remove a subscriber"""
-        if callback in cls._subscribers:
-            cls._subscribers.remove(callback)
-
-    @classmethod
-    def _notify_subscribers(cls, level, message):
-        """Notify all subscribers of a new log message"""
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        for callback in cls._subscribers:
-            try:
-                callback(level, timestamp, message)
-            except Exception:
-                cls._logger.exception("Error notifying a log subscriber")
-
-    @classmethod
-    def get_log_file_path(cls):
-        """Get the current log file path"""
-        return get_log_file_path()
-
-
-# Every method is a classmethod, so the class is the logger; nothing runs at import
-logger = TarotLogger

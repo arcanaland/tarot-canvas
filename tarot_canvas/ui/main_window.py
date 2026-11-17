@@ -1,4 +1,5 @@
 import contextlib
+import logging
 import os
 import sys
 from functools import partial
@@ -65,8 +66,9 @@ from tarot_canvas.ui.widgets.placeholder_message import tinted_icon
 from tarot_canvas.ui.widgets.toast import Toast
 from tarot_canvas.ui.windows.about import AboutDialog, app_icon
 from tarot_canvas.ui.windows.log_viewer import LogViewerDialog
-from tarot_canvas.utils.logger import logger
 from tarot_canvas.utils.theme_manager import ThemeManager, ThemeType
+
+log = logging.getLogger(__name__)
 
 ICON_PATH = files("tarot_canvas.resources.icons").joinpath("icon.png")
 WELCOME_TAB_ICON = files("tarot_canvas.resources.icons").joinpath("esoterica.svg")
@@ -608,7 +610,7 @@ class MainWindow(QMainWindow):
         try:
             spread = spreads.load(path)
         except (OSError, ValueError) as error:
-            logger.error(f"Could not open spread {path}: {error}")
+            log.error("Could not open spread %s: %s", path, error)
             self.toast.show_message(SPREADS["open_failed"])
             return None
         return self.add_canvas_tab(SpreadTab(spread, path))
@@ -618,7 +620,7 @@ class MainWindow(QMainWindow):
         try:
             spread = spreads.load(Path(path))
         except (OSError, ValueError) as error:
-            logger.error(f"Could not open spread {path}: {error}")
+            log.error("Could not open spread %s: %s", path, error)
             self.toast.show_message(SPREADS["open_failed"])
             return None
         return self.open_reading_of(spread, Path(path).name)
@@ -673,7 +675,7 @@ class MainWindow(QMainWindow):
         try:
             readings.rename(path, question)
         except (OSError, ValueError) as error:
-            logger.error(f"Could not rename reading {path}: {error}")
+            log.error("Could not rename reading %s: %s", path, error)
             return
         reading_events().readings_changed.emit()
 
@@ -693,7 +695,7 @@ class MainWindow(QMainWindow):
         try:
             spread = spreads.load(Path(path))
         except (OSError, ValueError) as error:
-            logger.error(f"Could not open spread {path}: {error}")
+            log.error("Could not open spread %s: %s", path, error)
             self.toast.show_message(SPREADS["open_failed"])
             return None
         return self.open_unsaved_spread(spreads.copy_of(spread, path))
@@ -874,7 +876,7 @@ class MainWindow(QMainWindow):
 
             return deck_tab
         except Exception as e:
-            logger.exception("Error creating deck view tab")
+            log.exception("Error creating deck view tab")
             QMessageBox.warning(
                 self,
                 MAIN_WINDOW["invalid_deck"],
@@ -996,7 +998,7 @@ class MainWindow(QMainWindow):
                 return
 
             # Open the deck
-            logger.info(f"Selected deck directory: {deck_dir}")
+            log.info("Selected deck directory: %s", deck_dir)
             self.new_deck_view_tab(deck_path=deck_dir)
 
     def show_preferences(self):
@@ -1273,11 +1275,11 @@ class MainWindow(QMainWindow):
                 # If it's a canvas tab, add the card to it
                 if hasattr(current_tab, "add_specific_card"):
                     current_tab.add_specific_card(card, deck)
-                    logger.debug(f"Adding card to canvas: {card.display_name}")
+                    log.debug("Adding card to canvas: %s", card.display_name)
             else:
                 # For any other tab type, open a card view
                 self.open_card_view_tab(card, deck)
-                logger.debug(f"Opening card view for: {card.display_name}")
+                log.debug("Opening card view for: %s", card.display_name)
 
     def open_card_view_tab(self, card, deck, show_notes=False):
         """Open a tab to view a specific card, or raise the one already open, and return it"""
@@ -1343,12 +1345,12 @@ class MainWindow(QMainWindow):
 
     def change_theme(self, theme_type):
         """Change the application theme"""
-        logger.info(f"Changing theme to: {theme_type.value}")
+        log.info("Changing theme to: %s", theme_type.value)
         ThemeManager.get_instance().set_theme(theme_type)
 
     def on_theme_changed(self, theme_name):
         """Handle theme change events"""
-        logger.info(f"Theme changed to: {theme_name}")
+        log.info("Theme changed to: %s", theme_name)
 
         # Update checked state of theme actions
         try:
@@ -1356,7 +1358,7 @@ class MainWindow(QMainWindow):
             for t, action in self.theme_actions.items():
                 action.setChecked(t == theme)
         except (ValueError, AttributeError) as e:
-            logger.error(f"Error updating theme actions: {e}")
+            log.error("Error updating theme actions: %s", e)
 
     def open_reference_deck(self):
         """Open the reference deck from the deck manager"""
