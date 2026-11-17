@@ -24,7 +24,8 @@ from tarot_canvas.models.esoterica_registry import (
     Role,
     role_of,
 )
-from tarot_canvas.settings import set_esoterica_disabled, set_esoterica_expanded
+from tarot_canvas.models.library_curation import set_esoterica_disabled
+from tarot_canvas.settings import set_esoterica_expanded
 from tarot_canvas.ui import strings, typography
 from tarot_canvas.ui.palette import muted_text
 from tarot_canvas.ui.passage_metrics import (

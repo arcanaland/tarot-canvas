@@ -6,7 +6,7 @@ from tarot_canvas.models.card_ids import CANONICAL_CARD_IDS
 from tarot_canvas.models.coverage import CellState
 from tarot_canvas.models.esoterica import EsotericaManager, NotRead, NotReadReason
 from tarot_canvas.models.esoterica_events import esoterica_events
-from tarot_canvas.settings import set_esoterica_disabled
+from tarot_canvas.models.library_curation import set_esoterica_disabled
 
 FROM_PATH = object()
 

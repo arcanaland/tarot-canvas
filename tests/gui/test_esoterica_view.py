@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import QStyleOptionViewItem
 from tarot_canvas.models.coverage import CellState
 from tarot_canvas.models.esoterica import EsotericaManager
 from tarot_canvas.models.esoterica_events import esoterica_events
-from tarot_canvas.settings import get_esoterica_disabled, set_esoterica_disabled
+from tarot_canvas.models.library_curation import esoterica_disabled, set_esoterica_disabled
 from tarot_canvas.ui import strings
 from tarot_canvas.ui.library.esoterica import row_delegate as source_row_delegate
 from tarot_canvas.ui.library.esoterica.model import (
@@ -204,7 +204,7 @@ def test_unchecking_a_row_turns_its_source_off_and_says_so(qtbot, page):
     with qtbot.waitSignal(esoterica_events().sources_changed, timeout=1000):
         click_checkbox(qtbot, page, "zeta notes")
 
-    assert get_esoterica_disabled() == ["me/zeta"]
+    assert esoterica_disabled() == ["me/zeta"]
     assert row_of(page, "zeta notes").data(Qt.ItemDataRole.CheckStateRole) == (
         Qt.CheckState.Unchecked
     )
@@ -212,7 +212,7 @@ def test_unchecking_a_row_turns_its_source_off_and_says_so(qtbot, page):
     with qtbot.waitSignal(esoterica_events().sources_changed, timeout=1000):
         click_checkbox(qtbot, page, "zeta notes")
 
-    assert get_esoterica_disabled() == []
+    assert esoterica_disabled() == []
     assert row_of(page, "zeta notes").data(Qt.ItemDataRole.CheckStateRole) == (
         Qt.CheckState.Checked
     )
@@ -227,7 +227,7 @@ def test_space_toggles_the_current_row(qtbot, page):
 
     qtbot.keyClick(page.list_view, Qt.Key.Key_Space)
 
-    assert get_esoterica_disabled() == ["me/alpha"]
+    assert esoterica_disabled() == ["me/alpha"]
 
 
 def test_a_toggle_keeps_identifiers_it_did_not_read(qtbot, page):
@@ -235,7 +235,7 @@ def test_a_toggle_keeps_identifiers_it_did_not_read(qtbot, page):
 
     click_checkbox(qtbot, page, "zeta notes")
 
-    assert get_esoterica_disabled() == ["x/from-another-machine", "me/zeta"]
+    assert esoterica_disabled() == ["x/from-another-machine", "me/zeta"]
 
 
 def test_a_toggle_reads_no_file_again(qtbot, page, manager, monkeypatch):

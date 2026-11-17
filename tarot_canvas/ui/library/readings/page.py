@@ -2,6 +2,7 @@ from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QAbstractItemView, QApplication, QMenu
 
+from tarot_canvas.models import library_curation as curation
 from tarot_canvas.models import readings
 from tarot_canvas.models.deck_events import deck_events
 from tarot_canvas.models.reading_events import reading_events
@@ -29,6 +30,7 @@ from tarot_canvas.ui.library.readings.model import (
     open_text,
 )
 from tarot_canvas.ui.library.readings.row_delegate import ReadingRowDelegate
+from tarot_canvas.ui.library.roles import PinnedRole
 from tarot_canvas.ui.refresh_when_shown import RefreshWhenShown
 from tarot_canvas.ui.strings import READINGS, SPREADS
 
@@ -255,6 +257,12 @@ class ReadingsPage(DeletableListPage):
             open_text(row),
             lambda: self.open_requested.emit(path),
         )
+        pinned = bool(index.data(PinnedRole))
+        menu.addAction(
+            QIcon.fromTheme("window-unpin" if pinned else "window-pin"),
+            READINGS["library_unpin" if pinned else "library_pin"],
+            lambda: curation.set_reading_pinned(path, not pinned),
+        )
         rename = menu.addAction(
             QIcon.fromTheme("edit-rename"),
             READINGS["library_rename"],
@@ -268,6 +276,9 @@ class ReadingsPage(DeletableListPage):
             lambda: self.delete_requested.emit(path),
         )
         return menu
+
+    def _forget(self, path):
+        curation.forget_reading(path)
 
     def _rename_at(self, path):
         if self.select(path):

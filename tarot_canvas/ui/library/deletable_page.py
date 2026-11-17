@@ -48,6 +48,9 @@ class DeletableListPage(LibraryListPage):
     def select(self, path):
         raise NotImplementedError
 
+    def _forget(self, path):
+        """Whatever is kept about the folder elsewhere goes once its delete is final"""
+
     def delete(self, path):
         """Take the folder out of every view now; remove it once Undo is gone"""
         # One Undo at a time: the delete it offered becomes final
@@ -89,7 +92,7 @@ class DeletableListPage(LibraryListPage):
         if self.staged is None:
             return
 
-        _path, staged = self.staged
+        path, staged = self.staged
         self.staged = None
         self.message.hide()
 
@@ -98,3 +101,5 @@ class DeletableListPage(LibraryListPage):
         except OSError as error:
             # Left where it is, the folder can still be recovered by hand
             logger.error(f"Could not remove deleted {staged}: {error}")
+            return
+        self._forget(path)

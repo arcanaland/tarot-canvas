@@ -225,7 +225,6 @@ LIBRARY_VIEW_DEFAULT = LIBRARY_VIEW_DECKS
 # Lists of family ids; an id this version doesn't know matches nothing and is kept
 ESOTERICA_EXPANDED_KEY = "esoterica/expanded"
 ESOTERICA_HIDDEN_KEY = "esoterica/hidden"
-ESOTERICA_DISABLED_KEY = "esoterica/disabled"
 
 DECK_HEADER_EXPANDED_KEY = "deck_view/header_expanded"
 DECK_HEADER_EXPANDED_DEFAULT = True
@@ -291,7 +290,7 @@ def record_deck_opened(deck_path, when=None):
     get_settings().setValue(LIBRARY_RECENT_KEY, json.dumps(recent))
 
 
-def _string_list(key):
+def string_list(key):
     """A stored list, which QSettings may hand back as None, one bare str, or a list"""
     stored = get_settings().value(key)
     if stored is None:
@@ -303,12 +302,12 @@ def _string_list(key):
 
 def get_esoterica_expanded():
     """The esoterica folds that are open, on every card"""
-    return _string_list(ESOTERICA_EXPANDED_KEY)
+    return string_list(ESOTERICA_EXPANDED_KEY)
 
 
 def get_esoterica_hidden():
     """The esoterica families the show menu has unchecked"""
-    return _string_list(ESOTERICA_HIDDEN_KEY)
+    return string_list(ESOTERICA_HIDDEN_KEY)
 
 
 def _set_esoterica_list(key, ids):
@@ -324,22 +323,12 @@ def set_esoterica_hidden(ids):
     _set_esoterica_list(ESOTERICA_HIDDEN_KEY, ids)
 
 
-def get_esoterica_disabled():
-    """The identifiers of the esoterica sources that are turned off"""
-    return _string_list(ESOTERICA_DISABLED_KEY)
-
-
-def set_esoterica_disabled(ids):
-    get_settings().setValue(ESOTERICA_DISABLED_KEY, list(ids))
-    esoterica_events().sources_changed.emit()
-
-
 def get_shortcut_keys(command_id):
     """The keys stored for a command, or None when it has its defaults"""
     key = SHORTCUTS_PREFIX + command_id
     if not get_settings().contains(key):
         return None
-    return _string_list(key)
+    return string_list(key)
 
 
 def set_shortcut_keys(command_id, keys):

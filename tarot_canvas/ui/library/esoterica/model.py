@@ -3,7 +3,7 @@ from enum import Enum
 from PyQt6.QtCore import QAbstractListModel, QModelIndex, Qt
 
 from tarot_canvas.models.coverage import CellState
-from tarot_canvas.settings import get_esoterica_disabled, set_esoterica_disabled
+from tarot_canvas.models.library_curation import esoterica_disabled, set_esoterica_disabled
 from tarot_canvas.ui.library.roles import SectionRole, SubtitleRole
 from tarot_canvas.ui.strings import label_for, license_name
 
@@ -77,7 +77,7 @@ class EsotericaListModel(QAbstractListModel):
         return len(self._manager.sources) + len(self._manager.not_read)
 
     def _rebuild(self):
-        self._disabled = set(get_esoterica_disabled())
+        self._disabled = set(esoterica_disabled())
         folded = self._search.casefold()
 
         installed = [
@@ -187,7 +187,7 @@ class EsotericaListModel(QAbstractListModel):
         identifier = payload[0]
         on = Qt.CheckState(value) == Qt.CheckState.Checked
         # Identifiers this run didn't read, from another machine or a removed file, are kept
-        disabled = [item for item in get_esoterica_disabled() if item != identifier]
+        disabled = [item for item in esoterica_disabled() if item != identifier]
         if not on:
             disabled.append(identifier)
         self._disabled = set(disabled)

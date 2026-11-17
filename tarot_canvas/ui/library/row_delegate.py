@@ -12,11 +12,14 @@ from tarot_canvas.ui.library.roles import (
     SELECTED_SUBTITLE_ALPHA,
     BadgeRole,
     CoverPathRole,
+    DimmedRole,
     PreviewRole,
     SubtitleRole,
 )
 
 THUMBNAIL_ASPECT = 0.57
+# A hidden row a search or Show brought back, as the Plasma panel draws a hidden tray item
+DIMMED_OPACITY = 0.5
 
 MENU_ICON_SIZE = 16
 MENU_BUTTON_SIZE = MENU_ICON_SIZE + 2 * units.SMALL_SPACING
@@ -126,6 +129,8 @@ class NoteRowDelegate(QStyledItemDelegate):
     def paint(self, painter, option, index):
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        if index.data(DimmedRole):
+            painter.setOpacity(DIMMED_OPACITY)
 
         palette = option.palette
         selected = bool(option.state & QStyle.StateFlag.State_Selected)

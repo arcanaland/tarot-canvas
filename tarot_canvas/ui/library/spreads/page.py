@@ -1,7 +1,8 @@
 from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QCursor, QIcon
 from PyQt6.QtWidgets import QMenu
 
+from tarot_canvas.models import library_curation as curation
 from tarot_canvas.models import spreads
 from tarot_canvas.models.spread_events import spread_events
 from tarot_canvas.settings import (
@@ -13,11 +14,12 @@ from tarot_canvas.ui.commands import set_menu_text
 from tarot_canvas.ui.icons import deck_icon
 from tarot_canvas.ui.library.decks.menu import deck_menu
 from tarot_canvas.ui.library.deletable_page import DeletableListPage
-from tarot_canvas.ui.library.roles import SORT_COUNT, SORT_NAME
+from tarot_canvas.ui.library.roles import SORT_COUNT, SORT_NAME, PinnedRole, ToggleRole
 from tarot_canvas.ui.library.spreads.details_pane import SpreadDetails, SpreadDetailsPane
 from tarot_canvas.ui.library.spreads.model import (
     SORT_EDITED,
     SORT_NEWEST,
+    SpreadHiddenRole,
     SpreadPathRole,
     SpreadRole,
     SpreadsListModel,
@@ -129,10 +131,27 @@ class SpreadsPage(DeletableListPage):
         finally:
             self._programmatic -= 1
 
+    def toggle_hidden(self):
+        """Show or put away the hidden spreads, keeping the selected one selected"""
+        selected = self._selected_path()
+        self.list_model.toggle_hidden()
+        if selected is not None:
+            self.select(selected)
+        self._update_empty_state()
+
     def _on_activated(self, index):
+        if index.data(ToggleRole):
+            # A click toggles it in _on_clicked, whether or not the style activates on it too
+            if not self._pointer_on(index):
+                self.toggle_hidden()
+            return
         if self._details_for(index) is not None:
             self._show_details(index)
             self.details_requested.emit()
+
+    def _pointer_on(self, index):
+        view = self.list_view
+        return view.indexAt(view.viewport().mapFromGlobal(QCursor.pos())) == index
 
     def _on_pressed(self, _index):
         self._button_click = False
@@ -140,6 +159,9 @@ class SpreadsPage(DeletableListPage):
     def _on_clicked(self, index):
         if self._button_click:
             self._button_click = False
+            return
+        if index.data(ToggleRole):
+            self.toggle_hidden()
             return
         if index.data(SpreadRole) is not None:
             self.row_chosen.emit()
@@ -191,6 +213,9 @@ class SpreadsPage(DeletableListPage):
             action.triggered.connect(lambda: signal.emit(path))
             return action
 
+        def toggle(text, icon, change):
+            menu.addAction(QIcon.fromTheme(icon), text, lambda: change(path))
+
         start = add(READINGS["open"], "media-playback-start", self.reading_requested)
         set_menu_text(start, READINGS["open"], "library.start_reading")
         decks = deck_menu(menu, lambda: self.reading_requested.emit(path))
@@ -199,14 +224,25 @@ class SpreadsPage(DeletableListPage):
         menu.addMenu(decks)
         menu.addSeparator()
 
+        if index.data(PinnedRole):
+            toggle(SPREADS["unpin"], "window-unpin", lambda p: curation.set_spread_pinned(p, False))
+        else:
+            toggle(SPREADS["pin"], "window-pin", lambda p: curation.set_spread_pinned(p, True))
         # A built-in's Edit would be its Duplicate: a tab that saves as a new spread
         included = spreads.is_included(path)
         if not included:
             add(SPREADS["edit"], "document-edit", self.edit_requested)
         add(SPREADS["duplicate"], "edit-duplicate", self.duplicate_requested)
+        menu.addSeparator()
+        # A built-in can't be deleted, so it can be hidden in Delete's place
         if not included:
-            menu.addSeparator()
             add(SPREADS["delete"], "edit-delete", self.delete_requested)
+        elif index.data(SpreadHiddenRole):
+            toggle(
+                SPREADS["unhide"], "view-visible", lambda p: curation.set_spread_hidden(p, False)
+            )
+        else:
+            toggle(SPREADS["hide"], "view-hidden", lambda p: curation.set_spread_hidden(p, True))
         return menu
 
     def start_reading(self):
@@ -236,6 +272,9 @@ class SpreadsPage(DeletableListPage):
             self.reading_requested.emit(path)
 
     # -- deleting, undoably -------------------------------------------------
+
+    def _forget(self, path):
+        curation.forget_spread(path)
 
     def delete(self, path):
         if spreads.is_included(path):

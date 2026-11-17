@@ -33,7 +33,15 @@ from tarot_canvas.ui.canvas.tab_icon import (
 )
 from tarot_canvas.ui.card_colours import SLOT_COLOUR
 from tarot_canvas.ui.library.decks.model import SORT_AUTHOR
-from tarot_canvas.ui.library.roles import SORT_COUNT, SORT_NAME, PreviewRole, SubtitleRole
+from tarot_canvas.ui.library.roles import (
+    SORT_COUNT,
+    SORT_NAME,
+    DimmedRole,
+    PinnedRole,
+    PreviewRole,
+    SubtitleRole,
+    ToggleRole,
+)
 from tarot_canvas.ui.library.section_row import is_section
 from tarot_canvas.ui.library.spreads.details_pane import SpreadDetails
 from tarot_canvas.ui.library.spreads.model import SORT_EDITED, SORT_NEWEST, SpreadPathRole
@@ -151,7 +159,7 @@ def test_a_spread_gives_one_slot_mark_per_position_keeping_its_shape():
     assert left.h / left.w == pytest.approx(UNIT.height() / UNIT.width())
 
 
-def test_a_spreads_marks_paint():
+def test_a_spreads_marks_paint(qapp):
     marks = layout_marks(spread_marks(two_slots(), UNIT), MINIMAP.max_fill)
     image = render_spread(marks, MINIMAP, 64)
     empty = render_spread((), MINIMAP, 64)
@@ -442,7 +450,7 @@ def test_a_numberless_spread_has_no_numbers_in_its_marks():
     assert all(mark.number is None for mark in layout_marks(spread_marks(numbered_cross(), UNIT)))
 
 
-def test_numbers_are_drawn_when_a_mark_has_one():
+def test_numbers_are_drawn_when_a_mark_has_one(qapp):
     spread = numbered_cross()
     plain = layout_marks(spread_marks(spread, UNIT), DIAGRAM.max_fill)
     numbered = layout_marks(spread_marks(spread, UNIT, numbered=True), DIAGRAM.max_fill)
@@ -450,7 +458,7 @@ def test_numbers_are_drawn_when_a_mark_has_one():
     assert render_spread(numbered, DIAGRAM, 200) != render_spread(plain, DIAGRAM, 200)
 
 
-def test_a_number_too_small_to_read_is_left_out():
+def test_a_number_too_small_to_read_is_left_out(qapp):
     spread = numbered_cross()
     plain = layout_marks(spread_marks(spread, UNIT), DIAGRAM.max_fill)
     numbered = layout_marks(spread_marks(spread, UNIT, numbered=True), DIAGRAM.max_fill)
@@ -459,7 +467,7 @@ def test_a_number_too_small_to_read_is_left_out():
     assert render_spread(numbered, style, 200) == render_spread(plain, style, 200)
 
 
-def test_a_covered_slot_keeps_its_number():
+def test_a_covered_slot_keeps_its_number(qapp):
     spread = numbered_cross()
     marks = layout_marks(spread_marks(spread, UNIT, numbered=True), DIAGRAM.max_fill)
     bottom, top = marks
@@ -776,12 +784,13 @@ def test_a_users_rows_menu_starts_a_reading_edits_duplicates_and_deletes(page, q
     menu = page.row_menu(index_of(page, "Older"))
     assert menu_entries(menu) == [
         *READING_ENTRIES,
+        SPREADS["pin"],
         SPREADS["edit"],
         SPREADS["duplicate"],
         None,
         SPREADS["delete"],
     ]
-    reading, _with, _, edit, duplicate, _separator, delete = menu.actions()
+    reading, _with, _, _pin, edit, duplicate, _separator, delete = menu.actions()
 
     for action, signal in [
         (reading, page.reading_requested),
@@ -1121,8 +1130,15 @@ def test_an_included_rows_menu_starts_a_reading_and_duplicates_and_a_heading_has
     right_click("Celtic")
     right_click("Mine new")
     assert executed == [
-        [*READING_ENTRIES, SPREADS["duplicate"]],
-        [*READING_ENTRIES, SPREADS["edit"], SPREADS["duplicate"], None, SPREADS["delete"]],
+        [*READING_ENTRIES, SPREADS["pin"], SPREADS["duplicate"], None, SPREADS["hide"]],
+        [
+            *READING_ENTRIES,
+            SPREADS["pin"],
+            SPREADS["edit"],
+            SPREADS["duplicate"],
+            None,
+            SPREADS["delete"],
+        ],
     ]
 
 
@@ -1150,8 +1166,15 @@ def test_pressing_a_rows_menu_button_opens_its_menu(qtbot, shipped_page, monkeyp
         qtbot.mouseClick(viewport, Qt.MouseButton.LeftButton, pos=centre)
 
     assert executed == [
-        [*READING_ENTRIES, SPREADS["edit"], SPREADS["duplicate"], None, SPREADS["delete"]],
-        [*READING_ENTRIES, SPREADS["duplicate"]],
+        [
+            *READING_ENTRIES,
+            SPREADS["pin"],
+            SPREADS["edit"],
+            SPREADS["duplicate"],
+            None,
+            SPREADS["delete"],
+        ],
+        [*READING_ENTRIES, SPREADS["pin"], SPREADS["duplicate"], None, SPREADS["hide"]],
     ]
 
 
@@ -1216,3 +1239,149 @@ def test_delete_refuses_an_included_spread(shipped_page, included_base):
     assert (folder / spreads.SPREAD_FILE).read_bytes() == before
     assert shipped_page.staged is None
     assert "Celtic" in names(shipped_page)
+
+
+# -- pin and hide ------------------------------------------------------------
+
+
+def trigger(page, name, text):
+    menu_action(page.row_menu(index_of(page, name)), text).trigger()
+
+
+def toggle_row(page):
+    model = page.list_model
+    return next(
+        index
+        for index in (model.index(row, 0) for row in range(model.rowCount()))
+        if index.data(ToggleRole)
+    )
+
+
+def test_a_pinned_spread_leads_under_pinned_and_leaves_its_section(shipped_page):
+    trigger(shipped_page, "Celtic", SPREADS["pin"])
+    trigger(shipped_page, "Mine old", SPREADS["pin"])
+
+    assert listed(shipped_page) == [
+        (True, SPREADS["section_pinned"]),
+        (False, "Mine old"),  # newest first, and an included spread has no date
+        (False, "Celtic"),
+        (True, SPREADS["section_mine"]),
+        (False, "Mine new"),
+        (True, SPREADS["section_included"]),
+        (False, "zodiac"),
+    ]
+    assert index_of(shipped_page, "Celtic").data(PinnedRole)
+    assert (
+        menu_entries(shipped_page.row_menu(index_of(shipped_page, "Celtic")))[3]
+        == (SPREADS["unpin"])
+    )
+
+
+def test_pinned_follows_the_views_sort(shipped_page):
+    for name in ("Celtic", "zodiac"):
+        trigger(shipped_page, name, SPREADS["pin"])
+
+    shipped_page.set_sort_key(SORT_COUNT)
+    assert names(shipped_page)[:2] == ["zodiac", "Celtic"]
+    shipped_page.set_sort_key(SORT_NAME)
+    assert names(shipped_page)[:2] == ["Celtic", "zodiac"]
+
+
+def test_unpinning_puts_it_back_and_a_search_reaches_into_pinned(shipped_page):
+    trigger(shipped_page, "Mine new", SPREADS["pin"])
+    shipped_page.list_model.set_search("zod")
+    assert listed(shipped_page) == [(True, SPREADS["section_included"]), (False, "zodiac")]
+
+    shipped_page.list_model.set_search("Mine new")
+    assert listed(shipped_page) == [(True, SPREADS["section_pinned"]), (False, "Mine new")]
+
+    shipped_page.list_model.set_search("")
+    trigger(shipped_page, "Mine new", SPREADS["unpin"])
+    assert SPREADS["section_pinned"] not in [text for _, text in listed(shipped_page)]
+
+
+def test_a_hidden_spread_leaves_included_for_a_quiet_row_that_shows_it_dimmed(shipped_page):
+    trigger(shipped_page, "Celtic", SPREADS["hide"])
+
+    assert names(shipped_page) == [
+        "Mine new",
+        "Mine old",
+        "zodiac",
+        SPREADS["hidden_show"].format(count=1),
+    ]
+    assert not toggle_row(shipped_page).flags() & Qt.ItemFlag.ItemIsSelectable
+
+    shipped_page.list_view.clicked.emit(toggle_row(shipped_page))
+    assert names(shipped_page) == [
+        "Mine new",
+        "Mine old",
+        "Celtic",
+        "zodiac",
+        SPREADS["hidden_collapse"].format(count=1),
+    ]
+    celtic = index_of(shipped_page, "Celtic")
+    assert celtic.data(DimmedRole)
+    assert menu_entries(shipped_page.row_menu(celtic))[-1] == SPREADS["unhide"]
+
+    trigger(shipped_page, "Celtic", SPREADS["unhide"])
+    assert not index_of(shipped_page, "Celtic").data(DimmedRole)
+    assert not any(
+        index.data(ToggleRole)
+        for index in map(
+            lambda row: shipped_page.list_model.index(row, 0),
+            range(shipped_page.list_model.rowCount()),
+        )
+    )
+
+
+def test_return_on_the_quiet_row_shows_the_hidden_spreads(shipped_page):
+    trigger(shipped_page, "Celtic", SPREADS["hide"])
+
+    shipped_page.list_view.activated.emit(toggle_row(shipped_page))
+
+    assert "Celtic" in names(shipped_page)
+
+
+def test_a_search_finds_a_hidden_spread_dimmed_without_the_quiet_row(shipped_page):
+    trigger(shipped_page, "Celtic", SPREADS["hide"])
+
+    shipped_page.list_model.set_search("celt")
+
+    assert listed(shipped_page) == [(True, SPREADS["section_included"]), (False, "Celtic")]
+    assert index_of(shipped_page, "Celtic").data(DimmedRole)
+
+
+def test_with_every_included_spread_hidden_the_section_keeps_its_quiet_row(qtbot, included_base):
+    ship(included_base, "b", Spread(name="Celtic", positions=slots(4)))
+    page = SpreadsPage()
+    qtbot.addWidget(page)
+
+    trigger(page, "Celtic", SPREADS["hide"])
+
+    assert listed(page) == [
+        (True, SPREADS["section_included"]),
+        (False, SPREADS["hidden_show"].format(count=1)),
+    ]
+    assert page.list_model.has_items()
+    assert not page.empty_label.isVisibleTo(page)
+
+
+def test_pinning_a_hidden_spread_unhides_it(shipped_page):
+    trigger(shipped_page, "Celtic", SPREADS["hide"])
+    shipped_page.toggle_hidden()
+
+    trigger(shipped_page, "Celtic", SPREADS["pin"])
+
+    assert names(shipped_page)[0] == "Celtic"
+    assert not index_of(shipped_page, "Celtic").data(DimmedRole)
+
+
+def test_a_deleted_spread_takes_its_pin_once_the_delete_is_final(page, curation_file):
+    trigger(page, "Older", SPREADS["pin"])
+    older = index_of(page, "Older").data(SpreadPathRole)
+
+    page.delete(older)
+    assert "1000" in curation_file.read_text()  # Undo would bring it back pinned
+    page.commit_pending_delete()
+
+    assert "1000" not in curation_file.read_text()

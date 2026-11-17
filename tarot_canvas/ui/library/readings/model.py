@@ -4,6 +4,7 @@ from typing import NamedTuple
 
 from PyQt6.QtCore import QAbstractListModel, QModelIndex, Qt, pyqtSignal
 
+from tarot_canvas.models import library_curation as curation
 from tarot_canvas.models import notes as notes_model
 from tarot_canvas.models.readings import READING_FILE, Reading
 from tarot_canvas.ui.canvas.detail import card_unit_size
@@ -17,7 +18,13 @@ from tarot_canvas.ui.canvas.tab_icon import (
     spread_icon,
 )
 from tarot_canvas.ui.library.cards import card_name
-from tarot_canvas.ui.library.roles import BadgeRole, PreviewRole, SectionRole, SubtitleRole
+from tarot_canvas.ui.library.roles import (
+    BadgeRole,
+    PinnedRole,
+    PreviewRole,
+    SectionRole,
+    SubtitleRole,
+)
 from tarot_canvas.ui.strings import READINGS, SPREADS
 from tarot_canvas.utils.dates import format_month, format_recent
 
@@ -233,6 +240,39 @@ def _sorted(rows, sort):
     return sectioned
 
 
+def _flat(rows, sort):
+    """rows in sort's order, with no headings of their own"""
+    return [row for row in _sorted(rows, sort) if not isinstance(row, str)]
+
+
+def _sectioned(rows, sort, pinned=frozenset()):
+    """In progress, then Pinned, each under its heading, then the rest as _sorted lays it out
+
+    An unfinished reading shows only in In progress, pinned or not, until its last card is
+    turned. A section with no rows has no heading.
+    """
+    unfinished = [pair for pair in rows if is_unfinished(pair[0])]
+    pins = [
+        pair
+        for pair in rows
+        if not is_unfinished(pair[0]) and curation.reading_key(pair[0].path) in pinned
+    ]
+    rest = [
+        pair
+        for pair in rows
+        if not is_unfinished(pair[0]) and curation.reading_key(pair[0].path) not in pinned
+    ]
+    sectioned = []
+    for heading, members in (
+        (READINGS["library_section_in_progress"], unfinished),
+        (READINGS["library_section_pinned"], pins),
+    ):
+        if members:
+            sectioned.append(heading)
+            sectioned.extend(_flat(members, sort))
+    return sectioned + _sorted(rest, sort)
+
+
 class ReadingsListModel(QAbstractListModel):
     """Every kept reading, by date under a heading per month, or by when it was last edited"""
 
@@ -246,7 +286,8 @@ class ReadingsListModel(QAbstractListModel):
         self._filter = FILTER_ALL
         self._hidden = False  # whether the filter hides a row the search would show
         self._all = []
-        self._rows = []  # (ReadingRow, preview line), or a month's heading
+        self._pinned = frozenset()
+        self._rows = []  # (ReadingRow, preview line), or a section's or month's heading
         self._hold(scanned, decks, reference)
         self._rebuild()
 
@@ -317,7 +358,8 @@ class ReadingsListModel(QAbstractListModel):
                 self._hidden = True
                 continue
             shown.append((row, line if line is not None else newest_note_line(row)))
-        self._rows = _sorted(shown, self._sort)
+        self._pinned = frozenset(curation.reading_pins())
+        self._rows = _sectioned(shown, self._sort, self._pinned)
 
     def row_at(self, path):
         """The reading in folder path, whether or not the search shows it"""
@@ -382,4 +424,6 @@ class ReadingsListModel(QAbstractListModel):
             return row.path
         if role == ReadingRole:
             return row
+        if role == PinnedRole:
+            return curation.reading_key(row.path) in self._pinned
         return None
