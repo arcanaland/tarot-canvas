@@ -343,6 +343,8 @@ DECK_VIEW = {
     "copy_card": "&Copy Card",
     "copy_cards": "&Copy Cards",
     "major_arcana": "Major Arcana",
+    # After a suit heading the deck renames, e.g. "Honey Pots (Cups)"
+    "canonical_suit": "({suit})",
     "note": "Note: {reason}",
     # The header
     "buy": "Buy Deck",

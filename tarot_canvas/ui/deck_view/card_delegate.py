@@ -12,11 +12,13 @@ from tarot_canvas.ui.deck_view.card_model import (
     KIND_CARD,
     KIND_HEADING,
     KIND_NOTE,
+    CanonicalRole,
     CardRole,
     KindRole,
 )
 from tarot_canvas.ui.deck_view.tableau_model import KIND_GHOST, KIND_LABEL, DimmedRole
 from tarot_canvas.ui.library.decks.delegate import CellLayout, DeckDelegate
+from tarot_canvas.ui.strings import DECK_VIEW
 
 TEXT_FLAGS = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
 NOTE_FLAGS = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop | Qt.TextFlag.TextWordWrap
@@ -227,10 +229,21 @@ class CardDelegate(DeckDelegate):
             font = self.heading_font()
             painter.setFont(font)
             painter.setPen(palette.windowText().color())
-            elided = QFontMetrics(font).elidedText(
-                text, Qt.TextElideMode.ElideRight, text_rect.width()
-            )
+            metrics = QFontMetrics(font)
+            elided = metrics.elidedText(text, Qt.TextElideMode.ElideRight, text_rect.width())
             painter.drawText(text_rect, int(TEXT_FLAGS), elided)
+
+            canonical = index.data(CanonicalRole)
+            if canonical and elided == text:
+                # The specification's name, set back in the de-emphasised tone
+                aside = f" {DECK_VIEW['canonical_suit'].format(suit=canonical)}"
+                aside_rect = text_rect.adjusted(metrics.horizontalAdvance(text), 0, 0, 0)
+                painter.setPen(palette.placeholderText().color())
+                painter.drawText(
+                    aside_rect,
+                    int(TEXT_FLAGS),
+                    metrics.elidedText(aside, Qt.TextElideMode.ElideRight, aside_rect.width()),
+                )
 
             colour = QColor(palette.windowText().color())
             colour.setAlpha(HEADING_RULE_ALPHA)

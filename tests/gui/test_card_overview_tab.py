@@ -111,9 +111,16 @@ def test_a_major_arcanum_has_its_type_and_number_then_its_deck_under_the_name(qt
 
 
 def test_a_minor_arcanum_has_its_type_suit_and_rank_under_the_name(qtbot):
-    tab = make_tab(qtbot, replace(MINOR, display_suit="Chalices"), FakeDeck())
+    tab = make_tab(qtbot, MINOR, FakeDeck())
 
-    assert tab.subtitle.text() == "Minor Arcana · Chalices · Three"
+    assert tab.subtitle.text() == "Minor Arcana · Cups · Three"
+
+
+def test_a_deck_that_renames_its_suit_and_rank_still_gives_the_canonical_ones(qtbot):
+    renamed = replace(MINOR, display_suit="Honey Pots", display_rank="Trio")
+    tab = make_tab(qtbot, renamed, FakeDeck())
+
+    assert tab.subtitle.text() == "Minor Arcana · Cups · Three"
 
 
 def test_without_a_deck_there_is_no_deck_line(qtbot):
