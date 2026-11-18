@@ -100,6 +100,10 @@ build-tarball: deps
   {{dbus}} flatpak run org.flatpak.Builder --user --force-clean \
     build-flathub flathub/land.arcana.TarotCanvas.yml
 
+# Import every tarot_canvas module inside the build
+smoke dir='build-flathub': deps
+  flatpak build --runtime {{dir}} python3 -B -c "import importlib, pkgutil, tarot_canvas; mods = [importlib.import_module(m.name) for m in pkgutil.walk_packages(tarot_canvas.__path__, 'tarot_canvas.')]; print(f'imported {len(mods)} tarot_canvas modules')"
+
 # Fast inner loop: run the devel build straight out of the build tree.
 devel-run: devel-build
   flatpak run org.flatpak.Builder --run build-devel devel/land.arcana.TarotCanvas.yml tarot-canvas

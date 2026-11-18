@@ -38,3 +38,6 @@ jobs:
 
     - name: Build Flatpak from the release tarball
       run: just flatpak build-tarball
+
+    - name: Import every module inside the built Flatpak
+      run: just flatpak smoke

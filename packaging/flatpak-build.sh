@@ -18,7 +18,7 @@ land.arcana.TarotCanvas.Devel)
   ;;
 esac
 
-pip3 install --no-deps --no-build-isolation --prefix="${FLATPAK_DEST}" .
+pip3 install --no-index --no-build-isolation --prefix="${FLATPAK_DEST}" .
 install -Dm644 "${DESKTOP}" -t "${FLATPAK_DEST}/share/applications/"
 install -Dm644 "${ICON}" -t "${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/"
 install -Dm644 "${METAINFO}" -t "${FLATPAK_DEST}/share/metainfo/"
