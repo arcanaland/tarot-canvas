@@ -185,12 +185,7 @@ class OverviewTab(QWidget):
         )
 
     def update_subtitle(self):
-        """The canonical ID, spelled for a reader, under the name
-
-        The suit and rank are the specification's, never the deck's own words for
-        them: the name above already says "Queen of Honey Pots", and this line is
-        there to say which canonical card that is.
-        """
+        """The human-readable canonical ID"""
         if not self.subtitle or not self.card:
             return
         card = self.card
@@ -202,7 +197,7 @@ class OverviewTab(QWidget):
             facts.append(card.number)
         self.subtitle.setText(label_for("joiner").join(facts))
 
-        # The canonical ID
+        # The raw canonical ID
         self.subtitle.setToolTip(card.canonical_id)
         self.subtitle.setAccessibleDescription(card.canonical_id)
 
