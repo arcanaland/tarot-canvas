@@ -1,4 +1,5 @@
 import argparse
+import logging
 import os
 import sys
 import urllib.parse
@@ -24,8 +25,10 @@ from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.strings import MAIN_WINDOW, SETUP
 from tarot_canvas.utils import crash_log
 from tarot_canvas.utils.bundle_name import set_bundle_name
-from tarot_canvas.utils.logger import configure_logging, logger
+from tarot_canvas.utils.logger import configure_logging
 from tarot_canvas.utils.theme_manager import ThemeManager
+
+log = logging.getLogger(__name__)
 
 
 class DeckDownloadThread(QThread):
@@ -150,7 +153,7 @@ def main():
     app.setWindowIcon(QIcon(str(files("tarot_canvas.resources.icons").joinpath("icon.png"))))
     typography.install(app)
 
-    logger.info("Initializing theme manager")
+    log.info("Initializing theme manager")
     ThemeManager.get_instance().apply_at_startup()
 
     # Check if reference deck is already present
@@ -166,14 +169,14 @@ def main():
 
         # If dialog was rejected or download failed, exit
         if not result or not setup_dialog.download_success:
-            logger.error("Reference deck download failed or was cancelled")
+            log.error("Reference deck download failed or was cancelled")
             return 1
 
         try:
             # Scan again to pick up the newly downloaded deck
             deck_library.rescan()
             if not deck_library.reference():
-                logger.error("Failed to load reference deck after download")
+                log.error("Failed to load reference deck after download")
                 QMessageBox.critical(
                     None,
                     SETUP["error"],
@@ -181,7 +184,7 @@ def main():
                 )
                 return 1
         except Exception as e:
-            logger.error(f"Error loading reference deck: {e}")
+            log.exception("Error loading reference deck: %s", e)
             QMessageBox.critical(None, SETUP["error"], SETUP["load_error"].format(error=e))
             return 1
 
@@ -224,7 +227,7 @@ def process_uri_argument(args, main_window):
         if card:
             main_window.open_card_view(card, deck)
         elif card_id:
-            logger.warning(f"Card not found in the reference deck: {card_id}")
+            log.warning("Card not found in the reference deck: %s", card_id)
 
 
 if __name__ == "__main__":

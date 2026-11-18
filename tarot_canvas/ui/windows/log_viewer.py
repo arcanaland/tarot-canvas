@@ -1,7 +1,8 @@
 import logging
+from functools import partial
 from typing import ClassVar
 
-from PyQt6.QtCore import QEvent, pyqtSlot
+from PyQt6.QtCore import QEvent, QObject, Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QColor, QIcon, QPalette, QTextCursor
 from PyQt6.QtWidgets import (
     QCheckBox,
@@ -16,7 +17,35 @@ from PyQt6.QtWidgets import (
 
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.strings import LOG_VIEWER
-from tarot_canvas.utils.logger import TarotLogger
+from tarot_canvas.utils.logger import FORMAT, LOGGER_NAME, get_log_file_path
+
+
+class _Relay(QObject):
+    record = pyqtSignal(int, str)
+
+
+class QtLogHandler(logging.Handler):
+    """Hands each formatted record to a Qt signal, and touches no widget itself.
+
+    A record can be logged from any thread, so the viewer connects to the signal queued,
+    which delivers it on the viewer's thread. Queued even from the GUI thread, so a Qt
+    warning raised while the viewer appends cannot re-enter the handler.
+    """
+
+    def __init__(self):
+        super().__init__(logging.DEBUG)
+        self.setFormatter(logging.Formatter(FORMAT))
+        self.relay = _Relay()
+
+    def emit(self, record):
+        try:
+            self.relay.record.emit(record.levelno, self.format(record))
+        except Exception:
+            self.handleError(record)
+
+
+def _detach(handler, *_signal_args):
+    logging.getLogger(LOGGER_NAME).removeHandler(handler)
 
 
 class LogViewerDialog(QDialog):
@@ -57,11 +86,17 @@ class LogViewerDialog(QDialog):
 
         self.setup_ui()
 
-        # Subscribe to log events
-        TarotLogger.subscribe(self.on_log_message)
-
-        # Show initial log content
+        # The file first, so no record arrives both from the file and from the handler
         self.load_log_file()
+
+        # Every logger under tarot_canvas, the stdlib ones and Qt's own messages included
+        self._handler = QtLogHandler()
+        self._handler.relay.record.connect(self.on_log_record, Qt.ConnectionType.QueuedConnection)
+        logging.getLogger(LOGGER_NAME).addHandler(self._handler)
+        # Bound to the handler, not to self, so neither connection keeps the dialog alive.
+        # destroyed covers a dialog that is deleted without ever finishing
+        self.finished.connect(partial(_detach, self._handler))
+        self.destroyed.connect(partial(_detach, self._handler))
 
     def update_colors_for_theme(self):
         """Pick the colour set by the palette's lightness, whichever theme put it there"""
@@ -141,7 +176,7 @@ class LogViewerDialog(QDialog):
         self.clear_log_display()
 
         try:
-            log_file_path = TarotLogger.get_log_file_path()
+            log_file_path = get_log_file_path()
             with open(log_file_path) as f:
                 for line in f:
                     self.process_log_line(line)
@@ -175,17 +210,12 @@ class LogViewerDialog(QDialog):
         except Exception as e:
             self.log_display.append(LOG_VIEWER["line_error"].format(error=e))
 
-    @pyqtSlot(int, str, str)
-    def on_log_message(self, level, timestamp, message):
-        """Handle new log messages from the logger"""
-        # Check if level meets the filter and search text matches (if any)
+    @pyqtSlot(int, str)
+    def on_log_record(self, level, line):
+        """Show a record logged while the viewer is open, formatted as the file has it"""
         search_text = self.search_box.currentText().strip().lower()
-        formatted_message = f"{timestamp} - {logging.getLevelName(level)} - {message}"
-
-        if level >= self.get_selected_level() and (
-            not search_text or search_text in formatted_message.lower()
-        ):
-            self.append_colored_text(formatted_message, level)
+        if level >= self.get_selected_level() and (not search_text or search_text in line.lower()):
+            self.append_colored_text(line, level)
 
     def append_colored_text(self, text, level):
         """Append colored text to the log display"""
@@ -218,9 +248,3 @@ class LogViewerDialog(QDialog):
     def clear_log_display(self):
         """Clear the log display"""
         self.log_display.clear()
-
-    def closeEvent(self, event):
-        """Handle window close event"""
-        # Unsubscribe from logger
-        TarotLogger.unsubscribe(self.on_log_message)
-        super().closeEvent(event)

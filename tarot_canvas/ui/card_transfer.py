@@ -1,13 +1,15 @@
 """A card in transit: QMimeData for clipboard and drag-and-drop."""
 
 import json
+import logging
 import os
 
 from PyQt6.QtCore import QMimeData
 from PyQt6.QtGui import QGuiApplication, QImage
 
 from tarot_canvas.models.deck_library import DeckLibrary
-from tarot_canvas.utils.logger import logger
+
+log = logging.getLogger(__name__)
 
 CARD_MIME = "application/x-tarot-canvas-card"
 PAYLOAD_VERSION = 1
@@ -63,17 +65,17 @@ def cards_from_mime(mime, decks):
     try:
         payload = json.loads(bytes(mime.data(CARD_MIME)).decode("utf-8"))
     except (UnicodeDecodeError, ValueError):
-        logger.warning("Card payload is not valid JSON")
+        log.warning("Card payload is not valid JSON")
         return []
 
     if not isinstance(payload, dict) or payload.get("v") != PAYLOAD_VERSION:
-        logger.warning(f"Unknown card payload version: {payload!r}")
+        log.warning("Unknown card payload version: %r", payload)
         return []
 
     key = DeckLibrary.path_key(payload.get("deck_path"))
     deck = next((d for d in decks if key and DeckLibrary.path_key(d.root_path) == key), None)
     if deck is None:
-        logger.warning(f"Card payload names a deck that is not installed: {key}")
+        log.warning("Card payload names a deck that is not installed: %s", key)
         return []
 
     card_ids = payload.get("card_ids")
@@ -85,7 +87,7 @@ def cards_from_mime(mime, decks):
     for card_id in card_ids:
         card = deck.find_card(card_id)
         if card is None:
-            logger.warning(f"{deck.metadata.name} has no card {card_id!r}")
+            log.warning("%s has no card %r", deck.metadata.name, card_id)
             continue
         resolved.append((card, deck, is_reversed))
     return resolved

@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import html
+import logging
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from importlib.resources import files
 
 from tarot_canvas._version import __version__
 from tarot_canvas.ui.strings import ABOUT
-from tarot_canvas.utils.logger import logger
+
+log = logging.getLogger(__name__)
 
 APP_ID = "land.arcana.TarotCanvas"
 METAINFO_RESOURCE = f"{APP_ID}.appdata.xml"
@@ -146,5 +148,5 @@ def load_about_data() -> AboutData:
         )
         return parse_metainfo(raw)
     except Exception as exc:
-        logger.warning(f"Could not read {METAINFO_RESOURCE}, using fallback metadata: {exc}")
+        log.warning("Could not read %s, using fallback metadata: %s", METAINFO_RESOURCE, exc)
         return AboutData()

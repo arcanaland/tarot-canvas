@@ -1,5 +1,7 @@
 """The Background page's tiles of the images a ground can be"""
 
+import logging
+
 from PyQt6.QtCore import (
     QEvent,
     QItemSelectionModel,
@@ -36,7 +38,8 @@ from tarot_canvas.ui.canvas.detail import art_loader, art_size
 from tarot_canvas.ui.covers.ghost import paint_placeholder_well
 from tarot_canvas.ui.palette import muted_text
 from tarot_canvas.ui.strings import PREFERENCES
-from tarot_canvas.utils.logger import logger
+
+log = logging.getLogger(__name__)
 
 NAME_ROLE = Qt.ItemDataRole.UserRole
 PENDING_ROLE = Qt.ItemDataRole.UserRole + 1
@@ -265,7 +268,7 @@ class BackgroundGrid(QListView):
             source = art_size(path)
             key = thumbnail_key(path, device)
             if not source.isValid() or source.isEmpty() or key is None:
-                logger.warning(f"Leaving the undecodable background {name} out of the grid")
+                log.warning("Leaving the undecodable background %s out of the grid", name)
                 continue
             item = QStandardItem()
             item.setData(name, NAME_ROLE)

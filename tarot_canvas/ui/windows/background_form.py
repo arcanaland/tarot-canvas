@@ -1,5 +1,7 @@
 """The rows that choose a Ground: Preferences' Background page, and a canvas's own panel"""
 
+import logging
+
 from PyQt6.QtCore import QRectF, QSize, Qt, QUrl, pyqtSignal
 from PyQt6.QtGui import (
     QColor,
@@ -30,7 +32,6 @@ from tarot_canvas.ui.canvas.ground import GROUND_HUE_DEFAULT, GROUND_HUES
 from tarot_canvas.ui.strings import PREFERENCES
 from tarot_canvas.ui.widgets.pane_text import pane_form
 from tarot_canvas.ui.windows.background_grid import BackgroundGrid
-from tarot_canvas.utils.logger import logger
 
 BACKGROUND_STYLE_LABELS = (
     ("gradient", PREFERENCES["background_gradient"]),
@@ -47,6 +48,8 @@ POSITIONING_LABELS = (
     ("center", PREFERENCES["positioning_center"]),
     ("tile", PREFERENCES["positioning_tile"]),
 )
+
+log = logging.getLogger(__name__)
 
 
 def keyed_combo(labels):
@@ -386,4 +389,4 @@ class BackgroundForm(QWidget):
     def open_backgrounds_folder(self):
         folder = backgrounds.backgrounds_base()
         if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder))):
-            logger.error(f"Could not open the folder {folder}")
+            log.error("Could not open the folder %s", folder)

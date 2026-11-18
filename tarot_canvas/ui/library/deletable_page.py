@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 from PyQt6.QtCore import pyqtSlot
@@ -9,7 +10,8 @@ from tarot_canvas.ui import units
 from tarot_canvas.ui.library.list_page import LibraryListPage
 from tarot_canvas.ui.strings import notes_text
 from tarot_canvas.ui.widgets.inline_message import InlineMessage
-from tarot_canvas.utils.logger import logger
+
+log = logging.getLogger(__name__)
 
 
 class DeletableListPage(LibraryListPage):
@@ -59,7 +61,7 @@ class DeletableListPage(LibraryListPage):
         try:
             staged = staged_delete.stage(path)
         except OSError as error:
-            logger.error(f"Could not delete {path}: {error}")
+            log.error("Could not delete %s: %s", path, error)
             self.message.show_message(self._texts["delete_failed"])
             return
 
@@ -79,7 +81,7 @@ class DeletableListPage(LibraryListPage):
         try:
             staged_delete.restore(staged, path)
         except OSError as error:
-            logger.error(f"Could not restore {path}: {error}")
+            log.error("Could not restore %s: %s", path, error)
             self.message.show_message(self._texts["restore_failed"])
             return
 
@@ -100,6 +102,6 @@ class DeletableListPage(LibraryListPage):
             staged_delete.commit(staged)
         except OSError as error:
             # Left where it is, the folder can still be recovered by hand
-            logger.error(f"Could not remove deleted {staged}: {error}")
+            log.error("Could not remove deleted %s: %s", staged, error)
             return
         self._forget(path)

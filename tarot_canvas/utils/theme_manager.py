@@ -1,4 +1,5 @@
 import configparser
+import logging
 import sys
 from enum import Enum
 from importlib.resources import files
@@ -9,7 +10,8 @@ from PyQt6.QtWidgets import QApplication, QStyleFactory
 
 from tarot_canvas.settings import THEME_KEY, get_settings, get_theme
 from tarot_canvas.ui import colour_scheme, fusion_style
-from tarot_canvas.utils.logger import logger
+
+log = logging.getLogger(__name__)
 
 SCHEME_PATH_PROPERTY = "KDE_COLOR_SCHEME_PATH"
 
@@ -49,8 +51,8 @@ class ThemeManager(QObject):
         # The style the app started with, which System puts back; set by apply_at_startup
         self._startup_style = None
 
-        logger.info(f"Available Qt styles: {', '.join(QStyleFactory.keys())}")
-        logger.info(f"Theme manager initialized with theme: {self._current_theme.value}")
+        log.info("Available Qt styles: %s", ", ".join(QStyleFactory.keys()))
+        log.info("Theme manager initialized with theme: %s", self._current_theme.value)
 
     def apply_at_startup(self):
         """Note the startup style, then apply the stored theme; once, before any window exists"""
@@ -73,7 +75,7 @@ class ThemeManager(QObject):
             try:
                 theme_type = ThemeType(theme_type)
             except ValueError:
-                logger.error(f"Invalid theme type: {theme_type}")
+                log.error("Invalid theme type: %s", theme_type)
                 return
 
         if theme_type == self._current_theme:
@@ -87,13 +89,13 @@ class ThemeManager(QObject):
 
         # Emit signal for theme change
         self.theme_changed.emit(theme_type.value)
-        logger.info(f"Theme changed to: {theme_type.value}")
+        log.info("Theme changed to: %s", theme_type.value)
 
     def _apply_theme(self, platform=sys.platform):
         """Apply the current theme to the application"""
         app = QApplication.instance()
         if not app:
-            logger.error("Cannot apply theme: No QApplication instance")
+            log.error("Cannot apply theme: No QApplication instance")
             return
 
         theme = self._current_theme
@@ -111,10 +113,10 @@ class ThemeManager(QObject):
         try:
             palette = colour_scheme.palette_from_scheme(path)
         except (OSError, KeyError, ValueError, configparser.Error) as e:
-            logger.warning(f"Cannot read colour scheme {path} ({e}); following the system")
+            log.warning("Cannot read colour scheme %s (%s); following the system", path, e)
             self._apply_system_theme(app)
             return
-        logger.info(f"Applying {theme.value} theme from {path}")
+        log.info("Applying %s theme from %s", theme.value, path)
         app.setProperty(SCHEME_PATH_PROPERTY, str(path))
         app.setPalette(palette)
         self._renew_style(app)
@@ -131,7 +133,7 @@ class ThemeManager(QObject):
             hints.setColorScheme(Qt.ColorScheme.Dark)
         else:  # SYSTEM
             hints.unsetColorScheme()
-        logger.info(f"Applying {theme.value} theme with the Fusion style")
+        log.info("Applying %s theme with the Fusion style", theme.value)
 
         self._use_bundled_icons(hints)
 
@@ -164,7 +166,7 @@ class ThemeManager(QObject):
             palette = colour_scheme.palette_from_scheme(path)
         except (OSError, KeyError, ValueError, configparser.Error) as e:
             # A colorSchemeChanged slot must not raise, so draw Fusion's own palette instead
-            logger.warning(f"Cannot read colour scheme {path} ({e}); drawing Fusion's palette")
+            log.warning("Cannot read colour scheme %s (%s); drawing Fusion's palette", path, e)
             app.setProperty(SCHEME_PATH_PROPERTY, None)
             app.setPalette(QPalette())
             return
@@ -177,7 +179,7 @@ class ThemeManager(QObject):
         app.setPalette(QPalette())
         app.styleHints().unsetColorScheme()
         self._renew_style(app)
-        logger.info("Applying system theme")
+        log.info("Applying system theme")
 
     def _renew_style(self, app):
         app.setStyle(self._startup_style or app.style().name())

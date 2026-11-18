@@ -1,3 +1,4 @@
+import logging
 import math
 
 from PyQt6.QtCore import QSize, Qt, pyqtSignal
@@ -32,7 +33,8 @@ from tarot_canvas.ui.strings import READINGS
 from tarot_canvas.ui.widgets.expand_button import ExpandButton
 from tarot_canvas.ui.widgets.markdown_view import MarkdownView
 from tarot_canvas.ui.widgets.pane_text import pane_text
-from tarot_canvas.utils.logger import logger
+
+log = logging.getLogger(__name__)
 
 
 def _note_text(folder):
@@ -43,7 +45,7 @@ def _note_text(folder):
     try:
         return path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as error:
-        logger.warning(f"Could not read the reading's note {path}: {error}")
+        log.warning("Could not read the reading's note %s: %s", path, error)
         return ""
 
 
