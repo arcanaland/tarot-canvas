@@ -125,6 +125,21 @@ icons:
   git -C "$checkout" -c advice.detachedHead=false checkout --quiet {{breeze_icons}}
   uv run python scripts/bundle_breeze_icons.py "$checkout"
 
+# Pin arcana-tarot (latest if VERSION is omitted) and regenerate the Flatpak's modules
+[group('dev')]
+bump-arcana-tarot VERSION="":
+  #!/bin/bash
+  set -euo pipefail
+
+  version="{{VERSION}}"
+  if [ -z "$version" ]; then
+    version=$(curl -fsSL https://pypi.org/pypi/arcana-tarot/json \
+      | python3 -c 'import json, sys; print(json.load(sys.stdin)["info"]["version"])')
+  fi
+  uv add "arcana-tarot==${version}"
+  {{just_executable()}} flatpak gen-modules
+  echo "arcana-tarot ${version}: now run just test and just flatpak build"
+
 # phase 1: bump the version but don't commit
 [group('release')]
 release-prepare VERSION="":

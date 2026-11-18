@@ -23,10 +23,25 @@ gen-modules:
   curl -L -o "${TEMP_DIR}/flatpak-pip-generator.py" \
     https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/${FLATPAK_PIP_GENERATOR_SHA}/pip/flatpak-pip-generator.py
 
+  # Versions come from uv.lock, which uv export first updates if pyproject.toml moved.
+  # PyQt is the BaseApp's.
+  uv export --quiet --no-dev --no-emit-project --no-hashes \
+    --no-emit-package pyqt6 --no-emit-package pyqt6-qt6 --no-emit-package pyqt6-sip \
+    --output-file "${TEMP_DIR}/requirements.txt"
+  # The generator can't evaluate these markers, so it would vendor the wrong thing
+  if grep -nE ';.*(python_(full_)?version|platform_machine)' "${TEMP_DIR}/requirements.txt" >&2; then
+    echo "gen-modules: requirements carry markers flatpak-pip-generator can't evaluate" >&2
+    exit 1
+  fi
+  # A build requirement, so not in the lock
+  echo poetry-core >>"${TEMP_DIR}/requirements.txt"
+
   # PyYAML isn't in this script's PEP 723 metadata for some reason
   uv run --with PyYAML "${TEMP_DIR}/flatpak-pip-generator.py" \
     --yaml --checker-data --runtime=org.kde.Sdk//${RUNTIME_VERSION} \
-    requests xdg-base-dirs tomli-w poetry-core
+    --prefer-wheels=arcana-tarot \
+    --requirements-file="${TEMP_DIR}/requirements.txt" -o python3-modules
+  sed -i "1s|${TEMP_DIR}/||" python3-modules.yaml
 
   rm -rf "${TEMP_DIR}"
 
