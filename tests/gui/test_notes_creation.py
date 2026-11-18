@@ -2,7 +2,7 @@ import pytest
 from PyQt6.QtGui import QTextCursor
 from PyQt6.QtWidgets import QInputDialog
 
-from tarot_canvas.models.deck import TarotDeck
+from tarot_canvas.models.arcana_backend import load_deck
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tests.conftest import MINIMAL_DECK_PATH
 
@@ -16,7 +16,7 @@ def no_dialogs(monkeypatch):
 
 
 def open_card_view(qtbot, deck=None):
-    deck = deck or TarotDeck(str(MINIMAL_DECK_PATH))
+    deck = deck or load_deck(str(MINIMAL_DECK_PATH))
     card = next(c for c in deck.cards if c.default_image())
     tab = CardViewTab(card=card, deck=deck)
     qtbot.addWidget(tab)

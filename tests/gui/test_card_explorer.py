@@ -1,5 +1,3 @@
-from dataclasses import replace
-
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFontMetrics
 from PyQt6.QtWidgets import QAbstractItemView
@@ -136,16 +134,22 @@ def test_a_card_row_offers_open_and_copy(qtbot, clipboard):
     assert opened.args[1].canonical_id == row["card"].canonical_id
 
 
-def test_decks_changed_repopulates_the_deck_selector(qtbot, stub_deck_library, minimal_deck):
-    from tarot_canvas.models.deck import TarotDeck
+def test_decks_changed_repopulates_the_deck_selector(
+    qtbot, tmp_path, stub_deck_library, minimal_deck
+):
+    import shutil
+
+    from tarot_canvas.models.arcana_backend import load_deck
     from tarot_canvas.models.deck_events import deck_events
     from tests.conftest import MINIMAL_DECK_PATH
 
     explorer = panel(qtbot)
     assert explorer.deck_selector.count() == 1
 
-    second = TarotDeck(str(MINIMAL_DECK_PATH))
-    second.metadata = replace(second.metadata, name="Second Deck")
+    shutil.copytree(MINIMAL_DECK_PATH, tmp_path / "second")
+    manifest = tmp_path / "second" / "deck.toml"
+    manifest.write_text(manifest.read_text().replace("Minimal Test Deck", "Second Deck"))
+    second = load_deck(str(tmp_path / "second"))
     stub_deck_library.decks = lambda: [minimal_deck, second]
     deck_events().decks_changed.emit()
 

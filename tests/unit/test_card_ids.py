@@ -1,5 +1,5 @@
+from tarot_canvas.models.arcana_backend import load_deck
 from tarot_canvas.models.card_ids import CANONICAL_CARD_IDS
-from tarot_canvas.models.deck import TarotDeck
 
 
 def test_canonical_order_is_the_majors_then_four_suits():
@@ -21,6 +21,6 @@ def test_a_deck_with_nothing_excluded_walks_the_canonical_order(tmp_path):
         """,
         encoding="utf-8",
     )
-    deck = TarotDeck(str(tmp_path))
+    deck = load_deck(str(tmp_path))
 
     assert tuple(c.canonical_id for c in deck.cards) == CANONICAL_CARD_IDS

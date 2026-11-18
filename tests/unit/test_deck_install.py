@@ -39,11 +39,11 @@ def test_success_renames_into_dest(tmp_path, places):
 
 
 def test_the_installed_deck_loads(tmp_path, places):
-    from tarot_canvas.models.deck import TarotDeck
+    from tarot_canvas.models.arcana_backend import load_deck
 
     root, staging = places
     dest = install_container(conformant(tmp_path), root / "test", staging)
-    assert TarotDeck(str(dest)).metadata.name == "Test"
+    assert load_deck(str(dest)).metadata.name == "Test"
 
 
 def test_an_existing_dest_is_never_touched(tmp_path, places):

@@ -105,3 +105,10 @@ class Deck(typing.Protocol):
     def display_rank_name(self, rank_key: str) -> str: ...
 
     def get_card_backs(self) -> tuple[dict[str, str], str]: ...
+
+
+class DeckLoadError(Exception):
+    def __init__(self, code, message):
+        super().__init__(message)
+        self.code = code
+        self.message = message

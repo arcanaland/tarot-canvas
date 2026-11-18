@@ -666,11 +666,11 @@ def test_pasting_once_does_not_stop_a_drop(qtbot, clipboard, minimal_deck):
 def test_a_paste_naming_a_removed_deck_places_nothing(qtbot, clipboard, minimal_deck, tmp_path):
     import shutil
 
-    from tarot_canvas.models.deck import TarotDeck
+    from tarot_canvas.models.arcana_backend import load_deck
     from tests.conftest import MINIMAL_DECK_PATH
 
     shutil.copytree(MINIMAL_DECK_PATH, tmp_path / "gone")
-    gone = TarotDeck(str(tmp_path / "gone"))
+    gone = load_deck(str(tmp_path / "gone"))
     tab = make_tab(qtbot)
 
     assert tab.paste_card(card_mime_data(gone.random_card(), gone)) is None

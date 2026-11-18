@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-from tarot_canvas.models.deck import TarotDeck
+from tarot_canvas.models.arcana_backend import load_deck
 from tarot_canvas.models.deck_types import Card, CardImage, CardKind
 
 IMAGES = (
@@ -55,7 +55,7 @@ def three_height_deck(tmp_path):
     (tmp_path / "scalable" / "major_arcana").mkdir(parents=True)
     (tmp_path / "scalable" / "major_arcana" / "00.svg").write_bytes(b"")
     (tmp_path / "card_backs").mkdir()
-    return TarotDeck(str(tmp_path))
+    return load_deck(str(tmp_path))
 
 
 def heights(card):
@@ -86,15 +86,15 @@ def test_a_card_with_no_raster_has_no_images(three_height_deck):
     assert three_height_deck.find_card("minor_arcana.cups.two").images == ()
 
 
-def test_a_folder_prefers_png_over_webp_over_jpeg(tmp_path):
+def test_a_folder_prefers_png_over_webp_over_avif_over_jpg(tmp_path):
     (tmp_path / "deck.toml").write_text(
         '[deck]\nschema_version = "2.0"\nname = "Mixed"\nversion = "1.0"\n', encoding="utf-8"
     )
     folder = tmp_path / "h750" / "major_arcana"
     folder.mkdir(parents=True)
-    for name in ("00.jpg", "00.webp", "00.png", "01.jpeg", "01.jpg", "02.avif"):
+    for name in ("00.jpg", "00.webp", "00.png", "01.jpg", "01.avif", "02.jpg"):
         (folder / name).write_bytes(b"")
-    by_id = {c.canonical_id: c for c in TarotDeck(str(tmp_path)).cards}
+    by_id = {c.canonical_id: c for c in load_deck(str(tmp_path)).cards}
     assert heights(by_id["major_arcana.00"]) == {750: str(folder / "00.png")}
-    assert heights(by_id["major_arcana.01"]) == {750: str(folder / "01.jpg")}
-    assert heights(by_id["major_arcana.02"]) == {}
+    assert heights(by_id["major_arcana.01"]) == {750: str(folder / "01.avif")}
+    assert heights(by_id["major_arcana.02"]) == {750: str(folder / "02.jpg")}

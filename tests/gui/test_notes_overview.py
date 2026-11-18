@@ -2,7 +2,7 @@ import os
 
 from PyQt6.QtCore import Qt
 
-from tarot_canvas.models.deck import TarotDeck
+from tarot_canvas.models.arcana_backend import load_deck
 from tarot_canvas.models.note_events import note_events
 from tarot_canvas.ui import strings
 from tarot_canvas.ui.library.roles import PreviewRole
@@ -20,7 +20,7 @@ def write_note(notes_base, card_id, filename, body):
 
 
 def open_card_view(qtbot, register=True):
-    deck = TarotDeck(str(MINIMAL_DECK_PATH))
+    deck = load_deck(str(MINIMAL_DECK_PATH))
     card = next(c for c in deck.cards if c.default_image())
     tab = CardViewTab(card=card, deck=deck)
     if register:

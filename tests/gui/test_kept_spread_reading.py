@@ -8,7 +8,7 @@ from PyQt6.QtCore import QDateTime, Qt
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from tarot_canvas.models import readings, spreads
-from tarot_canvas.models.deck import TarotDeck
+from tarot_canvas.models.arcana_backend import load_deck
 from tarot_canvas.models.ground import Ground
 from tarot_canvas.models.spreads import BUNDLED_SPREADS_PATH, Position, Spread
 from tarot_canvas.settings import (
@@ -45,7 +45,7 @@ def off():
 
 @pytest.fixture
 def deck(tmp_path, stub_deck_library, qapp):
-    full = TarotDeck(str(write_full_deck(tmp_path / "full")))
+    full = load_deck(str(write_full_deck(tmp_path / "full")))
     stub_deck_library.reference = lambda: full
     stub_deck_library.decks = lambda: [full]
     return full

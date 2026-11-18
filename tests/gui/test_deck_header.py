@@ -5,8 +5,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QApplication
 
-from tarot_canvas.models.deck import read_metadata
-from tarot_canvas.models.deck_types import Card, CardKind
+from tarot_canvas.models.deck_types import Card, CardKind, DeckLink, DeckMetadata
 from tarot_canvas.settings import DECK_HEADER_EXPANDED_KEY, get_settings
 from tarot_canvas.ui.library.decks import header as deck_header
 from tarot_canvas.ui.library.decks.header import DeckHeader, wrapped_height
@@ -22,14 +21,13 @@ FULL_METADATA = {
     "schema_version": "1.0",
     "name": "Rider-Waite-Smith Tarot",
     "version": "1.1",
-    "author": "Pamela Colman Smith",
+    "artist": "Pamela Colman Smith",
     "license": "Public Domain",
     "attribution": "Original artwork by Pamela Colman Smith (1909).",
     "description": "The classic Rider-Waite-Smith tarot deck.",
     "publisher": "Original: US Games Systems",
     "website": "https://www.usgamesinc.com/rider-waite-tarot-card-deck.html",
-    "tags": ["traditional", "classic"],
-    "aspect_ratio": 0.569,
+    "tags": ("traditional", "classic"),
 }
 
 
@@ -50,7 +48,7 @@ def make_deck(**overrides):
 
     return SimpleNamespace(
         root_path="/decks/rws",
-        metadata=read_metadata(fields),
+        metadata=DeckMetadata(**fields),
         cards=tuple(cards),
         cards_of_kind=lambda kind: [c for c in cards if c.kind is kind],
     )
@@ -139,10 +137,10 @@ def test_a_buy_link_is_a_button_even_when_collapsed(qtbot, monkeypatch):
     monkeypatch.setattr(
         deck_header.QDesktopServices, "openUrl", lambda url: opened.append(url.toString())
     )
-    links = [
-        {"rel": "homepage", "url": "https://ascii-tarot.com"},
-        {"rel": "buy", "url": "https://kathrynisabelle.com/shop"},
-    ]
+    links = (
+        DeckLink("homepage", "https://ascii-tarot.com"),
+        DeckLink("buy", "https://kathrynisabelle.com/shop"),
+    )
     widget = shown(qtbot, make_deck(links=links))
     widget.set_expanded(False)
     assert widget.buy_button.isVisibleTo(widget)
@@ -153,7 +151,7 @@ def test_a_buy_link_is_a_button_even_when_collapsed(qtbot, monkeypatch):
 
 
 def test_the_buy_button_carries_the_links_title(qtbot):
-    links = [{"rel": "buy", "url": "https://example.com/shop", "title": "Buy from the artist"}]
+    links = (DeckLink("buy", "https://example.com/shop", "Buy from the artist"),)
     widget = shown(qtbot, make_deck(links=links))
     assert widget.buy_button.text() == "Buy from the artist"
 
@@ -163,7 +161,7 @@ def test_no_buy_link_no_button(header):
 
 
 def test_link_rows_are_links_with_escaped_addresses(qtbot):
-    links = [{"rel": "homepage", "url": 'https://example.com/"><b>x'}]
+    links = (DeckLink("homepage", 'https://example.com/"><b>x'),)
     widget = shown(qtbot, make_deck(links=links))
     widget.set_expanded(True)
     row = widget.detail_labels["links.homepage"]

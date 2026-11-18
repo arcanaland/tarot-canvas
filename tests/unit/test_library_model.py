@@ -4,8 +4,7 @@ import pytest
 from PyQt6.QtCore import QLocale, Qt
 
 from tarot_canvas.models.catalog import parse_index
-from tarot_canvas.models.deck import read_metadata
-from tarot_canvas.models.deck_types import Card, CardImage, CardKind
+from tarot_canvas.models.deck_types import Card, CardImage, CardKind, DeckMetadata
 from tarot_canvas.ui.catalog.downloads import DeckState, deck_downloads
 from tarot_canvas.ui.library.decks.model import (
     SORT_AUTHOR,
@@ -37,7 +36,7 @@ def fake_deck(
     identifier=None,
     **deck_fields,
 ):
-    """`deck_fields` are more [deck] keys: version, license, attribution, description"""
+    """`deck_fields` are more DeckMetadata fields: version, license, attribution, description"""
 
     def card(index, kind):
         path = f"/decks/{name}/{kind.value}/{index}.png"
@@ -53,9 +52,7 @@ def fake_deck(
     cards += [card(i, CardKind.MINOR) for i in range(minors)]
     return SimpleNamespace(
         root_path=path or f"/decks/{name}",
-        metadata=read_metadata(
-            {"name": name, "author": author, "identifier": identifier, **deck_fields}
-        ),
+        metadata=DeckMetadata(name=name, artist=author, identifier=identifier, **deck_fields),
         cards=tuple(cards),
         cards_of_kind=lambda kind: [c for c in cards if c.kind is kind],
     )

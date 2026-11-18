@@ -1,10 +1,11 @@
+import shutil
 from dataclasses import replace
 
 import pytest
 from PyQt6.QtCore import Qt
 
-from tarot_canvas.models.deck import TarotDeck
-from tarot_canvas.models.deck_types import Card, CardKind
+from tarot_canvas.models.arcana_backend import load_deck
+from tarot_canvas.models.card_ids import CANONICAL_CARD_IDS
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.deck_view.card_model import KIND_CARD, CardModel, CardRole, KindRole
 from tarot_canvas.ui.deck_view.tableau_model import (
@@ -40,11 +41,11 @@ def deck_without(tmp_path, *card_ids):
     root = write_full_deck(tmp_path / "missing")
     excluded = ", ".join(f'"{card}"' for card in card_ids)
     (root / "deck.toml").write_text(
-        '[deck]\nname = "Missing"\nversion = "1.0.0"\n\n'
-        f'[deck.excluded_cards]\nreason = "test"\ncards = [{excluded}]\n',
+        '[deck]\nschema_version = "2.0"\nname = "Missing"\nversion = "1.0.0"\n\n'
+        f'[excluded_cards]\nreason = "test"\ncards = [{excluded}]\n',
         encoding="utf-8",
     )
-    return TarotDeck(str(root))
+    return load_deck(str(root))
 
 
 def test_the_fool_heads_three_rows_of_seven(full_deck):
@@ -127,18 +128,15 @@ def test_majors_take_their_slots_by_number(full_deck):
     assert card_id(model, 2, 3) == "major_arcana.08"
 
 
-def test_a_fifth_suit_takes_a_fifth_column(full_deck):
-    full_deck._cards += tuple(
-        Card(
-            canonical_id=f"minor_arcana.stars.{rank}",
-            kind=CardKind.MINOR,
-            display_name=f"{rank} of Stars",
-            suit_key="stars",
-            rank_key=rank,
-        )
-        for rank in ("ace", "two")
-    )
-    model = tableau(full_deck)
+def test_a_fifth_suit_takes_a_fifth_column(tmp_path, qapp):
+    root = write_full_deck(tmp_path / "stars")
+    with (root / "deck.toml").open("a", encoding="utf-8") as manifest:
+        manifest.write('\n[suits.stars]\nname = "Stars"\n')
+    minors = root / "h100" / "minor_arcana"
+    (minors / "stars").mkdir()
+    for rank in ("ace", "two"):
+        shutil.copy(minors / "cups" / f"{rank}.png", minors / "stars" / f"{rank}.png")
+    model = tableau(load_deck(str(root)))
     labels = label_row(model)
 
     assert model.columnCount() == 7
@@ -149,9 +147,9 @@ def test_a_fifth_suit_takes_a_fifth_column(full_deck):
     assert kind(model, labels + 3, 6) is None
 
 
-def test_a_deck_without_suits_has_no_minor_block(full_deck):
-    full_deck._cards = tuple(c for c in full_deck._cards if c.kind is CardKind.MAJOR)
-    model = tableau(full_deck)
+def test_a_deck_without_suits_has_no_minor_block(tmp_path, qapp):
+    minors = [card for card in CANONICAL_CARD_IDS if card.startswith("minor_arcana.")]
+    model = tableau(deck_without(tmp_path, *minors))
 
     assert model.rowCount() == 4
 

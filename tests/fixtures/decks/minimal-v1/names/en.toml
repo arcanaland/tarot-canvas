@@ -1,0 +1,11 @@
+[major_arcana]
+00 = "The Fool"
+
+[minor_arcana.cups]
+ace = "Ace of Cups"
+
+[alt_text.major_arcana]
+00 = "Fixture alt text for the Fool."
+
+[alt_text.minor_arcana.cups]
+ace = "Fixture alt text for the Ace of Cups."

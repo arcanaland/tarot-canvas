@@ -1,12 +1,13 @@
 import shutil
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 from PyQt6.QtCore import QPoint, QPointF, QRect, QSize, Qt
 from PyQt6.QtGui import QColor, QMouseEvent, QPixmap
 from PyQt6.QtWidgets import QStyle, QTabWidget
 
-from tarot_canvas.models.deck import TarotDeck
+from tarot_canvas.models.arcana_backend import load_deck
 from tarot_canvas.ui.tabs import card_view_tab
 from tarot_canvas.ui.tabs.card_view.card_bar import CardBar, DeckBar
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
@@ -27,7 +28,13 @@ def big_image_deck(tmp_path):
     for image in deck_path.rglob("*.png"):
         pixmap.save(str(image))
 
-    return TarotDeck(str(deck_path))
+    return load_deck(str(deck_path))
+
+
+def renamed(deck, name):
+    manifest = Path(deck.root_path) / "deck.toml"
+    manifest.write_text(manifest.read_text().replace("Minimal Test Deck", name))
+    return load_deck(deck.root_path)
 
 
 def make_tab(qtbot, deck, width, height, deck_count=1, stub=None):
@@ -103,10 +110,8 @@ def test_card_fills_a_wide_pane_without_waiting_for_a_resize(qtbot, big_image_de
 
 def test_the_bars_do_not_pin_the_pane_wide(qtbot, big_image_deck, stub_deck_library):
     """A long deck name must elide rather than force a minimum width on the pane."""
-    big_image_deck.metadata = replace(
-        big_image_deck.metadata, name="A Deck With An Extravagantly Long Name " * 3
-    )
-    tab = make_tab(qtbot, big_image_deck, 700, 900, deck_count=2, stub=stub_deck_library)
+    deck = renamed(big_image_deck, "A Deck With An Extravagantly Long Name " * 3)
+    tab = make_tab(qtbot, deck, 700, 900, deck_count=2, stub=stub_deck_library)
 
     button = tab.deck_bar.deck_button
     assert button.width() <= DeckBar.MAX_BUTTON_WIDTH
@@ -116,8 +121,8 @@ def test_the_bars_do_not_pin_the_pane_wide(qtbot, big_image_deck, stub_deck_libr
 
 
 def test_the_deck_name_is_not_squeezed(qtbot, big_image_deck, stub_deck_library):
-    big_image_deck.metadata = replace(big_image_deck.metadata, name="Rider-Waite-Smith")
-    tab = make_tab(qtbot, big_image_deck, 700, 900, deck_count=2, stub=stub_deck_library)
+    deck = renamed(big_image_deck, "Rider-Waite-Smith")
+    tab = make_tab(qtbot, deck, 700, 900, deck_count=2, stub=stub_deck_library)
     button = tab.deck_bar.deck_button
 
     for width in (280, 400, 900):

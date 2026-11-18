@@ -1,8 +1,9 @@
 [deck]
+schema_version = "2.0"
 name = "Minimal Test Deck"
 version = "1.0.0"
 
-[deck.excluded_cards]
+[excluded_cards]
 reason = "Test fixture only needs enough cards to exercise the loader."
 cards = [
     "major_arcana.02",

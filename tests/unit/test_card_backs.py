@@ -2,10 +2,10 @@ import pytest
 from PyQt6.QtCore import QSize
 from PyQt6.QtGui import QColor, QImage
 
-from tarot_canvas.models.deck import TarotDeck
+from tarot_canvas.models.arcana_backend import load_deck
 from tarot_canvas.models.reference_deck import ReferenceDeck
 
-DECK_TOML = '[deck]\nname = "Backs"\nversion = "1.0.0"\n'
+DECK_TOML = '[deck]\nschema_version = "2.0"\nname = "Backs"\nversion = "1.0.0"\n'
 CARD = QSize(60, 100)
 
 
@@ -25,7 +25,7 @@ def _deck(root, backs=(), default=None):
         (root / "card_backs").mkdir()
         for name in backs:
             _image(root / "card_backs" / name)
-    return TarotDeck(str(root))
+    return load_deck(str(root))
 
 
 # -- discovery ---------------------------------------------------------------------
@@ -145,4 +145,4 @@ def test_the_reference_deck_once_dropped_wears_the_house_back(tmp_path, qapp):
     root = tmp_path / "rider-waite-smith"
     _deck(root, ["classic.jpg"])
     ReferenceDeck.drop_retired_back(root)
-    assert back_pixmap(TarotDeck(str(root)), CARD)[1]
+    assert back_pixmap(load_deck(str(root)), CARD)[1]

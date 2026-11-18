@@ -43,8 +43,8 @@ class DecksPage(LibraryListPage):
 
     DETAILS_BESIDE = True
 
-    deck_selected = pyqtSignal(object)  # the TarotDeck made current
-    open_requested = pyqtSignal(object)  # the TarotDeck to open in a tab
+    deck_selected = pyqtSignal(object)  # the Deck made current
+    open_requested = pyqtSignal(object)  # the Deck to open in a tab
     details_requested = pyqtSignal()
     row_chosen = pyqtSignal()
 

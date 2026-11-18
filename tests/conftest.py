@@ -299,9 +299,16 @@ def theme_palette(request, qapp):
 
 @pytest.fixture
 def minimal_deck():
-    from tarot_canvas.models.deck import TarotDeck
+    from tarot_canvas.models.arcana_backend import load_deck
 
-    return TarotDeck(str(MINIMAL_DECK_PATH))
+    return load_deck(str(MINIMAL_DECK_PATH))
+
+
+@pytest.fixture
+def minimal_v1_deck():
+    from tarot_canvas.models.arcana_backend import load_deck
+
+    return load_deck(str(MINIMAL_DECK_PATH.parent / "minimal-v1"))
 
 
 FULL_DECK_ART_SIZE = (60, 100)
@@ -315,7 +322,7 @@ def write_full_deck(root, name="Full Test Deck"):
 
     root.mkdir(parents=True, exist_ok=True)
     (root / "deck.toml").write_text(
-        f'[deck]\nname = "{name}"\nversion = "1.0.0"\n', encoding="utf-8"
+        f'[deck]\nschema_version = "2.0"\nname = "{name}"\nversion = "1.0.0"\n', encoding="utf-8"
     )
     image = QImage(*FULL_DECK_ART_SIZE, QImage.Format.Format_RGB32)
     image.fill(QColor("steelblue"))
@@ -336,9 +343,9 @@ def write_full_deck(root, name="Full Test Deck"):
 
 @pytest.fixture
 def full_deck(tmp_path, qapp):
-    from tarot_canvas.models.deck import TarotDeck
+    from tarot_canvas.models.arcana_backend import load_deck
 
-    return TarotDeck(str(write_full_deck(tmp_path / "full")))
+    return load_deck(str(write_full_deck(tmp_path / "full")))
 
 
 @pytest.fixture(autouse=True)
@@ -366,9 +373,9 @@ def other_deck(tmp_path, stub_deck_library, minimal_deck):
     """A second installed deck with the same cards, to tell the copied deck apart."""
     import shutil
 
-    from tarot_canvas.models.deck import TarotDeck
+    from tarot_canvas.models.arcana_backend import load_deck
 
     shutil.copytree(MINIMAL_DECK_PATH, tmp_path / "other")
-    deck = TarotDeck(str(tmp_path / "other"))
+    deck = load_deck(str(tmp_path / "other"))
     stub_deck_library.decks = lambda: [minimal_deck, deck]
     return deck
