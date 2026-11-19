@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from tarot_canvas.models.ground import drawn
+from tarot_canvas.models.ground import drawn, ground_kind
 from tarot_canvas.ui import typography, units
 from tarot_canvas.ui.canvas.detail import card_unit_size
 from tarot_canvas.ui.canvas.reading_note import note_path
@@ -248,7 +248,9 @@ class ReadingDetailsPane(QWidget):
         # A sandbox's order means nothing, so its marks go unnumbered
         numbered = not is_sandbox(reading)
         marks = reading_marks(reading, card_unit_size(), numbered=numbered)
-        self.diagram.show_marks(layout_marks(marks, DIAGRAM.max_fill), drawn(reading.ground))
+        self.diagram.show_marks(
+            layout_marks(marks, DIAGRAM.max_fill), drawn(reading.ground, ground_kind(reading))
+        )
 
         self.cards.show_rows(row.card_rows)
 

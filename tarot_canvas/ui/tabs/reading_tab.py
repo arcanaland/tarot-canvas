@@ -87,6 +87,7 @@ class ReadingTab(SpreadSlots, CanvasTab):
     TOOLS_TITLE = CANVAS["section_cards"]
     SLOT_ITEM = SocketItem
     SAVES_CANVAS = False
+    GROUND_KIND = "reading"
 
     phase = Phase.STAGED
     _flights = None

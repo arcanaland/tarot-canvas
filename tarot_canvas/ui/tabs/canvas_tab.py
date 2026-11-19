@@ -161,6 +161,8 @@ class CanvasTab(BaseTab):
     SAVES_CANVAS = True
     # Whether the tab can have a ground of its own, which only a tab that keeps one offers
     OWN_GROUND = True
+    # Which kind's default ground the tab draws while it has none of its own
+    GROUND_KIND = "sandbox"
     # The ground menu's entry for canvas.summon, which places at the click
     DRAW_HERE = CANVAS["draw_here"]
     # Set once the canvas is a reading
@@ -285,8 +287,7 @@ class CanvasTab(BaseTab):
         self.schedule_tab_icon()
 
     def drawn_ground(self):
-        """The tab's own ground, else the default; the default too while its image is missing"""
-        return drawn(self.ground, get_settings())
+        return drawn(self.ground, self.GROUND_KIND, get_settings())
 
     def apply_ground(self):
         """Draw the tab's own ground, or the default when it has none"""
@@ -947,7 +948,7 @@ class CanvasTab(BaseTab):
         return True
 
     def ground_menu(self, scene_pos):
-        """Paste and draw at scene_pos, select and fit, and Background where the tab keeps one"""
+        """Paste and draw at scene_pos, select and fit, and Background"""
         menu = QMenu(self)
         clipboard = QGuiApplication.clipboard()
         self._menu_entry(
@@ -968,11 +969,10 @@ class CanvasTab(BaseTab):
         menu.addSeparator()
         self._menu_entry(menu, "window.select_all", self.select_all, self.can_select_all())
         menu.addAction(self.commands["canvas.fit"])
-        if self.OWN_GROUND:
-            menu.addSeparator()
-            command = commands.by_id(BACKGROUND_COMMAND)
-            action = menu.addAction(commands.command_icon(command), command.text)
-            action.triggered.connect(self.edit_background)
+        menu.addSeparator()
+        command = commands.by_id(BACKGROUND_COMMAND)
+        action = menu.addAction(commands.command_icon(command), command.text)
+        action.triggered.connect(self.edit_background)
         return menu
 
     def build_card_menu(self, item):
@@ -1262,8 +1262,6 @@ class CanvasTab(BaseTab):
 
     def edit_background(self):
         """The Background panel: follow the default, or a ground of the tab's own"""
-        if not self.OWN_GROUND:
-            return None
         if self.background_is_open():
             self.background_panel.setFocus()
             return self.background_panel

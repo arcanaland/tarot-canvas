@@ -5,7 +5,14 @@ from PyQt6.QtCore import QMargins, QMimeData, QPointF, QSize, Qt, QUrl
 from PyQt6.QtGui import QColor, QDragEnterEvent, QDropEvent, QImage, QPalette
 from PyQt6.QtWidgets import QApplication
 
-from tarot_canvas.models.ground import Ground
+from tarot_canvas.models import spreads
+from tarot_canvas.models.ground import (
+    EVERY_CANVAS,
+    KIND_DEFAULTS,
+    Ground,
+    kind_ground,
+    set_kind_ground,
+)
 from tarot_canvas.settings import (
     ANIMATIONS_ENABLED_KEY,
     BACKGROUND_COLOR_DEFAULT,
@@ -288,7 +295,7 @@ def test_restore_defaults_resets_the_form_and_stores_nothing(qtbot, theme_kept):
     assert dialog.form_state()[:-1] == (
         "system",
         READING_TEXT_SCALE_DEFAULT,
-        Ground(),
+        (Ground(), None, Ground(style="swirl"), KIND_DEFAULTS["designer"]),
         (),
         MOTION_LEVEL_DEFAULT,
         True,
@@ -300,6 +307,121 @@ def test_restore_defaults_resets_the_form_and_stores_nothing(qtbot, theme_kept):
     assert dialog.apply_button.isEnabled()
     assert {key: settings.value(key) for key in settings.allKeys()} == stored
     assert theme_kept.get_current_theme() is ThemeType.DARK
+
+
+# -- the scope a ground is set for ------------------------------------------------------
+
+
+@pytest.fixture
+def dialog(qtbot):
+    dialog = PreferencesDialog()
+    qtbot.addWidget(dialog)
+    return dialog
+
+
+def show_scope(dialog, scope):
+    dialog.background_scope_combo.setCurrentIndex(dialog.background_scope_combo.findData(scope))
+
+
+def choose_style(dialog, style):
+    combo = dialog.background_form.bg_combo
+    combo.setCurrentIndex(combo.findData(style))
+
+
+def kind_keys():
+    return [
+        key
+        for key in get_settings().allKeys()
+        if any(key.startswith(f"appearance/{kind}/") for kind in ("sandbox", "reading", "designer"))
+    ]
+
+
+def test_the_scopes_are_every_canvas_then_each_kind(dialog):
+    combo = dialog.background_scope_combo
+    assert [combo.itemData(i) for i in range(combo.count())] == [
+        EVERY_CANVAS,
+        "sandbox",
+        "reading",
+        "designer",
+    ]
+    assert combo.currentData() == EVERY_CANVAS
+
+
+def test_every_canvas_has_no_follow_row_and_a_following_kind_has_its_rows_off(dialog):
+    assert dialog.background_follow.isHidden()
+    assert dialog.background_form.isEnabled()
+
+    show_scope(dialog, "sandbox")
+    assert not dialog.background_follow.isHidden()
+    assert dialog.background_follow.isChecked()
+    assert not dialog.background_form.isEnabled()
+
+    for kind, style in (("reading", "swirl"), ("designer", "checkerboard")):
+        show_scope(dialog, kind)
+        assert dialog.background_own.isChecked()
+        assert dialog.background_form.isEnabled()
+        assert dialog.background_form.bg_combo.currentData() == style
+
+
+def test_looking_through_the_scopes_changes_nothing(dialog):
+    for scope in (*preferences_dialog.BACKGROUND_SCOPES, EVERY_CANVAS):
+        show_scope(dialog, scope)
+    assert not dialog.apply_button.isEnabled()
+
+
+def test_edits_in_two_scopes_survive_switching_and_apply_writes_both(dialog):
+    show_scope(dialog, "sandbox")
+    dialog.background_own.setChecked(True)
+    choose_style(dialog, "solid")
+    show_scope(dialog, "designer")
+    dialog.background_follow.setChecked(True)
+    show_scope(dialog, EVERY_CANVAS)
+    assert dialog.apply_button.isEnabled()
+    show_scope(dialog, "sandbox")
+
+    assert dialog.background_own.isChecked()
+    assert dialog.background_form.bg_combo.currentData() == "solid"
+
+    dialog.apply_settings()
+
+    assert kind_ground("sandbox").style == "solid"
+    assert kind_ground("designer") is None
+    assert get_settings().value(BACKGROUND_STYLE_KEY) == BACKGROUND_STYLE_DEFAULT
+    assert not dialog.apply_button.isEnabled()
+
+
+def test_restore_defaults_puts_every_kind_back_to_its_built_in_ground(dialog):
+    set_kind_ground("sandbox", Ground(style="solid"))
+    set_kind_ground("designer", None)
+    dialog.load_settings()
+
+    dialog.restore_defaults()
+    dialog.apply_settings()
+
+    assert kind_keys() == []
+
+
+def test_readings_set_to_solid_draw_it_while_a_sandbox_canvas_does_not(
+    qtbot, stub_deck_library, spreads_base, notes_base, readings_base
+):
+    window = MainWindow()
+    qtbot.addWidget(window)
+    reading = window.open_reading_of(spreads.load(spreads.BUNDLED_SPREADS_PATH / "three-card"))
+    sandbox = window.new_canvas_tab()
+    dialog = PreferencesDialog(window)
+    qtbot.addWidget(dialog)
+    dialog.settings_changed.connect(window.apply_preferences)
+
+    show_scope(dialog, "reading")
+    choose_style(dialog, "solid")
+    dialog.apply_settings()
+
+    assert reading.drawn_ground().style == "solid"
+    assert sandbox.drawn_ground() == Ground.from_settings()
+    window.update_save_action()
+    window.save_action.trigger()
+    assert sandbox.reading_path is not None
+    assert sandbox.drawn_ground() == Ground.from_settings()
 
 
 def test_ok_stores_keys_not_labels(qtbot):

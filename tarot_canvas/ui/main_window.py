@@ -1062,16 +1062,15 @@ class MainWindow(QMainWindow):
         ):
             action.setEnabled(tab is not None and tab.can_zoom(how))
 
-    def canvas_with_own_ground(self):
-        """The current tab, if it is a canvas that can have its own ground"""
+    def current_canvas(self):
         tab = self.tab_widget.currentWidget()
-        return tab if isinstance(tab, CanvasTab) and tab.OWN_GROUND else None
+        return tab if isinstance(tab, CanvasTab) else None
 
     def update_canvas_background_action(self):
-        self.canvas_background_action.setEnabled(self.canvas_with_own_ground() is not None)
+        self.canvas_background_action.setEnabled(self.current_canvas() is not None)
 
     def edit_canvas_background(self):
-        tab = self.canvas_with_own_ground()
+        tab = self.current_canvas()
         if tab is not None:
             tab.edit_background()
 

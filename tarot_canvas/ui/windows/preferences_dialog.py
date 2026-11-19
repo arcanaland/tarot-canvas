@@ -1,25 +1,34 @@
 import sys
 
-from PyQt6.QtCore import QLocale, QSize, Qt, pyqtSignal
+from PyQt6.QtCore import QLocale, QSignalBlocker, QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
+    QButtonGroup,
     QCheckBox,
     QDialog,
     QDialogButtonBox,
     QFrame,
     QHBoxLayout,
     QLabel,
+    QRadioButton,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 
-from tarot_canvas.models.ground import Ground
+from tarot_canvas.models.ground import (
+    EVERY_CANVAS,
+    KIND_DEFAULTS,
+    Ground,
+    kind_ground,
+    set_kind_ground,
+)
 from tarot_canvas.settings import (
     CANVAS_GUIDES_DEFAULT,
     CANVAS_GUIDES_KEY,
     CANVAS_TAB_MINIMAP_DEFAULT,
     CANVAS_TAB_MINIMAP_KEY,
+    GROUND_KINDS,
     HARDWARE_ACCELERATION_DEFAULT,
     HARDWARE_ACCELERATION_KEY,
     MOTION_LEVEL_DEFAULT,
@@ -46,6 +55,7 @@ from tarot_canvas.ui.windows.background_form import (
     BackgroundForm,
     canvas_aspect,
     keyed_combo,
+    radio_indent,
     select_data,
 )
 from tarot_canvas.ui.windows.shortcuts_page import ShortcutsPage
@@ -64,6 +74,9 @@ MOTION_LEVEL_LABELS = (
 )
 
 
+BACKGROUND_SCOPES = (EVERY_CANVAS, *GROUND_KINDS)
+
+
 def percent_labels(steps):
     """using locale"""
     locale = QLocale()
@@ -80,6 +93,9 @@ class PreferencesDialog(QDialog):
         self.setWindowTitle(PREFERENCES["title"])
         self.stored_state = None
         self.hardware_acceleration_check = None
+        # Each scope's ground as edited, None for a kind that follows every canvas
+        self.background_grounds = {}
+        self.background_scope = EVERY_CANVAS
 
         self.page_list = PlacesSidebar(
             [
@@ -219,16 +235,65 @@ class PreferencesDialog(QDialog):
         return page
 
     def build_background_page(self):
-        """The default ground, which every canvas without its own draws"""
+        """Every canvas's ground, and each kind's, which follows it or has its own"""
         page = QWidget()
         layout = QVBoxLayout(page)
-        note = QLabel(PREFERENCES["background_default_note"])
-        note.setTextFormat(Qt.TextFormat.PlainText)
-        note.setWordWrap(True)
-        layout.addWidget(note)
+        self.background_follow = QRadioButton(PREFERENCES["background_scope_follow"])
+        self.background_own = QRadioButton(PREFERENCES["background_scope_own"])
+        self.background_choice = QButtonGroup(page)
+        self.background_choice.addButton(self.background_follow)
+        self.background_choice.addButton(self.background_own)
+        layout.addWidget(self.background_follow)
+        layout.addWidget(self.background_own)
+
         self.background_form = BackgroundForm(canvas_aspect(self.parentWidget()))
-        layout.addWidget(self.background_form, 1)
+        self.background_rows = QHBoxLayout()
+        self.background_rows.addWidget(self.background_form)
+        layout.addLayout(self.background_rows, 1)
+
+        scope_row = pane_form()
+        scope_row.setContentsMargins(0, units.LARGE_SPACING, 0, 0)
+        self.background_scope_combo = keyed_combo(
+            [(scope, PREFERENCES[f"background_scope_{scope}"]) for scope in BACKGROUND_SCOPES]
+        )
+        scope_row.addRow(PREFERENCES["background_scope"], self.background_scope_combo)
+        layout.addLayout(scope_row)
+
+        self.background_scope_combo.currentIndexChanged.connect(self.show_background_scope)
+        self.background_choice.buttonToggled.connect(self._on_background_choice_toggled)
         return page
+
+    def current_background(self):
+        """What the page says for the scope it shows"""
+        if self.background_scope != EVERY_CANVAS and self.background_follow.isChecked():
+            return None
+        return self.background_form.ground()
+
+    def edited_backgrounds(self):
+        return {**self.background_grounds, self.background_scope: self.current_background()}
+
+    def show_background_scope(self):
+        self.background_grounds[self.background_scope] = self.current_background()
+        self.background_scope = self.background_scope_combo.currentData()
+        self.show_background()
+
+    def show_background(self):
+        scope = self.background_scope
+        ground = self.background_grounds[scope]
+        kind = scope != EVERY_CANVAS
+        self.background_follow.setVisible(kind)
+        self.background_own.setVisible(kind)
+        self.background_rows.setContentsMargins(radio_indent(self.style()) if kind else 0, 0, 0, 0)
+        with QSignalBlocker(self.background_choice):
+            (self.background_follow if ground is None else self.background_own).setChecked(True)
+        self.background_form.set_ground(ground or self.background_grounds[EVERY_CANVAS])
+        self.background_form.setRowsEnabled(ground is not None)
+        self.update_apply_button()
+
+    def _on_background_choice_toggled(self, _button, checked):
+        if checked:
+            self.background_form.setRowsEnabled(self.background_own.isChecked())
+            self.update_apply_button()
 
     def build_library_page(self):
         page = QWidget()
@@ -262,7 +327,7 @@ class PreferencesDialog(QDialog):
         return (
             self.theme_combo.currentData(),
             self.text_size_combo.currentData(),
-            self.background_form.ground(),
+            tuple(self.edited_backgrounds()[scope] for scope in BACKGROUND_SCOPES),
             self.background_form.pending_removals(),
             self.motion_combo.currentData(),
             self.canvas_tab_minimap_check.isChecked(),
@@ -285,7 +350,7 @@ class PreferencesDialog(QDialog):
         self,
         theme,
         text_size,
-        ground,
+        grounds,
         motion,
         tab_minimap,
         guides,
@@ -295,7 +360,8 @@ class PreferencesDialog(QDialog):
     ):
         select_data(self.theme_combo, theme)
         select_data(self.text_size_combo, text_size)
-        self.background_form.set_ground(ground)
+        self.background_grounds = dict(grounds)
+        self.show_background()
         select_data(self.motion_combo, motion)
         self.canvas_tab_minimap_check.setChecked(tab_minimap)
         self.canvas_guides_check.setChecked(guides)
@@ -311,7 +377,10 @@ class PreferencesDialog(QDialog):
         self.show_state(
             ThemeManager.get_instance().get_current_theme().value,
             typography.reading_scale(),
-            Ground.from_settings(settings),
+            {
+                EVERY_CANVAS: Ground.from_settings(settings),
+                **{kind: kind_ground(kind, settings) for kind in GROUND_KINDS},
+            },
             get_motion_level(settings),
             bool(settings.value(CANVAS_TAB_MINIMAP_KEY, CANVAS_TAB_MINIMAP_DEFAULT, type=bool)),
             bool(settings.value(CANVAS_GUIDES_KEY, CANVAS_GUIDES_DEFAULT, type=bool)),
@@ -333,7 +402,7 @@ class PreferencesDialog(QDialog):
         self.show_state(
             ThemeType.SYSTEM.value,
             READING_TEXT_SCALE_DEFAULT,
-            Ground(),
+            {EVERY_CANVAS: Ground(), **{kind: KIND_DEFAULTS.get(kind) for kind in GROUND_KINDS}},
             MOTION_LEVEL_DEFAULT,
             CANVAS_TAB_MINIMAP_DEFAULT,
             CANVAS_GUIDES_DEFAULT,
@@ -345,7 +414,10 @@ class PreferencesDialog(QDialog):
 
     def apply_settings(self):
         settings = get_settings()
-        self.background_form.ground().to_settings(settings)
+        grounds = self.edited_backgrounds()
+        grounds[EVERY_CANVAS].to_settings(settings)
+        for kind in GROUND_KINDS:
+            set_kind_ground(kind, grounds[kind], settings)
         settings.setValue(MOTION_LEVEL_KEY, self.motion_combo.currentData())
         self.background_form.commit_removals()
         settings.setValue(CANVAS_TAB_MINIMAP_KEY, self.canvas_tab_minimap_check.isChecked())

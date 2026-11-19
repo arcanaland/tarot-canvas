@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QStyle,
     QToolButton,
     QWidget,
 )
@@ -64,6 +65,13 @@ def select_data(combo, key):
     index = combo.findData(key)
     if index >= 0:
         combo.setCurrentIndex(index)
+
+
+def radio_indent(style):
+    """Where a radio button's text starts, so what belongs to it can line up under it"""
+    return style.pixelMetric(QStyle.PixelMetric.PM_ExclusiveIndicatorWidth) + style.pixelMetric(
+        QStyle.PixelMetric.PM_RadioButtonLabelSpacing
+    )
 
 
 def canvas_aspect(widget):

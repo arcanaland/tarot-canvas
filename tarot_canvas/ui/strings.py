@@ -60,7 +60,7 @@ COMMANDS = {
     # Library
     "library_toggle_details": "Toggle Deck Details",
     "library_view_n": "Switch to Page {n}",
-    "canvas_background": "Canvas Background",
+    "canvas_background": "Set Background",
 }
 
 # The Preferences dialog
@@ -136,7 +136,13 @@ PREFERENCES = {
     "library_label": "Library:",
     "startup_label": "Startup:",
     "show_available_decks": "Show available decks",
-    "background_default_note": "The default for new canvases.",
+    "background_scope": "Scope:",
+    "background_scope_every": "Every canvas",
+    "background_scope_sandbox": "Sandbox canvases",
+    "background_scope_reading": "Readings",
+    "background_scope_designer": "Spread designer",
+    "background_scope_follow": "Same as every canvas",
+    "background_scope_own": "Custom",
 }
 
 # Notes, in a card view and in the Library
@@ -410,10 +416,16 @@ CANVAS = {
     "distribute_horizontal": "Distribute Horizontally",
     "distribute_vertical": "Distribute Vertically",
     "arrange_arc": "Arrange in Circle",
-    # The canvas's own Background panel
-    "background_follow": "Use default",
+    "background_follow_every": "Use Default",
+    "background_follow_sandbox": "Use Default (for sandbox canvases)",
+    "background_follow_reading": "Use Default (for readings)",
+    "background_follow_designer": "Use Default (for spread designer)",
     "background_own": "This canvas",
-    "background_use_as_default": "Set as Default",
+    "background_use_for": "Set as Default",
+    "background_use_for_every": "For every canvas",
+    "background_use_for_sandbox": "For sandbox canvases",
+    "background_use_for_reading": "For readings",
+    "background_use_for_designer": "For spread designer",
     # The arc popover
     "arc_bend": "Bend:",
     "arc_turn": "Rotation:",

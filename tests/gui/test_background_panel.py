@@ -1,6 +1,8 @@
 """A canvas's own ground: the Background panel, its two ways in, and a reading keeping it."""
 
 import logging
+from dataclasses import replace
+from datetime import datetime
 
 import pytest
 from PyQt6.QtCore import QPoint, QPointF, QSize, Qt
@@ -8,12 +10,22 @@ from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QMessageBox
 
 from tarot_canvas.models import readings
-from tarot_canvas.models.ground import Ground
+from tarot_canvas.models.ground import (
+    DESIGNER_CHECKERBOARD_COLOR,
+    EVERY_CANVAS,
+    KIND_DEFAULTS,
+    Ground,
+    ground_kind,
+    kind_ground,
+    set_kind_ground,
+)
 from tarot_canvas.settings import BACKGROUND_COLOR_KEY, BACKGROUND_STYLE_KEY, get_settings
 from tarot_canvas.ui import commands
 from tarot_canvas.ui.canvas.saved_canvas import AUTOSAVE_MS
 from tarot_canvas.ui.main_window import MainWindow
+from tarot_canvas.ui.strings import CANVAS, PREFERENCES
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
+from tarot_canvas.ui.tabs.reading_tab import ReadingTab
 from tarot_canvas.ui.tabs.spread_tab import SpreadTab
 from tests.gui.test_arc_popover import add_cards, drag
 from tests.gui.test_canvas_tab import menu_layout
@@ -223,10 +235,25 @@ def test_its_tiles_offer_no_remove(tab, backgrounds_base):
     assert not grid.isWrapping()
 
 
-def test_set_as_default_is_a_button_beside_apply_and_cancel(tab):
+def test_use_for_is_a_menu_button_beside_apply_and_cancel(tab):
     panel = tab.edit_background()
-    assert panel.default_button in panel.buttons.buttons()
-    assert not panel.default_button.isFlat()
+    assert panel.use_for_button in panel.buttons.buttons()
+    assert not panel.use_for_button.isFlat()
+    assert [action.data() for action in panel.use_for_menu.actions()] == [EVERY_CANVAS, "sandbox"]
+
+
+def use_for(panel, level):
+    (action,) = (action for action in panel.use_for_menu.actions() if action.data() == level)
+    action.trigger()
+
+
+def test_the_follow_row_names_every_canvas_until_the_kind_has_its_own(tab):
+    panel = tab.edit_background()
+    assert panel.follow.text() == CANVAS["background_follow_every"]
+    panel.cancel()
+
+    set_kind_ground("sandbox", own_solid())
+    assert tab.edit_background().follow.text() == CANVAS["background_follow_sandbox"]
 
 
 @pytest.mark.parametrize("via", ["image", "solid"])
@@ -270,11 +297,101 @@ def test_a_right_click_on_a_card_is_still_the_card_menu(tab):
     assert "canvas.flip" in menu_layout(menu)
 
 
-def test_the_spread_designer_offers_no_ground(qtbot):
+@pytest.fixture
+def designer(qtbot):
     designer = make_tab(qtbot, SpreadTab)
-    menu = designer.card_menu(QPointF(5000, 5000))
-    assert COMMAND.text not in [action.text() for action in menu.actions()]
-    assert designer.edit_background() is None
+    yield designer
+    if designer.background_panel is not None:
+        designer.background_panel.close()
+
+
+def test_a_fresh_designer_draws_its_dark_checkerboard(designer):
+    assert designer.drawn_ground() == KIND_DEFAULTS["designer"]
+    assert designer.drawn_ground().checkerboard_color == DESIGNER_CHECKERBOARD_COLOR
+    assert designer.view.backgroundBrush().texture().size() != QSize(0, 0)
+
+
+def test_the_designers_panel_edits_the_designers_ground(designer):
+    background_action(designer.card_menu(QPointF(5000, 5000))).trigger()
+    panel = designer.background_panel
+
+    assert panel.isVisible()
+    assert panel.follow.text() == PREFERENCES["background_scope_follow"]
+    assert panel.own.text() == PREFERENCES["background_scope_own"]
+    assert panel.own.isChecked()
+    assert panel.form.isEnabled()
+    assert panel.form.ground() == KIND_DEFAULTS["designer"]
+    # The kind is the Custom radio, so Use for offers only every canvas
+    assert [action.data() for action in panel.use_for_menu.actions()] == [EVERY_CANVAS]
+
+
+def designer_solid():
+    """own_solid as the designer's form makes it, keeping the kind's squares' colour"""
+    return replace(own_solid(), checkerboard_color=DESIGNER_CHECKERBOARD_COLOR)
+
+
+def test_the_designers_panel_previews_then_apply_keeps_it_for_the_kind(designer):
+    panel = designer.edit_background()
+    choose_solid(panel)
+    assert brush_colour(designer) == SOLID
+
+    panel.apply()
+
+    assert kind_ground("designer") == designer_solid()
+    assert designer.ground is None
+    assert brush_colour(designer) == SOLID
+    # Every canvas's is untouched
+    assert get_settings().value(BACKGROUND_STYLE_KEY) is None
+
+
+def test_the_designers_panel_cancel_keeps_nothing(designer):
+    panel = designer.edit_background()
+    choose_solid(panel)
+    panel.cancel()
+
+    assert kind_ground("designer") == KIND_DEFAULTS["designer"]
+    assert designer.ground is None
+    assert designer.drawn_ground() == KIND_DEFAULTS["designer"]
+
+
+def test_the_designers_panel_follow_shows_and_keeps_every_canvass(designer):
+    own_solid().to_settings()
+    panel = designer.edit_background()
+    panel.follow.setChecked(True)
+    assert brush_colour(designer) == SOLID
+
+    panel.apply()
+
+    assert kind_ground("designer") is None
+    assert designer.drawn_ground() == own_solid()
+
+
+def test_a_designer_following_every_canvas_opens_on_follow(designer):
+    set_kind_ground("designer", None)
+    panel = designer.edit_background()
+    assert panel.follow.isChecked()
+    assert not panel.form.bg_combo.isEnabled()
+
+
+def test_a_designers_apply_redraws_the_other_designers(qtbot, designer):
+    other = make_tab(qtbot, SpreadTab)
+    designer.default_ground_changed.connect(other.apply_ground)
+    panel = designer.edit_background()
+    choose_solid(panel)
+    panel.apply()
+
+    assert brush_colour(other) == SOLID
+
+
+def test_the_designers_use_for_every_canvas_writes_the_form_and_follows_it(designer):
+    panel = designer.edit_background()
+    choose_solid(panel)
+    use_for(panel, EVERY_CANVAS)
+
+    assert Ground.from_settings() == designer_solid()
+    assert kind_ground("designer") is None
+    assert designer.ground is None
+    assert brush_colour(designer) == SOLID
 
 
 @pytest.fixture
@@ -293,7 +410,7 @@ def view_entry_enabled(window):
     return window.canvas_background_action.isEnabled()
 
 
-def test_the_view_menu_offers_it_on_a_canvas_and_a_reading_only(window, minimal_deck):
+def test_the_view_menu_offers_it_on_every_canvas_only(window, minimal_deck):
     window.new_canvas_tab()
     assert view_entry_enabled(window)
 
@@ -307,7 +424,7 @@ def test_the_view_menu_offers_it_on_a_canvas_and_a_reading_only(window, minimal_
     assert not view_entry_enabled(window)
 
     window.new_spread_tab()
-    assert not view_entry_enabled(window)
+    assert view_entry_enabled(window)
 
 
 def readings_spread():
@@ -408,7 +525,7 @@ def test_a_tab_on_its_own_image_draws_it_over_the_default(window, backgrounds_ba
     assert tab.view.backgroundBrush().texture().size() == QSize(64, 32)
 
 
-def test_use_as_default_writes_the_settings_and_every_following_canvas_redraws(window):
+def test_use_for_every_canvas_writes_the_settings_and_every_following_canvas_redraws(window):
     following = window.new_canvas_tab()
     own = window.new_canvas_tab()
     own.ground = own_solid("#654321")
@@ -417,7 +534,7 @@ def test_use_as_default_writes_the_settings_and_every_following_canvas_redraws(w
 
     panel = tab.edit_background()
     choose_solid(panel)
-    panel.default_button.click()
+    use_for(panel, EVERY_CANVAS)
 
     assert panel.finished
     assert tab.ground is None
@@ -427,3 +544,65 @@ def test_use_as_default_writes_the_settings_and_every_following_canvas_redraws(w
     assert brush_colour(following) == SOLID
     assert own.ground == own_solid("#654321")
     assert brush_colour(own) == "#654321"
+
+
+def test_use_for_a_kind_writes_only_the_kinds_and_its_canvases_redraw(window):
+    every = Ground.from_settings()
+    sandbox = window.new_canvas_tab()
+    reading = window.open_reading_of(readings_spread())
+
+    panel = reading.edit_background()
+    choose_solid(panel)
+    use_for(panel, "reading")
+
+    assert panel.finished
+    assert reading.ground is None
+    assert kind_ground("reading") == own_solid()
+    assert get_settings().value("appearance/reading/background_style") == "solid"
+    assert Ground.from_settings() == every
+    assert brush_colour(reading) == SOLID
+    assert sandbox.drawn_ground() == every
+
+
+# -- each canvas's kind ------------------------------------------------------------------
+
+
+def test_each_tab_draws_its_kinds_ground(window):
+    for kind, colour in (("sandbox", "#111111"), ("reading", "#222222"), ("designer", "#333333")):
+        set_kind_ground(kind, own_solid(colour))
+    tabs = {
+        "sandbox": window.new_canvas_tab(),
+        "reading": window.open_reading_of(readings_spread()),
+        "designer": window.new_spread_tab(),
+    }
+    window.apply_settings_to_open_canvases()
+
+    assert {kind: tab.drawn_ground().color for kind, tab in tabs.items()} == {
+        "sandbox": "#111111",
+        "reading": "#222222",
+        "designer": "#333333",
+    }
+
+
+def test_a_saved_sandbox_canvas_reopens_as_a_sandbox(window, readings_base):
+    set_kind_ground("reading", own_solid())
+    tab = saved_canvas(window)
+    every = tab.drawn_ground()
+    path = tab.reading_path
+    window.close_tab(window.tab_widget.indexOf(tab))
+
+    reopened = window.open_saved_reading(path)
+
+    assert type(reopened) is CanvasTab
+    assert ground_kind(readings.load(path)) == reopened.GROUND_KIND == "sandbox"
+    assert reopened.drawn_ground() == every
+
+
+def test_a_kept_reading_reopens_as_its_kind(window, readings_base):
+    path = readings_base / "kept"
+    readings.save(path, readings.Reading(date=datetime(2026, 11, 18), spread=readings_spread()))
+
+    reopened = window.open_saved_reading(path)
+
+    assert isinstance(reopened, ReadingTab)
+    assert ground_kind(readings.load(path)) == reopened.GROUND_KIND == "reading"
