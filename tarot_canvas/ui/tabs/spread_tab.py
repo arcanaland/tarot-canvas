@@ -31,6 +31,7 @@ class SpreadTab(SpreadSlots, CanvasTab):
     SAVES_CANVAS = False
     # A spread keeps no ground, so one set here would be gone when it reopened
     OWN_GROUND = False
+    GROUND_KIND = "designer"
     DRAW_HERE = SPREADS["add_slot_here"]
 
     def __init__(self, spread=None, path=None, parent=None):

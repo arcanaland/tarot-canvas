@@ -9,6 +9,13 @@ from tarot_canvas.models.welcome_events import welcome_events
 SETTINGS_ORGANIZATION = "ArcanaLand"
 SETTINGS_APPLICATION = "TarotCanvas"
 
+APPEARANCE_PREFIX = "appearance/"
+
+# The kinds of canvas, each of which can have a default ground of its own
+GROUND_KINDS = ("sandbox", "reading", "designer")
+# A kind's background_style while it draws every canvas's
+GROUND_FOLLOW = "follow"
+
 BACKGROUND_STYLE_KEY = "appearance/background_style"
 BACKGROUND_STYLE_DEFAULT = "gradient"
 BACKGROUND_STYLES = ("checkerboard", "gradient", "solid", "swirl", "image")
@@ -75,22 +82,27 @@ def get_motion_level(settings=None):
     return level
 
 
-def get_background_style(settings=None):
+def ground_kind_prefix(kind):
+    """Where a kind's ground is kept: the every-canvas key names under the kind"""
+    return f"{APPEARANCE_PREFIX}{kind}/"
+
+
+def get_background_style(settings=None, key=BACKGROUND_STYLE_KEY):
     """How the canvas ground is drawn"""
     settings = settings or get_settings()
-    stored = settings.value(BACKGROUND_STYLE_KEY)
+    stored = settings.value(key)
     if stored in BACKGROUND_STYLES:
         return stored
     if stored in LEGACY_BACKGROUND_STYLES:
         style = LEGACY_BACKGROUND_STYLES[stored]
-        settings.setValue(BACKGROUND_STYLE_KEY, style)
+        settings.setValue(key, style)
         return style
     return BACKGROUND_STYLE_DEFAULT
 
 
-def get_background_positioning(settings=None):
+def get_background_positioning(settings=None, key=BACKGROUND_POSITIONING_KEY):
     settings = settings or get_settings()
-    stored = settings.value(BACKGROUND_POSITIONING_KEY)
+    stored = settings.value(key)
     if stored in BACKGROUND_POSITIONINGS:
         return stored
     return BACKGROUND_POSITIONING_DEFAULT

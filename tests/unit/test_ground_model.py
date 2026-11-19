@@ -1,8 +1,20 @@
 import logging
+from datetime import datetime
 
 import pytest
 
-from tarot_canvas.models.ground import Ground, drawn
+from tarot_canvas.models.ground import (
+    EVERY_CANVAS,
+    KIND_DEFAULTS,
+    Ground,
+    drawn,
+    follows,
+    ground_kind,
+    kind_ground,
+    set_kind_ground,
+)
+from tarot_canvas.models.readings import Reading
+from tarot_canvas.models.spreads import Spread
 from tarot_canvas.settings import (
     BACKGROUND_COLOR_KEY,
     BACKGROUND_FILL_KEY,
@@ -10,8 +22,10 @@ from tarot_canvas.settings import (
     BACKGROUND_POSITIONING_DEFAULT,
     BACKGROUND_POSITIONING_KEY,
     BACKGROUND_STYLE_KEY,
+    CHECKERBOARD_COLOR_DEFAULT,
     CHECKERBOARD_COLOR_KEY,
     GROUND_HUE_KEY,
+    GROUND_KINDS,
     get_settings,
 )
 
@@ -168,21 +182,128 @@ def store_default(ground):
 
 def test_no_ground_draws_the_default():
     store_default(OWN["gradient"])
-    assert drawn(None) == OWN["gradient"]
+    assert drawn(None, "sandbox") == OWN["gradient"]
 
 
 def test_an_own_ground_draws_itself():
     store_default(OWN["gradient"])
-    assert drawn(OWN["solid"]) == OWN["solid"]
+    assert drawn(OWN["solid"], "sandbox") == OWN["solid"]
 
 
 def test_an_image_ground_whose_file_is_missing_draws_the_default(backgrounds_base):
     store_default(OWN["checkerboard"])
-    assert drawn(Ground(style="image", image="gone.png")) == OWN["checkerboard"]
+    assert drawn(Ground(style="image", image="gone.png"), "sandbox") == OWN["checkerboard"]
 
 
 def test_an_image_ground_whose_file_is_there_draws_itself(backgrounds_base):
     backgrounds_base.mkdir(parents=True)
     (backgrounds_base / "felt.png").write_bytes(b"")
     ground = Ground(style="image", image="felt.png")
-    assert drawn(ground) == ground
+    assert drawn(ground, "sandbox") == ground
+
+
+def picture(backgrounds_base, name):
+    backgrounds_base.mkdir(parents=True, exist_ok=True)
+    (backgrounds_base / name).write_bytes(b"")
+    return Ground(style="image", image=name)
+
+
+# -- each kind's ground ----------------------------------------------------
+
+
+def kind_keys(kind):
+    return [key for key in get_settings().allKeys() if key.startswith(f"appearance/{kind}/")]
+
+
+def test_a_reading_from_a_spread_is_the_reading_kind_and_one_without_is_a_sandbox():
+    now = datetime(2026, 11, 18)
+    assert ground_kind(Reading(date=now, spread=Spread())) == "reading"
+    assert ground_kind(Reading(date=now)) == "sandbox"
+
+
+def test_a_fresh_profile_swirls_readings_checkers_the_designer_and_follows_in_a_sandbox():
+    store_default(OWN["solid"])
+
+    assert drawn(None, "reading") == Ground(style="swirl")
+    assert drawn(None, "designer") == Ground(style="checkerboard")
+    assert drawn(None, "designer").checkerboard_color == CHECKERBOARD_COLOR_DEFAULT
+    assert drawn(None, "sandbox") == OWN["solid"]
+    assert [follows(kind) for kind in GROUND_KINDS] == [EVERY_CANVAS, "reading", "designer"]
+
+
+def test_a_kinds_ground_draws_for_that_kind_only():
+    store_default(OWN["gradient"])
+    set_kind_ground("reading", OWN["swirl"])
+
+    assert drawn(None, "reading") == OWN["swirl"]
+    assert drawn(None, "sandbox") == OWN["gradient"]
+    assert follows("reading") == "reading"
+    assert drawn(OWN["solid"], "reading") == OWN["solid"]
+
+
+def test_a_kinds_ground_is_kept_under_the_kind_with_every_canvas_left_alone():
+    store_default(OWN["gradient"])
+    set_kind_ground("reading", EVERYTHING)
+
+    settings = get_settings()
+    assert settings.value("appearance/reading/background_style") == "image"
+    assert settings.value("appearance/reading/ground_hue") == "gold"
+    assert settings.value("appearance/reading/checkerboard_color") == "#405060"
+    assert Ground.from_settings(settings) == OWN["gradient"]
+    assert kind_ground("reading") == EVERYTHING
+
+
+def test_the_designer_set_to_follow_draws_every_canvas():
+    store_default(OWN["solid"])
+    set_kind_ground("designer", None)
+
+    assert get_settings().value("appearance/designer/background_style") == "follow"
+    assert drawn(None, "designer") == OWN["solid"]
+    assert follows("designer") == EVERY_CANVAS
+
+
+def test_follow_clears_the_kinds_other_keys():
+    set_kind_ground("sandbox", EVERYTHING)
+    set_kind_ground("designer", EVERYTHING)
+    set_kind_ground("designer", None)
+
+    assert kind_keys("designer") == ["appearance/designer/background_style"]
+
+
+@pytest.mark.parametrize("kind", GROUND_KINDS)
+def test_a_kinds_built_in_ground_is_stored_as_nothing(kind):
+    set_kind_ground(kind, EVERYTHING)
+    set_kind_ground(kind, KIND_DEFAULTS.get(kind))
+
+    assert kind_keys(kind) == []
+
+
+def test_an_unreadable_kind_style_reads_as_its_built_in_ground(caplog):
+    get_settings().setValue("appearance/designer/background_style", "plaid")
+    get_settings().setValue("appearance/sandbox/background_style", "plaid")
+
+    assert kind_ground("designer") == Ground(style="checkerboard")
+    assert kind_ground("sandbox") is None
+    assert len(warnings_in(caplog)) == 2
+
+
+def test_an_own_picture_missing_falls_to_its_kind_not_every_canvas(backgrounds_base):
+    store_default(OWN["gradient"])
+    set_kind_ground("reading", OWN["swirl"])
+
+    assert drawn(Ground(style="image", image="gone.png"), "reading") == OWN["swirl"]
+
+
+def test_a_kinds_picture_missing_falls_to_every_canvas(backgrounds_base):
+    store_default(OWN["gradient"])
+    set_kind_ground("reading", Ground(style="image", image="gone.png"))
+
+    assert drawn(None, "reading") == OWN["gradient"]
+    assert follows("reading") == EVERY_CANVAS
+
+
+def test_a_kinds_picture_that_is_there_draws(backgrounds_base):
+    ground = picture(backgrounds_base, "felt.png")
+    set_kind_ground("sandbox", ground)
+
+    assert drawn(None, "sandbox") == ground

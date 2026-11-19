@@ -6,18 +6,18 @@ from PyQt6.QtWidgets import (
     QButtonGroup,
     QDialogButtonBox,
     QHBoxLayout,
+    QMenu,
     QPushButton,
     QRadioButton,
-    QStyle,
     QVBoxLayout,
 )
 
-from tarot_canvas.models.ground import Ground
+from tarot_canvas.models.ground import EVERY_CANVAS, drawn, follows, set_kind_ground
 from tarot_canvas.settings import get_settings
 from tarot_canvas.ui import commands, units
 from tarot_canvas.ui.canvas.canvas_panel import CanvasPanel
 from tarot_canvas.ui.strings import CANVAS
-from tarot_canvas.ui.windows.background_form import BackgroundForm, canvas_aspect
+from tarot_canvas.ui.windows.background_form import BackgroundForm, canvas_aspect, radio_indent
 
 COMMAND = "window.canvas_background"
 
@@ -25,59 +25,61 @@ COMMAND = "window.canvas_background"
 PANEL_WIDTH = 20 * units.GRID_UNIT
 
 
-def radio_indent(style):
-    """Where a radio button's text starts, so what belongs to it can line up under it"""
-    return style.pixelMetric(QStyle.PixelMetric.PM_ExclusiveIndicatorWidth) + style.pixelMetric(
-        QStyle.PixelMetric.PM_RadioButtonLabelSpacing
-    )
-
-
 class BackgroundPanel(CanvasPanel):
     """Follow the default, or give the tab a ground of its own"""
 
-    # Use as Default wrote the settings, so every canvas following them should redraw
+    # Use for wrote the settings, so every canvas following them should redraw
     default_changed = pyqtSignal()
 
     def __init__(self, tab, parent):
         super().__init__(commands.by_id(COMMAND).text, tab.view, parent)
         self.tab = tab
         self.opened_on = tab.ground
+        kind = tab.GROUND_KIND
 
-        self.follow = QRadioButton(CANVAS["background_follow"])
-        self.own = QRadioButton(CANVAS["background_own"])
+        self.follow = QRadioButton(CANVAS[f"background_follow_{follows(kind)}"])
         self.choice = QButtonGroup(self)
         self.choice.addButton(self.follow)
-        self.choice.addButton(self.own)
-        (self.follow if tab.ground is None else self.own).setChecked(True)
-        self.form = BackgroundForm(canvas_aspect(tab), compact=True)
-        self.form.reload()
-        self.form.set_ground(tab.ground or Ground.from_settings(get_settings()))
-        self.form.setRowsEnabled(tab.ground is not None)
-
         group = QVBoxLayout()
         group.setSpacing(units.SMALL_SPACING)
         group.addWidget(self.follow)
-        group.addWidget(self.own)
-        rows = QHBoxLayout()
-        rows.setContentsMargins(radio_indent(self.style()), 0, 0, 0)
-        rows.addWidget(self.form)
-        group.addLayout(rows)
+
+        self.own = self.form = None
+        if tab.OWN_GROUND:
+            self.own = QRadioButton(CANVAS["background_own"])
+            self.choice.addButton(self.own)
+            self.form = BackgroundForm(canvas_aspect(tab), compact=True)
+            self.form.reload()
+            self.form.set_ground(tab.ground or drawn(None, kind))
+            self.form.setRowsEnabled(tab.ground is not None)
+            group.addWidget(self.own)
+            rows = QHBoxLayout()
+            rows.setContentsMargins(radio_indent(self.style()), 0, 0, 0)
+            rows.addWidget(self.form)
+            group.addLayout(rows)
+        (self.follow if tab.ground is None else self.own).setChecked(True)
         group.addSpacing(units.LARGE_SPACING)
 
-        self.default_button = QPushButton(
-            QIcon.fromTheme("document-save-as-template"), CANVAS["background_use_as_default"]
+        self.use_for_button = QPushButton(
+            QIcon.fromTheme("document-save-as-template"), CANVAS["background_use_for"]
         )
-        self.default_button.setAutoDefault(False)
-        self.default_button.clicked.connect(self.use_as_default)
-        self.buttons.addButton(self.default_button, QDialogButtonBox.ButtonRole.ResetRole)
+        self.use_for_button.setAutoDefault(False)
+        self.use_for_menu = QMenu(self.use_for_button)
+        for level in (EVERY_CANVAS, kind):
+            action = self.use_for_menu.addAction(CANVAS[f"background_use_for_{level}"])
+            action.setData(level)
+            action.triggered.connect(lambda _checked, level=level: self.use_for(level))
+        self.use_for_button.setMenu(self.use_for_menu)
+        self.buttons.addButton(self.use_for_button, QDialogButtonBox.ButtonRole.ResetRole)
 
         self.lay_out(group)
         self.setMinimumWidth(PANEL_WIDTH)
 
-        self.choice.buttonToggled.connect(self._on_choice_toggled)
-        self.form.changed.connect(self.preview)
-        # Its rows come and go with the type
-        self.form.changed.connect(self.refit)
+        if self.form is not None:
+            self.choice.buttonToggled.connect(self._on_choice_toggled)
+            self.form.changed.connect(self.preview)
+            # Its rows come and go with the type
+            self.form.changed.connect(self.refit)
 
     def covered_rect(self):
         """Every card on the tab"""
@@ -88,7 +90,11 @@ class BackgroundPanel(CanvasPanel):
 
     def chosen(self):
         """The option the user selected"""
-        return self.form.ground() if self.own.isChecked() else None
+        return self.form.ground() if self.own is not None and self.own.isChecked() else None
+
+    def shown(self):
+        """The ground Use for writes: the form's, or without one what the canvas draws"""
+        return self.form.ground() if self.form is not None else self.tab.drawn_ground()
 
     def _on_choice_toggled(self, _button, checked):
         if checked:
@@ -105,8 +111,13 @@ class BackgroundPanel(CanvasPanel):
         self.tab.ground = self.opened_on
         self.tab.apply_ground()
 
-    def use_as_default(self):
-        self.form.ground().to_settings(get_settings())
+    def use_for(self, level):
+        ground = self.shown()
+        settings = get_settings()
+        if level == EVERY_CANVAS:
+            ground.to_settings(settings)
+        else:
+            set_kind_ground(level, ground, settings)
         self.follow.setChecked(True)
         self.apply()
         self.default_changed.emit()
