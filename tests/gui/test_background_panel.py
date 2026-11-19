@@ -1,6 +1,7 @@
 """A canvas's own ground: the Background panel, its two ways in, and a reading keeping it."""
 
 import logging
+from dataclasses import replace
 from datetime import datetime
 
 import pytest
@@ -10,7 +11,9 @@ from PyQt6.QtWidgets import QMessageBox
 
 from tarot_canvas.models import readings
 from tarot_canvas.models.ground import (
+    DESIGNER_CHECKERBOARD_COLOR,
     EVERY_CANVAS,
+    KIND_DEFAULTS,
     Ground,
     ground_kind,
     kind_ground,
@@ -20,7 +23,7 @@ from tarot_canvas.settings import BACKGROUND_COLOR_KEY, BACKGROUND_STYLE_KEY, ge
 from tarot_canvas.ui import commands
 from tarot_canvas.ui.canvas.saved_canvas import AUTOSAVE_MS
 from tarot_canvas.ui.main_window import MainWindow
-from tarot_canvas.ui.strings import CANVAS
+from tarot_canvas.ui.strings import CANVAS, PREFERENCES
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.reading_tab import ReadingTab
 from tarot_canvas.ui.tabs.spread_tab import SpreadTab
@@ -302,27 +305,93 @@ def designer(qtbot):
         designer.background_panel.close()
 
 
-def test_a_fresh_designer_draws_checkerboard(designer):
-    assert designer.drawn_ground() == Ground(style="checkerboard")
+def test_a_fresh_designer_draws_its_dark_checkerboard(designer):
+    assert designer.drawn_ground() == KIND_DEFAULTS["designer"]
+    assert designer.drawn_ground().checkerboard_color == DESIGNER_CHECKERBOARD_COLOR
     assert designer.view.backgroundBrush().texture().size() != QSize(0, 0)
 
 
-def test_the_designers_panel_follows_and_has_no_its_own(designer):
+def test_the_designers_panel_edits_the_designers_ground(designer):
     background_action(designer.card_menu(QPointF(5000, 5000))).trigger()
     panel = designer.background_panel
 
     assert panel.isVisible()
-    assert panel.own is None and panel.form is None
-    assert panel.follow.isChecked()
-    assert panel.follow.text() == CANVAS["background_follow_designer"]
-    assert [action.data() for action in panel.use_for_menu.actions()] == [EVERY_CANVAS, "designer"]
+    assert panel.follow.text() == PREFERENCES["background_scope_follow"]
+    assert panel.own.text() == PREFERENCES["background_scope_own"]
+    assert panel.own.isChecked()
+    assert panel.form.isEnabled()
+    assert panel.form.ground() == KIND_DEFAULTS["designer"]
+    # The kind is the Custom radio, so Use for offers only every canvas
+    assert [action.data() for action in panel.use_for_menu.actions()] == [EVERY_CANVAS]
 
 
-def test_the_designers_use_for_every_canvas_writes_what_it_draws(designer):
-    use_for(designer.edit_background(), EVERY_CANVAS)
+def designer_solid():
+    """own_solid as the designer's form makes it, keeping the kind's squares' colour"""
+    return replace(own_solid(), checkerboard_color=DESIGNER_CHECKERBOARD_COLOR)
 
-    assert Ground.from_settings() == Ground(style="checkerboard")
+
+def test_the_designers_panel_previews_then_apply_keeps_it_for_the_kind(designer):
+    panel = designer.edit_background()
+    choose_solid(panel)
+    assert brush_colour(designer) == SOLID
+
+    panel.apply()
+
+    assert kind_ground("designer") == designer_solid()
     assert designer.ground is None
+    assert brush_colour(designer) == SOLID
+    # Every canvas's is untouched
+    assert get_settings().value(BACKGROUND_STYLE_KEY) is None
+
+
+def test_the_designers_panel_cancel_keeps_nothing(designer):
+    panel = designer.edit_background()
+    choose_solid(panel)
+    panel.cancel()
+
+    assert kind_ground("designer") == KIND_DEFAULTS["designer"]
+    assert designer.ground is None
+    assert designer.drawn_ground() == KIND_DEFAULTS["designer"]
+
+
+def test_the_designers_panel_follow_shows_and_keeps_every_canvass(designer):
+    own_solid().to_settings()
+    panel = designer.edit_background()
+    panel.follow.setChecked(True)
+    assert brush_colour(designer) == SOLID
+
+    panel.apply()
+
+    assert kind_ground("designer") is None
+    assert designer.drawn_ground() == own_solid()
+
+
+def test_a_designer_following_every_canvas_opens_on_follow(designer):
+    set_kind_ground("designer", None)
+    panel = designer.edit_background()
+    assert panel.follow.isChecked()
+    assert not panel.form.bg_combo.isEnabled()
+
+
+def test_a_designers_apply_redraws_the_other_designers(qtbot, designer):
+    other = make_tab(qtbot, SpreadTab)
+    designer.default_ground_changed.connect(other.apply_ground)
+    panel = designer.edit_background()
+    choose_solid(panel)
+    panel.apply()
+
+    assert brush_colour(other) == SOLID
+
+
+def test_the_designers_use_for_every_canvas_writes_the_form_and_follows_it(designer):
+    panel = designer.edit_background()
+    choose_solid(panel)
+    use_for(panel, EVERY_CANVAS)
+
+    assert Ground.from_settings() == designer_solid()
+    assert kind_ground("designer") is None
+    assert designer.ground is None
+    assert brush_colour(designer) == SOLID
 
 
 @pytest.fixture

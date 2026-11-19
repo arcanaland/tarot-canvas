@@ -4,6 +4,7 @@ from datetime import datetime
 import pytest
 
 from tarot_canvas.models.ground import (
+    DESIGNER_CHECKERBOARD_COLOR,
     EVERY_CANVAS,
     KIND_DEFAULTS,
     Ground,
@@ -22,7 +23,6 @@ from tarot_canvas.settings import (
     BACKGROUND_POSITIONING_DEFAULT,
     BACKGROUND_POSITIONING_KEY,
     BACKGROUND_STYLE_KEY,
-    CHECKERBOARD_COLOR_DEFAULT,
     CHECKERBOARD_COLOR_KEY,
     GROUND_HUE_KEY,
     GROUND_KINDS,
@@ -225,8 +225,8 @@ def test_a_fresh_profile_swirls_readings_checkers_the_designer_and_follows_in_a_
     store_default(OWN["solid"])
 
     assert drawn(None, "reading") == Ground(style="swirl")
-    assert drawn(None, "designer") == Ground(style="checkerboard")
-    assert drawn(None, "designer").checkerboard_color == CHECKERBOARD_COLOR_DEFAULT
+    assert drawn(None, "designer") == KIND_DEFAULTS["designer"]
+    assert drawn(None, "designer").checkerboard_color == DESIGNER_CHECKERBOARD_COLOR
     assert drawn(None, "sandbox") == OWN["solid"]
     assert [follows(kind) for kind in GROUND_KINDS] == [EVERY_CANVAS, "reading", "designer"]
 
@@ -282,7 +282,7 @@ def test_an_unreadable_kind_style_reads_as_its_built_in_ground(caplog):
     get_settings().setValue("appearance/designer/background_style", "plaid")
     get_settings().setValue("appearance/sandbox/background_style", "plaid")
 
-    assert kind_ground("designer") == Ground(style="checkerboard")
+    assert kind_ground("designer") == KIND_DEFAULTS["designer"]
     assert kind_ground("sandbox") is None
     assert len(warnings_in(caplog)) == 2
 

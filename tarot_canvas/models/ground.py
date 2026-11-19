@@ -165,8 +165,14 @@ def _colour(table, key):
     return value
 
 
+# The designer's squares are dark, so the step between them is small beside dark window chrome
+DESIGNER_CHECKERBOARD_COLOR = "#34373b"
+
 # Defaults for readings and spread designer
-KIND_DEFAULTS = {"reading": Ground(style="swirl"), "designer": Ground(style="checkerboard")}
+KIND_DEFAULTS = {
+    "reading": Ground(style="swirl"),
+    "designer": Ground(style="checkerboard", checkerboard_color=DESIGNER_CHECKERBOARD_COLOR),
+}
 
 
 def ground_kind(reading):

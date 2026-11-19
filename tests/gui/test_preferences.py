@@ -6,7 +6,13 @@ from PyQt6.QtGui import QColor, QDragEnterEvent, QDropEvent, QImage, QPalette
 from PyQt6.QtWidgets import QApplication
 
 from tarot_canvas.models import spreads
-from tarot_canvas.models.ground import EVERY_CANVAS, Ground, kind_ground, set_kind_ground
+from tarot_canvas.models.ground import (
+    EVERY_CANVAS,
+    KIND_DEFAULTS,
+    Ground,
+    kind_ground,
+    set_kind_ground,
+)
 from tarot_canvas.settings import (
     ANIMATIONS_ENABLED_KEY,
     BACKGROUND_COLOR_DEFAULT,
@@ -289,7 +295,7 @@ def test_restore_defaults_resets_the_form_and_stores_nothing(qtbot, theme_kept):
     assert dialog.form_state()[:-1] == (
         "system",
         READING_TEXT_SCALE_DEFAULT,
-        (Ground(), None, Ground(style="swirl"), Ground(style="checkerboard")),
+        (Ground(), None, Ground(style="swirl"), KIND_DEFAULTS["designer"]),
         (),
         MOTION_LEVEL_DEFAULT,
         True,
