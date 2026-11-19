@@ -185,20 +185,19 @@ class OverviewTab(QWidget):
         )
 
     def update_subtitle(self):
-        """The type, then the number or the suit and rank, under the name"""
+        """The human-readable canonical ID"""
         if not self.subtitle or not self.card:
             return
         card = self.card
         facts = [card.kind.value.replace("_", " ").title()]
         if card.kind is CardKind.MINOR:
-            suit, rank = card.display_suit, card.display_rank
-            facts.append(card.suit_key.capitalize() if suit is None else suit)
-            facts.append(card.rank_key.capitalize() if rank is None else rank)
+            facts.append(card.suit_key.capitalize())
+            facts.append(card.rank_key.capitalize())
         elif card.number and card.number != card.display_name:
             facts.append(card.number)
         self.subtitle.setText(label_for("joiner").join(facts))
 
-        # The canonical ID
+        # The raw canonical ID
         self.subtitle.setToolTip(card.canonical_id)
         self.subtitle.setAccessibleDescription(card.canonical_id)
 

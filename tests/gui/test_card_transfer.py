@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from PyQt6.QtCore import QMimeData
 
-from tarot_canvas.models.deck import TarotDeck
+from tarot_canvas.models.arcana_backend import load_deck
 from tarot_canvas.ui.card_transfer import (
     CARD_MIME,
     card_from_mime,
@@ -56,8 +56,8 @@ def test_the_payload_is_an_identity_not_a_picture(qapp, minimal_deck, card):
 
 def test_a_deck_named_by_path_object_resolves_against_one_named_by_str(qapp, card):
     """The reference deck carries a Path; every other deck a str."""
-    by_path = TarotDeck(Path(MINIMAL_DECK_PATH))
-    by_str = TarotDeck(str(MINIMAL_DECK_PATH))
+    by_path = load_deck(Path(MINIMAL_DECK_PATH))
+    by_str = load_deck(str(MINIMAL_DECK_PATH))
 
     resolved = card_from_mime(card_mime_data(card, by_path), [by_str])
     assert resolved is not None
@@ -67,7 +67,7 @@ def test_a_deck_named_by_path_object_resolves_against_one_named_by_str(qapp, car
 def test_the_copied_deck_is_the_one_resolved(qapp, tmp_path, minimal_deck):
     """Same card_id in two decks: the payload picks the deck, not the first match."""
     shutil.copytree(MINIMAL_DECK_PATH, tmp_path / "other")
-    other = TarotDeck(str(tmp_path / "other"))
+    other = load_deck(str(tmp_path / "other"))
     mime = card_mime_data(other.find_card("major_arcana.01"), other)
 
     _, deck, _ = card_from_mime(mime, [minimal_deck, other])

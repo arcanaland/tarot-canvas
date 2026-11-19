@@ -9,6 +9,8 @@ from tarot_canvas.ui.strings import DECK_VIEW
 
 KindRole = Qt.ItemDataRole.UserRole + 1
 CardRole = Qt.ItemDataRole.UserRole + 2
+# A heading's canonical suit, when the deck names the suit something else
+CanonicalRole = Qt.ItemDataRole.UserRole + 3
 
 KIND_HEADING = "heading"
 KIND_NOTE = "note"
@@ -29,26 +31,42 @@ def shown_suits(deck):
     return [suit for suit in deck.suits if not suit.excluded]
 
 
+def canonical_suit(suit):
+    """The specification's name for suit, or None when the deck's name is already it"""
+    canonical = suit.key.capitalize()
+    return None if suit.name.casefold() == canonical.casefold() else canonical
+
+
+def canonical_heading(name, canonical):
+    """A suit heading as one string: the deck's name, then the canonical one"""
+    if canonical is None:
+        return name
+    return f"{name} {DECK_VIEW['canonical_suit'].format(suit=canonical)}"
+
+
 def display_rows(deck):
-    """(kind, text, card) per row: the majors, then each suit, each under its heading"""
+    """(kind, text, card, canonical) per row: the majors, then each suit under its heading
+
+    canonical is set only on the heading of a suit the deck renames.
+    """
     rows = []
     majors = sorted(deck.cards_of_kind(CardKind.MAJOR), key=_major_key)
     if majors:
-        rows.append((KIND_HEADING, DECK_VIEW["major_arcana"], None))
-        rows.extend((KIND_CARD, card.display_name, card) for card in majors)
+        rows.append((KIND_HEADING, DECK_VIEW["major_arcana"], None, None))
+        rows.extend((KIND_CARD, card.display_name, card, None) for card in majors)
 
     suits = shown_suits(deck)
     if not suits:
         reason = deck.exclusion_reason
         if reason:
-            rows.append((KIND_NOTE, DECK_VIEW["note"].format(reason=reason), None))
+            rows.append((KIND_NOTE, DECK_VIEW["note"].format(reason=reason), None, None))
 
     for suit in suits:
         cards = sorted(deck.cards_in_suit(suit.key), key=_rank_key)
         if not cards:
             continue
-        rows.append((KIND_HEADING, suit.name, None))
-        rows.extend((KIND_CARD, card.display_name, card) for card in cards)
+        rows.append((KIND_HEADING, suit.name, None, canonical_suit(suit)))
+        rows.extend((KIND_CARD, card.display_name, card, None) for card in cards)
     return rows
 
 
@@ -67,7 +85,7 @@ class CardModel(QAbstractListModel):
 
     def card_rows(self):
         """Row of each card, in order"""
-        return [row for row, (kind, _, _) in enumerate(self._rows) if kind == KIND_CARD]
+        return [row for row, (kind, *_) in enumerate(self._rows) if kind == KIND_CARD]
 
     def matches(self, row, query):
         """Whether the card at row is found by query"""
@@ -100,15 +118,16 @@ class CardModel(QAbstractListModel):
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
         if not index.isValid() or not 0 <= index.row() < len(self._rows):
             return None
-        kind, text, card = self._rows[index.row()]
+        kind, text, card, canonical = self._rows[index.row()]
 
-        if role in (
-            Qt.ItemDataRole.DisplayRole,
-            Qt.ItemDataRole.AccessibleTextRole,
-        ):
+        if role == Qt.ItemDataRole.DisplayRole:
             return text
+        if role == Qt.ItemDataRole.AccessibleTextRole:
+            return canonical_heading(text, canonical)
         if role == KindRole:
             return kind
+        if role == CanonicalRole:
+            return canonical
         if card is None:
             return None
         if role == Qt.ItemDataRole.ToolTipRole:

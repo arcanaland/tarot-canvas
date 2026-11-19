@@ -6,7 +6,7 @@ from PyQt6.QtGui import QHelpEvent, QIcon
 from PyQt6.QtWidgets import QMenu, QStyleOptionViewItem, QToolButton, QToolTip
 
 from tarot_canvas.models import spreads
-from tarot_canvas.models.deck import TarotDeck
+from tarot_canvas.models.arcana_backend import load_deck
 from tarot_canvas.models.spreads import BUNDLED_SPREADS_PATH
 from tarot_canvas.settings import (
     LIBRARY_VIEW_DECKS,
@@ -32,8 +32,8 @@ from tests.gui.test_spreads_view import index_of, menu_action, menu_entries
 @pytest.fixture
 def decks(tmp_path, stub_deck_library, qapp):
     """Two installed decks, the first the reference"""
-    first = TarotDeck(str(write_full_deck(tmp_path / "first", name="First")))
-    second = TarotDeck(str(write_full_deck(tmp_path / "second", name="Second")))
+    first = load_deck(str(write_full_deck(tmp_path / "first", name="First")))
+    second = load_deck(str(write_full_deck(tmp_path / "second", name="Second")))
     stub_deck_library.reference = lambda: first
     stub_deck_library.decks = lambda: [first, second]
     return first, second
@@ -249,7 +249,7 @@ def test_choosing_another_deck_starts_with_it_and_remembers_it(library, qtbot, d
 
 def test_the_deck_list_is_rebuilt_as_it_opens(library, qtbot, decks, stub_deck_library, tmp_path):
     pane = show_pane_for(library, qtbot, "Celtic Cross")
-    third = TarotDeck(str(write_full_deck(tmp_path / "third", name="Third & Co")))
+    third = load_deck(str(write_full_deck(tmp_path / "third", name="Third & Co")))
     stub_deck_library.decks = lambda: [*decks, third]
 
     pane.reading_button.menu().aboutToShow.emit()

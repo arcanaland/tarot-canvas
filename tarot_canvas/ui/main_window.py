@@ -1332,7 +1332,7 @@ class MainWindow(QMainWindow):
 
         Args:
             card (dict): Card dictionary
-            deck (TarotDeck, optional): Deck the card belongs to
+            deck (Deck, optional): Deck the card belongs to
         """
         from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 

@@ -42,10 +42,10 @@ DECKS = [
 
 @lru_cache(maxsize=1)
 def _reference_deck():
-    from tarot_canvas.models.deck import TarotDeck
+    from tarot_canvas.models.arcana_backend import load_deck
     from tests.conftest import MINIMAL_DECK_PATH
 
-    return TarotDeck(str(MINIMAL_DECK_PATH))
+    return load_deck(str(MINIMAL_DECK_PATH))
 
 
 def deck_library_stub(decks):

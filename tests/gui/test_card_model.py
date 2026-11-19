@@ -10,7 +10,7 @@ from PyQt6.QtGui import QColor, QImage
 from PyQt6.QtWidgets import QApplication
 
 from tarot_canvas.models.card_ids import COURTS, PIPS
-from tarot_canvas.models.deck_types import Card, CardImage, CardKind
+from tarot_canvas.models.deck_types import Card, CardImage, CardKind, SuitInfo
 from tarot_canvas.ui import units
 from tarot_canvas.ui.canvas import detail
 from tarot_canvas.ui.deck_view import card_delegate
@@ -19,6 +19,7 @@ from tarot_canvas.ui.deck_view.card_model import (
     KIND_CARD,
     KIND_HEADING,
     KIND_NOTE,
+    CanonicalRole,
     CardFilter,
     CardModel,
     CardRole,
@@ -63,6 +64,40 @@ def test_the_majors_come_first_by_number_then_each_suit_ace_to_king(full_deck):
         assert [card.rank_key for card in suit_cards] == list(PIPS + COURTS)
     assert kinds.count(KIND_CARD) == 78
     assert len(kinds) == 78 + 5
+
+
+def _renamed_cups_deck():
+    cups = [
+        Card(f"minor_arcana.cups.{rank}", CardKind.MINOR, f"{rank} of Honey Pots", "cups", rank)
+        for rank in PIPS
+    ]
+    return SimpleNamespace(
+        suits=[SuitInfo("cups", "Honey Pots"), SuitInfo("swords", "Swords")],
+        cards_of_kind=lambda kind: [],
+        cards_in_suit=lambda key: cups if key == "cups" else [],
+        exclusion_reason=None,
+    )
+
+
+def test_a_renamed_suit_heads_with_the_decks_name_and_carries_the_canonical_one():
+    model = CardModel(_renamed_cups_deck())
+    heading = model.index(0, 0)
+
+    assert heading.data() == "Honey Pots"
+    assert heading.data(CanonicalRole) == "Cups"
+    assert heading.data(Qt.ItemDataRole.AccessibleTextRole) == "Honey Pots (Cups)"
+
+
+def test_a_suit_under_its_own_name_has_no_canonical_aside(full_deck):
+    model = CardModel(full_deck)
+    headings = [
+        model.index(row, 0)
+        for row in range(model.rowCount())
+        if model.index(row, 0).data(KindRole) == KIND_HEADING
+    ]
+
+    assert [heading.data(CanonicalRole) for heading in headings] == [None] * 5
+    assert headings[2].data(Qt.ItemDataRole.AccessibleTextRole) == "Cups"
 
 
 def test_the_card_rows_are_every_row_but_the_headings(full_deck):

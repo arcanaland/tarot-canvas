@@ -33,7 +33,7 @@ from tarot_canvas.ui.widgets.pane_text import pane_form, pane_text
 
 
 class DeckDetailsPane(QWidget):
-    open_requested = pyqtSignal(object)  # the TarotDeck
+    open_requested = pyqtSignal(object)  # the Deck
     download_requested = pyqtSignal(object)  # the CatalogEntry
     cancel_requested = pyqtSignal(str)  # the entry's slug
 

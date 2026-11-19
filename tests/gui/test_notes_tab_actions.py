@@ -14,7 +14,7 @@ from PyQt6.QtWidgets import (
     QStyleOptionViewItem,
 )
 
-from tarot_canvas.models.deck import TarotDeck
+from tarot_canvas.models.arcana_backend import load_deck
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tests.conftest import MINIMAL_DECK_PATH
@@ -31,7 +31,7 @@ def no_dialogs(monkeypatch):
 
 
 def cards():
-    deck = TarotDeck(str(MINIMAL_DECK_PATH))
+    deck = load_deck(str(MINIMAL_DECK_PATH))
     return deck, [c for c in deck.cards if c.default_image()]
 
 

@@ -11,7 +11,7 @@ from tarot_canvas.models.reference_deck import ReferenceDeck
 def write_deck(root, directory, name=None, identifier=None):
     path = root / directory
     path.mkdir(parents=True)
-    toml = f'[deck]\nname = "{name or directory}"\nversion = "1.0"\n'
+    toml = f'[deck]\nschema_version = "2.0"\nname = "{name or directory}"\nversion = "1.0"\n'
     if identifier is not None:
         toml += f'identifier = "{identifier}"\n'
     (path / "deck.toml").write_text(toml)

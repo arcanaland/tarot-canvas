@@ -4,7 +4,7 @@ import logging
 import os
 from collections import defaultdict
 
-from tarot_canvas.models.deck import TarotDeck
+from tarot_canvas.models.arcana_backend import load_deck
 from tarot_canvas.models.deck_events import deck_events
 from tarot_canvas.models.reference_deck import ReferenceDeck
 from tarot_canvas.utils.path_helper import get_decks_directory
@@ -38,11 +38,11 @@ class DeckLibrary:
         return self._reference
 
     def load(self, path):
-        """The deck at path, built on first use. Raises what TarotDeck raises."""
+        """The deck at path, built on first use. Raises what load_deck raises."""
         key = self.path_key(path)
         deck = self._loaded.get(key)
         if deck is None:
-            deck = TarotDeck(path)
+            deck = load_deck(path)
             self._loaded[key] = deck
         return deck
 

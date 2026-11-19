@@ -1,4 +1,4 @@
-from tarot_canvas.models.deck import TarotDeck
+from tarot_canvas.models.arcana_backend import load_deck
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tests.conftest import MINIMAL_DECK_PATH
 
@@ -11,7 +11,7 @@ def open_card_view(qtbot, deck):
 
 
 def test_opening_a_card_view_writes_nothing_to_the_notes_store(qtbot, notes_base):
-    deck = TarotDeck(str(MINIMAL_DECK_PATH))
+    deck = load_deck(str(MINIMAL_DECK_PATH))
 
     open_card_view(qtbot, deck)
 
@@ -19,7 +19,7 @@ def test_opening_a_card_view_writes_nothing_to_the_notes_store(qtbot, notes_base
 
 
 def test_a_card_with_notes_lists_them_without_touching_other_cards(qtbot, notes_base):
-    deck = TarotDeck(str(MINIMAL_DECK_PATH))
+    deck = load_deck(str(MINIMAL_DECK_PATH))
     card = next(c for c in deck.cards if c.default_image())
 
     card_dir = notes_base / card.canonical_id
