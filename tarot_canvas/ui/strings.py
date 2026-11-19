@@ -60,7 +60,7 @@ COMMANDS = {
     # Library
     "library_toggle_details": "Toggle Deck Details",
     "library_view_n": "Switch to Page {n}",
-    "canvas_background": "Canvas Background",
+    "canvas_background": "Set Background",
 }
 
 # The Preferences dialog
