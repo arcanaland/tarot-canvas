@@ -1,4 +1,4 @@
-"""Which Library items the user has pinned, hidden or turned off (stored in library.toml)"""
+"""Which Library items the user has pinned, hidden, turned off or created (stored in library.toml)"""
 
 import logging
 import os
@@ -19,10 +19,12 @@ CURATION_SUBPATH = "tarot-canvas/library.toml"
 SPREADS = "spreads"
 READINGS = "readings"
 ESOTERICA = "esoterica"
+DECKS = "decks"
 
 PINNED = "pinned"
 HIDDEN = "hidden"
 DISABLED = "disabled"
+CREATED = "created"
 
 INCLUDED_PREFIX = "included/"
 
@@ -202,6 +204,27 @@ def forget_reading(path):
     """A reading deleted through the app takes its pin with it"""
     if update(READINGS, remove=[(PINNED, reading_key(path))]):
         reading_events().readings_changed.emit()
+
+
+# -- decks ------------------------------------------------------------------------------
+
+
+def deck_key(path):
+    return Path(path).name
+
+
+def created_decks():
+    """The folder names of the decks this app created"""
+    return set(keys(DECKS, CREATED))
+
+
+def was_created_here(path):
+    """Whether the deck at path was created by this app; a listed folder that is gone is not"""
+    return Path(path).is_dir() and deck_key(path) in created_decks()
+
+
+def add_created_deck(path):
+    update(DECKS, add=[(CREATED, deck_key(path))])
 
 
 # -- esoterica ----------------------------------------------------------------------------
