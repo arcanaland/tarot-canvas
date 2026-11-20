@@ -399,15 +399,17 @@ DECK_VIEW = {
     "write_failed.required_field": "<clankertext>the field {detail} cannot be blank</clankertext>",
     "write_failed_os": "<clankertext>the deck could not be changed because of {error}</clankertext>",
     "create_failed": "<clankertext>the deck could not be created because of {error}</clankertext>",
-    "created_count": "<clankertext>{placed} of {expected} cards have images</clankertext>",
+    "add_minors_text": "This is a majors only deck.",
+    "add_minors": "Add minor arcana",
+    "created_count": "{placed} of {expected} cards",
 }
 
 # File > New Deck…
 NEW_DECK = {
     "title": "Create New Deck",
+    "explanation": "Build your own tarot deck from images on your computer.",
     "name": "Name",
-    "all_cards": "Full 78-card Deck",
-    "majors_only": "22 Majors Only",
+    "name_placeholder": "My Tarot Deck",
     "create": "Create",
 }
 

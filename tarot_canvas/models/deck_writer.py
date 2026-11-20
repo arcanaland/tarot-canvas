@@ -96,8 +96,8 @@ def mint_identifier(name):
     return f"{IDENTIFIER_PREFIX}{named}-{hex_part}" if named else f"{IDENTIFIER_PREFIX}{hex_part}"
 
 
-def create(name, majors_only, decks_root=None):
-    """Create an empty deck in decks_root"""
+def create(name, majors_only=True, decks_root=None):
+    """Create an empty deck in decks_root, majors only unless told otherwise"""
     if not name or not name.strip():
         raise DeckWriteError(DeckWriteReason.REQUIRED_FIELD, "name")
     decks_root = Path(decks_root if decks_root is not None else get_decks_directory()[0])
@@ -135,6 +135,26 @@ def _new_manifest(name, identifier, majors_only):
         excluded["cards"] = cards
         document["excluded_cards"] = excluded
     return tomlkit.dumps(document)
+
+
+def include_minors(deck):
+    """Take the 56 minors out of [excluded_cards], dropping the table once it is empty"""
+    deck = _checked(deck)
+    manifest = deck / DECK_TOML
+    document = tomlkit.parse(manifest.read_text(encoding="utf-8"))
+    excluded = document.get("excluded_cards")
+    if excluded is None:
+        return
+    minors = set(_MINORS)
+    kept = [card for card in excluded.get("cards", ()) if card not in minors]
+    if kept or len(excluded) > 1:
+        cards = tomlkit.array()
+        cards.extend(kept)
+        cards.multiline(True)
+        excluded["cards"] = cards
+    else:
+        del document["excluded_cards"]
+    write_atomically(manifest, tomlkit.dumps(document))
 
 
 # -- [deck] fields -------------------------------------------------------------------------

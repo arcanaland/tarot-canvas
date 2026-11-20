@@ -617,11 +617,11 @@ class MainWindow(QMainWindow):
         try:
             if dialog.exec() != QDialog.DialogCode.Accepted:
                 return None
-            name, majors_only = dialog.name().strip(), dialog.majors_only()
+            name = dialog.name().strip()
         finally:
             dialog.deleteLater()
         try:
-            path = deck_writer.create(name, majors_only)
+            path = deck_writer.create(name)
         except (OSError, deck_writer.DeckWriteError) as error:
             log.warning("Could not create a deck: %s", error)
             QMessageBox.warning(

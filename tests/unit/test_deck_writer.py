@@ -202,6 +202,43 @@ def test_a_majors_only_deck_loads_with_22_cards_and_every_suit_excluded(majors):
     assert "reason" not in manifest(majors)["excluded_cards"]
 
 
+def test_a_new_deck_is_majors_only_unless_told_otherwise(decks_root):
+    created = writer.create("Default", decks_root=decks_root)
+
+    assert len(arcana_tarot.load_deck(created).cards) == 22
+
+
+def test_including_the_minors_makes_a_majors_only_deck_whole(majors):
+    writer.include_minors(majors)
+
+    loaded = arcana_tarot.load_deck(majors)
+    assert len(loaded.cards) == 78
+    assert not any(suit.excluded for suit in loaded.suits)
+    assert "excluded_cards" not in manifest(majors)
+
+
+def test_including_the_minors_keeps_any_other_exclusion(majors):
+    path = majors / "deck.toml"
+    path.write_text(
+        path.read_text(encoding="utf-8").replace(
+            "cards = [", 'cards = [\n    "major_arcana.21",', 1
+        ),
+        encoding="utf-8",
+    )
+
+    writer.include_minors(majors)
+
+    assert manifest(majors)["excluded_cards"]["cards"] == ["major_arcana.21"]
+
+
+def test_including_the_minors_in_a_whole_deck_changes_nothing(deck):
+    before = (deck / "deck.toml").read_bytes()
+
+    writer.include_minors(deck)
+
+    assert (deck / "deck.toml").read_bytes() == before
+
+
 def test_a_majors_only_deck_reports_no_exclusion_reason(majors):
     from tarot_canvas.models.arcana_backend import load_deck
 
