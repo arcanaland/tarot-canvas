@@ -7,31 +7,23 @@ modules:
     buildsystem: simple
     build-commands:
       - pip3 install --verbose --exists-action=i --no-index --find-links="file://${PWD}"
-        --prefix=${FLATPAK_DEST} "arcana-tarot==0.5.0" --no-build-isolation
+        --prefix=${FLATPAK_DEST} "arcana-tarot" --no-build-isolation
     sources:
       - type: file
         url: https://files.pythonhosted.org/packages/33/ac/ec9ba9fd8a9274e12115a05028f9ab9e2e2cd2d27f40a3bff35fdd3cd155/arcana_tarot-0.5.0-cp312-abi3-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
         sha256: 706c8c2bf3bf5485a96b9fd461bc7fa4d1f6f5b63abc40ad4f25c3c1fbfe4f88
         only-arches:
           - x86_64
-        x-checker-data:
-          type: pypi
-          name: arcana-tarot
-          packagetype: bdist_wheel
       - type: file
         url: https://files.pythonhosted.org/packages/cf/e3/1a9c3140acca84e769e4532eccbbbfdb6c206449981f4ee11c1c2e0c2455/arcana_tarot-0.5.0-cp312-abi3-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl
         sha256: d72e39e615e4edb1d607ad8aaef29421063b1d108f25dd3326dbb0c9fe213cff
         only-arches:
           - aarch64
-        x-checker-data:
-          type: pypi
-          name: arcana-tarot
-          packagetype: bdist_wheel
   - name: python3-certifi
     buildsystem: simple
     build-commands:
       - pip3 install --verbose --exists-action=i --no-index --find-links="file://${PWD}"
-        --prefix=${FLATPAK_DEST} "certifi==2026.7.22" --no-build-isolation
+        --prefix=${FLATPAK_DEST} "certifi" --no-build-isolation
     sources:
       - &id001
         type: file
@@ -45,7 +37,7 @@ modules:
     buildsystem: simple
     build-commands:
       - pip3 install --verbose --exists-action=i --no-index --find-links="file://${PWD}"
-        --prefix=${FLATPAK_DEST} "charset-normalizer==3.4.9" --no-build-isolation
+        --prefix=${FLATPAK_DEST} "charset-normalizer" --no-build-isolation
     sources:
       - &id002
         type: file
@@ -59,7 +51,7 @@ modules:
     buildsystem: simple
     build-commands:
       - pip3 install --verbose --exists-action=i --no-index --find-links="file://${PWD}"
-        --prefix=${FLATPAK_DEST} "idna==3.18" --no-build-isolation
+        --prefix=${FLATPAK_DEST} "idna" --no-build-isolation
     sources:
       - &id003
         type: file
@@ -73,7 +65,7 @@ modules:
     buildsystem: simple
     build-commands:
       - pip3 install --verbose --exists-action=i --no-index --find-links="file://${PWD}"
-        --prefix=${FLATPAK_DEST} "requests==2.34.2" --no-build-isolation
+        --prefix=${FLATPAK_DEST} "requests" --no-build-isolation
     sources:
       - *id001
       - *id002
@@ -97,7 +89,7 @@ modules:
     buildsystem: simple
     build-commands:
       - pip3 install --verbose --exists-action=i --no-index --find-links="file://${PWD}"
-        --prefix=${FLATPAK_DEST} "tomli-w==1.2.0" --no-build-isolation
+        --prefix=${FLATPAK_DEST} "tomli-w" --no-build-isolation
     sources:
       - type: file
         url: https://files.pythonhosted.org/packages/c7/18/c86eb8e0202e32dd3df50d43d7ff9854f8e0603945ff398974c1d91ac1ef/tomli_w-1.2.0-py3-none-any.whl
@@ -110,7 +102,7 @@ modules:
     buildsystem: simple
     build-commands:
       - pip3 install --verbose --exists-action=i --no-index --find-links="file://${PWD}"
-        --prefix=${FLATPAK_DEST} "tomlkit==0.15.2" --no-build-isolation
+        --prefix=${FLATPAK_DEST} "tomlkit" --no-build-isolation
     sources:
       - type: file
         url: https://files.pythonhosted.org/packages/da/46/7d84138a60a8bd796825b2d38ebe92d0d16501ca57d501b7c5d677401bbc/tomlkit-0.15.2-py3-none-any.whl
@@ -123,14 +115,14 @@ modules:
     buildsystem: simple
     build-commands:
       - pip3 install --verbose --exists-action=i --no-index --find-links="file://${PWD}"
-        --prefix=${FLATPAK_DEST} "urllib3==2.7.0" --no-build-isolation
+        --prefix=${FLATPAK_DEST} "urllib3" --no-build-isolation
     sources:
       - *id004
   - name: python3-xdg-base-dirs
     buildsystem: simple
     build-commands:
       - pip3 install --verbose --exists-action=i --no-index --find-links="file://${PWD}"
-        --prefix=${FLATPAK_DEST} "xdg-base-dirs==6.0.2" --no-build-isolation
+        --prefix=${FLATPAK_DEST} "xdg-base-dirs" --no-build-isolation
     sources:
       - type: file
         url: https://files.pythonhosted.org/packages/fc/03/030b47fd46b60fc87af548e57ff59c2ca84b2a1dadbe721bb0ce33896b2e/xdg_base_dirs-6.0.2-py3-none-any.whl

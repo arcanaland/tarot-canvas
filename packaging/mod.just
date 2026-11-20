@@ -55,6 +55,27 @@ gen-modules:
     || { echo "gen-modules: poetry-core cleanup not added" >&2; exit 1; }
   mv python3-modules.yaml.tmp python3-modules.yaml
 
+  # Unpin the install lines, so a wheel the external data checker bumps still installs
+  sed -i -E 's/^( +--prefix=\$\{FLATPAK_DEST\} "[^"=]+)==[^"]*"/\1"/' python3-modules.yaml
+  if grep -nE '^ +--prefix=.*"[^"]*==' python3-modules.yaml >&2; then
+    echo "gen-modules: a pip3 install line is still pinned" >&2
+    exit 1
+  fi
+
+  # A dependency pinned to one version moves only with a release, which submit carries,
+  # so the checker must leave it alone
+  for dist in $(./pinned-deps.py ../pyproject.toml); do
+    awk -v module="python3-${dist}" '
+      /^  - name: / { inmod = ($3 == module) }
+      inmod && /^        x-checker-data:$/ { skip = 1; removed = 1; next }
+      skip && /^          / { next }
+      { skip = 0; print }
+      END { exit !removed }
+    ' python3-modules.yaml >python3-modules.yaml.tmp \
+      || { echo "gen-modules: no checker data removed from python3-${dist}" >&2; exit 1; }
+    mv python3-modules.yaml.tmp python3-modules.yaml
+  done
+
 [private]
 deps:
   #!/bin/bash
@@ -386,6 +407,30 @@ submit *FLAGS:
     echo "== manifest body updated from ${TAG}"
   fi
 
+  # A dependency the tag pins to one version moves only with a release, and the
+  # checker leaves it alone: take its module from the tag, as for the body
+  git -C "${REPO}" show "${TAG}:packaging/${MODULES}" >"${WORK}/tagged-modules.yaml"
+  git -C "${REPO}" show "${TAG}:pyproject.toml" >"${WORK}/pyproject.toml"
+  for dist in $(./pinned-deps.py "${WORK}/pyproject.toml"); do
+    ./module-deps.sh --blocks "${WORK}/tagged-modules.yaml" "${dist}" >"${WORK}/pinned-block"
+    module=$(sed -n 's/^  - name: //p' "${WORK}/pinned-block" | head -1)
+    # Not in the tag's modules (the BaseApp's PyQt), or not on Flathub yet: the
+    # missing-dependency check below handles the second
+    [ -n "${module}" ] || continue
+    awk -v module="${module}" -v block="${WORK}/pinned-block" '
+      /^  - name: / {
+        skip = ($3 == module)
+        if (skip && !done) { while ((getline line <block) > 0) print line; done = 1 }
+      }
+      !skip { print }
+    ' "${CHECKOUT}/${MODULES}" >"${WORK}/modules.yaml"
+    if ! cmp -s "${WORK}/modules.yaml" "${CHECKOUT}/${MODULES}"; then
+      cp "${WORK}/modules.yaml" "${CHECKOUT}/${MODULES}"
+      git -C "${CHECKOUT}" commit --quiet -m "Update ${module} from upstream ${TAG}" -- "${MODULES}"
+      echo "== ${module} updated from ${TAG}"
+    fi
+  done
+
   # A dry run reports a checker failure and goes on, so it still shows everything else
   if ! podman run --rm \
       -v "${CHECKOUT}:/run/host/repo:Z" \
@@ -403,7 +448,6 @@ submit *FLAGS:
 
   # The checker bumps only the modules Flathub already lists, so a new dependency
   # never arrives on its own.
-  git -C "${REPO}" show "${TAG}:packaging/${MODULES}" >"${WORK}/tagged-modules.yaml"
   flathub_deps=$(./module-deps.sh "${CHECKOUT}/${MODULES}")
   tagged_deps=$(./module-deps.sh "${WORK}/tagged-modules.yaml")
   extra=$(comm -23 <(printf '%s\n' "${flathub_deps}") <(printf '%s\n' "${tagged_deps}") | xargs)
@@ -415,6 +459,12 @@ submit *FLAGS:
     # shellcheck disable=SC2086
     ./module-deps.sh --blocks "${WORK}/tagged-modules.yaml" ${missing}
     die "port these modules into Flathub's ${MODULES} by hand, then submit again. Nothing was pushed."
+  fi
+
+  # A pinned install line can't install the wheel the checker just bumped
+  if grep -nE '^ +--prefix=.*"[^"]*==' "${CHECKOUT}/${MODULES}" >&2; then
+    die "Flathub's ${MODULES} pins the install lines above. Unpin them by hand
+     (gen-modules writes them unpinned), then submit again. Nothing was pushed."
   fi
 
   if [ -z "${DRY_RUN}" ]; then
