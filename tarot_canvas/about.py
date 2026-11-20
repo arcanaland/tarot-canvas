@@ -25,7 +25,8 @@ FALLBACK_LICENSE = "MIT"
 FALLBACK_URLS = {
     "homepage": "https://github.com/arcanaland/tarot-canvas",
     "bugtracker": "https://github.com/arcanaland/tarot-canvas/issues",
-    "faq": "https://github.com/arcanaland/tarot-canvas/blob/main/docs/FAQs.md",
+    "faq": "https://docs.arcana.land/tarot-canvas/faqs/",
+    "help": "https://docs.arcana.land/",
     "contribute": "https://github.com/arcanaland/tarot-canvas",
     "contact": "https://github.com/arcanaland/tarot-canvas/discussions",
 }

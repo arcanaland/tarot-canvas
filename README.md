@@ -10,7 +10,7 @@ A digital home for your personal tarot collection on Linux.
 
 - Explore tarot deck imagery, metadata and esoterica.</li>
 - Place and arrange tarot cards from any deck on a virtual canvas.</li>
-- Create and add your own decks by following a standard [tarot deck format](./docs/FAQs.md).
+- Create and add your own decks by following a standard [tarot deck format](https://docs.arcana.land/tarot-canvas/faqs/).
 
 
 ## Installation

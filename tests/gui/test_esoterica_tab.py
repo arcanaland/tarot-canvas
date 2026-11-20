@@ -1,5 +1,3 @@
-import re
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -180,25 +178,8 @@ def test_the_faq_token_becomes_a_link_to_the_esoterica_section(qtbot, stub_manag
     tab = make_tab(qtbot)
 
     url = esoterica_tab.esoterica_faq_url()
-    assert url.endswith("/docs/FAQs.md#" + esoterica_tab.ESOTERICA_FAQ_ANCHOR)
+    assert url.endswith("/tarot-canvas/faqs/#" + esoterica_tab.ESOTERICA_FAQ_ANCHOR)
     assert f'href="{url}"' in tab.placeholder.explanation.text()
-
-
-def github_slug(heading):
-    return re.sub(r"[^\w\- ]", "", heading.strip().lower()).replace(" ", "-")
-
-
-def test_the_faq_anchor_names_a_heading_in_the_faq():
-    """Renumbering or renaming the FAQ's esoterica section breaks the link"""
-    faq = Path(__file__).parents[2] / "docs" / "FAQs.md"
-    slugs, fenced = set(), False
-    for line in faq.read_text(encoding="utf-8").splitlines():
-        if line.startswith("```"):
-            fenced = not fenced
-        elif not fenced and (heading := re.match(r"#{1,6} (.*)", line)):
-            slugs.add(github_slug(heading[1]))
-
-    assert esoterica_tab.ESOTERICA_FAQ_ANCHOR in slugs
 
 
 def test_the_header_names_the_tab_as_the_empty_page_does(qtbot, stub_manager):

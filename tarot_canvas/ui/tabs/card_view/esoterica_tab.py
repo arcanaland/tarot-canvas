@@ -64,7 +64,7 @@ PLACEHOLDER_ICON = files("tarot_canvas.resources.icons").joinpath("esoterica.svg
 HEADER_ICON = PLACEHOLDER_ICON
 HEADER_ICON_SIZE = 22
 
-ESOTERICA_FAQ_ANCHOR = "3-how-do-i-add-my-own-esoterica"
+ESOTERICA_FAQ_ANCHOR = "how-do-i-add-my-own-keywords-for-cards"
 
 SHOW_MENU_ICON = "view-filter"
 
