@@ -33,9 +33,9 @@ grep -q "^      - type: archive\$" "${OUT}/${PROD_ID}.yml" || fail "source type 
 grep -qF "        path: ${NAME}" "${OUT}/${PROD_ID}.yml" || fail "source path not rewritten"
 
 # Only the source may differ from what upstream builds
-body() { sed '/^    sources:$/,$d' "$1"; }
-[ "$(grep -c '^    sources:$' "${OUT}/${PROD_ID}.yml")" = 1 ] || fail "expected one sources: block"
-diff <(body "${PROD_ID}.yml" | sed "s|^  - python3-modules\.yaml\$|  - ../python3-modules.yaml|") \
-  <(body "${OUT}/${PROD_ID}.yml") || fail "the body above sources: differs from ${PROD_ID}.yml"
+upstream_body=$(./manifest-body.sh "${PROD_ID}.yml") || fail "no body in ${PROD_ID}.yml"
+generated_body=$(./manifest-body.sh "${OUT}/${PROD_ID}.yml") || fail "no body in ${OUT}/${PROD_ID}.yml"
+diff <(printf '%s\n' "${upstream_body}" | sed "s|^  - python3-modules\.yaml\$|  - ../python3-modules.yaml|") \
+  <(printf '%s\n' "${generated_body}") || fail "the body above sources: differs from ${PROD_ID}.yml"
 
 echo "generated packaging/${OUT}/${PROD_ID}.yml from ${NAME}"
