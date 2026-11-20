@@ -359,10 +359,12 @@ def stub_deck_library(monkeypatch, minimal_deck):
         rescan=lambda: None,
         path_key=DeckLibrary.path_key,
         _loaded={DeckLibrary.path_key(minimal_deck.root_path): minimal_deck},
+        _scanned={},
     )
     # The real join and cache, run over whatever decks a test swaps in
     stub.decks_containing = partial(DeckLibrary.decks_containing, stub)
     stub.load = partial(DeckLibrary.load, stub)
+    stub.reload = partial(DeckLibrary.reload, stub)
     for module_path in DECK_LIBRARY_CONSUMERS:
         monkeypatch.setattr(f"{module_path}.deck_library", stub, raising=False)
     return stub

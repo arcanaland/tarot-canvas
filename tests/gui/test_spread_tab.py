@@ -721,10 +721,8 @@ def test_renaming_the_tab_sets_the_name(window, qtbot, monkeypatch):
 # -- ways in
 
 
-def test_new_spread_is_in_the_file_and_new_tab_menus_after_new_card_view(window):
-    file_menu = window.menuBar().actions()[0].menu()
-    actions = file_menu.actions()
-    assert actions[actions.index(window.new_card_view_action) + 1] is window.new_spread_action
+def test_new_spread_is_in_the_file_menu_and_after_new_card_view_in_the_new_tab_menu(window):
+    assert window.new_spread_action in window.menuBar().actions()[0].menu().actions()
 
     new_tab_menu = next(
         button.menu()

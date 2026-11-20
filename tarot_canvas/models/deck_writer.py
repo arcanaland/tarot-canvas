@@ -70,6 +70,15 @@ class DeckWriteError(Exception):
         self.detail = detail
 
 
+def image_suffixes():
+    """Suffixes of the images place accepts"""
+    return {
+        "." + name
+        for name in (bytes(raw).decode().lower() for raw in QImageReader.supportedImageFormats())
+        if name not in _VECTOR
+    }
+
+
 # -- creating ------------------------------------------------------------------------------
 
 

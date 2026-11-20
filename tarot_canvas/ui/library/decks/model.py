@@ -43,6 +43,16 @@ def is_majors_only(deck):
     return bool(deck.cards_of_kind(CardKind.MAJOR)) and not deck.cards_of_kind(CardKind.MINOR)
 
 
+def back_image(deck):
+    """The classic back's image, or None"""
+    return deck.get_card_backs()[0].get("classic")
+
+
+def created_progress(deck):
+    """(placed, expected) for a created deck's cards, not its back"""
+    return sum(1 for card in deck.cards if card.default_image()), len(deck.cards)
+
+
 def deck_subtitle(deck, abbreviated=False):
     parts = [deck_author(deck)]
     if is_majors_only(deck):

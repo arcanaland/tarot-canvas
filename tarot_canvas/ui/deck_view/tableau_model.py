@@ -5,6 +5,7 @@ from tarot_canvas.models.card_search import Query
 from tarot_canvas.models.deck_types import CardKind
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.deck_view.card_model import (
+    KIND_BACK,
     KIND_CARD,
     CardRole,
     KindRole,
@@ -44,17 +45,23 @@ class TableauModel(QAbstractTableModel):
         super().__init__(parent)
         self._source = source
         self._find = Query("")
+        self._build()
+        source.modelAboutToBeReset.connect(self.beginResetModel)
+        source.modelReset.connect(self._rebuild)
+
+    # -- layout -------------------------------------------------------------
+
+    def _rebuild(self):
+        self._build()
+        self.endResetModel()
+
+    def _build(self):
         self._cells = {}  # (row, column) -> (kind, text, source row or None)
         self._row_kinds = []
         self._to_source = {}
         self._from_source = {}
-        self._columns = column_count(source.deck)
-        self._build()
-
-    # -- layout -------------------------------------------------------------
-
-    def _build(self):
         deck = self._source.deck
+        self._columns = column_count(deck)
         rows = self._source.card_rows()
         cards = {row: self._source.index(row, 0).data(CardRole) for row in rows}
 
@@ -67,8 +74,13 @@ class TableauModel(QAbstractTableModel):
             self._row_kinds.append(ROW_GAP)
             self._build_minors(deck, suits, minors, cards)
 
+        back = self._source.back_row()
+        if back is not None:
+            # The Fool's row, far left
+            self._cells[(0, (self._columns - MAJOR_COLUMNS) // 2)] = (KIND_BACK, "", back)
+
         for cell, (kind, _, source_row) in self._cells.items():
-            if kind == KIND_CARD:
+            if kind in (KIND_CARD, KIND_BACK):
                 self._to_source[cell] = source_row
                 self._from_source[source_row] = cell
 
@@ -208,7 +220,7 @@ class TableauModel(QAbstractTableModel):
             return None
         kind, text, source_row = cell
 
-        if kind == KIND_CARD:
+        if kind in (KIND_CARD, KIND_BACK):
             if role == DimmedRole:
                 return bool(self._find) and not self._source.matches(source_row, self._find)
             return self._source.index(source_row, 0).data(role)

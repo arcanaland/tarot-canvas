@@ -1,10 +1,27 @@
-from PyQt6.QtCore import QItemSelection, QItemSelectionModel, QModelIndex, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QIcon
+import logging
+from pathlib import Path
+
+from PyQt6.QtCore import (
+    QEvent,
+    QItemSelection,
+    QItemSelectionModel,
+    QModelIndex,
+    QObject,
+    QPersistentModelIndex,
+    Qt,
+    QTimer,
+    pyqtSignal,
+)
+from PyQt6.QtGui import QAction, QIcon
 from PyQt6.QtWidgets import (
+    QApplication,
     QButtonGroup,
+    QFileDialog,
     QFrame,
     QHBoxLayout,
     QMenu,
+    QMessageBox,
+    QProgressBar,
     QScrollArea,
     QSizePolicy,
     QStackedWidget,
@@ -13,7 +30,9 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from tarot_canvas.models import deck_writer, library_curation
 from tarot_canvas.models.deck_library import deck_library
+from tarot_canvas.models.deck_writer import DeckWriteError
 from tarot_canvas.settings import (
     DECK_VIEW_DENSITY_DEFAULT,
     DECK_VIEW_DENSITY_KEY,
@@ -28,10 +47,20 @@ from tarot_canvas.ui import units
 from tarot_canvas.ui.activate_on_return import activate_on_return
 from tarot_canvas.ui.card_transfer import copy_cards_to_clipboard
 from tarot_canvas.ui.deck_view.card_delegate import CardDelegate
-from tarot_canvas.ui.deck_view.card_model import CardFilter, CardModel, CardRole
+from tarot_canvas.ui.deck_view.card_model import (
+    KIND_BACK,
+    KIND_CARD,
+    BackPathRole,
+    CardFilter,
+    CardModel,
+    CardRole,
+    KindRole,
+)
+from tarot_canvas.ui.deck_view.deck_editor import DeckEditor
 from tarot_canvas.ui.deck_view.sections_view import SectionsView
 from tarot_canvas.ui.deck_view.tableau_model import TableauModel
 from tarot_canvas.ui.deck_view.tableau_view import TableauView
+from tarot_canvas.ui.deck_view.unsorted_strip import UnsortedStrip, local_files
 from tarot_canvas.ui.icons import deck_icon
 from tarot_canvas.ui.library.decks import header as deck_header
 from tarot_canvas.ui.library.decks.header import DeckHeader
@@ -39,6 +68,8 @@ from tarot_canvas.ui.strings import DECK_VIEW
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.ui.widgets.search_field import search_field
 from tarot_canvas.ui.widgets.zoom_slider import ZoomSlider
+
+log = logging.getLogger(__name__)
 
 SECTION_MARGIN = deck_header.EDGE_MARGIN
 
@@ -58,6 +89,9 @@ class DeckViewTab(BaseTab):
         self.deck_path = deck_path
         self.deck = None
         self.mode = None
+        self.editable = False
+        self.editor = None
+        self.unsorted = None
         self.settings = get_settings()
         self.setup_ui()
 
@@ -66,6 +100,7 @@ class DeckViewTab(BaseTab):
 
     def load_deck(self, deck_path):
         self.deck = deck_library.load(deck_path)
+        self.editable = library_curation.was_created_here(self.deck.root_path)
 
         self.tab_label_changed.emit()
 
@@ -82,7 +117,8 @@ class DeckViewTab(BaseTab):
         main_layout.setContentsMargins(0, 0, 0, 0)
 
         # Deck-level header at the top of the page
-        self.header = DeckHeader(self.deck, parent=content)
+        self.content_layout = main_layout
+        self.header = DeckHeader(self.deck, parent=content, created=self.editable)
         main_layout.addWidget(self.header)
 
         # The grid's own spacing makes up the rest of the margin, so headings line up
@@ -101,6 +137,15 @@ class DeckViewTab(BaseTab):
         inset = SECTION_MARGIN - self.grid.spacing()
         grid_row.setContentsMargins(inset, 0, inset, SECTION_MARGIN)
         grid_row.addWidget(self.views)
+        if self.editable:
+            self.unsorted = UnsortedStrip(self.deck.root_path, self.delegate.cover_size())
+            self.unsorted.files_dropped.connect(self.send_to_unsorted)
+            self.unsorted.discard_requested.connect(self.discard_unsorted)
+            self.unsorted.view.selectionModel().currentChanged.connect(self.edit_state_changed)
+            unsorted_row = QHBoxLayout()
+            unsorted_row.setContentsMargins(self.grid.spacing(), 0, self.grid.spacing(), 0)
+            unsorted_row.addWidget(self.unsorted)
+            grid_row.addLayout(unsorted_row)
         main_layout.addLayout(grid_row)
         main_layout.addStretch()
 
@@ -120,6 +165,14 @@ class DeckViewTab(BaseTab):
             self.settings.value(DECK_VIEW_MODE_KEY, DECK_VIEW_MODE_DEFAULT, type=str)
         )
 
+        if self.editable:
+            self.editor = DeckEditor(self.deck.root_path, self)
+            self.editor.progress.connect(self.on_write_progress)
+            self.editor.finished.connect(self.on_write_done)
+            self.editor.failed.connect(self.on_write_failed)
+            # Converges whatever an interrupted write left
+            self.editor.refresh()
+
     def _build_header(self):
         header = QWidget()
         row = QHBoxLayout(header)
@@ -132,6 +185,11 @@ class DeckViewTab(BaseTab):
         self.search_field = search_field(DECK_VIEW["find_card"])
         self.search_field.textChanged.connect(self.on_search_changed)
         row.addWidget(self.search_field, 1)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.hide()
+        row.addWidget(self.progress_bar)
 
         self.zoom_slider = ZoomSlider(
             units.DENSITIES, DECK_VIEW["cover_size"], DECK_VIEW_DENSITY_DEFAULT
@@ -176,13 +234,13 @@ class DeckViewTab(BaseTab):
         return bar
 
     def _build_grid(self):
-        self.model = CardModel(self.deck, self)
+        self.model = CardModel(self.deck, self, editable=self.editable)
         # The grid shows what Find leaves of the deck
         self.found = CardFilter(self)
         self.found.setSourceModel(self.model)
         grid = SectionsView()
         grid.setModel(self.found)
-        self.delegate = CardDelegate(grid, density=self.zoom_slider.key())
+        self.delegate = CardDelegate(grid, density=self.zoom_slider.key(), editable=self.editable)
         grid.setItemDelegate(self.delegate)
         self._connect_view(grid)
         return grid
@@ -203,6 +261,10 @@ class DeckViewTab(BaseTab):
         view.customContextMenuRequested.connect(self.on_context_menu)
         view.selectionModel().currentChanged.connect(self.on_current_changed)
         view.selectionModel().selectionChanged.connect(self.edit_state_changed)
+        if self.editable:
+            view.setAcceptDrops(True)
+            view.viewport().setAcceptDrops(True)
+            view.viewport().installEventFilter(_SlotDrops(view, self))
 
     @staticmethod
     def _page(view, centred=False):
@@ -274,15 +336,25 @@ class DeckViewTab(BaseTab):
         return sorted(rows)
 
     def selected_cards(self):
-        """The selected cards, in deck order"""
-        return [self.model.index(row, 0).data(CardRole) for row in self.selected_source_rows()]
+        """The selected cards, in deck order; not the back"""
+        cards = (self.model.index(row, 0).data(CardRole) for row in self.selected_source_rows())
+        return [card for card in cards if card is not None]
 
     def on_card_clicked(self, index):
+        if (
+            self.is_empty_slot(index)
+            and QApplication.keyboardModifiers() == Qt.KeyboardModifier.NoModifier
+        ):
+            self.choose_image(index)
+            return
         card = index.data(CardRole)
         if card and card.default_image():
             self.card_clicked.emit(card.default_image())
 
     def on_card_activated(self, index):
+        if self.is_empty_slot(index):
+            self.choose_image(index)
+            return
         card = index.data(CardRole)
         if card:
             self.card_action_requested.emit("double_click", card, self.deck)
@@ -326,17 +398,180 @@ class DeckViewTab(BaseTab):
         canvas_action.triggered.connect(self.new_canvas_from_selection)
         return menu
 
+    def slot_menu(self, index):
+        """Choose Image… on an empty slot; Replace… and Remove, then the card's, on a filled one"""
+        if self.is_empty_slot(index):
+            menu = QMenu(self)
+            choose = menu.addAction(QIcon.fromTheme("list-add"), DECK_VIEW["choose_image"])
+            choose.triggered.connect(lambda: self.choose_image(index))
+            return menu
+        slot = self.slot_id(index)
+        menu = self.card_menu(index) if index.data(CardRole) is not None else QMenu(self)
+        first = menu.actions()[0] if menu.actions() else None
+        replace = QAction(QIcon.fromTheme("document-open"), DECK_VIEW["replace_image"], menu)
+        replace.triggered.connect(lambda: self.choose_image(index))
+        remove = QAction(QIcon.fromTheme("edit-delete"), DECK_VIEW["remove_card"], menu)
+        remove.triggered.connect(lambda: self.editor.unplace(slot))
+        menu.insertActions(first, [replace, remove])
+        if first is not None:
+            menu.insertSeparator(first)
+        return menu
+
     def on_context_menu(self, pos):
         view = self.current_view()
         index = view.indexAt(pos)
-        if not index.isValid() or index.data(CardRole) is None:
+        if not self.is_slot(index):
+            return
+        if not self.editable and index.data(CardRole) is None:
             return
         selection = view.selectionModel()
         if not selection.isSelected(index):
             selection.setCurrentIndex(index, QItemSelectionModel.SelectionFlag.ClearAndSelect)
-        menu = self.card_menu(index)
+        menu = self.slot_menu(index) if self.editable else self.card_menu(index)
         menu.exec(view.viewport().mapToGlobal(pos))
         menu.deleteLater()
+
+    # -- filling a created deck -------------------------------------------
+
+    @staticmethod
+    def is_slot(index):
+        return index.isValid() and index.data(KindRole) in (KIND_CARD, KIND_BACK)
+
+    def is_empty_slot(self, index):
+        if not self.editable or not self.is_slot(index):
+            return False
+        if index.data(KindRole) == KIND_BACK:
+            return not index.data(BackPathRole)
+        return not index.data(CardRole).default_image()
+
+    @staticmethod
+    def slot_id(index):
+        if index.data(KindRole) == KIND_BACK:
+            return deck_writer.BACK
+        return index.data(CardRole).canonical_id
+
+    def choose_image(self, index):
+        slot = self.slot_id(index)
+        suffixes = " ".join(f"*{suffix}" for suffix in sorted(deck_writer.image_suffixes()))
+        path, _filter = QFileDialog.getOpenFileName(
+            self, DECK_VIEW["chooser_title"], "", f"{DECK_VIEW['image_filter']} ({suffixes})"
+        )
+        if path:
+            self.editor.place(slot, path)
+
+    def drop_on_slot(self, index, files):
+        """One file fills the slot; more go to Unsorted"""
+        if len(files) == 1:
+            self.editor.place(self.slot_id(index), files[0])
+        else:
+            self.send_to_unsorted(files)
+
+    def unsorted_folder(self):
+        return (Path(self.deck.root_path) / deck_writer.UNSORTED).resolve()
+
+    def send_to_unsorted(self, files):
+        for path in files:
+            if Path(path).resolve().parent != self.unsorted_folder():
+                self.editor.place_unsorted(path)
+
+    def discard_unsorted(self, name):
+        answer = QMessageBox.question(
+            self,
+            DECK_VIEW["delete_unsorted_title"],
+            DECK_VIEW["delete_unsorted_text"].format(name=name),
+        )
+        if answer == QMessageBox.StandardButton.Yes:
+            self.editor.discard_unsorted(name)
+
+    def filled_selected_slots(self):
+        view = self.current_view()
+        indexes = [
+            view.model().mapToSource(index) for index in view.selectionModel().selectedIndexes()
+        ]
+        return [
+            self.slot_id(index)
+            for index in indexes
+            if self.is_slot(index) and not self.is_empty_slot(index)
+        ]
+
+    def unsorted_has_focus(self):
+        return self.unsorted is not None and self.unsorted.view.hasFocus()
+
+    def on_write_progress(self, done, total):
+        if total <= 0:
+            return
+        self.progress_bar.setRange(0, total)
+        self.progress_bar.setValue(done)
+        self.progress_bar.show()
+
+    def on_write_done(self):
+        if not self.editor.is_busy():
+            self.progress_bar.hide()
+        try:
+            deck = deck_library.reload(self.deck_path)
+        except Exception:
+            log.exception("Could not reload %s", self.deck_path)
+            return
+        self.set_deck(deck)
+
+    def on_write_failed(self, error):
+        log.warning("Could not change %s: %s", self.deck_path, error)
+        if isinstance(error, DeckWriteError):
+            text = DECK_VIEW[f"write_failed.{error.reason.name.lower()}"].format(
+                detail=error.detail
+            )
+        else:
+            text = DECK_VIEW["write_failed_os"].format(error=error)
+        self.on_write_done()
+        QMessageBox.warning(self, DECK_VIEW["write_failed_title"], text)
+
+    def set_deck(self, deck):
+        """Show deck, as reloaded, keeping the current card, the selection and the scroll"""
+        view = self.current_view()
+        current = view.model().mapToSource(view.currentIndex())
+        current_id = self.slot_id(current) if self.is_slot(current) else None
+        selected = {
+            self.slot_id(self.model.index(row, 0))
+            for row in self.selected_source_rows(view)
+            if self.is_slot(self.model.index(row, 0))
+        }
+        scrolled = self.scroll.verticalScrollBar().value()
+
+        self.deck = deck
+        self.model.set_deck(deck)
+
+        header = DeckHeader(deck, parent=self.header.parentWidget(), created=self.editable)
+        self.content_layout.replaceWidget(self.header, header)
+        self.header.deleteLater()
+        self.header = header
+
+        rows = {
+            self.slot_id(self.model.index(row, 0)): row
+            for row in range(self.model.rowCount())
+            if self.is_slot(self.model.index(row, 0))
+        }
+        selection = QItemSelection()
+        for slot in selected:
+            if slot in rows:
+                index = view.model().mapFromSource(self.model.index(rows[slot], 0))
+                selection.select(index, index)
+        selection_model = view.selectionModel()
+        if current_id in rows:
+            target = view.model().mapFromSource(self.model.index(rows[current_id], 0))
+            selection_model.setCurrentIndex(target, QItemSelectionModel.SelectionFlag.NoUpdate)
+        selection_model.select(selection, QItemSelectionModel.SelectionFlag.ClearAndSelect)
+
+        if self.unsorted is not None:
+            self.unsorted.reload()
+        self.tab_label_changed.emit()
+        self.edit_state_changed()
+        self._scrolled = scrolled
+        self._restore_scroll()
+        # Once the page is laid out again
+        QTimer.singleShot(0, self._restore_scroll)
+
+    def _restore_scroll(self):
+        self.scroll.verticalScrollBar().setValue(self._scrolled)
 
     def new_canvas_from_selection(self):
         cards = self.selected_cards()
@@ -348,6 +583,8 @@ class DeckViewTab(BaseTab):
         if self.delegate.set_density(density):
             self.grid.doItemsLayout()
             self.tableau.update_sections()
+            if self.unsorted is not None:
+                self.unsorted.set_cover_size(self.delegate.cover_size())
         self.zoom_state_changed()
 
     # -- find ---------------------------------------------------------------
@@ -375,7 +612,24 @@ class DeckViewTab(BaseTab):
     # -- edit ---------------------------------------------------------------
 
     def can_copy_card(self):
-        return self.deck is not None and self.current_view().selectionModel().hasSelection()
+        return self.deck is not None and bool(self.selected_cards())
+
+    def can_delete(self):
+        if not self.editable:
+            return False
+        if self.unsorted_has_focus():
+            return self.unsorted.current_name() is not None
+        return bool(self.filled_selected_slots())
+
+    def delete(self):
+        """The selected cards go to Unsorted; with Unsorted focused, its image is deleted"""
+        if not self.can_delete():
+            return
+        if self.unsorted_has_focus():
+            self.discard_unsorted(self.unsorted.current_name())
+            return
+        for slot in self.filled_selected_slots():
+            self.editor.unplace(slot)
 
     def copy_card(self):
         cards = self.selected_cards()
@@ -387,3 +641,59 @@ class DeckViewTab(BaseTab):
 
     def tab_icon(self):
         return deck_icon()
+
+
+class _SlotDrops(QObject):
+    """Local files dropped on a view of a created deck: onto a slot, or anywhere else to Unsorted"""
+
+    def __init__(self, view, tab):
+        super().__init__(view)
+        self._view = view
+        self._tab = tab
+
+    def _target(self, event):
+        """(accepted, the slot's index or None)"""
+        if not local_files(event.mimeData()):
+            return False, None
+        index = self._view.indexAt(event.position().toPoint())
+        if self._tab.is_slot(index):
+            return True, index
+        if index.isValid() and index.data(KindRole) is not None:
+            # A heading, label, note or ghost
+            return False, None
+        return bool(self._tab.unsorted.arriving(event.mimeData())), None
+
+    def _highlight(self, index):
+        delegate = self._tab.delegate
+        target = QPersistentModelIndex(index) if index is not None else None
+        if delegate.drop_target != target:
+            delegate.drop_target = target
+            self._view.viewport().update()
+
+    def eventFilter(self, watched, event):
+        kind = event.type()
+        if kind in (QEvent.Type.DragEnter, QEvent.Type.DragMove):
+            accepted, index = self._target(event)
+            self._highlight(index)
+            if accepted:
+                event.acceptProposedAction()
+            else:
+                event.ignore()
+            return True
+        if kind == QEvent.Type.DragLeave:
+            self._highlight(None)
+            return True
+        if kind == QEvent.Type.Drop:
+            accepted, index = self._target(event)
+            self._highlight(None)
+            if not accepted:
+                event.ignore()
+                return True
+            event.acceptProposedAction()
+            files = local_files(event.mimeData())
+            if index is not None:
+                self._tab.drop_on_slot(index, files)
+            else:
+                self._tab.send_to_unsorted(files)
+            return True
+        return False

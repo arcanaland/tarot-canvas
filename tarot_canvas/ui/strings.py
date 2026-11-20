@@ -5,6 +5,7 @@ COMMANDS = {
     # File
     "new_canvas": "New &Canvas",
     "new_spread": "New Spread",
+    "new_deck": "New Deck…",
     "new_library": "New &Library View",
     "new_card_view": "New C&ard View",
     "open_deck": "&Open Deck…",
@@ -379,6 +380,35 @@ DECK_VIEW = {
     "field.tags": "Tags",
     "field.version": "Version",
     "field.schema_version": "Schema version",
+    "back": "Card Back",
+    "choose_image": "Add Image",
+    "replace_image": "Replace Image",
+    "remove_card": "Unassign Card",
+    "chooser_title": "<clankertext>title of the file dialog picking a card's image</clankertext>",
+    "image_filter": "<clankertext>file dialog filter name for images</clankertext>",
+    "unsorted": "Unsorted",
+    "unsorted_empty": "No images yet.",
+    "delete_unsorted": "<clankertext>menu item: delete this unsorted image</clankertext>",
+    "delete_unsorted_title": "<clankertext>title of the question before deleting an unsorted image</clankertext>",
+    "delete_unsorted_text": "<clankertext>asks whether to delete the unsorted image {name} for good</clankertext>",
+    "write_failed_title": "<clankertext>title of the box saying a change to the deck failed</clankertext>",
+    "write_failed.unreadable_image": "<clankertext>the file {detail} is not an image that can be read</clankertext>",
+    "write_failed.not_in_deck": "<clankertext>the card {detail} is left out of this deck</clankertext>",
+    "write_failed.unknown_card": "<clankertext>{detail} is not a card</clankertext>",
+    "write_failed.not_created_here": "<clankertext>this deck was not created in this app</clankertext>",
+    "write_failed.required_field": "<clankertext>the field {detail} cannot be blank</clankertext>",
+    "write_failed_os": "<clankertext>the deck could not be changed because of {error}</clankertext>",
+    "create_failed": "<clankertext>the deck could not be created because of {error}</clankertext>",
+    "created_count": "<clankertext>{placed} of {expected} cards have images</clankertext>",
+}
+
+# File > New Deck…
+NEW_DECK = {
+    "title": "Create New Deck",
+    "name": "Name",
+    "all_cards": "Full 78-card Deck",
+    "majors_only": "22 Majors Only",
+    "create": "Create",
 }
 
 # The canvas
@@ -656,7 +686,6 @@ LIBRARY = {
     "sort_count": "Card count",
     "sort_recent": "Recently opened",
     "cover_size": "Cover size",
-    "open_deck": "Open Deck…",
     "hide_details": "Hide deck details",
     "show_details": "Show deck details",
     "empty_no_match": "No decks match your search.",

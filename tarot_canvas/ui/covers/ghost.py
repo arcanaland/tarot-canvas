@@ -21,7 +21,7 @@ EMBLEM_GLYPH_FRACTION = 0.6
 EMBLEM_PLATE_ALPHA = 220
 
 
-def paint_placeholder_well(painter, well, palette):
+def paint_placeholder_well(painter, well, palette, icon="image-missing"):
     """A well the same footprint as real art"""
     painter.save()
     ground = QColor(palette.text().color())
@@ -30,7 +30,7 @@ def paint_placeholder_well(painter, well, palette):
     painter.setBrush(ground)
     painter.drawRoundedRect(well, units.COVER_RADIUS, units.COVER_RADIUS)
 
-    icon = QIcon.fromTheme("image-missing")
+    icon = QIcon.fromTheme(icon)
     if not icon.isNull():
         extent = max(16, round(min(well.width(), well.height()) * PLACEHOLDER_ICON_FRACTION))
         target = QRect(0, 0, extent, extent)

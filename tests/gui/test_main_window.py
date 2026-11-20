@@ -792,12 +792,27 @@ def test_opening_a_tab_takes_no_drill_down(qtbot):
     submenus = [action for action in actions if action.menu()]
     assert submenus == [window.new_reading_menu.menuAction()]
 
-    labels = [action.text() for action in actions if not action.isSeparator()]
-    assert labels[:4] == [
-        "New &Canvas",
-        "New &Library View",
-        "New C&ard View",
-        COMMANDS["new_spread"],
+
+def test_file_makes_then_opens_and_saves_then_handles_tabs(qtbot):
+    window = MainWindow()
+    qtbot.addWidget(window)
+    blocks = [[]]
+    for action in file_menu(window).actions():
+        if action.isSeparator():
+            blocks.append([])
+        else:
+            blocks[-1].append(action.text())
+
+    assert blocks == [
+        [
+            COMMANDS["new_canvas"],
+            MAIN_WINDOW["new_reading_from_spread"],
+            COMMANDS["new_spread"],
+            COMMANDS["new_deck"],
+        ],
+        [COMMANDS["open_deck"], window.save_action.text()],
+        [COMMANDS["new_library"], COMMANDS["new_card_view"], COMMANDS["close_tab"]],
+        [COMMANDS["quit"]],
     ]
 
 

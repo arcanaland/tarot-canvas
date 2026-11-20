@@ -137,13 +137,16 @@ def test_browse_opens_the_librarys_spreads_view(window):
     assert tab.current_view() == LIBRARY_VIEW_SPREADS
 
 
-def test_file_and_the_plus_menu_hold_it_after_new_spread(window):
+def test_file_holds_it_after_new_canvas_and_the_plus_menu_after_new_spread(window):
     file_menu = window.menuBar().actions()[0].menu()
     submenu = window.new_reading_menu.menuAction()
 
-    for menu in (file_menu, window.new_tab_menu):
+    for menu, before in (
+        (file_menu, window.new_canvas_action),
+        (window.new_tab_menu, window.new_spread_action),
+    ):
         actions = menu.actions()
-        assert actions[actions.index(window.new_spread_action) + 1] is submenu
+        assert actions[actions.index(before) + 1] is submenu
     assert submenu.text() == MAIN_WINDOW["new_reading_from_spread"]
 
 

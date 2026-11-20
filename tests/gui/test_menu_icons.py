@@ -208,6 +208,8 @@ def test_a_deck_has_one_icon_and_it_is_not_a_neighbours(qtbot, full_deck):
     tab = window.new_deck_view_tab(deck_path=full_deck.root_path)
     assert drawn(tab.tab_icon()) == expected
     assert drawn(sidebar_row(library_of(window), LIBRARY_VIEW_DECKS).icon()) == expected
+    assert drawn(window.new_deck_action.icon()) == expected
+    assert drawn(library_of(window).new_deck_button.icon()) == expected
     assert expected != drawn(QIcon.fromTheme(SPREAD_ICON))
     assert expected != drawn(QIcon.fromTheme(LIBRARY_ICON))
 

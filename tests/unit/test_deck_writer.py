@@ -217,6 +217,33 @@ def test_a_created_deck_is_in_the_library_after_a_rescan(deck, decks_root, monke
     assert library.decks()[0].find_card(FOOL).images == ()
 
 
+def test_reload_reads_a_placed_card_and_says_the_decks_changed(
+    deck, decks_root, images, monkeypatch
+):
+    from tarot_canvas.models.deck_events import deck_events
+
+    monkeypatch.setattr(deck_library_module, "get_decks_directory", lambda: [decks_root])
+    monkeypatch.setattr(ReferenceDeck, "is_reference_deck_present", staticmethod(lambda: False))
+    library = DeckLibrary()
+    writer.place(deck, FOOL, save(images, "fool.png", 60, 100))
+    changes = []
+    deck_events().decks_changed.connect(lambda: changes.append(1))
+
+    reloaded = library.reload(deck)
+
+    assert reloaded.find_card(FOOL).default_image()
+    assert library.load(deck) is reloaded
+    assert library.decks() == (reloaded,)
+    assert changes == [1]
+
+
+def test_image_suffixes_take_rasters_and_leave_out_vectors():
+    suffixes = writer.image_suffixes()
+
+    assert ".png" in suffixes
+    assert ".svg" not in suffixes
+
+
 # -- set_fields ----------------------------------------------------------------------------
 
 

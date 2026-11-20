@@ -20,7 +20,7 @@ from tarot_canvas.settings import (
 )
 from tarot_canvas.ui import typography, units
 from tarot_canvas.ui.covers.cache import CoverCache
-from tarot_canvas.ui.library.decks.model import deck_cover_path
+from tarot_canvas.ui.library.decks.model import created_progress, deck_cover_path
 from tarot_canvas.ui.strings import DECK_VIEW, license_name
 from tarot_canvas.ui.widgets.cover_banner import (
     BANNER_PADDING,
@@ -139,9 +139,10 @@ def buy_link(metadata):
 
 
 class DeckHeader(QWidget):
-    def __init__(self, deck, parent=None, cover_cache=None, settings=None):
+    def __init__(self, deck, parent=None, cover_cache=None, settings=None, created=False):
         super().__init__(parent)
         self.deck = deck
+        self.created = created
         self._cover_cache = cover_cache or CoverCache(capacity=8)
         self._settings = settings if settings is not None else get_settings()
         self._banner = CoverBanner()
@@ -303,7 +304,11 @@ class DeckHeader(QWidget):
         author = self.deck.metadata.artist
         if author:
             parts.append(author)
-        parts.append(DECK_VIEW["card_count"].format(count=len(self.deck.cards)))
+        if self.created:
+            placed, expected = created_progress(self.deck)
+            parts.append(DECK_VIEW["created_count"].format(placed=placed, expected=expected))
+        else:
+            parts.append(DECK_VIEW["card_count"].format(count=len(self.deck.cards)))
         return " · ".join(parts)
 
     def details_label_measure(self):
