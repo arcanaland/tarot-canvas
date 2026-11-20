@@ -61,7 +61,8 @@ from tarot_canvas.ui.deck_view.minors_offer import MinorsOffer
 from tarot_canvas.ui.deck_view.sections_view import SectionsView
 from tarot_canvas.ui.deck_view.tableau_model import TableauModel
 from tarot_canvas.ui.deck_view.tableau_view import TableauView
-from tarot_canvas.ui.deck_view.unsorted_strip import UnsortedStrip, local_files
+from tarot_canvas.ui.deck_view.unsorted_strip import UnsortedStrip
+from tarot_canvas.ui.dropped_files import dropped_files, offered_files
 from tarot_canvas.ui.icons import deck_icon
 from tarot_canvas.ui.library.decks import header as deck_header
 from tarot_canvas.ui.library.decks.header import DeckHeader
@@ -670,7 +671,7 @@ class _SlotDrops(QObject):
 
     def _target(self, event):
         """(accepted, the slot's index or None)"""
-        if not local_files(event.mimeData()):
+        if not offered_files(event.mimeData()):
             return False, None
         index = self._view.indexAt(event.position().toPoint())
         if self._tab.is_slot(index):
@@ -707,7 +708,7 @@ class _SlotDrops(QObject):
                 event.ignore()
                 return True
             event.acceptProposedAction()
-            files = local_files(event.mimeData())
+            files = dropped_files(event.mimeData())
             if index is not None:
                 self._tab.drop_on_slot(index, files)
             else:

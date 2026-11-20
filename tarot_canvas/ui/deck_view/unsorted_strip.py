@@ -11,15 +11,10 @@ from tarot_canvas.models.deck_writer import UNSORTED
 from tarot_canvas.ui import typography, units
 from tarot_canvas.ui.covers.cache import CoverCache
 from tarot_canvas.ui.deck_view.sections_view import SectionsView
+from tarot_canvas.ui.dropped_files import dropped_files, offered_files
 from tarot_canvas.ui.strings import DECK_VIEW
 
 PathRole = Qt.ItemDataRole.UserRole + 1
-
-
-def local_files(mime):
-    if not mime.hasUrls():
-        return []
-    return [url.toLocalFile() for url in mime.urls() if url.isLocalFile()]
 
 
 class _UnsortedModel(QStandardItemModel):
@@ -142,9 +137,12 @@ class UnsortedStrip(QWidget):
     # -- files arriving -----------------------------------------------------
 
     def arriving(self, mime):
-        """The dropped files that aren't already here"""
+        """The files a drag offers that aren't already here"""
+        return self._not_here(offered_files(mime))
+
+    def _not_here(self, paths):
         folder = self.folder.resolve()
-        return [path for path in local_files(mime) if Path(path).resolve().parent != folder]
+        return [path for path in paths if Path(path).resolve().parent != folder]
 
     def dragEnterEvent(self, event):
         if self.arriving(event.mimeData()):
@@ -156,9 +154,10 @@ class UnsortedStrip(QWidget):
         self.dragEnterEvent(event)
 
     def dropEvent(self, event):
-        files = self.arriving(event.mimeData())
-        if not files:
+        if not self.arriving(event.mimeData()):
             event.ignore()
             return
         event.acceptProposedAction()
-        self.files_dropped.emit(files)
+        files = self._not_here(dropped_files(event.mimeData()))
+        if files:
+            self.files_dropped.emit(files)
