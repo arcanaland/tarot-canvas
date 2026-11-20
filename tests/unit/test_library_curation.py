@@ -217,3 +217,44 @@ def test_turning_every_source_back_on_retires_the_qsettings_list(curation_file):
 
     assert curation.esoterica_disabled() == []
     assert not get_settings().contains(LEGACY)
+
+
+def test_a_created_deck_is_its_folder_name_under_decks(curation_file, tmp_path):
+    folder = tmp_path / "decks" / "my-tarot-0a1b2c3d"
+    folder.mkdir(parents=True)
+
+    curation.add_created_deck(folder)
+
+    assert stored(curation_file) == {"decks": {"created": ["my-tarot-0a1b2c3d"]}}
+    assert curation.created_decks() == {"my-tarot-0a1b2c3d"}
+    assert curation.was_created_here(folder)
+
+
+def test_adding_a_created_deck_twice_lists_it_once(curation_file, tmp_path):
+    folder = tmp_path / "decks" / "twice"
+    folder.mkdir(parents=True)
+
+    curation.add_created_deck(folder)
+    before = curation_file.read_bytes()
+    curation.add_created_deck(folder)
+
+    assert curation_file.read_bytes() == before
+
+
+def test_a_created_deck_whose_folder_is_gone_was_not_created_here_and_stays_listed(
+    curation_file, tmp_path
+):
+    folder = tmp_path / "decks" / "gone"
+    folder.mkdir(parents=True)
+    curation.add_created_deck(folder)
+    folder.rmdir()
+
+    assert not curation.was_created_here(folder)
+    assert curation.created_decks() == {"gone"}
+
+
+def test_a_deck_never_added_was_not_created_here(curation_file, tmp_path):
+    folder = tmp_path / "decks" / "installed"
+    folder.mkdir(parents=True)
+
+    assert not curation.was_created_here(folder)
