@@ -197,7 +197,8 @@
   </branding>
   <url type="homepage">https://github.com/arcanaland/tarot-canvas</url>
   <url type="bugtracker">https://github.com/arcanaland/tarot-canvas/issues</url>
-  <url type="faq">https://github.com/arcanaland/tarot-canvas/blob/main/docs/FAQs.md</url>
+  <url type="faq">https://docs.arcana.land/tarot-canvas/faqs/</url>
+  <url type="help">https://docs.arcana.land/</url>
   <url type="contribute">https://github.com/arcanaland/tarot-canvas</url>
   <url type="contact">https://github.com/arcanaland/tarot-canvas/discussions</url>
   <recommends>
