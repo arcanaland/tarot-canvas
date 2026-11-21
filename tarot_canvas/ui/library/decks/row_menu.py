@@ -1,4 +1,4 @@
-"""An installed deck's menu, on its cover and behind its details pane's ⋮"""
+"""An installed deck's menu"""
 
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QMenu
@@ -9,7 +9,7 @@ from tarot_canvas.ui.strings import DECK_VIEW, LIBRARY, READINGS, SPREADS
 
 
 def deck_row_menu(parent, deck, page):
-    """A new menu for deck, whose actions are the page's"""
+    """A new menu for deck"""
     menu = QMenu(parent)
     fill_deck_menu(menu, deck, page)
     return menu

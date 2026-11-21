@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from PyQt6.QtCore import pyqtSlot
+from PyQt6.QtCore import pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import QVBoxLayout
 
 from tarot_canvas.ui import units
@@ -16,11 +16,11 @@ class DeletableListPage(LibraryListPage):
     The folder is moved aside until the next delete, the message's dismissal or quitting.
     """
 
-    def __init__(self, list_model, delegate_class, details_pane, parent, *, changed, texts):
+    folders_changed = pyqtSignal()  # a folder was moved aside or put back
+
+    def __init__(self, list_model, delegate_class, details_pane, parent, *, texts):
         super().__init__(list_model, delegate_class, details_pane, parent)
-        # What makes every view rescan, and the deleted, delete_failed and restore_failed
-        # messages
-        self._changed = changed
+        # The deleted, delete_failed and restore_failed messages
         self._texts = texts
 
         # Hidden, it takes no room, margins included
@@ -59,7 +59,7 @@ class DeletableListPage(LibraryListPage):
         """Take the folder out of every view now; remove it once Undo is gone. Whether it was"""
         staged = self.pending.delete(Path(path), text or self._texts["deleted"])
         if staged:
-            self._changed()
+            self.folders_changed.emit()
         return staged
 
     @pyqtSlot()
@@ -67,7 +67,7 @@ class DeletableListPage(LibraryListPage):
         self.pending.undo()
 
     def _on_restored(self, path):
-        self._changed()
+        self.folders_changed.emit()
         self.select(path)
 
     @pyqtSlot()

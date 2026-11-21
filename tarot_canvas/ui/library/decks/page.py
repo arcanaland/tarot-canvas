@@ -71,14 +71,14 @@ class DecksPage(DeletableListPage):
             DeckDelegate,
             DeckDetailsPane(),
             parent,
-            # The library has to forget or find the folder, and its rescan tells every view
-            changed=lambda: deck_library.rescan(),
             texts={
                 "deleted": LIBRARY["deck_removed"],
                 "delete_failed": LIBRARY["deck_remove_failed"],
                 "restore_failed": LIBRARY["deck_restore_failed"],
             },
         )
+        # The library forgets or finds the folder, and its rescan tells every view
+        self.folders_changed.connect(deck_library.rescan)
         self.settings = settings
         self.spread_menu = spread_menu
         self.decks_model = decks_model

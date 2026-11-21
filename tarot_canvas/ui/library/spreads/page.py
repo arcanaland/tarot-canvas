@@ -57,13 +57,13 @@ class SpreadsPage(DeletableListPage):
             SpreadRowDelegate,
             SpreadDetailsPane(),
             parent,
-            changed=spread_events().spreads_changed.emit,
             texts={
                 "deleted": SPREADS["deleted_message"],
                 "delete_failed": SPREADS["delete_failed"],
                 "restore_failed": SPREADS["restore_failed"],
             },
         )
+        self.folders_changed.connect(spread_events().spreads_changed)
         self._base = base  # tests point the index somewhere else
         self._programmatic = 0  # nesting depth of selection the user didn't make
         # The view's clicked follows the release on a row's button
