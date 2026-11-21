@@ -121,6 +121,7 @@ class HandmadeDeckHeader(HeaderFrame):
 
     fields_edited = pyqtSignal(dict)  # [deck] key: new text, "" to remove it
     add_images_requested = pyqtSignal()
+    export_requested = pyqtSignal()
     cards_chosen = pyqtSignal(bool)  # all 78, or majors only
 
     def __init__(self, deck, parent=None, cover_cache=None):
@@ -134,6 +135,7 @@ class HandmadeDeckHeader(HeaderFrame):
             self.cards.majors_radio,
             self.cards.all_radio,
             self.add_images_button,
+            self.export_button,
         ]
         for first, second in itertools.pairwise(order):
             QWidget.setTabOrder(first, second)
@@ -155,12 +157,14 @@ class HandmadeDeckHeader(HeaderFrame):
         title_row.addWidget(self.name_edit, 1, Qt.AlignmentFlag.AlignTop)
         title_row.addStretch()
 
-        # Export… joins it here
         self.actions = QHBoxLayout()
         self.actions.setSpacing(units.SMALL_SPACING)
         self.add_images_button = QPushButton(QIcon.fromTheme("list-add"), DECK_VIEW["add_images"])
         self.add_images_button.clicked.connect(self.add_images_requested)
         self.actions.addWidget(self.add_images_button, 0, Qt.AlignmentFlag.AlignTop)
+        self.export_button = QPushButton(QIcon.fromTheme("document-export"), DECK_VIEW["export"])
+        self.export_button.clicked.connect(self.export_requested)
+        self.actions.addWidget(self.export_button, 0, Qt.AlignmentFlag.AlignTop)
         title_row.addLayout(self.actions)
         title_row.setAlignment(self.actions, Qt.AlignmentFlag.AlignTop)
         column.addLayout(title_row)

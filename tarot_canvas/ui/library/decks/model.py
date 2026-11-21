@@ -46,6 +46,11 @@ def is_majors_only(deck):
     return bool(deck.cards_of_kind(CardKind.MAJOR)) and not deck.cards_of_kind(CardKind.MINOR)
 
 
+def empty_cards(deck):
+    """The deck's cards with no image, in deck order"""
+    return [card for card in deck.cards if not card.default_image()]
+
+
 def back_image(deck):
     """The classic back's image, or None"""
     return deck.get_card_backs()[0].get("classic")

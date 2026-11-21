@@ -13,7 +13,7 @@ class InlineMessage(QFrame):
 
     dismissed = pyqtSignal()
 
-    def __init__(self, close_text="", parent=None, warning=False):
+    def __init__(self, close_text="", parent=None, warning=False, closable=True):
         super().__init__(parent)
         self.warning = warning
         # Appearing must not pull focus from whatever the person was doing
@@ -31,6 +31,7 @@ class InlineMessage(QFrame):
         self.close_button.setToolTip(close_text)
         self.close_button.setAccessibleName(close_text)
         self.close_button.clicked.connect(self.dismiss)
+        self.close_button.setVisible(closable)
 
         self._layout = QHBoxLayout(self)
         margin = units.LARGE_SPACING

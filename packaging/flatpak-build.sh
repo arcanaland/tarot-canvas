@@ -22,3 +22,4 @@ pip3 install --no-index --no-build-isolation --prefix="${FLATPAK_DEST}" .
 install -Dm644 "${DESKTOP}" -t "${FLATPAK_DEST}/share/applications/"
 install -Dm644 "${ICON}" -t "${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/"
 install -Dm644 "${METAINFO}" -t "${FLATPAK_DEST}/share/metainfo/"
+install -Dm644 packaging/land.arcana.TarotCanvas.xml "${FLATPAK_DEST}/share/mime/packages/${FLATPAK_ID}.xml"

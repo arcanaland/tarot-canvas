@@ -693,3 +693,49 @@ def test_place_many_carries_on_past_a_failure_and_reports_it(deck, images):
     assert files(deck / writer.UNSORTED) == ["IMG_1.png"]
     assert files(deck / "h70") == ["major_arcana/00.png"]
     assert steps[0] == 0 and steps[-1] == 3
+
+
+def test_exported_files_are_the_decks_own_and_not_its_working_files(majors, images):
+    writer.place(majors, FOOL, save(images, "fool.png", 60, 100))
+    writer.place_unsorted(majors, save(images, "loose.png", 60, 100))
+    (majors / ".h500.partial").mkdir()
+    (majors / ".h500.partial" / "x.png").write_bytes(b"x")
+    (majors / ".hidden").write_text("x")
+    (majors / "LICENSE.txt").write_text("CC0")
+    (majors / "linked.txt").symlink_to(majors / "LICENSE.txt")
+
+    exported = writer.exported_files(majors)
+
+    assert [path.as_posix() for path in exported] == [
+        "LICENSE.txt",
+        "deck.toml",
+        "h100/major_arcana/00.png",
+    ]
+
+
+def test_excluding_cards_appends_them_once_in_canonical_order(majors, images):
+    writer.place(majors, FOOL, save(images, "fool.png", 60, 100))
+
+    writer.exclude_cards(majors, [PRIESTESS, MAGICIAN])
+    writer.exclude_cards(majors, [MAGICIAN])
+
+    listed = manifest(majors)["excluded_cards"]["cards"]
+    assert listed[:56] == [card for card in CANONICAL_CARD_IDS if card.startswith("minor_arcana.")]
+    assert listed[56:] == [MAGICIAN, PRIESTESS]
+    loaded = arcana_tarot.load_deck(majors)
+    assert len(loaded.cards) == 20
+    assert not [
+        diagnostic
+        for diagnostic in arcana_tarot.validate(loaded)
+        if diagnostic.level >= arcana_tarot.severity.warning
+    ]
+
+
+def test_excluding_a_card_with_an_image_is_refused(majors, images):
+    writer.place(majors, FOOL, save(images, "fool.png", 60, 100))
+
+    with pytest.raises(DeckWriteError) as caught:
+        writer.exclude_cards(majors, [MAGICIAN, FOOL])
+
+    assert caught.value.reason is DeckWriteReason.HAS_IMAGE
+    assert MAGICIAN not in manifest(majors)["excluded_cards"]["cards"]

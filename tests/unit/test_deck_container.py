@@ -10,6 +10,7 @@ from tarot_canvas.models.deck_container import (
     ContainerError,
     Limits,
     Reason,
+    pack_container,
     unpack_container,
 )
 
@@ -296,3 +297,54 @@ def test_nothing_is_written_when_a_header_breaks_a_rule(tmp_path, dest):
     container = conformant(tmp_path, extra=[("../escape.png", b"x")])
     rejects(container, dest, Reason.UNSAFE_NAME)
     assert list(dest.iterdir()) == []
+
+
+def staged_deck(tmp_path):
+    deck = tmp_path / "staged"
+    (deck / "h1200" / "major_arcana").mkdir(parents=True)
+    (deck / "deck.toml").write_bytes(DECK_TOML)
+    (deck / "h1200" / "major_arcana" / "00.png").write_bytes(b"\x89PNG fool")
+    (deck / "names").mkdir()
+    (deck / "names" / "Ünïcode.txt").write_text("names", encoding="utf-8")
+    return deck
+
+
+def test_a_packed_deck_starts_with_the_magic_and_a_stored_mimetype(tmp_path):
+    target = tmp_path / "out.tarotdeck"
+    pack_container(staged_deck(tmp_path), target)
+
+    data = target.read_bytes()
+    assert data[0:4] == b"PK\x03\x04"
+    assert data[30:38] == b"mimetype"
+    assert data[38 : 38 + len(MIME)] == MIME
+    with zipfile.ZipFile(target) as archive:
+        first = archive.infolist()[0]
+        assert first.filename == "mimetype"
+        assert first.compress_type == zipfile.ZIP_STORED
+        assert first.extra == b""
+        names = [info.filename for info in archive.infolist()[1:]]
+        assert names == sorted(names)
+        assert not any(name.endswith("/") for name in names)
+        types = {info.filename: info.compress_type for info in archive.infolist()}
+        assert types["deck.toml"] == zipfile.ZIP_DEFLATED
+        assert types["h1200/major_arcana/00.png"] == zipfile.ZIP_STORED
+
+
+def test_a_packed_deck_unpacks_byte_for_byte(tmp_path):
+    deck = staged_deck(tmp_path)
+    target = tmp_path / "out.tarotdeck"
+    pack_container(deck, target)
+    unpacked = tmp_path / "unpacked"
+    unpacked.mkdir()
+
+    unpack_container(target, unpacked)
+
+    def contents(root):
+        return {
+            path.relative_to(root).as_posix(): path.read_bytes()
+            for path in root.rglob("*")
+            if path.is_file()
+        }
+
+    assert contents(unpacked) == contents(deck)
+    assert "names/Ünïcode.txt" in contents(unpacked)

@@ -365,6 +365,7 @@ def stub_deck_library(monkeypatch, minimal_deck):
     stub.decks_containing = partial(DeckLibrary.decks_containing, stub)
     stub.load = partial(DeckLibrary.load, stub)
     stub.reload = partial(DeckLibrary.reload, stub)
+    stub.find_by_identifier = partial(DeckLibrary.find_by_identifier, stub)
     for module_path in DECK_LIBRARY_CONSUMERS:
         monkeypatch.setattr(f"{module_path}.deck_library", stub, raising=False)
     return stub
