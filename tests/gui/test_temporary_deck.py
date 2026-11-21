@@ -8,7 +8,7 @@ from tarot_canvas.models.deck_container import pack_container
 from tarot_canvas.models.deck_install import install_dir_name, install_local
 from tarot_canvas.ui import main_window as main_window_module
 from tarot_canvas.ui.main_window import MainWindow
-from tarot_canvas.ui.strings import DECK_VIEW
+from tarot_canvas.ui.strings import DECK_VIEW, DOWNLOAD
 from tarot_canvas.ui.tabs.deck_view_tab import DeckViewTab
 
 
@@ -97,7 +97,7 @@ def test_add_to_library_installs_and_takes_the_temporary_tabs_place(
     assert installed.origin is None and installed.banner is None
     assert [path.name for path in root.iterdir()] == [name]
     assert installed.deck_path == str(root / name)
-    assert toasts == [f"Installed {installed.tab_title()}"]
+    assert toasts == [DOWNLOAD["installed_toast"].format(name=installed.tab_title())]
 
 
 def test_a_deck_already_in_the_library_offers_its_copy(

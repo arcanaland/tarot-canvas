@@ -713,11 +713,12 @@ def test_exported_files_are_the_decks_own_and_not_its_working_files(majors, imag
     ]
 
 
-def test_excluding_cards_appends_them_once_in_canonical_order(majors, images):
+def test_listing_excluded_cards_appends_them_once_in_canonical_order(majors, images):
     writer.place(majors, FOOL, save(images, "fool.png", 60, 100))
+    path = majors / "deck.toml"
 
-    writer.exclude_cards(majors, [PRIESTESS, MAGICIAN])
-    writer.exclude_cards(majors, [MAGICIAN])
+    writer.list_excluded(path, [PRIESTESS, MAGICIAN])
+    writer.list_excluded(path, [MAGICIAN])
 
     listed = manifest(majors)["excluded_cards"]["cards"]
     assert listed[:56] == [card for card in CANONICAL_CARD_IDS if card.startswith("minor_arcana.")]
@@ -729,13 +730,3 @@ def test_excluding_cards_appends_them_once_in_canonical_order(majors, images):
         for diagnostic in arcana_tarot.validate(loaded)
         if diagnostic.level >= arcana_tarot.severity.warning
     ]
-
-
-def test_excluding_a_card_with_an_image_is_refused(majors, images):
-    writer.place(majors, FOOL, save(images, "fool.png", 60, 100))
-
-    with pytest.raises(DeckWriteError) as caught:
-        writer.exclude_cards(majors, [MAGICIAN, FOOL])
-
-    assert caught.value.reason is DeckWriteReason.HAS_IMAGE
-    assert MAGICIAN not in manifest(majors)["excluded_cards"]["cards"]

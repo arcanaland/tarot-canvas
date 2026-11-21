@@ -1,4 +1,4 @@
-"""Export…: the fields, empty cards left out, the gate, and Put back"""
+"""Export…: the fields, empty cards left out of the file, the gate, the working deck untouched"""
 
 import os
 import tomllib
@@ -9,9 +9,8 @@ from PyQt6.QtWidgets import QDialog
 
 from tarot_canvas.models import deck_writer as writer
 from tarot_canvas.models.card_ids import CANONICAL_CARD_IDS
-from tarot_canvas.models.deck_container import unpack_container
 from tarot_canvas.models.deck_validation import Finding, Level, LoadError, Verdict
-from tarot_canvas.ui.deck_view import exporter
+from tarot_canvas.ui.deck_view import deck_editor, exporter, write_queue
 from tarot_canvas.ui.deck_view.export_dialogs import ExportFieldsDialog, FindingsDialog
 from tarot_canvas.ui.strings import DECK_VIEW, LIBRARY
 from tests.gui.test_handmade_deck_view import picture, settled, shown
@@ -156,9 +155,6 @@ def test_a_changed_version_is_written_and_the_identifier_is_not(
         assert table["artist"] == "Someone"
         assert table["identifier"] == identifier
     assert not [name for name in names if name.startswith(("source/", "unsorted/"))]
-    unpacked = tmp_path / "unpacked"
-    unpacked.mkdir()
-    unpack_container(target, unpacked)
 
 
 def test_an_error_shows_the_findings_and_writes_no_file(qtbot, tmp_path, curation_file, dialogs):
@@ -187,6 +183,31 @@ def test_cancelling_the_save_dialog_writes_nothing(qtbot, tmp_path, curation_fil
     assert len(dialogs["suggested"]) == 1
     assert not any((tmp_path / "out").iterdir())
     assert list(staging_contents(tab)) == []
+
+
+def test_a_failed_write_before_staging_says_why_and_offers_no_save(
+    qtbot, tmp_path, curation_file, dialogs, monkeypatch
+):
+    deck = made(tmp_path, placed=MAJORS)
+    tab = settled(qtbot, shown(qtbot, deck))
+    before = (deck / "deck.toml").read_bytes()
+    warnings = []
+    monkeypatch.setattr(deck_editor.QMessageBox, "warning", lambda *args: warnings.append(args[2]))
+
+    def full(*_args, **_kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(write_queue.deck_writer, "set_fields", full)
+    dialogs["fields"] = {"version": "2.0.0"}
+
+    exported(qtbot, tab)
+
+    assert warnings == [DECK_VIEW["write_failed_os"].format(error="disk full")]
+    assert dialogs["suggested"] == []
+    assert not any(dialogs["save_as"].parent.iterdir())
+    assert list(staging_contents(tab)) == []
+    assert (deck / "deck.toml").read_bytes() == before
+    assert tab.header.export_button.isEnabled()
 
 
 def test_export_waits_for_queued_writes(qtbot, tmp_path, curation_file, dialogs):

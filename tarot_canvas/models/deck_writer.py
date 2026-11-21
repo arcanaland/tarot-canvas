@@ -61,7 +61,6 @@ class DeckWriteReason(enum.Enum):
     UNKNOWN_CARD = "not a card ID"
     NOT_HANDMADE = "not a deck made in this app"
     REQUIRED_FIELD = "a required field is blank"
-    HAS_IMAGE = "the card has an image"
 
 
 class DeckWriteError(Exception):
@@ -169,18 +168,7 @@ def exclude_minors(deck, progress=None):
     _remove_empty_folders(deck / SOURCE / "minor_arcana")
     for derived in _roots(deck):
         _remove_empty_folders(derived / "minor_arcana")
-    exclude_cards(deck, _MINORS, progress)
-
-
-def exclude_cards(deck, card_ids, progress=None):
-    """Add empty cards to [excluded_cards], after those it lists already"""
-    deck = _checked(deck)
-    for card_id in card_ids:
-        if card_id not in CANONICAL_CARD_IDS:
-            raise DeckWriteError(DeckWriteReason.UNKNOWN_CARD, repr(card_id))
-        if _has_image(deck, card_id):
-            raise DeckWriteError(DeckWriteReason.HAS_IMAGE, card_id)
-    list_excluded(deck / DECK_TOML, card_ids)
+    list_excluded(deck / DECK_TOML, _MINORS)
     _sync(deck, progress)
 
 
@@ -199,12 +187,6 @@ def list_excluded(manifest, card_ids):
     cards.multiline(True)
     excluded["cards"] = cards
     write_atomically(Path(manifest), tomlkit.dumps(document))
-
-
-def _has_image(deck, card_id):
-    return bool(_originals(deck, card_id)) or any(
-        _files_with_stem(root / _subpath(card_id)) for root in _roots(deck)
-    )
 
 
 def _remove_empty_folders(top):

@@ -7,6 +7,7 @@ from PyQt6.QtGui import QColor, QImage
 
 from tarot_canvas.models import deck_export
 from tarot_canvas.models import deck_writer as writer
+from tarot_canvas.models.card_ids import CANONICAL_CARD_IDS
 from tarot_canvas.models.deck_container import unpack_container
 from tarot_canvas.models.deck_validation import validate_deck
 
@@ -54,7 +55,8 @@ def test_only_the_staged_copy_lists_the_cards_left_out(deck, staging, tmp_path):
 
     with open(staged.deck / "deck.toml", "rb") as handle:
         listed = tomllib.load(handle)["excluded_cards"]["cards"]
-    assert listed[-2:] == ["major_arcana.01", "major_arcana.02"]
+    minors = [card for card in CANONICAL_CARD_IDS if card.startswith("minor_arcana.")]
+    assert listed == [*minors, "major_arcana.01", "major_arcana.02"]
     assert (deck / "deck.toml").read_text(encoding="utf-8") == working
 
 
