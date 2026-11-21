@@ -404,8 +404,6 @@ DECK_VIEW = {
     "write_failed.required_field": "Field '{detail}' cannot be empty",
     "write_failed_os": "The deck could not be saved: {error}",
     "create_failed": "Deck creation failed: {error}",
-    "add_minors_text": "This is a majors only deck.",
-    "add_minors": "Add minor arcana",
     "created_count": "{placed} of {expected} cards",
 }
 

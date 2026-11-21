@@ -47,7 +47,7 @@ class DeckLibrary:
         return deck
 
     def reload(self, path):
-        """The deck at path read again from disk, replacing the one held"""
+        """read a deck from disk again"""
         key = self.path_key(path)
         deck = load_deck(path)
         self._loaded[key] = deck

@@ -325,17 +325,14 @@ def _slot_folder(deck, card_id):
 
 
 def _originals(deck, card_id):
-    """card_id's files in source/: in its folder, or named for the slot itself as decks made
-    before 2026-11-20 kept them (they come back under that name, the only one they still have)"""
-    folder = _slot_folder(deck, card_id)
-    kept = []
+    """The files in card_id's folder in source/"""
     with contextlib.suppress(FileNotFoundError, NotADirectoryError):
-        kept = [
+        return [
             entry
-            for entry in folder.iterdir()
+            for entry in _slot_folder(deck, card_id).iterdir()
             if entry.is_file() and not entry.name.startswith(".")
         ]
-    return kept + _files_with_stem(folder)
+    return []
 
 
 def _files_with_stem(path):

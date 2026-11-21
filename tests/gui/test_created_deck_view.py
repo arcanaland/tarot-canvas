@@ -576,35 +576,7 @@ def test_new_deck_creates_a_deck_and_opens_its_view(qtbot, decks_root, monkeypat
     assert tab.deck.metadata.name == "My Deck"
     assert sum(1 for row in tab.model.card_rows()) == 22
     assert tab.model.back_row() is not None
-    assert not tab.minors_offer.isHidden()
     settled(qtbot, tab)
-
-
-# -- the minors ------------------------------------------------------------------
-
-
-def test_a_majors_only_deck_offers_the_minors_and_taking_them_lays_out_78(qtbot, tab, created):
-    assert tab.minors_offer.isVisible()
-
-    tab.minors_offer.button.click()
-    settled(qtbot, tab)
-
-    assert sum(1 for row in tab.model.card_rows()) == 78
-    assert not tab.minors_offer.isVisible()
-    assert "excluded_cards" not in (created / "deck.toml").read_text(encoding="utf-8")
-
-
-def test_a_whole_created_deck_offers_nothing(qtbot, decks_root):
-    whole = writer.create("Whole", majors_only=False, decks_root=decks_root)
-    tab = settled(qtbot, shown(qtbot, whole))
-
-    assert not tab.minors_offer.isVisible()
-
-
-def test_a_deck_not_created_here_has_no_offer(qtbot):
-    tab = shown(qtbot, MINIMAL_DECK_PATH)
-
-    assert tab.minors_offer is None
 
 
 def unsorted_index(tab, name):

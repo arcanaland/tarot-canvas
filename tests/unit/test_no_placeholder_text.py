@@ -25,7 +25,8 @@ def tagged_lines():
     return [
         f"{name}:{number}: {line.strip()}"
         for name in sorted(filter(None, tracked))
-        if TAG.encode() in (ROOT / name).read_bytes()
+        # A tracked file deleted in the working tree holds nothing
+        if (ROOT / name).is_file() and TAG.encode() in (ROOT / name).read_bytes()
         for number, line in enumerate(
             (ROOT / name).read_text(errors="replace").splitlines(), start=1
         )

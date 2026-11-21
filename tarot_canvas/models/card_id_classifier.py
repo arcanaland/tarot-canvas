@@ -1,4 +1,4 @@
-"""Classify an image as a card ID from its file name alone, never from the image"""
+"""Classify an image's card ID from its file name"""
 
 import re
 
@@ -11,7 +11,7 @@ _RANKS = PIPS + COURTS
 
 
 def tokens(text):
-    """text's words and numbers, lowercase ASCII, less the words that name no card"""
+    """words and numbers"""
     found = []
     for part in slug(text).split("-"):
         found.extend(_RUNS.findall(part))
@@ -19,7 +19,7 @@ def tokens(text):
 
 
 def classify_card_id(stem, deck):
-    """The card ID (or BACK) an image's file name names, or None: only as good as the name"""
+    """Guesstimate a card ID from a filename"""
     words = tokens(stem)
     if not words:
         return None

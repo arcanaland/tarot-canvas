@@ -469,21 +469,6 @@ def test_a_card_taken_out_keeps_the_name_it_came_with_whichever_slot_it_was_in(d
     assert files(deck / "source") == []
 
 
-def test_a_source_named_for_its_slot_as_before_still_places_and_comes_out_under_that_name(
-    deck, images
-):
-    """Decks made before 2026-11-20 kept each original at source/<slot>.<ext>"""
-    (deck / "source/major_arcana").mkdir(parents=True)
-    save(deck / "source/major_arcana", "02.png", 100, 200)
-    writer.refresh(deck)
-    assert files(deck / "h200") == ["major_arcana/02.png"]
-
-    writer.place(deck, PRIESTESS, save(images, "new.png", 100, 200))
-
-    assert files(deck / "source") == ["major_arcana/02/new.png"]
-    assert os.listdir(deck / "unsorted") == ["02.png"]
-
-
 def test_an_unsorted_image_keeps_its_name_steps_past_a_taken_one_and_moves_when_placed(
     deck, images
 ):

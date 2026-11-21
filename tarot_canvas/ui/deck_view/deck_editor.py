@@ -1,4 +1,4 @@
-"""Changes to a created deck, written one at a time off the GUI thread"""
+"""Worker queue for FS ops during deck creation"""
 
 import contextlib
 import os
@@ -68,9 +68,6 @@ class DeckEditor(QObject):
 
     def discard_unsorted(self, name):
         self._add(lambda _progress: deck_writer.discard_unsorted(self._deck, name))
-
-    def include_minors(self):
-        self._add(lambda _progress: deck_writer.include_minors(self._deck))
 
     def refresh(self):
         self._add(lambda progress: deck_writer.refresh(self._deck, progress))

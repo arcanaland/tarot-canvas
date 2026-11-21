@@ -57,7 +57,6 @@ from tarot_canvas.ui.deck_view.card_model import (
     KindRole,
 )
 from tarot_canvas.ui.deck_view.deck_editor import DeckEditor
-from tarot_canvas.ui.deck_view.minors_offer import MinorsOffer
 from tarot_canvas.ui.deck_view.sections_view import SectionsView
 from tarot_canvas.ui.deck_view.slot_pickers import CardPicker, ImagePicker
 from tarot_canvas.ui.deck_view.tableau_model import TableauModel
@@ -67,7 +66,6 @@ from tarot_canvas.ui.dropped_files import dropped_files, offered_files
 from tarot_canvas.ui.icons import deck_icon
 from tarot_canvas.ui.library.decks import header as deck_header
 from tarot_canvas.ui.library.decks.header import DeckHeader
-from tarot_canvas.ui.library.decks.model import is_majors_only
 from tarot_canvas.ui.strings import DECK_VIEW
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.ui.widgets.search_field import search_field
@@ -96,7 +94,6 @@ class DeckViewTab(BaseTab):
         self.editable = False
         self.editor = None
         self.unsorted = None
-        self.minors_offer = None
         self.picker = None  # the open slot or card picker
         self.settings = get_settings()
         self.setup_ui()
@@ -144,13 +141,6 @@ class DeckViewTab(BaseTab):
         grid_row.setContentsMargins(inset, 0, inset, SECTION_MARGIN)
         grid_row.addWidget(self.views)
         if self.editable:
-            self.minors_offer = MinorsOffer()
-            self.minors_offer.accepted.connect(self.include_minors)
-            self.minors_offer.setVisible(is_majors_only(self.deck))
-            offer_row = QHBoxLayout()
-            offer_row.setContentsMargins(self.grid.spacing(), 0, self.grid.spacing(), 0)
-            offer_row.addWidget(self.minors_offer)
-            grid_row.addLayout(offer_row)
             self.unsorted = UnsortedStrip(self.deck, self.delegate.cover_size())
             self.unsorted.files_dropped.connect(self.send_to_unsorted)
             self.unsorted.discard_requested.connect(self.discard_unsorted)
@@ -548,10 +538,6 @@ class DeckViewTab(BaseTab):
     def unsorted_has_focus(self):
         return self.unsorted is not None and self.unsorted.view.hasFocus()
 
-    def include_minors(self):
-        self.minors_offer.button.setEnabled(False)
-        self.editor.include_minors()
-
     def on_write_progress(self, done, total):
         if total <= 0:
             return
@@ -616,9 +602,6 @@ class DeckViewTab(BaseTab):
             selection_model.setCurrentIndex(target, QItemSelectionModel.SelectionFlag.NoUpdate)
         selection_model.select(selection, QItemSelectionModel.SelectionFlag.ClearAndSelect)
 
-        if self.minors_offer is not None:
-            self.minors_offer.setVisible(is_majors_only(deck))
-            self.minors_offer.button.setEnabled(True)
         if self.unsorted is not None:
             if not self.editor.is_busy():
                 self.unsorted.settle()
