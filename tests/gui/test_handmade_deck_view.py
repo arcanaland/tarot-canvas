@@ -518,7 +518,28 @@ def test_from_file_in_the_slot_picker_opens_the_chooser(qtbot, tab, tmp_path, ch
     chosen["path"] = picture(tmp_path, "magician.png")
 
     tab.editor.choose_image(slot(tab, MAGICIAN))
-    qtbot.mouseClick(tab.editor.picker.from_file, Qt.MouseButton.LeftButton)
+    picker = tab.editor.picker
+    qtbot.mouseClick(
+        picker.view.viewport(),
+        Qt.MouseButton.LeftButton,
+        pos=picker.view.visualRect(picker.from_file_index()).center(),
+    )
+    settled(qtbot, tab)
+
+    assert image_of(tab, MAGICIAN)
+    assert tab.editor.unsorted.names() == ["fool.png"]
+
+
+def test_from_file_is_the_slot_pickers_last_tile_and_return_opens_it(qtbot, tab, tmp_path, chosen):
+    removed_fool(qtbot, tab, tmp_path)
+    chosen["path"] = picture(tmp_path, "magician.png")
+
+    tab.editor.choose_image(slot(tab, MAGICIAN))
+    picker = tab.editor.picker
+    assert picker.view.model().rowCount() == 2
+    qtbot.keyClick(picker.view, Qt.Key.Key_Right)
+    assert picker.view.currentIndex() == picker.from_file_index()
+    qtbot.keyClick(picker.view, Qt.Key.Key_Return)
     settled(qtbot, tab)
 
     assert image_of(tab, MAGICIAN)

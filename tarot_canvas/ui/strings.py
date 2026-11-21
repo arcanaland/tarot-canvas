@@ -393,7 +393,7 @@ DECK_VIEW = {
     "place_as_other": "Assign to…",
     "card_picker_name": "Cards",
     "image_picker_name": "Images",
-    "from_file": "From File",
+    "from_file": "Open File...",
     "delete_unsorted_title": "Delete Image",
     "delete_unsorted_text": "Remove {name}?",
     "write_failed_title": "Write Failed",
