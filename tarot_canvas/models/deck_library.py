@@ -82,7 +82,8 @@ class DeckLibrary:
             log.info("Loading decks from %s", root)
             for name in os.listdir(root):
                 path = os.path.join(root, name)
-                if not os.path.isfile(os.path.join(path, "deck.toml")):
+                # Hidden: an install still being copied in
+                if name.startswith(".") or not os.path.isfile(os.path.join(path, "deck.toml")):
                     continue
                 key = self.path_key(path)
                 if key in self._loaded:

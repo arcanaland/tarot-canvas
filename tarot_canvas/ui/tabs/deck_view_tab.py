@@ -34,6 +34,7 @@ from tarot_canvas.ui.card_transfer import copy_cards_to_clipboard
 from tarot_canvas.ui.deck_view.card_delegate import CardDelegate
 from tarot_canvas.ui.deck_view.card_model import CardFilter, CardModel, CardRole, is_slot
 from tarot_canvas.ui.deck_view.deck_editor import DeckEditor
+from tarot_canvas.ui.deck_view.exporter import DeckExporter
 from tarot_canvas.ui.deck_view.sections_view import SectionsView
 from tarot_canvas.ui.deck_view.selection_snapshot import SelectionSnapshot
 from tarot_canvas.ui.deck_view.tableau_model import TableauModel
@@ -61,12 +62,14 @@ class DeckViewTab(BaseTab):
     card_clicked = pyqtSignal(str)  # Signal when a card is clicked
     card_action_requested = pyqtSignal(str, object, object)  # action, card, deck
     new_canvas_requested = pyqtSignal(list, object)  # cards, deck
+    message = pyqtSignal(str)  # for a toast
 
     def __init__(self, deck_path, parent=None):
         super().__init__(parent)
         self.deck_path = deck_path
         self.mode = None
         self.editor = None  # a DeckEditor, for a handmade deck
+        self.exporter = None
         self.settings = get_settings()
         self._build(deck_library.load(deck_path))
 
@@ -126,6 +129,13 @@ class DeckViewTab(BaseTab):
             self.header.fields_edited.connect(self.on_fields_edited)
             self.header.add_images_requested.connect(self.editor.add_images)
             self.header.cards_chosen.connect(self.on_cards_chosen)
+            self.header.put_back_requested.connect(self.editor.queue.include_all)
+            self.exporter = DeckExporter(self.editor.queue, lambda: self.deck, self)
+            self.exporter.message.connect(self.message)
+            self.exporter.running_changed.connect(self.update_export_button)
+            self.editor.queue.busy_changed.connect(self.update_export_button)
+            self.header.export_requested.connect(self.exporter.start)
+            self.update_export_button()
         main_layout.addLayout(grid_row)
         main_layout.addStretch()
 
@@ -424,6 +434,11 @@ class DeckViewTab(BaseTab):
 
     def on_fields_edited(self, fields):
         self.editor.queue.set_fields(**fields)
+
+    def update_export_button(self, *_):
+        self.header.export_button.setEnabled(
+            not self.editor.is_busy() and not self.exporter.running
+        )
 
     def on_cards_chosen(self, whole):
         if whole:

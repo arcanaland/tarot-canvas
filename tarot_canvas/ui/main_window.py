@@ -6,7 +6,17 @@ from functools import partial
 from importlib.resources import files
 from pathlib import Path
 
-from PyQt6.QtCore import QEvent, QObject, QSize, Qt, QTimer, QUrl, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import (
+    QEvent,
+    QObject,
+    QSize,
+    QStandardPaths,
+    Qt,
+    QTimer,
+    QUrl,
+    pyqtSignal,
+    pyqtSlot,
+)
 from PyQt6.QtGui import (
     QAction,
     QActionGroup,
@@ -63,6 +73,7 @@ from tarot_canvas.ui.strings import (
     NEW_DECK,
     READINGS,
     SPREADS,
+    failure_text,
 )
 from tarot_canvas.ui.style.theme_manager import ThemeManager, ThemeType
 from tarot_canvas.ui.tabs.base_tab import BaseTab
@@ -78,6 +89,8 @@ from tarot_canvas.ui.widgets.toast import Toast
 from tarot_canvas.ui.windows.about import AboutDialog, app_icon
 from tarot_canvas.ui.windows.log_viewer import LogViewerDialog
 from tarot_canvas.ui.windows.new_deck_dialog import NewDeckDialog
+from tarot_canvas.utils.package_download import FileInstall
+from tarot_canvas.utils.path_helper import get_decks_directory, get_staging_directory
 
 log = logging.getLogger(__name__)
 
@@ -226,6 +239,7 @@ class MainWindow(QMainWindow):
             "window.new_library",
             "window.new_card_view",
             "window.open_deck",
+            "window.open_deck_folder",
             "window.close_tab",
             "window.quit",
             "window.card_explorer",
@@ -241,7 +255,8 @@ class MainWindow(QMainWindow):
                 "window.new_deck": self.new_deck,
                 "window.new_library": self.new_library_tab,
                 "window.new_card_view": self.new_card_view_tab,
-                "window.open_deck": self.open_deck,
+                "window.open_deck": self.open_deck_file,
+                "window.open_deck_folder": self.open_deck,
                 "window.save": self.save_current_tab,
                 "window.close_tab": self.close_current_tab,
                 "window.quit": self.close,
@@ -283,7 +298,7 @@ class MainWindow(QMainWindow):
         file_menu.addMenu(self.new_reading_menu)
         file_menu.addActions([self.new_spread_action, self.new_deck_action])
         file_menu.addSeparator()
-        file_menu.addAction(actions["window.open_deck"])
+        file_menu.addActions([actions["window.open_deck"], actions["window.open_deck_folder"]])
         self.save_action = actions["window.save"]
         file_menu.addAction(self.save_action)
         file_menu.addSeparator()
@@ -898,6 +913,7 @@ class MainWindow(QMainWindow):
             deck_tab = DeckViewTab(deck_path=deck_path)
             deck_tab.card_action_requested.connect(self.on_card_action_requested)
             deck_tab.new_canvas_requested.connect(self.new_canvas_from_cards)
+            deck_tab.message.connect(self.toast.show_message)
 
             # Close welcome tab if needed
             self.close_welcome_tab()
@@ -1002,6 +1018,17 @@ class MainWindow(QMainWindow):
         label = tab.save_label() if tab is not None else None
         self.save_action.setText(label or commands.by_id("window.save").text)
 
+    def open_deck_file(self):
+        """Install a .tarotdeck the user picks, then open it"""
+        path, _filter = QFileDialog.getOpenFileName(
+            self,
+            MAIN_WINDOW["select_deck_file"],
+            QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DocumentsLocation),
+            DECK_VIEW["export_filter"],
+        )
+        if path:
+            self.install_deck_file(path)
+
     def open_deck(self):
         """Open a deck by selecting the directory containing deck.toml"""
         file_dialog = QFileDialog()
@@ -1062,6 +1089,34 @@ class MainWindow(QMainWindow):
     @pyqtSlot(object)
     def on_deck_installed(self, entry):
         self.toast.show_message(DOWNLOAD["installed_toast"].format(name=entry.name))
+
+    def install_deck_file(self, container):
+        """Install a .tarotdeck into the Library, then open it"""
+        install = FileInstall(container, get_decks_directory()[0], get_staging_directory(), self)
+        install.succeeded.connect(lambda path: self._on_file_installed(install, path))
+        install.failed.connect(lambda failure: self._on_file_install_failed(install, failure))
+        install.start()
+
+    def _on_file_installed(self, install, path):
+        install.deleteLater()
+        deck_library.rescan()
+        tab = self.new_deck_view_tab(deck_path=path)
+        if tab is not None:
+            self.toast.show_message(DOWNLOAD["installed_toast"].format(name=tab.tab_title()))
+
+    def _on_file_install_failed(self, install, failure):
+        install.deleteLater()
+        log.warning("Could not install a deck file: %s", failure.detail)
+        box = QMessageBox(
+            QMessageBox.Icon.Warning,
+            DOWNLOAD["install_failed_title"],
+            failure_text(failure),
+            QMessageBox.StandardButton.Ok,
+            self,
+        )
+        box.setDetailedText(failure.detail)
+        box.exec()
+        box.deleteLater()
 
     def on_tab_changed(self, _index):
         # The tab being left keeps whatever it was holding. currentChanged says only

@@ -1,0 +1,270 @@
+"""Export…: the fields, empty cards left out, the gate, and Put back"""
+
+import os
+import tomllib
+import zipfile
+
+import pytest
+from PyQt6.QtWidgets import QDialog
+
+from tarot_canvas.models import deck_writer as writer
+from tarot_canvas.models.card_ids import CANONICAL_CARD_IDS
+from tarot_canvas.models.deck_container import unpack_container
+from tarot_canvas.models.deck_validation import Finding, Level, LoadError, Verdict
+from tarot_canvas.ui.deck_view import exporter
+from tarot_canvas.ui.deck_view.export_dialogs import FindingsDialog
+from tarot_canvas.ui.library.decks.model import MINOR_IDS
+from tarot_canvas.ui.strings import DECK_VIEW
+from tests.gui.test_handmade_deck_view import picture, settled, shown
+
+MAJORS = [card for card in CANONICAL_CARD_IDS if card.startswith("major_arcana.")]
+COURTS = [
+    card
+    for card in CANONICAL_CARD_IDS
+    if card.rsplit(".", 1)[1] in ("page", "knight", "queen", "king")
+]
+
+
+@pytest.fixture
+def staging(tmp_path, monkeypatch):
+    root = tmp_path / "staging"
+    monkeypatch.setattr(exporter, "get_staging_directory", lambda: root)
+    return root
+
+
+@pytest.fixture
+def dialogs(tmp_path, monkeypatch, staging):
+    """Answers Export's dialogs; what they were shown is kept"""
+    state = {
+        "accept": True,
+        "fields": {},
+        "save_as": tmp_path / "out" / "exported",
+        "fields_dialogs": [],
+        "findings": [],
+        "suggested": [],
+    }
+    state["save_as"].parent.mkdir()
+
+    def fields_exec(dialog):
+        state["fields_dialogs"].append(
+            {
+                "empty": dialog.empty_list.count() if dialog.empty_list else 0,
+                "label": dialog.empty_label.text() if dialog.empty_list else None,
+            }
+        )
+        for key, text in state["fields"].items():
+            edit = getattr(dialog, f"{key}_edit")
+            (edit.setPlainText if key == "description" else edit.setText)(text)
+        return QDialog.DialogCode.Accepted if state["accept"] else QDialog.DialogCode.Rejected
+
+    def findings_exec(dialog):
+        state["findings"].append(dialog)
+        return 0
+
+    def save(_parent, _title, suggested, _filter):
+        state["suggested"].append(suggested)
+        return (os.fspath(state["save_as"]) if state["save_as"] else "", "")
+
+    monkeypatch.setattr(exporter.ExportFieldsDialog, "exec", fields_exec)
+    monkeypatch.setattr(exporter.FindingsDialog, "exec", findings_exec)
+    monkeypatch.setattr(exporter.QFileDialog, "getSaveFileName", save)
+    return state
+
+
+def made(tmp_path, majors_only=True, placed=()):
+    deck = writer.create("Exported", majors_only=majors_only, decks_root=tmp_path / "decks")
+    for card_id in placed:
+        writer.place(deck, card_id, picture(tmp_path, f"{card_id}.png"))
+    return deck
+
+
+def manifest(deck):
+    return tomllib.loads((deck / "deck.toml").read_text(encoding="utf-8"))
+
+
+def exported(qtbot, tab):
+    messages = []
+    tab.message.connect(messages.append)
+    tab.header.export_button.click()
+    qtbot.waitUntil(lambda: not tab.exporter.running and not tab.editor.is_busy())
+    return messages
+
+
+def container_files(path):
+    with zipfile.ZipFile(path) as archive:
+        return archive.namelist(), tomllib.loads(archive.read("deck.toml").decode())
+
+
+def test_empty_cards_are_listed_left_out_and_put_back(qtbot, tmp_path, curation_file, dialogs):
+    deck = made(tmp_path, placed=MAJORS[:3])
+    tab = settled(qtbot, shown(qtbot, deck))
+
+    messages = exported(qtbot, tab)
+
+    assert dialogs["fields_dialogs"] == [
+        {"empty": 19, "label": DECK_VIEW["export_empty"].format(count=19)}
+    ]
+    target = dialogs["save_as"].with_name("exported.tarotdeck")
+    assert messages == [DECK_VIEW["export_done"].format(file=target.name)]
+    expected = sorted(MINOR_IDS) + MAJORS[3:]
+    assert sorted(manifest(deck)["excluded_cards"]["cards"]) == sorted(expected)
+    names, packed = container_files(target)
+    assert sorted(packed["excluded_cards"]["cards"]) == sorted(expected)
+    assert not [name for name in names if name.startswith(("source/", "unsorted/"))]
+    assert tab.header.fill.label.text() == DECK_VIEW["fill_count"].format(placed=3, expected=3)
+    assert tab.header.fill.left_out_label.isVisible()
+    assert tab.header.fill.left_out_label.text() == DECK_VIEW["export_left_out"].format(count=19)
+    assert list(staging_contents(tab)) == []
+
+    tab.header.fill.put_back_button.click()
+    settled(qtbot, tab)
+
+    assert len(tab.deck.cards) == 78
+    assert tab.header.cards.all_radio.isChecked()
+    assert not tab.header.fill.put_back_button.isVisible()
+
+
+def staging_contents(tab):
+    root = exporter.get_staging_directory()
+    return root.iterdir() if root.is_dir() else []
+
+
+def test_cancelling_the_fields_writes_nothing(qtbot, tmp_path, curation_file, dialogs):
+    deck = made(tmp_path, placed=MAJORS[:3])
+    tab = settled(qtbot, shown(qtbot, deck))
+    before = (deck / "deck.toml").read_bytes()
+    dialogs["accept"] = False
+
+    exported(qtbot, tab)
+
+    assert (deck / "deck.toml").read_bytes() == before
+    assert not any(dialogs["save_as"].parent.iterdir())
+    assert list(staging_contents(tab)) == []
+
+
+def test_a_changed_version_is_written_and_the_identifier_is_not(
+    qtbot, tmp_path, curation_file, dialogs
+):
+    deck = made(tmp_path, majors_only=True, placed=MAJORS)
+    writer.place_unsorted(deck, picture(tmp_path, "loose.png"))
+    identifier = manifest(deck)["deck"]["identifier"]
+    tab = settled(qtbot, shown(qtbot, deck))
+    dialogs["fields"] = {"version": "1.0.0", "artist": "Someone"}
+
+    exported(qtbot, tab)
+
+    assert dialogs["fields_dialogs"][0]["empty"] == 0
+    assert dialogs["suggested"][0].endswith("exported-1.0.0.tarotdeck")
+    target = dialogs["save_as"].with_name("exported.tarotdeck")
+    names, packed = container_files(target)
+    for table in (manifest(deck)["deck"], packed["deck"]):
+        assert table["version"] == "1.0.0"
+        assert table["artist"] == "Someone"
+        assert table["identifier"] == identifier
+    assert not [name for name in names if name.startswith(("source/", "unsorted/"))]
+    unpacked = tmp_path / "unpacked"
+    unpacked.mkdir()
+    unpack_container(target, unpacked)
+
+
+def test_an_error_shows_the_findings_and_writes_no_file(qtbot, tmp_path, curation_file, dialogs):
+    deck = made(tmp_path, placed=MAJORS)
+    path = deck / "deck.toml"
+    path.write_text(
+        path.read_text(encoding="utf-8") + '\n[card_backs]\ndefault = "nope"\n', encoding="utf-8"
+    )
+    tab = settled(qtbot, shown(qtbot, deck))
+
+    exported(qtbot, tab)
+
+    assert len(dialogs["findings"]) == 1
+    assert dialogs["suggested"] == []
+    assert not any(dialogs["save_as"].parent.iterdir())
+    assert list(staging_contents(tab)) == []
+
+
+def test_cancelling_the_save_dialog_writes_nothing(qtbot, tmp_path, curation_file, dialogs):
+    deck = made(tmp_path, placed=MAJORS)
+    tab = settled(qtbot, shown(qtbot, deck))
+    dialogs["save_as"] = None
+
+    exported(qtbot, tab)
+
+    assert len(dialogs["suggested"]) == 1
+    assert not any((tmp_path / "out").iterdir())
+    assert list(staging_contents(tab)) == []
+
+
+def test_export_waits_for_queued_writes(qtbot, tmp_path, curation_file, dialogs):
+    deck = made(tmp_path)
+    tab = settled(qtbot, shown(qtbot, deck))
+    assert tab.header.export_button.isEnabled()
+
+    tab.editor.queue.place(MAJORS[0], picture(tmp_path, "fool.png"))
+
+    assert not tab.header.export_button.isEnabled()
+    settled(qtbot, tab)
+    assert tab.header.export_button.isEnabled()
+
+
+def test_a_mixed_set_checks_neither_and_majors_only_keeps_the_majors(
+    qtbot, tmp_path, curation_file, dialogs, monkeypatch
+):
+    deck = made(tmp_path, majors_only=False, placed=MAJORS + COURTS)
+    tab = settled(qtbot, shown(qtbot, deck))
+
+    exported(qtbot, tab)
+
+    cards = tab.header.cards
+    assert not cards.majors_radio.isChecked()
+    assert not cards.all_radio.isChecked()
+    assert len(tab.deck.cards) == 22 + 16
+
+    monkeypatch.setattr(cards, "_confirm_majors_only", lambda: True)
+    cards.majors_radio.click()
+    settled(qtbot, tab)
+
+    assert len(tab.deck.cards) == 22
+    assert cards.majors_radio.isChecked()
+
+
+def test_the_findings_dialog_groups_by_card_and_hides_details(qtbot, minimal_deck):
+    verdict = Verdict(
+        None,
+        (
+            Finding(Level.ERROR, "e1", "bad two", card="major_arcana.21", spec_url="https://x/1"),
+            Finding(Level.ERROR, "e2", "bad zero", card="major_arcana.00", key="cards.x"),
+            Finding(Level.WARNING, "w1", "deck warning"),
+            Finding(Level.INFO, "i1", "an info", card="major_arcana.00"),
+        ),
+        75,
+    )
+    dialog = FindingsDialog(verdict, minimal_deck)
+    qtbot.addWidget(dialog)
+    tree = dialog.tree
+
+    tops = [tree.topLevelItem(i) for i in range(tree.topLevelItemCount())]
+    assert tops[0].text(0) == DECK_VIEW["export_deck_level"]
+    assert [top.text(0) for top in tops[1:]] == [
+        minimal_deck.find_card("major_arcana.00").display_name,
+        "major_arcana.21",  # not in the deck, so its ID
+    ]
+    fool = tops[1]
+    assert [fool.child(i).text(0) for i in range(fool.childCount())] == ["bad zero", "an info"]
+    assert fool.child(0).text(1) == "e2 · cards.x"
+    assert fool.child(1).isHidden()
+    assert tops[2].child(0).toolTip(0) == "https://x/1"
+
+    dialog.details_box.setChecked(True)
+    assert not fool.child(1).isHidden()
+    assert dialog.coverage.text() == DECK_VIEW["export_unchecked"].format(count=75)
+
+
+def test_a_load_error_is_one_line_with_no_tree(qtbot, minimal_deck):
+    dialog = FindingsDialog(Verdict(LoadError("parse_error", "broken"), (), 75), minimal_deck)
+    qtbot.addWidget(dialog)
+
+    assert dialog.tree is None
+    assert dialog.load_error_label.text() == DECK_VIEW["export_load_error"].format(
+        code="parse_error", message="broken"
+    )

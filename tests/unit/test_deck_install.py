@@ -1,6 +1,7 @@
 import errno
 import os
 import zipfile
+from pathlib import Path
 
 import pytest
 
@@ -11,6 +12,7 @@ from tarot_canvas.models.deck_install import (
     InstallReason,
     install_container,
     install_dir_name,
+    install_local,
 )
 from tests.unit.test_deck_container import build, conformant, patch_central
 
@@ -96,17 +98,40 @@ def test_a_deck_toml_that_is_not_toml_is_rejected(tmp_path, places):
     assert list(root.iterdir()) == []
 
 
-def test_a_cross_device_rename_is_not_copied(tmp_path, places, monkeypatch):
+def exdev_from(staging, monkeypatch):
+    """os.rename fails across devices for anything leaving staging"""
+    rename = os.rename
+
+    def maybe_exdev(src, dst):
+        if Path(src).parent == staging:
+            raise OSError(errno.EXDEV, os.strerror(errno.EXDEV))
+        rename(src, dst)
+
+    monkeypatch.setattr(deck_install.os, "rename", maybe_exdev)
+
+
+def test_a_cross_device_rename_is_copied_then_renamed(tmp_path, places, monkeypatch):
     root, staging = places
+    exdev_from(staging, monkeypatch)
 
-    def exdev(src, dst):
-        raise OSError(errno.EXDEV, os.strerror(errno.EXDEV))
+    dest = install_container(conformant(tmp_path), root / "x", staging)
 
-    monkeypatch.setattr(deck_install.os, "rename", exdev)
-    with pytest.raises(InstallError) as caught:
+    assert (dest / "h1200/major_arcana/00.png").is_file()
+    assert list(staging.iterdir()) == []
+    assert [p.name for p in root.iterdir()] == ["x"]
+
+
+def test_a_failed_cross_device_copy_leaves_nothing_behind(tmp_path, places, monkeypatch):
+    root, staging = places
+    exdev_from(staging, monkeypatch)
+
+    def full(src, dst, **kwargs):
+        raise OSError(errno.ENOSPC, os.strerror(errno.ENOSPC))
+
+    monkeypatch.setattr(deck_install.shutil, "copytree", full)
+    with pytest.raises(OSError):
         install_container(conformant(tmp_path), root / "x", staging)
 
-    assert caught.value.reason == InstallReason.FILESYSTEM
     assert list(staging.iterdir()) == []
     assert list(root.iterdir()) == []
 
@@ -140,3 +165,33 @@ def test_install_dir_name(identifier, fallback, expected):
 def test_install_dir_name_must_be_one_segment(identifier, fallback):
     with pytest.raises(ValueError):
         install_dir_name(identifier, fallback)
+
+
+def test_a_local_install_is_named_from_the_identifier(tmp_path, places):
+    root, staging = places
+    toml = b'[deck]\nschema_version = "2.0"\nname = "T"\nversion = "1"\nidentifier = "land.arcana.private/deck/mine-0a0a"\n'
+    container = build(tmp_path, [("deck.toml", toml)], name="whatever.tarotdeck")
+
+    assert install_local(container, root, staging) == root / "mine-0a0a"
+    assert list(staging.iterdir()) == []
+
+
+def test_a_local_install_without_an_identifier_takes_the_file_stem(tmp_path, places):
+    root, staging = places
+    container = conformant(tmp_path)
+
+    assert install_local(container, root, staging) == root / "deck"
+
+
+def test_a_second_local_install_is_refused(tmp_path, places):
+    root, staging = places
+    container = conformant(tmp_path)
+    install_local(container, root, staging)
+    before = snapshot(root)
+
+    with pytest.raises(InstallError) as caught:
+        install_local(container, root, staging)
+
+    assert caught.value.reason is InstallReason.DESTINATION_EXISTS
+    assert snapshot(root) == before
+    assert list(staging.iterdir()) == []

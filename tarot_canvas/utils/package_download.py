@@ -9,13 +9,19 @@ import hashlib
 import os
 import traceback
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 
 from PyQt6.QtCore import QObject, QRunnable, QThreadPool, QTimer, QUrl, pyqtSignal
 from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 
 from tarot_canvas.models.deck_container import ContainerError
-from tarot_canvas.models.deck_install import InstallError, InstallReason, install_container
+from tarot_canvas.models.deck_install import (
+    InstallError,
+    InstallReason,
+    install_container,
+    install_local,
+)
 
 
 class FailureKind(enum.Enum):
@@ -56,21 +62,38 @@ class _InstallReporter(QObject):
 
 
 class _InstallJob(QRunnable):
-    def __init__(self, container, dest, staging_root, reporter):
+    def __init__(self, install, reporter):
         super().__init__()
-        self._args = (container, dest, staging_root)
+        self._install = install
         self._reporter = reporter
 
     def run(self):
         try:
-            path = install_container(*self._args)
+            path = self._install()
         except Exception as e:
             signal, value = self._reporter.failed, failure_for(e)
         else:
             signal, value = self._reporter.succeeded, str(path)
-        # RuntimeError: the PackageDownload, and so its reporter, was deleted meanwhile.
+        # RuntimeError: its owner, and so its reporter, was deleted meanwhile.
         with contextlib.suppress(RuntimeError):
             signal.emit(value)
+
+
+class FileInstall(QObject):
+    """Install a container file the user has, off the GUI thread"""
+
+    succeeded = pyqtSignal(str)  # the installed deck root
+    failed = pyqtSignal(object)  # a DownloadFailure
+
+    def __init__(self, container, decks_root, staging_root, parent=None):
+        super().__init__(parent)
+        self._install = partial(install_local, container, decks_root, staging_root)
+        self._reporter = _InstallReporter(self)
+        self._reporter.succeeded.connect(self.succeeded)
+        self._reporter.failed.connect(self.failed)
+
+    def start(self):
+        QThreadPool.globalInstance().start(_InstallJob(self._install, self._reporter))
 
 
 class _Phase(enum.Enum):
@@ -187,7 +210,8 @@ class PackageDownload(QObject):
             return
 
         self._phase = _Phase.INSTALLING
-        job = _InstallJob(self.part_path, self._dest, self._staging_root, self._reporter)
+        install = partial(install_container, self.part_path, self._dest, self._staging_root)
+        job = _InstallJob(install, self._reporter)
         QThreadPool.globalInstance().start(job)
 
     def _transport_failure(self, reply):

@@ -744,11 +744,11 @@ def test_new_spread_opens_a_spread_tab(window):
 # -- keeping it
 
 
-def test_save_follows_open_deck_in_the_file_menu(window):
+def test_save_follows_open_deck_folder_in_the_file_menu(window):
     actions = window.menuBar().actions()[0].menu().actions()
-    open_deck = next(action for action in actions if action.text() == COMMANDS["open_deck"])
+    folder = next(a for a in actions if a.text() == COMMANDS["open_deck_folder"])
 
-    assert actions[actions.index(open_deck) + 1] is window.save_action
+    assert actions[actions.index(folder) + 1] is window.save_action
 
 
 def test_save_starts_disabled(window):

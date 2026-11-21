@@ -3,6 +3,7 @@
 from PyQt6.QtCore import QAbstractListModel, QLocale, QSortFilterProxyModel, Qt, pyqtSlot
 
 from tarot_canvas.models import library_curation
+from tarot_canvas.models.card_ids import CANONICAL_CARD_IDS
 from tarot_canvas.models.catalog import available_entries
 from tarot_canvas.models.deck_types import CardKind
 from tarot_canvas.models.deck_writer import BACK
@@ -44,6 +45,26 @@ def deck_author(deck):
 
 def is_majors_only(deck):
     return bool(deck.cards_of_kind(CardKind.MAJOR)) and not deck.cards_of_kind(CardKind.MINOR)
+
+
+MINOR_IDS = frozenset(card for card in CANONICAL_CARD_IDS if card.startswith("minor_arcana."))
+
+
+def excluded_cards(deck):
+    """The canonical cards the deck leaves out"""
+    present = {card.canonical_id for card in deck.cards}
+    return frozenset(card for card in CANONICAL_CARD_IDS if card not in present)
+
+
+def left_out(deck):
+    """How many cards a handmade deck leaves out beyond a Majors only choice"""
+    excluded = excluded_cards(deck)
+    return len(excluded - MINOR_IDS) if excluded >= MINOR_IDS else len(excluded)
+
+
+def empty_cards(deck):
+    """The deck's cards with no image, in deck order"""
+    return [card for card in deck.cards if not card.default_image()]
 
 
 def back_image(deck):
