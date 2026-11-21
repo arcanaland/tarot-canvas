@@ -743,6 +743,11 @@ LIBRARY = {
     "download": "Download",
     "cancel": "Cancel",
     "try_again": "Try Again",
+    "deck_menu_tooltip": "Manage deck",
+    "remove_deck": "Remove from Library",
+    "deck_removed": "Removed {name} from your library.",
+    "deck_remove_failed": "Could not delete the deck.",
+    "deck_restore_failed": "Failed to restore deck.",
 }
 
 # The About dialog; {link} is an HTML link

@@ -57,7 +57,7 @@ class SpreadsPage(DeletableListPage):
             SpreadRowDelegate,
             SpreadDetailsPane(),
             parent,
-            changed=spread_events().spreads_changed,
+            changed=spread_events().spreads_changed.emit,
             texts={
                 "deleted": SPREADS["deleted_message"],
                 "delete_failed": SPREADS["delete_failed"],

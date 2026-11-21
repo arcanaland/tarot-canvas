@@ -112,3 +112,31 @@ def test_rescan_builds_new_decks(root):
     library.rescan()
 
     assert library.load(path) is not before
+
+
+def test_a_deck_staged_for_removal_is_not_scanned(root):
+    write_deck(root, "Aquatic")
+    write_deck(root, "Lotus.deleted", name="Lotus")
+
+    library = DeckLibrary()
+    library.rescan()
+
+    assert names(library) == ["Aquatic"]
+
+
+def test_only_a_deck_in_the_primary_root_is_removable(tmp_path, monkeypatch):
+    primary, external = tmp_path / "decks", tmp_path / "external"
+    monkeypatch.setattr(deck_library_module, "get_decks_directory", lambda: [primary, external])
+    monkeypatch.setattr(ReferenceDeck, "is_reference_deck_present", staticmethod(lambda: False))
+    installed = write_deck(primary, "Aquatic")
+    write_deck(external, "Lotus")
+    reference = write_deck(tmp_path / "reference", "Rider-Waite-Smith")
+
+    library = DeckLibrary()
+    removable = {
+        deck.metadata.name: deck_library_module.is_removable(deck) for deck in library.decks()
+    }
+
+    assert removable == {"Aquatic": True, "Lotus": False}
+    assert not deck_library_module.is_removable(library.load(reference))
+    assert deck_library_module.is_removable(library.load(installed))

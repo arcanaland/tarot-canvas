@@ -8,10 +8,12 @@ from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QMenu,
     QProgressBar,
     QPushButton,
     QScrollArea,
     QStyle,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -36,12 +38,14 @@ class DeckDetailsPane(QWidget):
     open_requested = pyqtSignal(object)  # the Deck
     download_requested = pyqtSignal(object)  # the CatalogEntry
     cancel_requested = pyqtSignal(str)  # the entry's slug
+    menu_requested = pyqtSignal(object, object)  # the emptied QMenu to fill, the Deck
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._details = None
         self._actions = None
         self.action_button = None
+        self.menu_button = None
         self.progress_bar = None
         self.failure_label = None
 
@@ -152,7 +156,7 @@ class DeckDetailsPane(QWidget):
             self._actions.deleteLater()
 
         self._actions = QWidget()
-        self.action_button = self.progress_bar = self.failure_label = None
+        self.action_button = self.menu_button = self.progress_bar = self.failure_label = None
         builders = {
             DeckState.INSTALLED: self._build_installed,
             DeckState.AVAILABLE: self._build_available,
@@ -170,9 +174,19 @@ class DeckDetailsPane(QWidget):
 
     def _build_installed(self, _details):
         self.action_button = _button(LIBRARY["open"], "document-open", self._on_open)
+        self.menu_button = QToolButton()
+        self.menu_button.setIcon(QIcon.fromTheme("overflow-menu"))
+        self.menu_button.setToolTip(LIBRARY["deck_menu_tooltip"])
+        self.menu_button.setAccessibleName(LIBRARY["deck_menu_tooltip"])
+        self.menu_button.setAutoRaise(True)
+        self.menu_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        menu = QMenu(self.menu_button)
+        menu.aboutToShow.connect(lambda: self._on_menu_about_to_show(menu))
+        self.menu_button.setMenu(menu)
         row = _row(self._actions)
         row.addWidget(self.action_button)
         row.addStretch(1)
+        row.addWidget(self.menu_button)
 
     def _build_available(self, _details):
         self.action_button = _button(LIBRARY["download"], "download", self._on_download)
@@ -215,6 +229,10 @@ class DeckDetailsPane(QWidget):
 
     def _on_open(self):
         self.open_requested.emit(self._details.deck)
+
+    def _on_menu_about_to_show(self, menu):
+        menu.clear()
+        self.menu_requested.emit(menu, self._details.deck)
 
     def _on_download(self):
         self.download_requested.emit(self._details.entry)

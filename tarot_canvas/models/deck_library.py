@@ -3,7 +3,9 @@
 import logging
 import os
 from collections import defaultdict
+from pathlib import Path
 
+from tarot_canvas.models import staged_delete
 from tarot_canvas.models.arcana_backend import load_deck
 from tarot_canvas.models.deck_events import deck_events
 from tarot_canvas.models.reference_deck import ReferenceDeck
@@ -82,8 +84,12 @@ class DeckLibrary:
             log.info("Loading decks from %s", root)
             for name in os.listdir(root):
                 path = os.path.join(root, name)
-                # Hidden: an install still being copied in
-                if name.startswith(".") or not os.path.isfile(os.path.join(path, "deck.toml")):
+                # Hidden: an install still being copied in. Staged: a removal still undoable
+                if (
+                    name.startswith(".")
+                    or staged_delete.is_staged(name)
+                    or not os.path.isfile(os.path.join(path, "deck.toml"))
+                ):
                     continue
                 key = self.path_key(path)
                 if key in self._loaded:
@@ -127,6 +133,12 @@ class DeckLibrary:
                     identifier,
                     ", ".join(shared),
                 )
+
+
+def is_removable(deck):
+    """Whether the deck's folder is one the app installed and may take away"""
+    root = Path(get_decks_directory()[0]).resolve()
+    return Path(deck.root_path).resolve().parent == root
 
 
 deck_library = DeckLibrary()

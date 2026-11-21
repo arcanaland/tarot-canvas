@@ -65,7 +65,7 @@ class ReadingsPage(DeletableListPage):
             ReadingRowDelegate,
             ReadingDetailsPane(),
             parent,
-            changed=reading_events().readings_changed,
+            changed=reading_events().readings_changed.emit,
             texts={
                 "deleted": READINGS["library_deleted_message"],
                 "delete_failed": READINGS["library_delete_failed"],

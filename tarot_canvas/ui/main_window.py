@@ -761,6 +761,27 @@ class MainWindow(QMainWindow):
         tab = self.spread_tab_holding(Path(path))
         return tab is None or self.close_tab(self.tab_widget.indexOf(tab))
 
+    def close_deck(self, path):
+        """Close every deck and card view of the deck at path, and return whether none is left
+
+        A deck view still writing its deck refuses, and then nothing is closed.
+        """
+        key = DeckLibrary.path_key(path)
+        tabs = [
+            tab
+            for tab in (self.tab_widget.widget(i) for i in range(self.tab_widget.count()))
+            if (isinstance(tab, DeckViewTab) and DeckLibrary.path_key(tab.deck_path) == key)
+            or (
+                isinstance(tab, CardViewTab)
+                and tab.deck is not None
+                and DeckLibrary.path_key(tab.deck.root_path) == key
+            )
+        ]
+        if any(isinstance(tab, DeckViewTab) and tab.is_busy() for tab in tabs):
+            log.info("Not removing %s while its deck view is writing it", path)
+            return False
+        return all(self.close_tab(self.tab_widget.indexOf(tab)) for tab in tabs)
+
     def open_unsaved_spread(self, spread):
         """A new tab holding spread, with no folder yet and asking to be saved"""
         tab = SpreadTab(spread)

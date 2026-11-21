@@ -77,6 +77,7 @@ class DeckViewTab(BaseTab):
         self.mode = None
         self.editor = None  # a DeckEditor, for a handmade deck
         self.exporter = None
+        self._export_waiting = False  # asked for while the deck was being written
         self.settings = get_settings()
         self._build(deck_library.load(deck_path))
 
@@ -142,6 +143,7 @@ class DeckViewTab(BaseTab):
             self.exporter.message.connect(self.message)
             self.exporter.running_changed.connect(self.update_export_button)
             self.editor.queue.busy_changed.connect(self.update_export_button)
+            self.editor.queue.busy_changed.connect(self._on_busy_changed)
             self.header.export_requested.connect(self.exporter.start)
             self.update_export_button()
         main_layout.addLayout(grid_row)
@@ -477,10 +479,31 @@ class DeckViewTab(BaseTab):
     def on_fields_edited(self, fields):
         self.editor.queue.set_fields(**fields)
 
+    def is_busy(self):
+        """Whether the deck is being written"""
+        return self.editor is not None and self.editor.is_busy()
+
+    def can_export(self):
+        return self.exporter is not None and not self.is_busy() and not self.exporter.running
+
     def update_export_button(self, *_):
-        self.header.export_button.setEnabled(
-            not self.editor.is_busy() and not self.exporter.running
-        )
+        self.header.export_button.setEnabled(self.can_export())
+
+    def start_export(self):
+        """What the header's Export… does, once the deck is not being written"""
+        if self.exporter is None or self.exporter.running:
+            return
+        if self.is_busy():
+            # A tab just opened is still converging its deck
+            self._export_waiting = True
+            return
+        self.exporter.start()
+
+    def _on_busy_changed(self, busy):
+        if not busy and self._export_waiting:
+            self._export_waiting = False
+            # Out of the queue's own signal before the dialog's event loop
+            QTimer.singleShot(0, self.start_export)
 
     def on_cards_chosen(self, whole):
         if whole:

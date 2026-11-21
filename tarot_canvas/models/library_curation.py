@@ -227,6 +227,11 @@ def add_handmade_deck(path):
     update(DECKS, add=[(HANDMADE, deck_key(path))])
 
 
+def forget_deck(path):
+    """A deck removed through the app takes what is kept about it with it"""
+    update(DECKS, remove=[(HANDMADE, deck_key(path))])
+
+
 # -- esoterica ----------------------------------------------------------------------------
 
 
