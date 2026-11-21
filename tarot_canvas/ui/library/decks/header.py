@@ -1,12 +1,17 @@
-from PyQt6.QtCore import QPoint, QRect, Qt, QUrl
+import itertools
+
+from PyQt6.QtCore import QPoint, QRect, Qt, QUrl, pyqtSignal
 from PyQt6.QtGui import QDesktopServices, QFontMetrics, QIcon, QPainter, QPalette
 from PyQt6.QtWidgets import (
     QApplication,
+    QButtonGroup,
     QFormLayout,
     QFrame,
     QHBoxLayout,
     QLabel,
+    QProgressBar,
     QPushButton,
+    QRadioButton,
     QSizePolicy,
     QToolButton,
     QVBoxLayout,
@@ -20,8 +25,10 @@ from tarot_canvas.settings import (
 )
 from tarot_canvas.ui import typography, units
 from tarot_canvas.ui.covers.cache import CoverCache
+from tarot_canvas.ui.covers.ghost import paint_placeholder_well
 from tarot_canvas.ui.dates import format_date
-from tarot_canvas.ui.library.decks.model import created_progress, deck_cover_path
+from tarot_canvas.ui.icons import deck_icon
+from tarot_canvas.ui.library.decks.model import created_progress, deck_cover_path, is_majors_only
 from tarot_canvas.ui.strings import DECK_VIEW, license_name
 from tarot_canvas.ui.widgets.cover_banner import (
     BANNER_PADDING,
@@ -30,6 +37,7 @@ from tarot_canvas.ui.widgets.cover_banner import (
     CoverBanner,
     set_banner_text,
 )
+from tarot_canvas.ui.widgets.inline_editors import InlineLineEdit, InlineTextEdit
 from tarot_canvas.ui.widgets.pane_text import display_address, is_link, link_html
 from tarot_canvas.ui.widgets.tag_chips import TagChips, normalized_tags
 
@@ -138,7 +146,30 @@ def buy_link(metadata):
     return None
 
 
+class _CoverWell(QLabel):
+    """The cover, or with none an empty well"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.empty = True
+
+    def paintEvent(self, event):
+        if not self.empty:
+            super().paintEvent(event)
+            return
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        paint_placeholder_well(painter, self.rect(), self.palette(), deck_icon())
+        painter.end()
+
+
 class DeckHeader(QWidget):
+    """A deck's name, cover and metadata; a created deck's are edited where they stand"""
+
+    fields_edited = pyqtSignal(dict)  # [deck] key: new text, "" to remove it
+    add_images_requested = pyqtSignal()
+    cards_chosen = pyqtSignal(bool)  # all 78, or majors only
+
     def __init__(self, deck, parent=None, cover_cache=None, settings=None, created=False):
         super().__init__(parent)
         self.deck = deck
@@ -148,7 +179,11 @@ class DeckHeader(QWidget):
         self._banner = CoverBanner()
 
         self._build()
-        self._restore_expanded()
+        if created:
+            self._apply_expanded(True)
+            self.update_from(deck)
+        else:
+            self._restore_expanded()
 
     # -- construction -----------------------------------------------------
 
@@ -163,7 +198,21 @@ class DeckHeader(QWidget):
         self.row.addWidget(self._build_cover(), 0, Qt.AlignmentFlag.AlignTop)
 
         self.text_container = QWidget()
-        self.text_container.setLayout(self._build_text_column())
+        self.text_container.setLayout(
+            self._build_created_column() if self.created else self._build_text_column()
+        )
+        if self.created:
+            # Down the column, then the action row
+            order = [
+                self.name_edit,
+                self.artist_edit,
+                self.description_edit,
+                self.majors_radio,
+                self.all_radio,
+                self.add_images_button,
+            ]
+            for first, second in itertools.pairwise(order):
+                QWidget.setTabOrder(first, second)
         self.row.addWidget(self.text_container, 1)
         outer.addLayout(self.row)
 
@@ -173,8 +222,7 @@ class DeckHeader(QWidget):
         outer.addWidget(separator)
 
     def _build_cover(self):
-        self.cover_label = QLabel()
-        self.cover_label.setWordWrap(True)
+        self.cover_label = _CoverWell()
         self.cover_label.setAccessibleName(
             DECK_VIEW["cover_of"].format(name=self.deck.metadata.name)
         )
@@ -189,15 +237,17 @@ class DeckHeader(QWidget):
         pixmap = self._cover_cache.get(
             self._cover_path, self.cover_label.size(), self.devicePixelRatioF()
         )
+        self.cover_label.empty = pixmap is None
         if pixmap is not None:
             self.cover_label.setPixmap(pixmap)
             self.cover_label.setAlignment(
                 Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter
             )
+            self.cover_label.setAccessibleDescription("")
         else:
-            self.cover_label.setForegroundRole(QPalette.ColorRole.PlaceholderText)
-            self.cover_label.setText(DECK_VIEW["no_cover"])
-            self.cover_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.cover_label.clear()
+            self.cover_label.setAccessibleDescription(DECK_VIEW["no_cover"])
+        self.cover_label.update()
 
     def _build_text_column(self):
         column = QVBoxLayout()
@@ -236,6 +286,138 @@ class DeckHeader(QWidget):
         column.addSpacing(BANNER_PADDING + DETAILS_GAP)
         column.addWidget(self.details_widget)
         return column
+
+    def _build_created_column(self):
+        """Name, artist, description, the Cards choice and the count; the actions top right"""
+        self.details_button = None
+        self.details_widget = None
+        self.detail_labels = {}
+        self.buy_button = None
+        column = QVBoxLayout()
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(units.SMALL_SPACING)
+
+        title_row = QHBoxLayout()
+        title_row.setSpacing(units.LARGE_SPACING)
+        self.name_edit = InlineLineEdit()
+        typography.apply(self.name_edit, typography.Role.HEADING_1, primary=True)
+        self.name_edit.setAccessibleName(DECK_VIEW["field.name"])
+        self.name_edit.setMaximumWidth(self.measure())
+        self.name_edit.committed.connect(self._on_name_committed)
+        self.title_label = self.name_edit
+        title_row.addWidget(self.name_edit, 1, Qt.AlignmentFlag.AlignTop)
+        title_row.addStretch()
+
+        # Export… joins it here
+        self.actions = QHBoxLayout()
+        self.actions.setSpacing(units.SMALL_SPACING)
+        self.add_images_button = QPushButton(QIcon.fromTheme("list-add"), DECK_VIEW["add_images"])
+        self.add_images_button.clicked.connect(self.add_images_requested)
+        self.actions.addWidget(self.add_images_button, 0, Qt.AlignmentFlag.AlignTop)
+        title_row.addLayout(self.actions)
+        title_row.setAlignment(self.actions, Qt.AlignmentFlag.AlignTop)
+        column.addLayout(title_row)
+
+        self.artist_edit = InlineLineEdit()
+        typography.apply(self.artist_edit, typography.Role.SMALL)
+        self.artist_edit.setPlaceholderText(DECK_VIEW["artist_placeholder"])
+        self.artist_edit.setAccessibleName(DECK_VIEW["field.artist"])
+        self.artist_edit.setMaximumWidth(self.measure())
+        self.artist_edit.committed.connect(lambda text: self._commit_field("artist", text))
+        column.addWidget(self.artist_edit)
+
+        self.description_edit = InlineTextEdit()
+        self.description_edit.setPlaceholderText(DECK_VIEW["description_placeholder"])
+        self.description_edit.setAccessibleName(DECK_VIEW["field.description"])
+        self.description_edit.setMaximumWidth(self.measure())
+        self.description_edit.committed.connect(
+            lambda text: self._commit_field("description", text)
+        )
+        column.addWidget(self.description_edit)
+
+        column.addSpacing(units.SMALL_SPACING)
+        column.addLayout(self._build_cards_choice())
+
+        count_row = QHBoxLayout()
+        count_row.setSpacing(units.LARGE_SPACING)
+        self.subtitle_label = QLabel()
+        typography.apply(self.subtitle_label, typography.Role.SMALL)
+        self.subtitle_label.setForegroundRole(QPalette.ColorRole.PlaceholderText)
+        count_row.addWidget(self.subtitle_label)
+        self.count_bar = QProgressBar()
+        self.count_bar.setTextVisible(False)
+        self.count_bar.setMaximumHeight(units.SMALL_SPACING * 2)
+        self.count_bar.setMaximumWidth(self.measure() // 3)
+        count_row.addWidget(self.count_bar, 1)
+        count_row.addStretch(2)
+        column.addLayout(count_row)
+        column.addStretch()
+        return column
+
+    def _build_cards_choice(self):
+        row = QHBoxLayout()
+        row.setSpacing(units.LARGE_SPACING)
+        label = QLabel(DECK_VIEW["cards_label"])
+        row.addWidget(label)
+        self.majors_radio = QRadioButton(DECK_VIEW["cards_majors_only"])
+        self.all_radio = QRadioButton(DECK_VIEW["cards_all"])
+        self.cards_group = QButtonGroup(self)
+        self.cards_group.setExclusive(True)
+        for button in (self.majors_radio, self.all_radio):
+            self.cards_group.addButton(button)
+            row.addWidget(button)
+        label.setBuddy(self.majors_radio)
+        self.cards_group.buttonClicked.connect(self._on_cards_clicked)
+        row.addStretch()
+        return row
+
+    def _on_cards_clicked(self, button):
+        whole = button is self.all_radio
+        if whole != (not is_majors_only(self.deck)):
+            # Until the reload, so a second click can't queue a second write
+            self.majors_radio.setEnabled(False)
+            self.all_radio.setEnabled(False)
+            self.cards_chosen.emit(whole)
+
+    def _on_name_committed(self, text):
+        name = text.strip()
+        if not name:
+            self.name_edit.revert()
+            return
+        self.name_edit.setText(name)
+        self._commit_field("name", name)
+
+    def _commit_field(self, key, text):
+        text = text.strip()
+        editor = {
+            "name": self.name_edit,
+            "artist": self.artist_edit,
+            "description": self.description_edit,
+        }[key]
+        if text == editor.saved():
+            return
+        editor.set_saved(text)
+        self.fields_edited.emit({key: text})
+
+    def update_from(self, deck):
+        """Show deck, reloaded, without disturbing an editor being typed in"""
+        self.deck = deck
+        metadata = deck.metadata
+        self.name_edit.set_saved(metadata.name or "")
+        self.artist_edit.set_saved(metadata.artist or "")
+        self.description_edit.set_saved(metadata.description or "")
+        self.subtitle_label.setText(self.subtitle_text())
+        placed, expected = created_progress(deck)
+        self.count_bar.setRange(0, max(1, expected))
+        self.count_bar.setValue(placed)
+        majors_only = is_majors_only(deck)
+        self.majors_radio.setChecked(majors_only)
+        self.all_radio.setChecked(not majors_only)
+        self.majors_radio.setEnabled(True)
+        self.all_radio.setEnabled(True)
+        self.cover_label.setAccessibleName(DECK_VIEW["cover_of"].format(name=metadata.name))
+        self._cover_path = deck_cover_path(deck)
+        self._apply_cover(expanded=True)
 
     def _build_buy_button(self):
         """A button to the deck's first `buy` link, labelled with its title if it has one."""
@@ -300,15 +482,15 @@ class DeckHeader(QWidget):
     # -- content ----------------------------------------------------------
 
     def subtitle_text(self):
+        """The artist and the card count; for a created deck, the count alone"""
+        if self.created:
+            placed, expected = created_progress(self.deck)
+            return DECK_VIEW["created_count"].format(placed=placed, expected=expected)
         parts = []
         author = self.deck.metadata.artist
         if author:
             parts.append(author)
-        if self.created:
-            placed, expected = created_progress(self.deck)
-            parts.append(DECK_VIEW["created_count"].format(placed=placed, expected=expected))
-        else:
-            parts.append(DECK_VIEW["card_count"].format(count=len(self.deck.cards)))
+        parts.append(DECK_VIEW["card_count"].format(count=len(self.deck.cards)))
         return " · ".join(parts)
 
     def details_label_measure(self):
@@ -324,10 +506,11 @@ class DeckHeader(QWidget):
         return MEASURE_CHARACTERS * max(1, QFontMetrics(QApplication.font()).averageCharWidth())
 
     def is_expanded(self):
-        return self.details_button.isChecked()
+        return self.created or self.details_button.isChecked()
 
     def set_expanded(self, expanded):
-        self.details_button.setChecked(bool(expanded))
+        if not self.created:
+            self.details_button.setChecked(bool(expanded))
 
     def _restore_expanded(self):
         stored = self._settings.value(
@@ -343,7 +526,8 @@ class DeckHeader(QWidget):
     # -- banner -----------------------------------------------------------
 
     def banner_rect(self):
-        if not self.is_expanded() or not self._cover_path:
+        # A created deck's editors want the palette's colours
+        if self.created or not self.is_expanded() or not self._cover_path:
             return QRect()
 
         bottom = self.subtitle_label.mapTo(self, QPoint(0, self.subtitle_label.height())).y()
@@ -367,20 +551,22 @@ class DeckHeader(QWidget):
 
     def _apply_expanded(self, expanded):
         expanded = bool(expanded)
-        self.details_widget.setVisible(expanded and bool(self.detail_labels))
-        self.details_button.setArrowType(
-            Qt.ArrowType.DownArrow if expanded else Qt.ArrowType.RightArrow
-        )
-        self.details_button.setAccessibleDescription(
-            DECK_VIEW["hide_metadata"] if expanded else DECK_VIEW["show_metadata"]
-        )
+        if self.details_button is not None:
+            self.details_widget.setVisible(expanded and bool(self.detail_labels))
+            self.details_button.setArrowType(
+                Qt.ArrowType.DownArrow if expanded else Qt.ArrowType.RightArrow
+            )
+            self.details_button.setAccessibleDescription(
+                DECK_VIEW["hide_metadata"] if expanded else DECK_VIEW["show_metadata"]
+            )
         self._apply_cover(expanded)
         self.row.setAlignment(
             self.text_container,
             Qt.AlignmentFlag.AlignTop if expanded else Qt.AlignmentFlag.AlignVCenter,
         )
-        banner = expanded and bool(self._cover_path)
-        self._apply_banner_text(banner)
+        banner = not self.created and expanded and bool(self._cover_path)
+        if not self.created:
+            self._apply_banner_text(banner)
         padding = BANNER_PADDING if banner else units.LARGE_SPACING
         self.layout().setContentsMargins(EDGE_MARGIN, padding, EDGE_MARGIN, padding)
         self.update()

@@ -1,12 +1,14 @@
 """Filling a user-created deck"""
 
 import logging
+import os
 
 from PyQt6.QtCore import QEvent, QObject, QPersistentModelIndex, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QAction, QIcon
 from PyQt6.QtWidgets import QApplication, QFileDialog, QMenu, QMessageBox
 
 from tarot_canvas.models import deck_writer
+from tarot_canvas.models.card_id_classifier import plan_images
 from tarot_canvas.models.deck_writer import DeckWriteError
 from tarot_canvas.ui import units
 from tarot_canvas.ui.deck_view.card_model import (
@@ -18,8 +20,9 @@ from tarot_canvas.ui.deck_view.card_model import (
 )
 from tarot_canvas.ui.deck_view.slot_pickers import CardPicker, ImagePicker
 from tarot_canvas.ui.deck_view.unsorted_strip import PathRole, UnsortedStrip
-from tarot_canvas.ui.deck_view.write_queue import WriteQueue
+from tarot_canvas.ui.deck_view.write_queue import ImagesFailed, WriteQueue
 from tarot_canvas.ui.dropped_files import dropped_files, offered_files
+from tarot_canvas.ui.library.decks.model import filled_slots
 from tarot_canvas.ui.strings import DECK_VIEW
 
 log = logging.getLogger(__name__)
@@ -45,7 +48,7 @@ class DeckEditor(QObject):
         self.picker = None  # the open slot or card picker
 
         self.unsorted = UnsortedStrip(deck, delegate.cover_size())
-        self.unsorted.files_dropped.connect(self.send_to_unsorted)
+        self.unsorted.files_dropped.connect(self.drop_files)
         self.unsorted.discard_requested.connect(self.discard_unsorted)
         self.unsorted.place_requested.connect(self.place_unsorted_image)
         self.unsorted.card_wanted.connect(self.choose_card)
@@ -174,15 +177,33 @@ class DeckEditor(QObject):
         picker.setFocus(Qt.FocusReason.PopupFocusReason)
 
     def choose_file(self, slot):
-        suffixes = " ".join(f"*{suffix}" for suffix in sorted(deck_writer.image_suffixes()))
         path, _filter = QFileDialog.getOpenFileName(
-            self._widget,
-            DECK_VIEW["chooser_title"],
-            "",
-            f"{DECK_VIEW['image_filter']} ({suffixes})",
+            self._widget, DECK_VIEW["chooser_title"], "", _image_filter()
         )
         if path:
             self.queue.place(slot, path)
+
+    def add_images(self):
+        """Files chosen, each placed where its name says, the rest to Unsorted"""
+        paths, _filter = QFileDialog.getOpenFileNames(
+            self._widget, DECK_VIEW["chooser_title"], "", _image_filter()
+        )
+        if paths:
+            self.recognise(paths)
+
+    def recognise(self, files):
+        deck = self.unsorted.deck
+        placements, rest = plan_images(files, deck, filled_slots(deck))
+        for path in placements.values():
+            self.unsorted.leave(path)
+        self.queue.add_images(placements, self.unsorted.not_here(rest))
+
+    def drop_files(self, files):
+        """Files dropped outside any slot: several are recognised, one goes to Unsorted"""
+        if len(files) > 1:
+            self.recognise(files)
+        else:
+            self.send_to_unsorted(files)
 
     def place_unsorted_image(self, path, slot):
         self.unsorted.leave(path)
@@ -210,7 +231,12 @@ class DeckEditor(QObject):
 
     def _on_failed(self, error):
         log.warning("Could not change %s: %s", self.unsorted.deck.root_path, error)
-        if isinstance(error, DeckWriteError):
+        if isinstance(error, ImagesFailed):
+            text = DECK_VIEW["add_images_failed"].format(
+                count=len(error.files),
+                files="\n".join(os.path.basename(path) for path in error.files),
+            )
+        elif isinstance(error, DeckWriteError):
             text = DECK_VIEW[f"write_failed.{error.reason.name.lower()}"].format(
                 detail=error.detail
             )
@@ -219,6 +245,11 @@ class DeckEditor(QObject):
         # What did land is shown before the warning
         self.written.emit()
         QMessageBox.warning(self._widget, DECK_VIEW["write_failed_title"], text)
+
+
+def _image_filter():
+    suffixes = " ".join(f"*{suffix}" for suffix in sorted(deck_writer.image_suffixes()))
+    return f"{DECK_VIEW['image_filter']} ({suffixes})"
 
 
 class _SlotDrops(QObject):
@@ -272,7 +303,7 @@ class _SlotDrops(QObject):
             if index is not None:
                 self._editor.drop_on_slot(index, files)
             else:
-                self._editor.send_to_unsorted(files)
+                self._editor.drop_files(files)
             return True
         return False
 

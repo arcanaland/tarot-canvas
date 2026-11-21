@@ -121,6 +121,9 @@ class DeckViewTab(BaseTab):
             unsorted_row.setContentsMargins(self.grid.spacing(), 0, self.grid.spacing(), 0)
             unsorted_row.addWidget(self.editor.unsorted)
             grid_row.addLayout(unsorted_row)
+            self.header.fields_edited.connect(self.on_fields_edited)
+            self.header.add_images_requested.connect(self.editor.add_images)
+            self.header.cards_chosen.connect(self.on_cards_chosen)
         main_layout.addLayout(grid_row)
         main_layout.addStretch()
 
@@ -391,11 +394,15 @@ class DeckViewTab(BaseTab):
 
         self.model.set_deck(deck)
 
-        page = self.header.parentWidget()
-        header = DeckHeader(deck, parent=page, created=self.editable)
-        page.layout().replaceWidget(self.header, header)
-        self.header.deleteLater()
-        self.header = header
+        if self.editable:
+            # Rebuilt, it would take the focus from an editor being typed in
+            self.header.update_from(deck)
+        else:
+            page = self.header.parentWidget()
+            header = DeckHeader(deck, parent=page)
+            page.layout().replaceWidget(self.header, header)
+            self.header.deleteLater()
+            self.header = header
 
         snapshot.restore(view)
         if self.editor is not None:
@@ -409,6 +416,15 @@ class DeckViewTab(BaseTab):
 
     def _restore_scroll(self):
         self.scroll.verticalScrollBar().setValue(self._scrolled)
+
+    def on_fields_edited(self, fields):
+        self.editor.queue.set_fields(**fields)
+
+    def on_cards_chosen(self, whole):
+        if whole:
+            self.editor.queue.include_minors()
+        else:
+            self.editor.queue.exclude_minors()
 
     def new_canvas_from_selection(self):
         cards = self.selected_cards()

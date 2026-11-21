@@ -361,3 +361,40 @@ def test_a_ghost_row_paints_for_real(qapp, fake_downloads):
     model = ghost_model()
     image = render(DeckDelegate(), qapp, model.index(1, 0), qapp.palette())
     assert not image.isNull()
+
+
+# -- decks created here --------------------------------------------------------
+
+
+@pytest.mark.parametrize("art", [False, True])
+def test_a_created_deck_paints_its_marker_on_its_cover_or_its_well(
+    qapp, tmp_path, monkeypatch, art
+):
+    from tarot_canvas.models import library_curation
+
+    marked = []
+    original = deck_delegate.paint_emblem
+    monkeypatch.setattr(
+        deck_delegate,
+        "paint_emblem",
+        lambda painter, cover, icon, palette: (
+            marked.append(QRect(cover)),
+            original(painter, cover, icon, palette),
+        ),
+    )
+    monkeypatch.setattr(library_curation, "was_created_here", lambda path: True)
+    model = model_with_cover(tmp_path) if art else DeckListModel([fake_deck("Made", images=False)])
+
+    render(DeckDelegate(), qapp, model.index(0, 0), qapp.palette())
+
+    assert len(marked) == 1
+
+
+def test_an_installed_deck_paints_no_marker(qapp, tmp_path, monkeypatch):
+    marked = []
+    monkeypatch.setattr(deck_delegate, "paint_emblem", lambda *args: marked.append(args))
+
+    model = model_with_cover(tmp_path)
+    render(DeckDelegate(), qapp, model.index(0, 0), qapp.palette())
+
+    assert marked == []

@@ -22,7 +22,7 @@ EMBLEM_PLATE_ALPHA = 220
 
 
 def paint_placeholder_well(painter, well, palette, icon="image-missing"):
-    """A well the same footprint as real art"""
+    """A well the same footprint as real art; icon is a theme name or a QIcon"""
     painter.save()
     ground = QColor(palette.text().color())
     ground.setAlpha(PLACEHOLDER_WELL_ALPHA)
@@ -30,7 +30,8 @@ def paint_placeholder_well(painter, well, palette, icon="image-missing"):
     painter.setBrush(ground)
     painter.drawRoundedRect(well, units.COVER_RADIUS, units.COVER_RADIUS)
 
-    icon = QIcon.fromTheme(icon)
+    if not isinstance(icon, QIcon):
+        icon = QIcon.fromTheme(icon)
     if not icon.isNull():
         extent = max(16, round(min(well.width(), well.height()) * PLACEHOLDER_ICON_FRACTION))
         target = QRect(0, 0, extent, extent)
@@ -74,17 +75,20 @@ def paint_ghost_cover(
         emblem_bottom = _paint_bar(painter, cover, progress, palette) - 1
 
     icon = QIcon.fromTheme("dialog-error") if failed else emblem
-    if icon is not None and not icon.isNull():
-        extent = max(EMBLEM_MIN, round(min(cover.width(), cover.height()) * EMBLEM_FRACTION))
-        plate = QRect(0, 0, extent, extent)
-        plate.moveBottomRight(QPoint(cover.right() - EMBLEM_MARGIN, emblem_bottom - EMBLEM_MARGIN))
-        _paint_emblem(painter, plate, icon, palette)
+    paint_emblem(painter, cover, icon, palette, emblem_bottom)
 
     painter.restore()
 
 
-def _paint_emblem(painter, plate, icon, palette):
-    """download icon in a circle"""
+def paint_emblem(painter, cover, icon, palette, bottom=None):
+    """icon in a circle in cover's bottom-right corner, above bottom if given"""
+    if icon is None or icon.isNull():
+        return
+    bottom = cover.bottom() if bottom is None else bottom
+    extent = max(EMBLEM_MIN, round(min(cover.width(), cover.height()) * EMBLEM_FRACTION))
+    plate = QRect(0, 0, extent, extent)
+    plate.moveBottomRight(QPoint(cover.right() - EMBLEM_MARGIN, bottom - EMBLEM_MARGIN))
+    painter.save()
     ground = QColor(palette.window().color())
     ground.setAlpha(EMBLEM_PLATE_ALPHA)
     painter.setPen(Qt.PenStyle.NoPen)
@@ -95,6 +99,7 @@ def _paint_emblem(painter, plate, icon, palette):
     glyph = QRect(0, 0, extent, extent)
     glyph.moveCenter(plate.center())
     icon.paint(painter, glyph)
+    painter.restore()
 
 
 def _paint_bar(painter, cover, progress, palette):

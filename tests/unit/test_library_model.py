@@ -1,3 +1,4 @@
+from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
@@ -11,6 +12,7 @@ from tarot_canvas.ui.library.decks.model import (
     SORT_RECENT,
     AuthorRole,
     CardCountRole,
+    CreatedRole,
     DeckFilterProxyModel,
     DeckListModel,
     DeckPathRole,
@@ -21,7 +23,7 @@ from tarot_canvas.ui.library.decks.model import (
     is_majors_only,
 )
 from tarot_canvas.ui.library.roles import SORT_COUNT, SORT_NAME, CoverPathRole, SubtitleRole
-from tarot_canvas.ui.strings import failure_text
+from tarot_canvas.ui.strings import DECK_VIEW, LIBRARY, failure_text
 from tarot_canvas.utils.package_download import DownloadFailure, FailureKind
 from tests.unit.test_catalog import index, raw_entry
 
@@ -291,3 +293,51 @@ def test_a_failed_ghost_says_why_in_its_tooltip(qapp, fake_downloads):
     ghost = model.index(0, 0)
     assert model.data(ghost, StateRole) is DeckState.FAILED
     assert model.data(ghost, Qt.ItemDataRole.ToolTipRole) == failure_text(failure)
+
+
+# -- decks created here -------------------------------------------------------------------
+
+
+@pytest.fixture
+def created_paths(monkeypatch):
+    """Paths was_created_here answers yes for"""
+    from tarot_canvas.models import library_curation
+
+    paths = set()
+    monkeypatch.setattr(library_curation, "was_created_here", lambda path: path in paths)
+    return paths
+
+
+def created_and_installed(created_paths):
+    made = fake_deck("Made", author="Me", majors=22, images=False, path="/decks/made")
+    made.cards = (
+        replace(made.cards[0], images=(CardImage("/decks/made/h70/0.png", "raster"),)),
+        *made.cards[1:],
+    )
+    created_paths.add("/decks/made")
+    return DeckListModel([made, fake_deck("Bought", author="Them", majors=22)])
+
+
+def test_a_created_decks_row_counts_its_progress(created_paths):
+    model = created_and_installed(created_paths)
+    made = model.index(0, 0)
+    count = DECK_VIEW["created_count"].format(placed=1, expected=22)
+
+    assert made.data(SubtitleRole) == f"Me • {LIBRARY['majors_only']} • {count}"
+    assert made.data(CardCountRole) == 1
+    assert made.data(Qt.ItemDataRole.ToolTipRole).splitlines() == [
+        "Made",
+        f"Me • {LIBRARY['majors_only']} • {count}",
+        LIBRARY["created_tooltip"],
+    ]
+    assert made.data(CreatedRole) is True
+
+
+def test_an_installed_decks_row_is_unchanged(created_paths):
+    model = created_and_installed(created_paths)
+    bought = model.index(1, 0)
+
+    assert bought.data(SubtitleRole) == f"Them • {LIBRARY['majors_only']}"
+    assert bought.data(CardCountRole) == 22
+    assert bought.data(Qt.ItemDataRole.ToolTipRole) == f"Bought\nThem • {LIBRARY['majors_only']}"
+    assert bought.data(CreatedRole) is False

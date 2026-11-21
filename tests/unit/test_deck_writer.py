@@ -602,3 +602,72 @@ def test_an_image_qt_will_not_decode_goes_back_to_unsorted(deck, images, monkeyp
     assert files(deck / "h200") == ["major_arcana/00.png"]
     monkeypatch.undo()
     writer.refresh(deck)
+
+
+# -- exclude_minors -------------------------------------------------------------------------
+
+
+def test_excluding_the_minors_sends_a_placed_minors_original_to_unsorted(deck, images):
+    writer.place(deck, TWO_OF_CUPS, save(images, "my-two.png", 40, 70))
+    writer.place(deck, FOOL, save(images, "fool.png", 40, 70))
+
+    writer.exclude_minors(deck)
+
+    assert files(deck / writer.UNSORTED) == ["my-two.png"]
+    assert not (deck / writer.SOURCE / "minor_arcana").exists()
+    assert not any((root / "minor_arcana").exists() for root in (deck / r for r in roots(deck)))
+    assert files(deck / "h70") == ["major_arcana/00.png"]
+    assert sorted(manifest(deck)["excluded_cards"]["cards"]) == sorted(
+        card for card in CANONICAL_CARD_IDS if card.startswith("minor_arcana.")
+    )
+    assert "reason" not in manifest(deck)["excluded_cards"]
+    assert len(arcana_tarot.load_deck(deck).cards) == 22
+
+
+def test_excluding_then_including_the_minors_round_trips(majors):
+    before = manifest(majors)
+
+    writer.include_minors(majors)
+    writer.exclude_minors(majors)
+
+    assert sorted(manifest(majors)["excluded_cards"]["cards"]) == sorted(
+        before["excluded_cards"]["cards"]
+    )
+
+
+# -- place_many -----------------------------------------------------------------------------
+
+
+def test_place_many_places_shortest_first_into_one_root(deck, images, monkeypatch):
+    tall = save(images, "tall.png", 30, 4800)
+    short = save(images, "short.png", 12, 2000)
+    order = []
+    original = writer.place
+
+    def placing(deck_path, card_id, image, progress=None):
+        order.append(card_id)
+        original(deck_path, card_id, image, progress)
+
+    monkeypatch.setattr(writer, "place", placing)
+    failed = writer.place_many(deck, {FOOL: tall, MAGICIAN: short}, [])
+
+    assert failed == []
+    assert order == [MAGICIAN, FOOL]
+    assert roots(deck) == ["h2000"]
+
+
+def test_place_many_carries_on_past_a_failure_and_reports_it(deck, images):
+    broken = images / "02.png"
+    broken.write_text("not an image")
+    good = save(images, "00.png", 40, 70)
+    stray = save(images, "IMG_1.png", 40, 70)
+    steps = []
+
+    failed = writer.place_many(
+        deck, {PRIESTESS: broken, FOOL: good}, [stray], lambda done, total: steps.append(done)
+    )
+
+    assert failed == [os.fspath(broken)]
+    assert files(deck / writer.UNSORTED) == ["IMG_1.png"]
+    assert files(deck / "h70") == ["major_arcana/00.png"]
+    assert steps[0] == 0 and steps[-1] == 3

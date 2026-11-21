@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 
 import pytest
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QPoint, Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QApplication
 
@@ -220,3 +220,14 @@ def test_wrapped_height_grows_with_the_text(qapp):
     assert wrapped_height("", font, 400) == 0
     assert wrapped_height("x", font, 0) == 0
     assert wrapped_height(prose, font, 200) > wrapped_height(prose, font, 600)
+
+
+def test_an_artless_decks_cover_is_a_well_with_no_text_level_with_the_title(header):
+    header.set_expanded(True)
+    cover, title = header.cover_label, header.title_label
+
+    assert cover.empty
+    assert cover.text() == ""
+    assert cover.accessibleDescription() == DECK_VIEW["no_cover"]
+    top = cover.mapTo(header, QPoint(0, 0)).y()
+    assert top == title.mapTo(header, QPoint(0, 0)).y()

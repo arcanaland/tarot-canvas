@@ -9,6 +9,14 @@ from PyQt6.QtCore import QObject, QRunnable, QThreadPool, pyqtSignal
 from tarot_canvas.models import deck_writer
 
 
+class ImagesFailed(Exception):
+    """Files a batch could not place, after it placed the rest"""
+
+    def __init__(self, files):
+        super().__init__(", ".join(files))
+        self.files = files
+
+
 class _Reporter(QObject):
     """Lives on the GUI thread"""
 
@@ -71,6 +79,26 @@ class WriteQueue(QObject):
 
     def refresh(self):
         self._add(lambda progress: deck_writer.refresh(self._deck, progress))
+
+    def add_images(self, placements, unsorted):
+        """{card_id: path} into their slots, then the rest into Unsorted, as one job"""
+        placements, unsorted = dict(placements), list(unsorted)
+
+        def call(progress):
+            failed = deck_writer.place_many(self._deck, placements, unsorted, progress)
+            if failed:
+                raise ImagesFailed(failed)
+
+        self._add(call)
+
+    def include_minors(self):
+        self._add(lambda _progress: deck_writer.include_minors(self._deck))
+
+    def exclude_minors(self):
+        self._add(lambda progress: deck_writer.exclude_minors(self._deck, progress))
+
+    def set_fields(self, **fields):
+        self._add(lambda _progress: deck_writer.set_fields(self._deck, **fields))
 
     # -- the queue --------------------------------------------------------
 

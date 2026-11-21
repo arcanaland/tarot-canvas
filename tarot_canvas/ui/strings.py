@@ -405,6 +405,15 @@ DECK_VIEW = {
     "write_failed_os": "The deck could not be saved: {error}",
     "create_failed": "Deck creation failed: {error}",
     "created_count": "{placed} of {expected} cards",
+    "add_images": "Add Images…",
+    "add_images_failed": "{count} images could not be added:\n{files}",
+    "field.name": "Name",
+    "field.artist": "Artist",
+    "artist_placeholder": "Artist",
+    "description_placeholder": "Description",
+    "cards_label": "Cards:",
+    "cards_majors_only": "Majors only",
+    "cards_all": "All 78",
 }
 
 # File > New Deck…
@@ -698,6 +707,7 @@ LIBRARY = {
     "unknown_author": "Unknown",
     "majors_only": "majors only",
     "majors_short": "majors",
+    "created_tooltip": "<clankertext>Made in Tarot Canvas</clankertext>",
     # The details pane; the esoterica view's pane shares the first two
     "form_version": "Version:",
     "form_license": "License:",

@@ -157,6 +157,41 @@ def include_minors(deck):
     write_atomically(manifest, tomlkit.dumps(document))
 
 
+def exclude_minors(deck, progress=None):
+    """Put the 56 minors in [excluded_cards]; their originals go to unsorted/"""
+    deck = _checked(deck)
+    for card_id in _MINORS:
+        for derived in _roots(deck):
+            _clear_stem(derived / _subpath(card_id))
+        for old in _originals(deck, card_id):
+            _to_unsorted(deck, old)
+    _remove_empty_folders(deck / SOURCE / "minor_arcana")
+    for derived in _roots(deck):
+        _remove_empty_folders(derived / "minor_arcana")
+    manifest = deck / DECK_TOML
+    document = tomlkit.parse(manifest.read_text(encoding="utf-8"))
+    excluded = document.get("excluded_cards")
+    if excluded is None:
+        excluded = tomlkit.table()
+        document["excluded_cards"] = excluded
+    listed = list(excluded.get("cards", ()))
+    cards = tomlkit.array()
+    cards.extend([*listed, *(card for card in _MINORS if card not in listed)])
+    cards.multiline(True)
+    excluded["cards"] = cards
+    write_atomically(manifest, tomlkit.dumps(document))
+    _sync(deck, progress)
+
+
+def _remove_empty_folders(top):
+    """top and the folders under it, where empty"""
+    if not top.is_dir():
+        return
+    for directory, _, _ in sorted(os.walk(top), key=lambda walked: -len(walked[0])):
+        with contextlib.suppress(OSError):  # not empty
+            os.rmdir(directory)
+
+
 # -- [deck] fields -------------------------------------------------------------------------
 
 
@@ -223,6 +258,63 @@ def unplace(deck, card_id, progress=None):
     with contextlib.suppress(OSError):  # gone already, or not empty
         _slot_folder(deck, card_id).rmdir()
     _sync(deck, progress)
+
+
+def place_many(deck, placements, unsorted, progress=None):
+    """Place {card_id: image} shortest first, then copy each of unsorted into unsorted/
+
+    Carries on past a file that fails, which goes to unsorted/ if it can; returns the failed
+    files' paths.
+    """
+    deck = _checked(deck)
+    total = len(placements) + len(unsorted)
+    done = 0
+    failed = []
+
+    def advance():
+        nonlocal done
+        done += 1
+        if progress is not None:
+            progress(done, total)
+
+    if progress is not None and total:
+        progress(0, total)
+    heights = {}
+    for card_id, image in placements.items():
+        try:
+            heights[card_id] = oriented_height(image)
+        except DeckWriteError:
+            failed.append(os.fspath(image))
+            advance()
+    # The first placed fixes H, so no later one regenerates the rest
+    for card_id in sorted(heights, key=heights.get):
+        image = placements[card_id]
+        try:
+            place(deck, card_id, image)
+        except DeckWriteError as error:
+            failed.append(os.fspath(image))
+            # An image Qt could not decode is in unsorted/ already
+            if error.reason is not DeckWriteReason.UNREADABLE_IMAGE:
+                with contextlib.suppress(DeckWriteError, OSError):
+                    place_unsorted(deck, image)
+        except OSError:
+            failed.append(os.fspath(image))
+        advance()
+    for image in unsorted:
+        if _is_unsorted(deck, Path(image)):
+            advance()
+            continue
+        try:
+            place_unsorted(deck, image)
+        except (DeckWriteError, OSError):
+            failed.append(os.fspath(image))
+        advance()
+    return failed
+
+
+def oriented_height(image):
+    """image's height as shown, once its orientation is applied"""
+    return _read_header(Path(image))[0]
 
 
 def place_unsorted(deck, image):

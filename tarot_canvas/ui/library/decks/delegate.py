@@ -7,8 +7,8 @@ from PyQt6.QtWidgets import QApplication, QStyle, QStyledItemDelegate
 from tarot_canvas.ui import typography, units
 from tarot_canvas.ui.catalog.downloads import DeckState
 from tarot_canvas.ui.covers.cache import CoverCache
-from tarot_canvas.ui.covers.ghost import paint_ghost_cover, paint_placeholder_well
-from tarot_canvas.ui.library.decks.model import ProgressRole, StateRole
+from tarot_canvas.ui.covers.ghost import paint_emblem, paint_ghost_cover, paint_placeholder_well
+from tarot_canvas.ui.library.decks.model import CreatedRole, ProgressRole, StateRole
 from tarot_canvas.ui.library.roles import SELECTED_SUBTITLE_ALPHA, CoverPathRole, SubtitleRole
 
 HOVER_ALPHA = 38  # ~15% Highlight behind a hovered cell
@@ -149,6 +149,7 @@ class DeckDelegate(QStyledItemDelegate):
             paint_placeholder_well(painter, well, palette)
             if ghost:
                 self._paint_ghost(painter, well, QPixmap(), index, state, palette)
+            self._paint_created(painter, well, palette, index)
             return
 
         art = self._art_rect(well, pixmap)
@@ -160,6 +161,13 @@ class DeckDelegate(QStyledItemDelegate):
             painter.drawPixmap(art.topLeft(), pixmap)
 
         self._paint_cover_border(painter, art, palette)
+        self._paint_created(painter, art, palette, index)
+
+    @staticmethod
+    def _paint_created(painter, cover, palette, index):
+        """A deck made here"""
+        if index.data(CreatedRole):
+            paint_emblem(painter, cover, QIcon.fromTheme("document-edit"), palette)
 
     @staticmethod
     def _art_rect(well, pixmap):
