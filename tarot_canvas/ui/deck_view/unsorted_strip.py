@@ -191,11 +191,7 @@ class UnsortedStrip(QWidget):
         self.card_wanted.emit(index.data(PathRole), where)
 
     def leave(self, path):
-        """path is on its way into a slot: hide it, and make the next image current
-
-        The previous image becomes current for the last. The reload after each placement keeps
-        the current image by name, so Return walks the strip.
-        """
+        """hide an image and make the next image current"""
         rows = [self.model.item(row).data(PathRole) for row in range(self.model.rowCount())]
         if path not in rows:
             return
@@ -208,7 +204,7 @@ class UnsortedStrip(QWidget):
         self._show_empty(self.model.rowCount() == 0)
 
     def settle(self):
-        """The editor is idle: show unsorted/ as it is, an image that failed to place included"""
+        """The editor is idle so show unsorted/"""
         self._leaving.clear()
 
     def _show_empty(self, empty):
@@ -225,7 +221,6 @@ class UnsortedStrip(QWidget):
         menu.deleteLater()
 
     def item_menu(self, index):
-        """Place as the classified card, Place as…, then Delete"""
         menu = QMenu(self)
         path, card_id = index.data(PathRole), index.data(CardIdRole)
         if card_id:

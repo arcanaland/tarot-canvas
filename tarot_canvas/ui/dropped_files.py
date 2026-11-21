@@ -1,10 +1,4 @@
-"""Local files carried by a drag or drop, through the document portal under Flatpak
-
-A drag from outside the sandbox names host paths in text/uri-list, which don't exist in
-here. A portal-aware source (Dolphin, Files) also puts a key under a portal format, and
-FileTransfer.RetrieveFiles trades it for paths under /run/user/N/doc/ that do. Qt does not
-do this itself; KF6's KUrlMimeData does, but PyQt doesn't reach it.
-"""
+"""Dragging and dropping files through the Flatpak portal"""
 
 import logging
 import os
@@ -16,14 +10,12 @@ PORTAL_FORMATS = ("application/vnd.portal.filetransfer", "application/vnd.portal
 
 
 def offered_files(mime):
-    """The paths a drag names, for deciding whether to take it; under Flatpak they may not exist here"""
     if mime is None or not mime.hasUrls():
         return []
     return [url.toLocalFile() for url in mime.urls() if url.isLocalFile()]
 
 
 def dropped_files(mime):
-    """The paths to read, on drop only: the portal honours a key once, so call this once per drop"""
     if mime is not None and _sandboxed():
         for name in PORTAL_FORMATS:
             if mime.hasFormat(name):
