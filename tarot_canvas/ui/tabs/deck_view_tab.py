@@ -1,10 +1,13 @@
-from PyQt6.QtCore import QItemSelection, QItemSelectionModel, QModelIndex, Qt, QTimer, pyqtSignal
+import logging
+
+from PyQt6.QtCore import QItemSelectionModel, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
     QButtonGroup,
     QFrame,
     QHBoxLayout,
     QMenu,
+    QProgressBar,
     QScrollArea,
     QSizePolicy,
     QStackedWidget,
@@ -13,6 +16,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from tarot_canvas.models import library_curation
 from tarot_canvas.models.deck_library import deck_library
 from tarot_canvas.settings import (
     DECK_VIEW_DENSITY_DEFAULT,
@@ -28,8 +32,10 @@ from tarot_canvas.ui import units
 from tarot_canvas.ui.activate_on_return import activate_on_return
 from tarot_canvas.ui.card_transfer import copy_cards_to_clipboard
 from tarot_canvas.ui.deck_view.card_delegate import CardDelegate
-from tarot_canvas.ui.deck_view.card_model import CardFilter, CardModel, CardRole
+from tarot_canvas.ui.deck_view.card_model import CardFilter, CardModel, CardRole, is_slot
+from tarot_canvas.ui.deck_view.deck_editor import DeckEditor
 from tarot_canvas.ui.deck_view.sections_view import SectionsView
+from tarot_canvas.ui.deck_view.selection_snapshot import SelectionSnapshot
 from tarot_canvas.ui.deck_view.tableau_model import TableauModel
 from tarot_canvas.ui.deck_view.tableau_view import TableauView
 from tarot_canvas.ui.icons import deck_icon
@@ -39,6 +45,8 @@ from tarot_canvas.ui.strings import DECK_VIEW
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.ui.widgets.search_field import search_field
 from tarot_canvas.ui.widgets.zoom_slider import ZoomSlider
+
+log = logging.getLogger(__name__)
 
 SECTION_MARGIN = deck_header.EDGE_MARGIN
 
@@ -56,18 +64,17 @@ class DeckViewTab(BaseTab):
     def __init__(self, deck_path, parent=None):
         super().__init__(parent)
         self.deck_path = deck_path
-        self.deck = None
         self.mode = None
+        self.editor = None  # a DeckEditor, for a deck created here
         self.settings = get_settings()
-        self.setup_ui()
+        self._build(deck_library.load(deck_path))
 
-    def setup_ui(self):
-        self.load_deck(self.deck_path)
+    @property
+    def deck(self):
+        return self.model.deck
 
-    def load_deck(self, deck_path):
-        self.deck = deck_library.load(deck_path)
-
-        self.tab_label_changed.emit()
+    def _build(self, deck):
+        self.editable = library_curation.was_created_here(deck.root_path)
 
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(0)
@@ -82,13 +89,13 @@ class DeckViewTab(BaseTab):
         main_layout.setContentsMargins(0, 0, 0, 0)
 
         # Deck-level header at the top of the page
-        self.header = DeckHeader(self.deck, parent=content)
+        self.header = DeckHeader(deck, parent=content, created=self.editable)
         main_layout.addWidget(self.header)
 
         # The grid's own spacing makes up the rest of the margin, so headings line up
         # with the header's text
         grid_row = QVBoxLayout()
-        self.grid = self._build_grid()
+        self.grid = self._build_grid(deck)
         self.tableau = self._build_tableau()
         self._views = {DECK_VIEW_MODE_SECTIONS: self.grid, DECK_VIEW_MODE_TABLEAU: self.tableau}
         self.views = QStackedWidget()
@@ -101,11 +108,23 @@ class DeckViewTab(BaseTab):
         inset = SECTION_MARGIN - self.grid.spacing()
         grid_row.setContentsMargins(inset, 0, inset, SECTION_MARGIN)
         grid_row.addWidget(self.views)
+
+        self.scroll = scroll = QScrollArea()
+        if self.editable:
+            self.editor = DeckEditor(
+                deck, self.delegate, [self.grid, self.tableau], scroll, self.current_view, self
+            )
+            self.editor.progress.connect(self.on_write_progress)
+            self.editor.written.connect(self.on_written)
+            self.editor.edit_state_changed.connect(self.edit_state_changed)
+            unsorted_row = QHBoxLayout()
+            unsorted_row.setContentsMargins(self.grid.spacing(), 0, self.grid.spacing(), 0)
+            unsorted_row.addWidget(self.editor.unsorted)
+            grid_row.addLayout(unsorted_row)
         main_layout.addLayout(grid_row)
         main_layout.addStretch()
 
         # Add the content to a scroll area
-        self.scroll = scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setWidget(content)
         # Anywhere on the page, where a wheel over the grid ends up too
@@ -113,7 +132,6 @@ class DeckViewTab(BaseTab):
 
         # The frame would put a line between the banner and the tab bar.
         scroll.setFrameShape(QFrame.Shape.NoFrame)
-
         self.layout.addWidget(scroll)
 
         self.set_view_mode(
@@ -132,6 +150,11 @@ class DeckViewTab(BaseTab):
         self.search_field = search_field(DECK_VIEW["find_card"])
         self.search_field.textChanged.connect(self.on_search_changed)
         row.addWidget(self.search_field, 1)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.hide()
+        row.addWidget(self.progress_bar)
 
         self.zoom_slider = ZoomSlider(
             units.DENSITIES, DECK_VIEW["cover_size"], DECK_VIEW_DENSITY_DEFAULT
@@ -175,14 +198,14 @@ class DeckViewTab(BaseTab):
             buttons.addWidget(button)
         return bar
 
-    def _build_grid(self):
-        self.model = CardModel(self.deck, self)
+    def _build_grid(self, deck):
+        self.model = CardModel(deck, self, editable=self.editable)
         # The grid shows what Find leaves of the deck
         self.found = CardFilter(self)
         self.found.setSourceModel(self.model)
         grid = SectionsView()
         grid.setModel(self.found)
-        self.delegate = CardDelegate(grid, density=self.zoom_slider.key())
+        self.delegate = CardDelegate(grid, density=self.zoom_slider.key(), editable=self.editable)
         grid.setItemDelegate(self.delegate)
         self._connect_view(grid)
         return grid
@@ -247,17 +270,7 @@ class DeckViewTab(BaseTab):
     def _carry_selection(self, old, new):
         """The same cards, and the same current card, in the view switched to"""
         had_focus = old.hasFocus()
-        current = old.model().mapToSource(old.currentIndex())
-        selection = QItemSelection()
-        for row in self.selected_source_rows(old):
-            index = new.model().mapFromSource(self.model.index(row, 0))
-            if index.isValid():
-                selection.select(index, index)
-
-        target = new.model().mapFromSource(current) if current.isValid() else QModelIndex()
-        selection_model = new.selectionModel()
-        selection_model.setCurrentIndex(target, QItemSelectionModel.SelectionFlag.NoUpdate)
-        selection_model.select(selection, QItemSelectionModel.SelectionFlag.ClearAndSelect)
+        SelectionSnapshot.take(old).restore(new)
         if had_focus:
             new.setFocus(Qt.FocusReason.OtherFocusReason)
         # Once the page it's on is laid out
@@ -274,15 +287,20 @@ class DeckViewTab(BaseTab):
         return sorted(rows)
 
     def selected_cards(self):
-        """The selected cards, in deck order"""
-        return [self.model.index(row, 0).data(CardRole) for row in self.selected_source_rows()]
+        """The selected cards, in deck order; not the back"""
+        cards = (self.model.index(row, 0).data(CardRole) for row in self.selected_source_rows())
+        return [card for card in cards if card is not None]
 
     def on_card_clicked(self, index):
+        if self.editor is not None and self.editor.click(index):
+            return
         card = index.data(CardRole)
         if card and card.default_image():
             self.card_clicked.emit(card.default_image())
 
     def on_card_activated(self, index):
+        if self.editor is not None and self.editor.activate(index):
+            return
         card = index.data(CardRole)
         if card:
             self.card_action_requested.emit("double_click", card, self.deck)
@@ -326,17 +344,71 @@ class DeckViewTab(BaseTab):
         canvas_action.triggered.connect(self.new_canvas_from_selection)
         return menu
 
+    def menu_for(self, index):
+        """The context menu for the card or slot at index"""
+        if self.editor is not None:
+            return self.editor.slot_menu(index, self.card_menu)
+        return self.card_menu(index)
+
     def on_context_menu(self, pos):
         view = self.current_view()
         index = view.indexAt(pos)
-        if not index.isValid() or index.data(CardRole) is None:
+        if not is_slot(index):
+            return
+        if self.editor is None and index.data(CardRole) is None:
             return
         selection = view.selectionModel()
         if not selection.isSelected(index):
             selection.setCurrentIndex(index, QItemSelectionModel.SelectionFlag.ClearAndSelect)
-        menu = self.card_menu(index)
+        menu = self.menu_for(index)
         menu.exec(view.viewport().mapToGlobal(pos))
         menu.deleteLater()
+
+    # -- a created deck's writes --------------------------------------------
+
+    def on_write_progress(self, done, total):
+        if total <= 0:
+            return
+        self.progress_bar.setRange(0, total)
+        self.progress_bar.setValue(done)
+        self.progress_bar.show()
+
+    def on_written(self):
+        if not self.editor.is_busy():
+            self.progress_bar.hide()
+        try:
+            deck = deck_library.reload(self.deck_path)
+        except Exception:
+            log.exception("Could not reload %s", self.deck_path)
+            return
+        self.set_deck(deck)
+
+    def set_deck(self, deck):
+        """Show deck, as reloaded, keeping the current card, the selection and the scroll"""
+        view = self.current_view()
+        snapshot = SelectionSnapshot.take(view)
+        scrolled = self.scroll.verticalScrollBar().value()
+
+        self.model.set_deck(deck)
+
+        page = self.header.parentWidget()
+        header = DeckHeader(deck, parent=page, created=self.editable)
+        page.layout().replaceWidget(self.header, header)
+        self.header.deleteLater()
+        self.header = header
+
+        snapshot.restore(view)
+        if self.editor is not None:
+            self.editor.set_deck(deck)
+        self.tab_label_changed.emit()
+        self.edit_state_changed()
+        self._scrolled = scrolled
+        self._restore_scroll()
+        # Once the page is laid out again
+        QTimer.singleShot(0, self._restore_scroll)
+
+    def _restore_scroll(self):
+        self.scroll.verticalScrollBar().setValue(self._scrolled)
 
     def new_canvas_from_selection(self):
         cards = self.selected_cards()
@@ -348,12 +420,14 @@ class DeckViewTab(BaseTab):
         if self.delegate.set_density(density):
             self.grid.doItemsLayout()
             self.tableau.update_sections()
+            if self.editor is not None:
+                self.editor.set_cover_size(self.delegate.cover_size())
         self.zoom_state_changed()
 
     # -- find ---------------------------------------------------------------
 
     def can_find(self):
-        return self.deck is not None
+        return True
 
     def find(self):
         self.search_field.setFocus(Qt.FocusReason.ShortcutFocusReason)
@@ -367,7 +441,7 @@ class DeckViewTab(BaseTab):
     # -- zoom ---------------------------------------------------------------
 
     def can_zoom(self, how):
-        return self.deck is not None and self.zoom_slider.can_zoom(how)
+        return self.zoom_slider.can_zoom(how)
 
     def zoom(self, how):
         self.zoom_slider.zoom(how)
@@ -375,7 +449,14 @@ class DeckViewTab(BaseTab):
     # -- edit ---------------------------------------------------------------
 
     def can_copy_card(self):
-        return self.deck is not None and self.current_view().selectionModel().hasSelection()
+        return bool(self.selected_cards())
+
+    def can_delete(self):
+        return self.editor is not None and self.editor.can_delete()
+
+    def delete(self):
+        if self.editor is not None:
+            self.editor.delete()
 
     def copy_card(self):
         cards = self.selected_cards()

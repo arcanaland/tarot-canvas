@@ -106,18 +106,18 @@ def test_the_chosen_view_is_remembered(library, qtbot, notes_base):
     assert reopened.current_view() == LIBRARY_VIEW_NOTES
 
 
-def test_sort_size_and_open_deck_are_the_deck_views_alone(library, qtbot):
+def test_sort_size_and_new_deck_are_the_deck_views_alone(library, qtbot):
     library.show()
     qtbot.waitExposed(library)
     assert library.sort_combo.isVisible()
-    assert library.open_deck_button.isVisible()
+    assert library.new_deck_button.isVisible()
 
     assert library.zoom_slider.isVisible()
 
     notes_view(library)
 
     assert not library.sort_combo.isVisible()
-    assert not library.open_deck_button.isVisible()
+    assert not library.new_deck_button.isVisible()
     # The list has no covers to size; search serves both
     assert not library.zoom_slider.isVisible()
     assert library.search_field.isVisible()

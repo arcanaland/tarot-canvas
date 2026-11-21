@@ -1,12 +1,14 @@
 """Scaled, device-pixel-ratio-aware cover pixmaps, cached by request."""
 
+import os
+
 from PyQt6.QtGui import QPixmap
 
 from tarot_canvas.ui.canvas.detail import art_size, fit_device_size, read_art
 
 
 class CoverCache:
-    """Cache of cover pixmaps keyed by (path, well size, device pixel ratio)."""
+    """Cache of cover pixmaps keyed by (path, mtime, well size, device pixel ratio)."""
 
     def __init__(self, capacity=256):
         self._capacity = capacity
@@ -16,7 +18,10 @@ class CoverCache:
         self._pixmaps.clear()
 
     def get(self, path, well_size, device_pixel_ratio=1.0):
-        key = (path, well_size.width(), well_size.height(), round(device_pixel_ratio, 3))
+        modified = modified_ns(path)
+        if path and modified is None:
+            return None
+        key = (path, modified, well_size.width(), well_size.height(), round(device_pixel_ratio, 3))
         if key in self._pixmaps:
             return self._pixmaps[key]
 
@@ -45,3 +50,11 @@ class CoverCache:
         pixmap = QPixmap.fromImage(image)
         pixmap.setDevicePixelRatio(device_pixel_ratio)
         return pixmap
+
+
+def modified_ns(path):
+    """path's st_mtime_ns, or None when there is no file"""
+    try:
+        return os.stat(path).st_mtime_ns
+    except (OSError, TypeError, ValueError):
+        return None

@@ -17,6 +17,7 @@ from PyQt6.QtGui import (
 from PyQt6.QtOpenGLWidgets import QOpenGLWidget
 from PyQt6.QtWidgets import (
     QApplication,
+    QDialog,
     QFileDialog,
     QHBoxLayout,
     QInputDialog,
@@ -31,7 +32,7 @@ from PyQt6.QtWidgets import (
 )
 
 from tarot_canvas.about import load_about_data
-from tarot_canvas.models import readings, spreads
+from tarot_canvas.models import deck_writer, readings, spreads
 from tarot_canvas.models.deck_library import DeckLibrary, deck_library
 from tarot_canvas.models.reading_events import reading_events
 from tarot_canvas.settings import (
@@ -54,7 +55,16 @@ from tarot_canvas.ui.commands import Scope, set_tooltip_with_keys
 from tarot_canvas.ui.document_tabs import DocumentTabs
 from tarot_canvas.ui.library.tab import LibraryTab
 from tarot_canvas.ui.spread_menu import spread_menu
-from tarot_canvas.ui.strings import COMMANDS, DOWNLOAD, LIBRARY, MAIN_WINDOW, READINGS, SPREADS
+from tarot_canvas.ui.strings import (
+    COMMANDS,
+    DECK_VIEW,
+    DOWNLOAD,
+    LIBRARY,
+    MAIN_WINDOW,
+    NEW_DECK,
+    READINGS,
+    SPREADS,
+)
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
@@ -66,6 +76,7 @@ from tarot_canvas.ui.widgets.placeholder_message import tinted_icon
 from tarot_canvas.ui.widgets.toast import Toast
 from tarot_canvas.ui.windows.about import AboutDialog, app_icon
 from tarot_canvas.ui.windows.log_viewer import LogViewerDialog
+from tarot_canvas.ui.windows.new_deck_dialog import NewDeckDialog
 from tarot_canvas.utils.theme_manager import ThemeManager, ThemeType
 
 log = logging.getLogger(__name__)
@@ -211,6 +222,7 @@ class MainWindow(QMainWindow):
         detached = {
             "window.new_canvas",
             "window.new_spread",
+            "window.new_deck",
             "window.new_library",
             "window.new_card_view",
             "window.open_deck",
@@ -226,6 +238,7 @@ class MainWindow(QMainWindow):
             {
                 "window.new_canvas": self.new_canvas_tab,
                 "window.new_spread": self.new_spread_tab,
+                "window.new_deck": self.new_deck,
                 "window.new_library": self.new_library_tab,
                 "window.new_card_view": self.new_card_view_tab,
                 "window.open_deck": self.open_deck,
@@ -259,26 +272,24 @@ class MainWindow(QMainWindow):
 
         self.new_canvas_action = actions["window.new_canvas"]
         self.new_spread_action = actions["window.new_spread"]
+        self.new_deck_action = actions["window.new_deck"]
         self.new_library_action = actions["window.new_library"]
         self.new_card_view_action = actions["window.new_card_view"]
-        file_menu.addActions(
-            [
-                self.new_canvas_action,
-                self.new_library_action,
-                self.new_card_view_action,
-                self.new_spread_action,
-            ]
-        )
         self.new_reading_menu = self.new_spread_menu(self)
         self.new_reading_menu.setTitle(MAIN_WINDOW["new_reading_from_spread"])
         self.new_reading_menu.setIcon(QIcon.fromTheme("media-playback-start"))
+        # What makes a file, then opening and saving, then tabs onto what exists
+        file_menu.addAction(self.new_canvas_action)
         file_menu.addMenu(self.new_reading_menu)
+        file_menu.addActions([self.new_spread_action, self.new_deck_action])
         file_menu.addSeparator()
         file_menu.addAction(actions["window.open_deck"])
         self.save_action = actions["window.save"]
         file_menu.addAction(self.save_action)
         file_menu.addSeparator()
-        file_menu.addAction(actions["window.close_tab"])
+        file_menu.addActions(
+            [self.new_library_action, self.new_card_view_action, actions["window.close_tab"]]
+        )
         file_menu.addSeparator()
         file_menu.addAction(actions["window.quit"])
 
@@ -599,6 +610,26 @@ class MainWindow(QMainWindow):
 
     def new_spread_tab(self):
         return self.add_canvas_tab(SpreadTab())
+
+    def new_deck(self):
+        """Ask for a name, create the deck and open it"""
+        dialog = NewDeckDialog(self)
+        try:
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return None
+            name = dialog.name().strip()
+        finally:
+            dialog.deleteLater()
+        try:
+            path = deck_writer.create(name)
+        except (OSError, deck_writer.DeckWriteError) as error:
+            log.warning("Could not create a deck: %s", error)
+            QMessageBox.warning(
+                self, NEW_DECK["title"], DECK_VIEW["create_failed"].format(error=error)
+            )
+            return None
+        deck_library.rescan()
+        return self.new_deck_view_tab(deck_path=os.fspath(path))
 
     def open_spread(self, path):
         """Raise the tab holding the spread in folder path, or open one, and return it"""

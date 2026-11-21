@@ -783,7 +783,7 @@ def test_the_esoterica_view_hides_sort_size_and_open_deck(sources, library, qtbo
 
     assert not library.sort_combo.isVisible()
     assert not library.zoom_slider.isVisible()
-    assert not library.open_deck_button.isVisible()
+    assert not library.new_deck_button.isVisible()
     assert library.search_field.isVisible()
     assert library.details_toggle.isVisible()
 
@@ -1195,3 +1195,14 @@ def test_a_menu_button_press_does_not_swallow_the_next_click(spreads_library, qt
     click_spread(spreads_library, qtbot, "Older")
 
     assert spreads_library.details_pane_is_open()
+
+
+def test_new_deck_runs_the_windows_new_deck(library, monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        library, "window", lambda: SimpleNamespace(new_deck=lambda: calls.append(1))
+    )
+
+    library.new_deck_button.click()
+
+    assert calls == [1]

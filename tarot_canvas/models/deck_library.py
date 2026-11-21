@@ -46,6 +46,16 @@ class DeckLibrary:
             self._loaded[key] = deck
         return deck
 
+    def reload(self, path):
+        """read a deck from disk again"""
+        key = self.path_key(path)
+        deck = load_deck(path)
+        self._loaded[key] = deck
+        if key in self._scanned:
+            self._scanned[key] = deck
+        deck_events().decks_changed.emit()
+        return deck
+
     def find_by_identifier(self, identifier):
         return tuple(deck for deck in self.decks() if deck.metadata.identifier == identifier)
 

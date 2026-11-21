@@ -209,14 +209,14 @@ class LibraryTab(BaseTab):
         self.zoom_slider.key_changed.connect(self.on_density_changed)
         row.addWidget(self.zoom_slider)
 
-        # Opens a deck folder where it is; it installs nothing, so not "Add"
-        self.open_deck_button = QToolButton()
-        self.open_deck_button.setText(LIBRARY["open_deck"])
-        # Not document-open, which the details pane's Open uses on the same screen
-        self.open_deck_button.setIcon(QIcon.fromTheme("document-open-folder"))
-        self.open_deck_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        self.open_deck_button.clicked.connect(self.browse_for_deck)
-        row.addWidget(self.open_deck_button)
+        new_deck = commands.by_id("window.new_deck")
+        self.new_deck_button = QToolButton()
+        self.new_deck_button.setText(new_deck.text)
+        self.new_deck_button.setIcon(commands.command_icon(new_deck))
+        self.new_deck_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        set_tooltip_with_keys(self.new_deck_button, new_deck.text, new_deck.id)
+        self.new_deck_button.clicked.connect(self.on_new_deck)
+        row.addWidget(self.new_deck_button)
 
         new_spread = commands.by_id("window.new_spread")
         self.new_spread_button = QToolButton()
@@ -362,7 +362,7 @@ class LibraryTab(BaseTab):
         self._sync_sort_combo(page)
         self._sync_filter_button(page)
         self.zoom_slider.setVisible(decks)
-        self.open_deck_button.setVisible(decks)
+        self.new_deck_button.setVisible(decks)
         self.new_spread_button.setVisible(view == LIBRARY_VIEW_SPREADS)
         self.new_reading_button.setVisible(view == LIBRARY_VIEW_READINGS)
         self.search_field.setPlaceholderText(page.search_placeholder())
@@ -479,6 +479,11 @@ class LibraryTab(BaseTab):
         main_window = self.window()
         if hasattr(main_window, "new_spread_tab"):
             main_window.new_spread_tab()
+
+    def on_new_deck(self):
+        main_window = self.window()
+        if hasattr(main_window, "new_deck"):
+            main_window.new_deck()
 
     def on_new_canvas(self):
         main_window = self.window()
@@ -709,12 +714,6 @@ class LibraryTab(BaseTab):
         main_window = self.window()
         if hasattr(main_window, "new_deck_view_tab"):
             main_window.new_deck_view_tab(deck_path=deck.root_path)
-
-    def browse_for_deck(self):
-        """Open file dialog to browse for additional decks"""
-        main_window = self.window()
-        if hasattr(main_window, "open_deck"):
-            main_window.open_deck()
 
     def tab_title(self):
         return LIBRARY["tab_title"]

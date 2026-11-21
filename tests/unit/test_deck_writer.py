@@ -202,6 +202,43 @@ def test_a_majors_only_deck_loads_with_22_cards_and_every_suit_excluded(majors):
     assert "reason" not in manifest(majors)["excluded_cards"]
 
 
+def test_a_new_deck_is_majors_only_unless_told_otherwise(decks_root):
+    created = writer.create("Default", decks_root=decks_root)
+
+    assert len(arcana_tarot.load_deck(created).cards) == 22
+
+
+def test_including_the_minors_makes_a_majors_only_deck_whole(majors):
+    writer.include_minors(majors)
+
+    loaded = arcana_tarot.load_deck(majors)
+    assert len(loaded.cards) == 78
+    assert not any(suit.excluded for suit in loaded.suits)
+    assert "excluded_cards" not in manifest(majors)
+
+
+def test_including_the_minors_keeps_any_other_exclusion(majors):
+    path = majors / "deck.toml"
+    path.write_text(
+        path.read_text(encoding="utf-8").replace(
+            "cards = [", 'cards = [\n    "major_arcana.21",', 1
+        ),
+        encoding="utf-8",
+    )
+
+    writer.include_minors(majors)
+
+    assert manifest(majors)["excluded_cards"]["cards"] == ["major_arcana.21"]
+
+
+def test_including_the_minors_in_a_whole_deck_changes_nothing(deck):
+    before = (deck / "deck.toml").read_bytes()
+
+    writer.include_minors(deck)
+
+    assert (deck / "deck.toml").read_bytes() == before
+
+
 def test_a_majors_only_deck_reports_no_exclusion_reason(majors):
     from tarot_canvas.models.arcana_backend import load_deck
 
@@ -215,6 +252,33 @@ def test_a_created_deck_is_in_the_library_after_a_rescan(deck, decks_root, monke
 
     assert [found.metadata.name for found in library.decks()] == ["Test Deck"]
     assert library.decks()[0].find_card(FOOL).images == ()
+
+
+def test_reload_reads_a_placed_card_and_says_the_decks_changed(
+    deck, decks_root, images, monkeypatch
+):
+    from tarot_canvas.models.deck_events import deck_events
+
+    monkeypatch.setattr(deck_library_module, "get_decks_directory", lambda: [decks_root])
+    monkeypatch.setattr(ReferenceDeck, "is_reference_deck_present", staticmethod(lambda: False))
+    library = DeckLibrary()
+    writer.place(deck, FOOL, save(images, "fool.png", 60, 100))
+    changes = []
+    deck_events().decks_changed.connect(lambda: changes.append(1))
+
+    reloaded = library.reload(deck)
+
+    assert reloaded.find_card(FOOL).default_image()
+    assert library.load(deck) is reloaded
+    assert library.decks() == (reloaded,)
+    assert changes == [1]
+
+
+def test_image_suffixes_take_rasters_and_leave_out_vectors():
+    suffixes = writer.image_suffixes()
+
+    assert ".png" in suffixes
+    assert ".svg" not in suffixes
 
 
 # -- set_fields ----------------------------------------------------------------------------
@@ -304,7 +368,9 @@ def test_every_derived_image_is_h_tall_and_one_already_h_tall_is_copied(deck, im
     for derived in files(deck / "h500"):
         assert height_of(deck / "h500" / derived) == 500
     assert (deck / "h500/major_arcana/00.png").read_bytes() == (images / "fool.png").read_bytes()
-    assert (deck / "source/major_arcana/00.png").read_bytes() == (images / "fool.png").read_bytes()
+    assert (deck / "source/major_arcana/00/fool.png").read_bytes() == (
+        images / "fool.png"
+    ).read_bytes()
 
 
 def test_the_height_is_capped_then_lowered_then_raised_from_the_originals(deck, images):
@@ -344,7 +410,7 @@ def test_a_webp_source_derives_a_lossless_webp(deck, images):
 def test_a_format_outside_the_baseline_derives_a_png(deck, images):
     writer.place(deck, FOOL, save(images, "card.bmp", 120, 200, "BMP"))
 
-    assert files(deck / "source") == ["major_arcana/00.bmp"]
+    assert files(deck / "source") == ["major_arcana/00/card.bmp"]
     assert files(deck / "h200") == ["major_arcana/00.png"]
 
 
@@ -352,7 +418,7 @@ def test_a_format_outside_the_baseline_derives_a_png(deck, images):
 def test_a_tiff_source_derives_a_png(deck, images):
     writer.place(deck, FOOL, save(images, "card.TIFF", 120, 200, "TIFF"))
 
-    assert files(deck / "source") == ["major_arcana/00.tiff"]
+    assert files(deck / "source") == ["major_arcana/00/card.TIFF"]
     assert files(deck / "h200") == ["major_arcana/00.png"]
 
 
@@ -367,7 +433,7 @@ def test_a_rotated_jpeg_is_re_encoded_upright(deck, images):
     stored = QImageReader(os.fspath(derived))
     stored.setAutoTransform(False)
     assert stored.read().size().width() == 240
-    assert (deck / "source/major_arcana/00.jpg").read_bytes() == sideways.read_bytes()
+    assert (deck / "source/major_arcana/00/phone.JPG").read_bytes() == sideways.read_bytes()
 
 
 def test_replacing_a_card_moves_the_old_one_to_unsorted(deck, images):
@@ -375,11 +441,10 @@ def test_replacing_a_card_moves_the_old_one_to_unsorted(deck, images):
     writer.place(deck, FOOL, save(images, "second.jpg", 100, 200, "JPEG"))
     writer.place(deck, FOOL, save(images, "third.png", 100, 200))
 
-    assert files(deck / "source") == ["major_arcana/00.png"]
+    assert files(deck / "source") == ["major_arcana/00/third.png"]
     assert files(deck / "h200") == ["major_arcana/00.png"]
-    assert sorted(os.listdir(deck / "unsorted")) == ["00.jpg", "00.png"]
-    assert (deck / "unsorted/00.png").read_bytes() == (images / "first.png").read_bytes()
-    assert (deck / "source/major_arcana/00.png").read_bytes() == (images / "third.png").read_bytes()
+    assert sorted(os.listdir(deck / "unsorted")) == ["first.png", "second.jpg"]
+    assert (deck / "unsorted/first.png").read_bytes() == (images / "first.png").read_bytes()
 
 
 def test_unplacing_moves_the_card_to_unsorted_and_the_last_takes_the_root(deck, images):
@@ -389,7 +454,19 @@ def test_unplacing_moves_the_card_to_unsorted_and_the_last_takes_the_root(deck, 
 
     assert roots(deck) == []
     assert files(deck / "source") == []
-    assert os.listdir(deck / "unsorted") == ["00.png"]
+    assert os.listdir(deck / "unsorted") == ["fool.png"]
+
+
+def test_a_card_taken_out_keeps_the_name_it_came_with_whichever_slot_it_was_in(deck, images):
+    writer.place(deck, PRIESTESS, save(images, "03.png", 100, 200))
+    writer.place(deck, TWO_OF_CUPS, save(images, "IMG_1.png", 100, 200))
+    writer.place(deck, BACK, save(images, "IMG_2.jpg", 100, 200, "JPEG"))
+
+    for card_id in (PRIESTESS, TWO_OF_CUPS, BACK):
+        writer.unplace(deck, card_id)
+
+    assert sorted(os.listdir(deck / "unsorted")) == ["03.png", "IMG_1.png", "IMG_2.jpg"]
+    assert files(deck / "source") == []
 
 
 def test_an_unsorted_image_keeps_its_name_steps_past_a_taken_one_and_moves_when_placed(
@@ -448,9 +525,10 @@ def test_an_interrupted_place_still_loads_and_refresh_completes_it(deck, images)
     partial = deck / ".h200.partial/major_arcana"
     partial.mkdir(parents=True)
     (partial / "00.png").write_bytes(b"half")
-    (deck / "source/major_arcana/.01.png.tmp").write_bytes(b"half")
+    (deck / "source/major_arcana/01").mkdir()
+    (deck / "source/major_arcana/01/.magician.png.tmp").write_bytes(b"half")
     (deck / ".deck.toml.abc").write_text("half")
-    save(deck / "source/major_arcana", "01.png", 100, 200)
+    save(deck / "source/major_arcana/01", "magician.png", 100, 200)
 
     loaded = arcana_tarot.load_deck(deck)
     assert len(loaded.cards) == 78
@@ -458,20 +536,20 @@ def test_an_interrupted_place_still_loads_and_refresh_completes_it(deck, images)
     writer.refresh(deck)
 
     assert sorted(os.listdir(deck)) == ["deck.toml", "h200", "source"]
-    assert files(deck / "source") == ["major_arcana/00.png", "major_arcana/01.png"]
+    assert files(deck / "source") == ["major_arcana/00/fool.png", "major_arcana/01/magician.png"]
     assert files(deck / "h200") == ["major_arcana/00.png", "major_arcana/01.png"]
 
 
-def test_refresh_keeps_the_newest_of_two_files_with_one_stem(deck, images):
+def test_refresh_keeps_the_newest_of_two_files_in_one_slot(deck, images):
     writer.place(deck, FOOL, save(images, "fool.png", 100, 200))
-    newer = save(deck / "source/major_arcana", "00.jpg", 100, 200, "JPEG")
-    os.utime(newer, ns=(1, (deck / "source/major_arcana/00.png").stat().st_mtime_ns + 10**9))
+    newer = save(deck / "source/major_arcana/00", "other.jpg", 100, 200, "JPEG")
+    os.utime(newer, ns=(1, (deck / "source/major_arcana/00/fool.png").stat().st_mtime_ns + 10**9))
 
     writer.refresh(deck)
 
-    assert files(deck / "source") == ["major_arcana/00.jpg"]
+    assert files(deck / "source") == ["major_arcana/00/other.jpg"]
     assert files(deck / "h200") == ["major_arcana/00.jpg"]
-    assert os.listdir(deck / "unsorted") == ["00.png"]
+    assert os.listdir(deck / "unsorted") == ["fool.png"]
 
 
 def test_refresh_removes_a_derived_image_with_no_source(deck, images):
@@ -519,8 +597,8 @@ def test_an_image_qt_will_not_decode_goes_back_to_unsorted(deck, images, monkeyp
         writer.place(deck, MAGICIAN, huge)
 
     assert raised.value.reason is DeckWriteReason.UNREADABLE_IMAGE
-    assert files(deck / "source") == ["major_arcana/00.png"]
-    assert os.listdir(deck / "unsorted") == ["01.png"]
+    assert files(deck / "source") == ["major_arcana/00/fool.png"]
+    assert os.listdir(deck / "unsorted") == ["huge.png"]
     assert files(deck / "h200") == ["major_arcana/00.png"]
     monkeypatch.undo()
     writer.refresh(deck)

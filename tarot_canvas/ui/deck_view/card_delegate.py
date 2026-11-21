@@ -7,11 +7,14 @@ from PyQt6.QtWidgets import QStyle
 
 from tarot_canvas.ui import typography, units
 from tarot_canvas.ui.canvas.detail import art_loader, art_size, fit_device_size
+from tarot_canvas.ui.covers.cache import modified_ns
 from tarot_canvas.ui.covers.ghost import paint_placeholder_well
 from tarot_canvas.ui.deck_view.card_model import (
+    KIND_BACK,
     KIND_CARD,
     KIND_HEADING,
     KIND_NOTE,
+    BackPathRole,
     CanonicalRole,
     CardRole,
     KindRole,
@@ -26,6 +29,7 @@ NOTE_FLAGS = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop | Qt.TextFla
 SECTION_SPACE = 2 * units.GRID_UNIT
 HEADING_RULE_ALPHA = 51
 DIMMED_OPACITY = 0.3
+EMPTY_SLOT_ICON = "list-add"
 
 
 class _PendingArt(QObject):
@@ -60,7 +64,10 @@ class _ArtCache:
 
     def get(self, path, well, dpr, view, index):
         """The pixmap, or None while it loads"""
-        key = (path, well.width(), well.height(), round(dpr, 3))
+        modified = modified_ns(path)
+        if modified is None:
+            return None
+        key = (path, modified, well.width(), well.height(), round(dpr, 3))
 
         if key in self._pixmaps:
             return self._pixmaps[key]
@@ -96,8 +103,11 @@ class _ArtCache:
 
 
 class CardDelegate(DeckDelegate):
-    def __init__(self, parent=None, density=units.DENSITY_MEDIUM):
+    def __init__(self, parent=None, density=units.DENSITY_MEDIUM, editable=False):
         super().__init__(parent, density=density)
+        self.editable = editable
+        # The cell a drag is over
+        self.drop_target = None
         self._art = _ArtCache()
         # Two views share this delegate; art arriving repaints the one that asked.
         # Weak, so a deleted view isn't kept wrapped
@@ -192,7 +202,9 @@ class CardDelegate(DeckDelegate):
         if option.widget is not None:
             self._view = weakref.ref(option.widget)
         kind = index.data(KindRole)
-        if kind == KIND_CARD:
+        if kind in (KIND_CARD, KIND_BACK):
+            if self.drop_target is not None and self.drop_target == index:
+                option.state |= QStyle.StateFlag.State_MouseOver
             if index.data(DimmedRole):
                 # Find's non-matches in the tableau, which keeps every slot
                 painter.save()
@@ -255,15 +267,21 @@ class CardDelegate(DeckDelegate):
 
     def _paint_cover(self, painter, well, palette, index, selected=False):
         dpr = painter.device().devicePixelRatioF()
-        card = index.data(CardRole)
-        path = card and (card.raster_for(well.height() * dpr) or card.default_image())
+        if index.data(KindRole) == KIND_BACK:
+            path = index.data(BackPathRole)
+        else:
+            card = index.data(CardRole)
+            path = card and (card.raster_for(well.height() * dpr) or card.default_image())
         pixmap = (
             self._art.get(path, well.size(), dpr, self._view() or self.parent(), index)
             if path
             else None
         )
         if pixmap is None:
-            paint_placeholder_well(painter, well, palette)
+            if self.editable and not path:
+                paint_placeholder_well(painter, well, palette, EMPTY_SLOT_ICON)
+            else:
+                paint_placeholder_well(painter, well, palette)
             return
 
         art = self._art_rect(well, pixmap)

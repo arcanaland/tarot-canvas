@@ -5,6 +5,7 @@ COMMANDS = {
     # File
     "new_canvas": "New &Canvas",
     "new_spread": "New Spread",
+    "new_deck": "New Deck…",
     "new_library": "New &Library View",
     "new_card_view": "New C&ard View",
     "open_deck": "&Open Deck…",
@@ -379,6 +380,40 @@ DECK_VIEW = {
     "field.tags": "Tags",
     "field.version": "Version",
     "field.schema_version": "Schema version",
+    "back": "Card Back",
+    "choose_image": "Add Image",
+    "replace_image": "Replace Image",
+    "remove_card": "Unassign Card",
+    "chooser_title": "Choose Image…",
+    "image_filter": "Image Files",
+    "unsorted": "Unassigned",
+    "unsorted_empty": "No images yet.",
+    "delete_unsorted": "Delete",
+    "place_as": "Assign to {card}",
+    "place_as_other": "Assign to…",
+    "card_picker_name": "Cards",
+    "image_picker_name": "Images",
+    "from_file": "From File",
+    "delete_unsorted_title": "Delete Image",
+    "delete_unsorted_text": "Remove {name}?",
+    "write_failed_title": "Write Failed",
+    "write_failed.unreadable_image": "{detail} cannot be read",
+    "write_failed.not_in_deck": "{detail} is excluded from this deck",
+    "write_failed.unknown_card": "{detail} is not a card",
+    "write_failed.not_created_here": "This deck was not created from this app",
+    "write_failed.required_field": "Field '{detail}' cannot be empty",
+    "write_failed_os": "The deck could not be saved: {error}",
+    "create_failed": "Deck creation failed: {error}",
+    "created_count": "{placed} of {expected} cards",
+}
+
+# File > New Deck…
+NEW_DECK = {
+    "title": "Create New Deck",
+    "explanation": "Build your own tarot deck from images on your computer.",
+    "name": "Name",
+    "name_placeholder": "My Tarot Deck",
+    "create": "Create",
 }
 
 # The canvas
@@ -656,7 +691,6 @@ LIBRARY = {
     "sort_count": "Card count",
     "sort_recent": "Recently opened",
     "cover_size": "Cover size",
-    "open_deck": "Open Deck…",
     "hide_details": "Hide deck details",
     "show_details": "Show deck details",
     "empty_no_match": "No decks match your search.",

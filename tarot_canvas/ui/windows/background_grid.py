@@ -36,6 +36,7 @@ from tarot_canvas.models import backgrounds
 from tarot_canvas.ui import units
 from tarot_canvas.ui.canvas.detail import art_loader, art_size
 from tarot_canvas.ui.covers.ghost import paint_placeholder_well
+from tarot_canvas.ui.dropped_files import dropped_files, offered_files
 from tarot_canvas.ui.palette import muted_text
 from tarot_canvas.ui.strings import PREFERENCES
 
@@ -397,29 +398,23 @@ class BackgroundGrid(QListView):
         )
         painter.end()
 
-    @staticmethod
-    def _local_files(event):
-        mime = event.mimeData()
-        if not mime.hasUrls():
-            return []
-        return [url.toLocalFile() for url in mime.urls() if url.isLocalFile()]
-
     def dragEnterEvent(self, event):
-        if self._local_files(event):
+        if offered_files(event.mimeData()):
             event.acceptProposedAction()
         else:
             event.ignore()
 
     def dragMoveEvent(self, event):
-        if self._local_files(event):
+        if offered_files(event.mimeData()):
             event.acceptProposedAction()
         else:
             event.ignore()
 
     def dropEvent(self, event):
-        files = self._local_files(event)
-        if not files:
+        if not offered_files(event.mimeData()):
             event.ignore()
             return
         event.acceptProposedAction()
-        self.files_dropped.emit(files)
+        files = dropped_files(event.mimeData())
+        if files:
+            self.files_dropped.emit(files)

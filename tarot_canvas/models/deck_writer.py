@@ -70,6 +70,15 @@ class DeckWriteError(Exception):
         self.detail = detail
 
 
+def image_suffixes():
+    """Suffixes of the images place accepts"""
+    return {
+        "." + name
+        for name in (bytes(raw).decode().lower() for raw in QImageReader.supportedImageFormats())
+        if name not in _VECTOR
+    }
+
+
 # -- creating ------------------------------------------------------------------------------
 
 
@@ -87,8 +96,8 @@ def mint_identifier(name):
     return f"{IDENTIFIER_PREFIX}{named}-{hex_part}" if named else f"{IDENTIFIER_PREFIX}{hex_part}"
 
 
-def create(name, majors_only, decks_root=None):
-    """Create an empty deck in decks_root"""
+def create(name, majors_only=True, decks_root=None):
+    """Create an empty deck in decks_root, majors only unless told otherwise"""
     if not name or not name.strip():
         raise DeckWriteError(DeckWriteReason.REQUIRED_FIELD, "name")
     decks_root = Path(decks_root if decks_root is not None else get_decks_directory()[0])
@@ -128,6 +137,26 @@ def _new_manifest(name, identifier, majors_only):
     return tomlkit.dumps(document)
 
 
+def include_minors(deck):
+    """Take the 56 minors out of [excluded_cards], dropping the table once it is empty"""
+    deck = _checked(deck)
+    manifest = deck / DECK_TOML
+    document = tomlkit.parse(manifest.read_text(encoding="utf-8"))
+    excluded = document.get("excluded_cards")
+    if excluded is None:
+        return
+    minors = set(_MINORS)
+    kept = [card for card in excluded.get("cards", ()) if card not in minors]
+    if kept or len(excluded) > 1:
+        cards = tomlkit.array()
+        cards.extend(kept)
+        cards.multiline(True)
+        excluded["cards"] = cards
+    else:
+        del document["excluded_cards"]
+    write_atomically(manifest, tomlkit.dumps(document))
+
+
 # -- [deck] fields -------------------------------------------------------------------------
 
 
@@ -164,10 +193,11 @@ def place(deck, card_id, image, progress=None):
     _read_header(image)
     for derived in _roots(deck):
         _clear_stem(derived / _subpath(card_id))
-    for old in _files_with_stem(deck / SOURCE / _subpath(card_id)):
+    for old in _originals(deck, card_id):
         _to_unsorted(deck, old)
-    target = deck / SOURCE / _subpath(card_id)
-    target = target.with_name(target.name + _source_suffix(image))
+    # Under its own name, so taking it out gives that name back
+    name = image.name if image.suffix else image.name + _source_suffix(image)
+    target = _slot_folder(deck, card_id) / name
     target.parent.mkdir(parents=True, exist_ok=True)
     if _is_unsorted(deck, image):
         os.replace(image, target)
@@ -188,8 +218,10 @@ def unplace(deck, card_id, progress=None):
     _check_card_id(card_id)
     for derived in _roots(deck):
         _clear_stem(derived / _subpath(card_id))
-    for old in _files_with_stem(deck / SOURCE / _subpath(card_id)):
+    for old in _originals(deck, card_id):
         _to_unsorted(deck, old)
+    with contextlib.suppress(OSError):  # gone already, or not empty
+        _slot_folder(deck, card_id).rmdir()
     _sync(deck, progress)
 
 
@@ -285,6 +317,22 @@ def _check_slot(deck, card_id):
 def _subpath(card_id):
     """card_id's path under an image root, without an extension"""
     return Path(*card_id.split("."))
+
+
+def _slot_folder(deck, card_id):
+    """Where card_id's original is kept, under the name it came with"""
+    return deck / SOURCE / _subpath(card_id)
+
+
+def _originals(deck, card_id):
+    """The files in card_id's folder in source/"""
+    with contextlib.suppress(FileNotFoundError, NotADirectoryError):
+        return [
+            entry
+            for entry in _slot_folder(deck, card_id).iterdir()
+            if entry.is_file() and not entry.name.startswith(".")
+        ]
+    return []
 
 
 def _files_with_stem(path):
@@ -414,7 +462,7 @@ def _sources(deck):
     """{card_id: its one file in source/}; where a slot holds several, the newest stays"""
     found = {}
     for card_id in _SLOTS:
-        files = _files_with_stem(deck / SOURCE / _subpath(card_id))
+        files = _originals(deck, card_id)
         if not files:
             continue
         files.sort(key=lambda entry: entry.stat().st_mtime_ns, reverse=True)

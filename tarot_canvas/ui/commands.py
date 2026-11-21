@@ -12,7 +12,7 @@ from PyQt6.QtGui import QAction, QIcon, QKeySequence
 from PyQt6.QtWidgets import QApplication
 
 from tarot_canvas.settings import LIBRARY_VIEWS, get_shortcut_keys, set_shortcut_keys
-from tarot_canvas.ui.icons import LIBRARY_ICON, SPREAD_ICON, library_view_icon
+from tarot_canvas.ui.icons import LIBRARY_ICON, SPREAD_ICON, deck_icon, library_view_icon
 from tarot_canvas.ui.strings import COMMANDS, NOTES, PREFERENCES, READINGS
 
 StandardKey = QKeySequence.StandardKey
@@ -85,6 +85,7 @@ COMMANDS = (
     _command("window.new_library", T["new_library"], LIBRARY_ICON, ["Ctrl+L"], W),
     _command("window.new_card_view", T["new_card_view"], "view-pages-single", ["Ctrl+T"], W),
     _command("window.new_spread", T["new_spread"], SPREAD_ICON, ["Ctrl+Shift+N"], W),
+    _command("window.new_deck", T["new_deck"], deck_icon, [], W),
     _command("window.open_deck", T["open_deck"], "document-open-folder", ["Ctrl+O"], W),
     _command("window.save", T["save_spread"], "document-save", ["Ctrl+S"], W),
     _command("window.close_tab", T["close_tab"], "tab-close", ["Ctrl+W"], W),

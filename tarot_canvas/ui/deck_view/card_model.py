@@ -5,16 +5,31 @@ from PyQt6.QtCore import QAbstractListModel, QSortFilterProxyModel, Qt
 from tarot_canvas.models.card_ids import COURTS, PIPS
 from tarot_canvas.models.card_search import CardTerms, Query
 from tarot_canvas.models.deck_types import CardKind
+from tarot_canvas.models.deck_writer import BACK
+from tarot_canvas.ui.library.decks.model import back_image
 from tarot_canvas.ui.strings import DECK_VIEW
 
 KindRole = Qt.ItemDataRole.UserRole + 1
 CardRole = Qt.ItemDataRole.UserRole + 2
-# A heading's canonical suit, when the deck names the suit something else
+# A heading's canonical suit (if a deck renamed it)
 CanonicalRole = Qt.ItemDataRole.UserRole + 3
+# A cardback image
+BackPathRole = Qt.ItemDataRole.UserRole + 4
+# A card's canonical ID
+SlotIdRole = Qt.ItemDataRole.UserRole + 5
+# A user-created deck's slot without an image
+EmptySlotRole = Qt.ItemDataRole.UserRole + 6
 
 KIND_HEADING = "heading"
 KIND_NOTE = "note"
 KIND_CARD = "card"
+KIND_BACK = "back"
+
+
+def is_slot(index):
+    """A card or the back, in this model or a view's model over it"""
+    return index.isValid() and index.data(KindRole) in (KIND_CARD, KIND_BACK)
+
 
 RANK_ORDER = {rank: position for position, rank in enumerate(PIPS + COURTS)}
 
@@ -44,8 +59,9 @@ def canonical_heading(name, canonical):
     return f"{name} {DECK_VIEW['canonical_suit'].format(suit=canonical)}"
 
 
-def display_rows(deck):
-    """(kind, text, card, canonical) per row: the majors, then each suit under its heading
+def display_rows(deck, back=False):
+    """(kind, text, card, canonical) per row: the majors, then each suit under its heading,
+    then the back if asked for
 
     canonical is set only on the heading of a suit the deck renames.
     """
@@ -67,21 +83,54 @@ def display_rows(deck):
             continue
         rows.append((KIND_HEADING, suit.name, None, canonical_suit(suit)))
         rows.extend((KIND_CARD, card.display_name, card, None) for card in cards)
+
+    if back:
+        rows.append((KIND_HEADING, DECK_VIEW["back"], None, None))
+        rows.append((KIND_BACK, DECK_VIEW["back"], None, None))
     return rows
 
 
 class CardModel(QAbstractListModel):
     """A deck's cards"""
 
-    def __init__(self, deck, parent=None):
+    def __init__(self, deck, parent=None, editable=False):
         super().__init__(parent)
+        self._editable = editable
         self._deck = deck
-        self._rows = display_rows(deck)
+        self._rows = display_rows(deck, back=editable)
+        self._back = back_image(deck) if editable else None
         self._terms = {}
 
     @property
     def deck(self):
         return self._deck
+
+    def set_deck(self, deck):
+        self.beginResetModel()
+        self._deck = deck
+        self._rows = display_rows(deck, back=self._editable)
+        self._back = back_image(deck) if self._editable else None
+        self._terms = {}
+        self.endResetModel()
+
+    def back_row(self):
+        return next(
+            (row for row, (kind, *_) in enumerate(self._rows) if kind == KIND_BACK),
+            None,
+        )
+
+    def row_of(self, slot_id):
+        """The row of the card, or the back, the writer calls slot_id; None if there is none"""
+        for row in range(len(self._rows)):
+            if self._slot_id(row) == slot_id:
+                return row
+        return None
+
+    def _slot_id(self, row):
+        kind, _text, card, _canonical = self._rows[row]
+        if kind == KIND_BACK:
+            return BACK
+        return card.canonical_id if kind == KIND_CARD else None
 
     def card_rows(self):
         """Row of each card, in order"""
@@ -89,6 +138,8 @@ class CardModel(QAbstractListModel):
 
     def matches(self, row, query):
         """Whether the card at row is found by query"""
+        if self._rows[row][0] != KIND_CARD:
+            return False
         terms = self._terms.get(row)
         if terms is None:
             terms = self._terms[row] = CardTerms(self._rows[row][2], self._deck.metadata.name)
@@ -111,7 +162,7 @@ class CardModel(QAbstractListModel):
         return len(self._rows)
 
     def flags(self, index):
-        if not index.isValid() or self._rows[index.row()][0] != KIND_CARD:
+        if not index.isValid() or self._rows[index.row()][0] not in (KIND_CARD, KIND_BACK):
             return Qt.ItemFlag.NoItemFlags
         return Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
 
@@ -128,6 +179,18 @@ class CardModel(QAbstractListModel):
             return kind
         if role == CanonicalRole:
             return canonical
+        if role == SlotIdRole:
+            return self._slot_id(index.row())
+        if role == EmptySlotRole:
+            if not self._editable or kind not in (KIND_CARD, KIND_BACK):
+                return False
+            return not (self._back if kind == KIND_BACK else card.default_image())
+        if kind == KIND_BACK:
+            if role == BackPathRole:
+                return self._back
+            if role == Qt.ItemDataRole.ToolTipRole:
+                return text
+            return None
         if card is None:
             return None
         if role == Qt.ItemDataRole.ToolTipRole:
