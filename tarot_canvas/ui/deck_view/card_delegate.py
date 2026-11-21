@@ -1,14 +1,14 @@
 import weakref
 
 from PyQt6 import sip
-from PyQt6.QtCore import QObject, QPersistentModelIndex, QRect, QSize, Qt
+from PyQt6.QtCore import QObject, QPersistentModelIndex, QPoint, QRect, QSize, Qt
 from PyQt6.QtGui import QColor, QFont, QFontMetrics, QPalette, QPixmap
 from PyQt6.QtWidgets import QStyle
 
 from tarot_canvas.ui import typography, units
 from tarot_canvas.ui.canvas.detail import art_loader, art_size, fit_device_size
 from tarot_canvas.ui.covers.cache import modified_ns
-from tarot_canvas.ui.covers.ghost import paint_placeholder_well
+from tarot_canvas.ui.covers.ghost import PLACEHOLDER_ICON_FRACTION, paint_placeholder_well
 from tarot_canvas.ui.deck_view.card_model import (
     KIND_BACK,
     KIND_CARD,
@@ -30,6 +30,9 @@ SECTION_SPACE = 2 * units.GRID_UNIT
 HEADING_RULE_ALPHA = 51
 DIMMED_OPACITY = 0.3
 EMPTY_SLOT_ICON = "list-add"
+# Quiet across a grid of empty slots, full on the one under the pointer
+EMPTY_SLOT_ICON_FRACTION = 0.25
+EMPTY_SLOT_ICON_OPACITY = 0.5
 
 
 class _PendingArt(QObject):
@@ -108,10 +111,34 @@ class CardDelegate(DeckDelegate):
         self.editable = editable
         # The cell a drag is over
         self.drop_target = None
+        # An empty slot's shape: the deck's placed art, once there is some
+        self.slot_shape = None
+        self._hovered = False
         self._art = _ArtCache()
         # Two views share this delegate; art arriving repaints the one that asked.
         # Weak, so a deleted view isn't kept wrapped
         self._view = weakref.ref(parent) if parent is not None else lambda: None
+
+    def set_slot_shape(self, deck):
+        """Shape empty slots like the deck's first placed card, so filling one doesn't resize it"""
+        self.slot_shape = None
+        for card in deck.cards:
+            path = card.default_image()
+            size = art_size(path) if path else QSize()
+            if not size.isEmpty():
+                self.slot_shape = size
+                return
+
+    def _slot_rect(self, well):
+        """Where an empty slot goes in the well, placed as _art_rect places art"""
+        if self.slot_shape is None:
+            return well
+        slot = QRect(
+            QPoint(0, 0), self.slot_shape.scaled(well.size(), Qt.AspectRatioMode.KeepAspectRatio)
+        )
+        slot.moveCenter(well.center())
+        slot.moveBottom(well.bottom())
+        return slot
 
     def set_density(self, density):
         changed = super().set_density(density)
@@ -205,6 +232,7 @@ class CardDelegate(DeckDelegate):
         if kind in (KIND_CARD, KIND_BACK):
             if self.drop_target is not None and self.drop_target == index:
                 option.state |= QStyle.StateFlag.State_MouseOver
+            self._hovered = bool(option.state & QStyle.StateFlag.State_MouseOver)
             if index.data(DimmedRole):
                 # Find's non-matches in the tableau, which keeps every slot
                 painter.save()
@@ -279,7 +307,15 @@ class CardDelegate(DeckDelegate):
         )
         if pixmap is None:
             if self.editable and not path:
-                paint_placeholder_well(painter, well, palette, EMPTY_SLOT_ICON)
+                lit = selected or self._hovered
+                paint_placeholder_well(
+                    painter,
+                    self._slot_rect(well),
+                    palette,
+                    EMPTY_SLOT_ICON,
+                    icon_fraction=PLACEHOLDER_ICON_FRACTION if lit else EMPTY_SLOT_ICON_FRACTION,
+                    icon_opacity=1.0 if lit else EMPTY_SLOT_ICON_OPACITY,
+                )
             else:
                 paint_placeholder_well(painter, well, palette)
             return

@@ -2,15 +2,30 @@
 
 import math
 
-from PyQt6.QtCore import QEvent, QPoint, QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QIcon
+from PyQt6.QtCore import (
+    QConcatenateTablesProxyModel,
+    QEvent,
+    QPoint,
+    QRect,
+    QRectF,
+    QSize,
+    Qt,
+    pyqtSignal,
+)
+from PyQt6.QtGui import (
+    QColor,
+    QIcon,
+    QPainter,
+    QPixmap,
+    QStandardItem,
+    QStandardItemModel,
+)
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QFrame,
     QListView,
     QListWidget,
     QListWidgetItem,
-    QPushButton,
     QVBoxLayout,
 )
 
@@ -18,21 +33,36 @@ from tarot_canvas.models.card_search import CardTerms, Query
 from tarot_canvas.models.deck_writer import BACK
 from tarot_canvas.ui import units
 from tarot_canvas.ui.activate_on_return import RETURN_KEYS
+from tarot_canvas.ui.covers.ghost import paint_placeholder_well
 from tarot_canvas.ui.strings import DECK_VIEW
 from tarot_canvas.ui.widgets.search_field import search_field
 
 IMAGE_COLUMNS = 4
 IMAGE_ROWS = 2
 CARD_ROWS = 12
+# The popup's edge, so it reads as apart from the page under it
+POPUP_BORDER_ALPHA = 64
 
 SlotRole = Qt.ItemDataRole.UserRole + 1
+# Set on the image picker's last tile, the one that opens the file chooser
+FromFileRole = Qt.ItemDataRole.UserRole + 64
 
 
 class _Popup(QFrame):
     def __init__(self, parent):
         super().__init__(parent, Qt.WindowType.Popup)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        self.setFrameShape(QFrame.Shape.StyledPanel)
+        # Drawn here: the style's panel is the window colour, the same as the page beneath
+        self.setFrameShape(QFrame.Shape.NoFrame)
+        self.setAutoFillBackground(True)
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        painter = QPainter(self)
+        border = QColor(self.palette().windowText().color())
+        border.setAlpha(POPUP_BORDER_ALPHA)
+        painter.setPen(border)
+        painter.drawRect(QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5))
 
     def show_at(self, global_point):
         """Shown with its top left at global_point, kept on that point's screen"""
@@ -48,7 +78,10 @@ class _Popup(QFrame):
 
 
 class ImagePicker(_Popup):
-    """Popup that shows up when pressing + on card when there are unassigned images"""
+    """Popup that shows up when pressing + on card when there are unassigned images
+
+    The images, then a tile that opens the file chooser.
+    """
 
     image_chosen = pyqtSignal(str)  # the image's path
     file_requested = pyqtSignal()
@@ -57,6 +90,12 @@ class ImagePicker(_Popup):
         super().__init__(parent)
         self.setAccessibleName(DECK_VIEW["image_picker_name"])
         self._path_role = path_role
+        self._tile = _from_file_tile(icon_size, self.devicePixelRatioF(), self.palette())
+        self._tile.setParent(self)
+        model_with_tile = QConcatenateTablesProxyModel(self)
+        model_with_tile.addSourceModel(model)
+        model_with_tile.addSourceModel(self._tile)
+        model = model_with_tile
 
         self.view = QListView()
         self.view.setViewMode(QListView.ViewMode.IconMode)
@@ -90,16 +129,15 @@ class ImagePicker(_Popup):
         )
         self.view.setCurrentIndex(model.index(0, 0))
 
-        self.from_file = QPushButton(QIcon.fromTheme("document-open"), DECK_VIEW["from_file"])
-        self.from_file.setFlat(True)
-        self.from_file.clicked.connect(self._from_file)
-
         layout = QVBoxLayout(self)
         layout.setContentsMargins(*(units.SMALL_SPACING,) * 4)
         layout.setSpacing(units.SMALL_SPACING)
         layout.addWidget(self.view)
-        layout.addWidget(self.from_file, 0, Qt.AlignmentFlag.AlignLeft)
         self.setFocusProxy(self.view)
+
+    def from_file_index(self):
+        model = self.view.model()
+        return model.index(model.rowCount() - 1, 0)
 
     def eventFilter(self, watched, event):
         if (
@@ -114,13 +152,29 @@ class ImagePicker(_Popup):
     def _pick(self, index):
         if not index.isValid():
             return
-        path = index.data(self._path_role)
         self.close()
-        self.image_chosen.emit(path)
+        if index.data(FromFileRole):
+            self.file_requested.emit()
+        else:
+            self.image_chosen.emit(index.data(self._path_role))
 
-    def _from_file(self):
-        self.close()
-        self.file_requested.emit()
+
+def _from_file_tile(icon_size, dpr, palette):
+    """A one-row model: an empty well with the open icon, the size of an image"""
+    pixmap = QPixmap(icon_size * dpr)
+    pixmap.setDevicePixelRatio(dpr)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    paint_placeholder_well(painter, QRect(QPoint(0, 0), icon_size), palette, "document-open")
+    painter.end()
+
+    item = QStandardItem(QIcon(pixmap), DECK_VIEW["from_file"])
+    item.setData(True, FromFileRole)
+    item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+    model = QStandardItemModel()
+    model.appendRow(item)
+    return model
 
 
 class CardPicker(_Popup):

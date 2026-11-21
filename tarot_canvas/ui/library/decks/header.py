@@ -3,7 +3,6 @@ from PyQt6.QtGui import QDesktopServices, QFontMetrics, QIcon, QPainter, QPalett
 from PyQt6.QtWidgets import (
     QApplication,
     QFormLayout,
-    QFrame,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -19,10 +18,16 @@ from tarot_canvas.settings import (
     get_settings,
 )
 from tarot_canvas.ui import typography, units
-from tarot_canvas.ui.covers.cache import CoverCache
-from tarot_canvas.ui.dates import format_date
-from tarot_canvas.ui.library.decks.model import created_progress, deck_cover_path
-from tarot_canvas.ui.strings import DECK_VIEW, license_name
+from tarot_canvas.ui.library.decks.deck_cover import DeckCover
+from tarot_canvas.ui.library.decks.deck_metadata import (
+    DETAIL_FIELDS,
+    buy_link,
+    detail_rows,
+    field_value,
+    format_value,
+    links_for,
+)
+from tarot_canvas.ui.strings import DECK_VIEW
 from tarot_canvas.ui.widgets.cover_banner import (
     BANNER_PADDING,
     BANNER_SUBTEXT,
@@ -30,85 +35,20 @@ from tarot_canvas.ui.widgets.cover_banner import (
     CoverBanner,
     set_banner_text,
 )
-from tarot_canvas.ui.widgets.pane_text import display_address, is_link, link_html
+from tarot_canvas.ui.widgets.pane_text import is_link, link_html
 from tarot_canvas.ui.widgets.tag_chips import TagChips, normalized_tags
 
 MEASURE_CHARACTERS = 85
 
-COLLAPSED_COVER_UNITS = 3
-
 BUY_ICON = "wallet-open"
 
-# a row per 2.0 link rel; `publisher` links join the Publisher row instead
-LINK_PREFIX = "links."
-
-DETAIL_FIELDS = (
-    ("description", DECK_VIEW["field.description"]),
-    ("license", DECK_VIEW["field.license"]),
-    ("copyright", DECK_VIEW["field.copyright"]),
-    ("attribution", DECK_VIEW["field.attribution"]),
-    ("publisher", DECK_VIEW["field.publisher"]),
-    ("website", DECK_VIEW["field.website"]),
-    ("links.homepage", DECK_VIEW["field.links.homepage"]),
-    ("links.artist", DECK_VIEW["field.links.artist"]),
-    ("links.buy", DECK_VIEW["field.links.buy"]),
-    ("links.source", DECK_VIEW["field.links.source"]),
-    ("created_date", DECK_VIEW["field.created_date"]),
-    ("updated_date", DECK_VIEW["field.updated_date"]),
-    ("published_date", DECK_VIEW["field.published_date"]),
-    ("tags", DECK_VIEW["field.tags"]),
-    ("version", DECK_VIEW["field.version"]),
-    ("schema_version", DECK_VIEW["field.schema_version"]),
-)
-
-DATE_KEYS = ("created_date", "updated_date", "published_date")
 DETAILS_GAP = 2 * units.LARGE_SPACING
 EDGE_MARGIN = 2 * units.LARGE_SPACING
 
 
-def cover_size(expanded):
-    """(width, height) of the cover well."""
-    if expanded:
-        return units.cover_size(units.DENSITY_SMALL)
-    width = COLLAPSED_COVER_UNITS * units.GRID_UNIT
-    return width, round(width * units.COVER_ASPECT)
-
-
-def format_value(value):
-    if value is None or isinstance(value, bool):
-        return None if value is None else (DECK_VIEW["yes"] if value else DECK_VIEW["no"])
-
-    if isinstance(value, list | tuple):
-        parts = [format_value(item) for item in value]
-        parts = [part for part in parts if part]
-        return ", ".join(parts) if parts else None
-
-    # skip sub-tables
-    if isinstance(value, dict):
-        return None
-
-    text = str(value).strip()
-    return text or None
-
-
-def field_value(metadata, key):
-    return None if key.startswith(LINK_PREFIX) else getattr(metadata, key)
-
-
-def detail_rows(metadata):
-    """Rows for the DeckMetadata fields we have a label for, in DETAIL_FIELDS order."""
-    rows = []
-    for key, label in DETAIL_FIELDS:
-        addresses = [display_address(url) for url in links_for(key, metadata)]
-        text = "\n".join(filter(None, [format_value(field_value(metadata, key)), *addresses]))
-        if not text:
-            continue
-        if key in DATE_KEYS:
-            text = format_date(text)
-        elif key == "license":
-            text = license_name(text)
-        rows.append((label, text, key))
-    return rows
+def measure():
+    """The width of a line of text, in pixels at the current font"""
+    return MEASURE_CHARACTERS * max(1, QFontMetrics(QApplication.font()).averageCharWidth())
 
 
 def wrapped_height(text, font, width):
@@ -119,85 +59,122 @@ def wrapped_height(text, font, width):
     return bounds.height()
 
 
-def links_for(key, metadata):
-    """URLs the detail row `key` presents."""
-    if key.startswith(LINK_PREFIX):
-        rel = key.removeprefix(LINK_PREFIX)
-    elif key == "publisher":
-        rel = "publisher"
-    else:
-        return []
-    return [link.url for link in metadata.links if link.rel == rel]
+class HeaderFrame(QWidget):
+    """The cover and a text column beside it; the first section's heading rule closes it
 
+    A subclass sets text_container's layout.
+    """
 
-def buy_link(metadata):
-    """The first `buy` link as (url, title), or None."""
-    for link in metadata.links:
-        if link.rel == "buy":
-            return link.url, link.title
-    return None
-
-
-class DeckHeader(QWidget):
-    def __init__(self, deck, parent=None, cover_cache=None, settings=None, created=False):
+    def __init__(self, deck, parent=None, cover_cache=None):
         super().__init__(parent)
         self.deck = deck
-        self.created = created
-        self._cover_cache = cover_cache or CoverCache(capacity=8)
-        self._settings = settings if settings is not None else get_settings()
-        self._banner = CoverBanner()
-
-        self._build()
-        self._restore_expanded()
-
-    # -- construction -----------------------------------------------------
-
-    def _build(self):
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(EDGE_MARGIN, units.LARGE_SPACING, EDGE_MARGIN, units.LARGE_SPACING)
         outer.setSpacing(units.LARGE_SPACING)
 
         self.row = QHBoxLayout()
         self.row.setSpacing(units.LARGE_SPACING)
-        self.row.addWidget(self._build_cover(), 0, Qt.AlignmentFlag.AlignTop)
-
+        self.cover = DeckCover(cover_cache)
+        self.cover.set_deck(deck)
+        self.row.addWidget(self.cover, 0, Qt.AlignmentFlag.AlignTop)
         self.text_container = QWidget()
-        self.text_container.setLayout(self._build_text_column())
         self.row.addWidget(self.text_container, 1)
         outer.addLayout(self.row)
+        self.set_padding(units.LARGE_SPACING)
 
-        separator = QFrame()
-        separator.setFrameShape(QFrame.Shape.HLine)
-        separator.setFrameShadow(QFrame.Shadow.Plain)
-        outer.addWidget(separator)
+    def measure(self):
+        return measure()
 
-    def _build_cover(self):
-        self.cover_label = QLabel()
-        self.cover_label.setWordWrap(True)
-        self.cover_label.setAccessibleName(
-            DECK_VIEW["cover_of"].format(name=self.deck.metadata.name)
+    def set_padding(self, padding):
+        """Above and below; the sides are always EDGE_MARGIN"""
+        self.layout().setContentsMargins(EDGE_MARGIN, padding, EDGE_MARGIN, padding)
+
+    def align_text(self, top):
+        """The text column level with the cover's top, or centred beside it"""
+        self.row.setAlignment(
+            self.text_container,
+            Qt.AlignmentFlag.AlignTop if top else Qt.AlignmentFlag.AlignVCenter,
         )
-        self._cover_path = deck_cover_path(self.deck)
-        self._apply_cover(expanded=False)
-        return self.cover_label
 
-    def _apply_cover(self, expanded):
-        width, height = cover_size(expanded)
-        self.cover_label.setFixedSize(width, height)
 
-        pixmap = self._cover_cache.get(
-            self._cover_path, self.cover_label.size(), self.devicePixelRatioF()
-        )
-        if pixmap is not None:
-            self.cover_label.setPixmap(pixmap)
-            self.cover_label.setAlignment(
-                Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter
+class DetailsForm(QWidget):
+    """An installed deck's metadata, a labelled row per field it has"""
+
+    def __init__(self, metadata, parent=None):
+        super().__init__(parent)
+        width = measure()
+        form = QFormLayout(self)
+        form.setContentsMargins(0, 0, 0, 0)
+        form.setHorizontalSpacing(units.LARGE_SPACING)
+        form.setVerticalSpacing(units.SMALL_SPACING)
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
+        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.FieldsStayAtSizeHint)
+
+        self.labels = {}
+        for label, value, key in detail_rows(metadata):
+            name = QLabel(f"{label}:")
+            name.setForegroundRole(QPalette.ColorRole.PlaceholderText)
+            field = (
+                self._tag_chips(metadata.tags)
+                if key == "tags"
+                else self._field(metadata, key, value)
             )
+            form.addRow(name, field)
+            self.labels[key] = field
+        self.setMaximumWidth(width + self.label_measure())
+
+    @staticmethod
+    def _field(metadata, key, value):
+        width = measure()
+        field = QLabel()
+        field.setWordWrap(True)
+        field.setFixedWidth(width)
+        urls = links_for(key, metadata)
+        if urls:
+            field.setTextFormat(Qt.TextFormat.RichText)
+            field.setText(link_html(format_value(field_value(metadata, key)), urls))
+            field.setOpenExternalLinks(True)
+            field.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+        elif key == "website" and is_link(value):
+            field.setText(f'<a href="{value}">{value}</a>')
+            field.setOpenExternalLinks(True)
+            field.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         else:
-            self.cover_label.setForegroundRole(QPalette.ColorRole.PlaceholderText)
-            self.cover_label.setText(DECK_VIEW["no_cover"])
-            self.cover_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            field.setText(value)
+            field.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        field.setMinimumHeight(wrapped_height(value, field.font(), width))
+        return field
+
+    @staticmethod
+    def _tag_chips(raw):
+        width = measure()
+        chips = TagChips(normalized_tags(raw), width)
+        chips.setFixedWidth(width)
+        chips.setMinimumHeight(chips.heightForWidth(width))
+        return chips
+
+    @staticmethod
+    def label_measure():
+        """Room for the label column, in pixels at the current font."""
+        metrics = QFontMetrics(QApplication.font())
+        widest = max(
+            (metrics.horizontalAdvance(f"{label}:") for _, label in DETAIL_FIELDS),
+            default=0,
+        )
+        return widest + 2 * units.LARGE_SPACING
+
+
+class DeckHeader(HeaderFrame):
+    """An installed deck's name and cover, and its metadata behind Details"""
+
+    def __init__(self, deck, parent=None, cover_cache=None, settings=None):
+        super().__init__(deck, parent, cover_cache)
+        self._settings = settings if settings is not None else get_settings()
+        self._banner = CoverBanner()
+        self.text_container.setLayout(self._build_text_column())
+        self._restore_expanded()
+
+    # -- construction -----------------------------------------------------
 
     def _build_text_column(self):
         column = QVBoxLayout()
@@ -232,7 +209,8 @@ class DeckHeader(QWidget):
         self.subtitle_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         column.addWidget(self.subtitle_label)
 
-        self.details_widget = self._build_details()
+        self.details_widget = DetailsForm(self.deck.metadata)
+        self.detail_labels = self.details_widget.labels
         column.addSpacing(BANNER_PADDING + DETAILS_GAP)
         column.addWidget(self.details_widget)
         return column
@@ -248,55 +226,6 @@ class DeckHeader(QWidget):
         button.clicked.connect(lambda _checked=False: QDesktopServices.openUrl(QUrl(url)))
         return button
 
-    def _build_details(self):
-        details = QWidget()
-        form = QFormLayout(details)
-        form.setContentsMargins(0, 0, 0, 0)
-        form.setHorizontalSpacing(units.LARGE_SPACING)
-        form.setVerticalSpacing(units.SMALL_SPACING)
-        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
-        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.FieldsStayAtSizeHint)
-
-        self.detail_labels = {}
-        metadata = self.deck.metadata
-        for label, value, key in detail_rows(metadata):
-            name = QLabel(f"{label}:")
-            name.setForegroundRole(QPalette.ColorRole.PlaceholderText)
-
-            if key == "tags":
-                form.addRow(name, self._build_tag_chips(metadata.tags))
-                continue
-
-            field = QLabel()
-            field.setWordWrap(True)
-            field.setFixedWidth(self.measure())
-            urls = links_for(key, metadata)
-            if urls:
-                field.setTextFormat(Qt.TextFormat.RichText)
-                field.setText(link_html(format_value(field_value(metadata, key)), urls))
-                field.setOpenExternalLinks(True)
-                field.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
-            elif key == "website" and is_link(value):
-                field.setText(f'<a href="{value}">{value}</a>')
-                field.setOpenExternalLinks(True)
-                field.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
-            else:
-                field.setText(value)
-                field.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-
-            field.setMinimumHeight(wrapped_height(value, field.font(), self.measure()))
-            form.addRow(name, field)
-            self.detail_labels[key] = field
-        details.setMaximumWidth(self.measure() + self.details_label_measure())
-        return details
-
-    def _build_tag_chips(self, raw):
-        chips = TagChips(normalized_tags(raw), self.measure())
-        chips.setFixedWidth(self.measure())
-        chips.setMinimumHeight(chips.heightForWidth(self.measure()))
-        self.detail_labels["tags"] = chips
-        return chips
-
     # -- content ----------------------------------------------------------
 
     def subtitle_text(self):
@@ -304,24 +233,8 @@ class DeckHeader(QWidget):
         author = self.deck.metadata.artist
         if author:
             parts.append(author)
-        if self.created:
-            placed, expected = created_progress(self.deck)
-            parts.append(DECK_VIEW["created_count"].format(placed=placed, expected=expected))
-        else:
-            parts.append(DECK_VIEW["card_count"].format(count=len(self.deck.cards)))
+        parts.append(DECK_VIEW["card_count"].format(count=len(self.deck.cards)))
         return " · ".join(parts)
-
-    def details_label_measure(self):
-        """Room for the form's label column, in pixels at the current font."""
-        metrics = QFontMetrics(QApplication.font())
-        widest = max(
-            (metrics.horizontalAdvance(f"{label}:") for _, label in DETAIL_FIELDS),
-            default=0,
-        )
-        return widest + 2 * units.LARGE_SPACING
-
-    def measure(self):
-        return MEASURE_CHARACTERS * max(1, QFontMetrics(QApplication.font()).averageCharWidth())
 
     def is_expanded(self):
         return self.details_button.isChecked()
@@ -343,7 +256,7 @@ class DeckHeader(QWidget):
     # -- banner -----------------------------------------------------------
 
     def banner_rect(self):
-        if not self.is_expanded() or not self._cover_path:
+        if not self.is_expanded() or not self.cover.path():
             return QRect()
 
         bottom = self.subtitle_label.mapTo(self, QPoint(0, self.subtitle_label.height())).y()
@@ -354,7 +267,7 @@ class DeckHeader(QWidget):
         rect = self.banner_rect()
         if not rect.isEmpty():
             painter = QPainter(self)
-            self._banner.paint(painter, rect, self._cover_path, self.devicePixelRatioF())
+            self._banner.paint(painter, rect, self.cover.path(), self.devicePixelRatioF())
             painter.end()
         super().paintEvent(event)
 
@@ -374,13 +287,9 @@ class DeckHeader(QWidget):
         self.details_button.setAccessibleDescription(
             DECK_VIEW["hide_metadata"] if expanded else DECK_VIEW["show_metadata"]
         )
-        self._apply_cover(expanded)
-        self.row.setAlignment(
-            self.text_container,
-            Qt.AlignmentFlag.AlignTop if expanded else Qt.AlignmentFlag.AlignVCenter,
-        )
-        banner = expanded and bool(self._cover_path)
+        self.cover.set_expanded(expanded)
+        self.align_text(top=expanded)
+        banner = expanded and bool(self.cover.path())
         self._apply_banner_text(banner)
-        padding = BANNER_PADDING if banner else units.LARGE_SPACING
-        self.layout().setContentsMargins(EDGE_MARGIN, padding, EDGE_MARGIN, padding)
+        self.set_padding(BANNER_PADDING if banner else units.LARGE_SPACING)
         self.update()

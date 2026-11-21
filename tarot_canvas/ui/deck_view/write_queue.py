@@ -9,6 +9,14 @@ from PyQt6.QtCore import QObject, QRunnable, QThreadPool, pyqtSignal
 from tarot_canvas.models import deck_writer
 
 
+class ImagesFailed(Exception):
+    """List of files that could not be assigned"""
+
+    def __init__(self, files):
+        super().__init__(", ".join(files))
+        self.files = files
+
+
 class _Reporter(QObject):
     """Lives on the GUI thread"""
 
@@ -66,11 +74,36 @@ class WriteQueue(QObject):
     def place_unsorted(self, image):
         self._add(lambda _progress: deck_writer.place_unsorted(self._deck, image))
 
-    def discard_unsorted(self, name):
-        self._add(lambda _progress: deck_writer.discard_unsorted(self._deck, name))
+    def stage_unsorted(self, name):
+        self._add(lambda _progress: deck_writer.stage_unsorted(self._deck, name))
+
+    def restore_unsorted(self, name):
+        self._add(lambda _progress: deck_writer.restore_unsorted(self._deck, name))
+
+    def commit_unsorted(self, name):
+        self._add(lambda _progress: deck_writer.commit_unsorted(self._deck, name))
 
     def refresh(self):
         self._add(lambda progress: deck_writer.refresh(self._deck, progress))
+
+    def add_images(self, placements, unsorted):
+        placements, unsorted = dict(placements), list(unsorted)
+
+        def call(progress):
+            failed = deck_writer.place_many(self._deck, placements, unsorted, progress)
+            if failed:
+                raise ImagesFailed(failed)
+
+        self._add(call)
+
+    def include_minors(self):
+        self._add(lambda _progress: deck_writer.include_minors(self._deck))
+
+    def exclude_minors(self):
+        self._add(lambda progress: deck_writer.exclude_minors(self._deck, progress))
+
+    def set_fields(self, **fields):
+        self._add(lambda _progress: deck_writer.set_fields(self._deck, **fields))
 
     # -- the queue --------------------------------------------------------
 

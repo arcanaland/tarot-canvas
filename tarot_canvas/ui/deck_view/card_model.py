@@ -17,7 +17,7 @@ CanonicalRole = Qt.ItemDataRole.UserRole + 3
 BackPathRole = Qt.ItemDataRole.UserRole + 4
 # A card's canonical ID
 SlotIdRole = Qt.ItemDataRole.UserRole + 5
-# A user-created deck's slot without an image
+# A handmade deck's slot without an image
 EmptySlotRole = Qt.ItemDataRole.UserRole + 6
 
 KIND_HEADING = "heading"
@@ -85,7 +85,7 @@ def display_rows(deck, back=False):
         rows.extend((KIND_CARD, card.display_name, card, None) for card in cards)
 
     if back:
-        rows.append((KIND_HEADING, DECK_VIEW["back"], None, None))
+        rows.append((KIND_HEADING, DECK_VIEW["extras_heading"], None, None))
         rows.append((KIND_BACK, DECK_VIEW["back"], None, None))
     return rows
 

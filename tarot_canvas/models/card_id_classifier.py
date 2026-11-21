@@ -1,6 +1,7 @@
 """Classify an image's card ID from its file name"""
 
 import re
+from pathlib import Path
 
 from tarot_canvas.models.card_ids import COURTS, MAJOR_ARCANA_COUNT, PIPS, SUITS
 from tarot_canvas.models.deck_writer import BACK, slug
@@ -58,3 +59,27 @@ def _rank(word):
     if word.isdigit() and 1 <= int(word) <= len(PIPS):
         return PIPS[int(word) - 1]
     return None
+
+
+def plan_images(paths, deck, filled):
+    """Classify a batch of images from filenames"""
+    claims = {}
+    unsorted = []
+    for path in paths:
+        card_id = classify_card_id(Path(path).stem, deck)
+        if card_id is None or card_id in filled:
+            unsorted.append(path)
+        else:
+            claims.setdefault(card_id, []).append(path)
+
+    placements = {}
+
+    for card_id, claimed in claims.items():
+        if len(claimed) == 1:
+            placements[card_id] = claimed[0]
+        else:
+            unsorted.extend(claimed)
+
+    order = {path: number for number, path in enumerate(paths)}
+
+    return placements, sorted(unsorted, key=order.get)

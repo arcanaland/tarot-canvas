@@ -19,7 +19,7 @@ import tomlkit
 from PyQt6.QtCore import QBuffer, QByteArray, QIODevice, Qt
 from PyQt6.QtGui import QImageIOHandler, QImageReader, QImageWriter
 
-from tarot_canvas.models import library_curation
+from tarot_canvas.models import library_curation, staged_delete
 from tarot_canvas.models.card_ids import CANONICAL_CARD_IDS
 from tarot_canvas.models.deck_container import DECK_TOML
 from tarot_canvas.models.deck_install import install_dir_name
@@ -59,7 +59,7 @@ class DeckWriteReason(enum.Enum):
     UNREADABLE_IMAGE = "not an image that can be read"
     NOT_IN_DECK = "the card is excluded from this deck"
     UNKNOWN_CARD = "not a card ID"
-    NOT_CREATED_HERE = "not a deck this app created"
+    NOT_HANDMADE = "not a deck made in this app"
     REQUIRED_FIELD = "a required field is blank"
 
 
@@ -115,7 +115,7 @@ def create(name, majors_only=True, decks_root=None):
     except BaseException:
         shutil.rmtree(deck, ignore_errors=True)
         raise
-    library_curation.add_created_deck(deck)
+    library_curation.add_handmade_deck(deck)
     return deck
 
 
@@ -155,6 +155,41 @@ def include_minors(deck):
     else:
         del document["excluded_cards"]
     write_atomically(manifest, tomlkit.dumps(document))
+
+
+def exclude_minors(deck, progress=None):
+    """Put the 56 minors in [excluded_cards]; their originals go to unsorted/"""
+    deck = _checked(deck)
+    for card_id in _MINORS:
+        for derived in _roots(deck):
+            _clear_stem(derived / _subpath(card_id))
+        for old in _originals(deck, card_id):
+            _to_unsorted(deck, old)
+    _remove_empty_folders(deck / SOURCE / "minor_arcana")
+    for derived in _roots(deck):
+        _remove_empty_folders(derived / "minor_arcana")
+    manifest = deck / DECK_TOML
+    document = tomlkit.parse(manifest.read_text(encoding="utf-8"))
+    excluded = document.get("excluded_cards")
+    if excluded is None:
+        excluded = tomlkit.table()
+        document["excluded_cards"] = excluded
+    listed = list(excluded.get("cards", ()))
+    cards = tomlkit.array()
+    cards.extend([*listed, *(card for card in _MINORS if card not in listed)])
+    cards.multiline(True)
+    excluded["cards"] = cards
+    write_atomically(manifest, tomlkit.dumps(document))
+    _sync(deck, progress)
+
+
+def _remove_empty_folders(top):
+    """top and the folders under it, where empty"""
+    if not top.is_dir():
+        return
+    for directory, _, _ in sorted(os.walk(top), key=lambda walked: -len(walked[0])):
+        with contextlib.suppress(OSError):  # not empty
+            os.rmdir(directory)
 
 
 # -- [deck] fields -------------------------------------------------------------------------
@@ -225,6 +260,59 @@ def unplace(deck, card_id, progress=None):
     _sync(deck, progress)
 
 
+def place_many(deck, placements, unsorted, progress=None):
+    """Assign multiple images at the same time"""
+    deck = _checked(deck)
+    total = len(placements) + len(unsorted)
+    done = 0
+    failed = []
+
+    def advance():
+        nonlocal done
+        done += 1
+        if progress is not None:
+            progress(done, total)
+
+    if progress is not None and total:
+        progress(0, total)
+    heights = {}
+    for card_id, image in placements.items():
+        try:
+            heights[card_id] = oriented_height(image)
+        except DeckWriteError:
+            failed.append(os.fspath(image))
+            advance()
+    # The first placed fixes H, so no later one regenerates the rest
+    for card_id in sorted(heights, key=heights.get):
+        image = placements[card_id]
+        try:
+            place(deck, card_id, image)
+        except DeckWriteError as error:
+            failed.append(os.fspath(image))
+            # An image Qt could not decode is in unsorted/ already
+            if error.reason is not DeckWriteReason.UNREADABLE_IMAGE:
+                with contextlib.suppress(DeckWriteError, OSError):
+                    place_unsorted(deck, image)
+        except OSError:
+            failed.append(os.fspath(image))
+        advance()
+    for image in unsorted:
+        if _is_unsorted(deck, Path(image)):
+            advance()
+            continue
+        try:
+            place_unsorted(deck, image)
+        except (DeckWriteError, OSError):
+            failed.append(os.fspath(image))
+        advance()
+    return failed
+
+
+def oriented_height(image):
+    """image's height as shown, once its orientation is applied"""
+    return _read_header(Path(image))[0]
+
+
 def place_unsorted(deck, image):
     """Copy image into unsorted/"""
     deck = _checked(deck)
@@ -238,41 +326,67 @@ def place_unsorted(deck, image):
     return target.name
 
 
-def discard_unsorted(deck, name):
-    """Delete one image from unsorted/"""
+def stage_unsorted(deck, name):
+    """Move one image in unsorted/ aside, where restore_unsorted can bring it back
+
+    Not a dot file, so the strays every call removes leave it alone; refresh removes it.
+    """
+    staged_delete.stage(_unsorted_file(_checked(deck), name))
+
+
+def restore_unsorted(deck, name):
+    """Bring back the image stage_unsorted moved aside; its name if free, else the next one"""
     deck = _checked(deck)
+    staged = staged_delete.staged_path(_unsorted_file(deck, name))
+    target = _free_name(deck / UNSORTED, name)
+    staged_delete.restore(staged, target)
+    return target.name
+
+
+def commit_unsorted(deck, name):
+    """Delete the image stage_unsorted moved aside"""
+    staged = staged_delete.staged_path(_unsorted_file(_checked(deck), name))
+    with contextlib.suppress(FileNotFoundError):
+        staged_delete.commit(staged)
+
+
+def _unsorted_file(deck, name):
     if not name or name != Path(name).name or name in (".", ".."):
         raise ValueError(f"not a file name in unsorted/: {name!r}")
-    (deck / UNSORTED / name).unlink()
+    return deck / UNSORTED / name
 
 
 def refresh(deck, progress=None):
-    """Make h<H>/ match source/, finishing whatever an interrupted call left"""
-    _sync(_checked(deck), progress)
+    """Make h<H>/ match source/, finishing whatever an interrupted call left
+
+    Unsorted images still staged for deletion go: no Undo survives the editor that offered it.
+    """
+    deck = _checked(deck)
+    with contextlib.suppress(FileNotFoundError):
+        for entry in os.scandir(deck / UNSORTED):
+            if staged_delete.is_staged(entry.name):
+                os.unlink(entry.path)
+    _sync(deck, progress)
 
 
 # -- the deck's layout ---------------------------------------------------------------------
 
 
 def _checked(deck):
-    """deck as a Path, once it is known to be a deck created here; strays from a crash removed"""
+    """deck as a Path, once it is known to be a handmade deck; strays from a crash removed"""
     deck = Path(deck)
     try:
         with open(deck / DECK_TOML, encoding="utf-8") as handle:
             table = tomlkit.parse(handle.read()).get("deck")
     except FileNotFoundError:
-        raise DeckWriteError(
-            DeckWriteReason.NOT_CREATED_HERE, f"no {DECK_TOML} in {deck}"
-        ) from None
+        raise DeckWriteError(DeckWriteReason.NOT_HANDMADE, f"no {DECK_TOML} in {deck}") from None
     except ValueError as error:  # not TOML, or not UTF-8
-        raise DeckWriteError(DeckWriteReason.NOT_CREATED_HERE, f"{deck}: {error}") from error
+        raise DeckWriteError(DeckWriteReason.NOT_HANDMADE, f"{deck}: {error}") from error
     identifier = table.get("identifier") if isinstance(table, Mapping) else None
     if not isinstance(identifier, str) or not identifier.startswith(IDENTIFIER_PREFIX):
-        raise DeckWriteError(DeckWriteReason.NOT_CREATED_HERE, f"{deck} has no private identifier")
+        raise DeckWriteError(DeckWriteReason.NOT_HANDMADE, f"{deck} has no private identifier")
     if _roots(deck) and not (deck / SOURCE).is_dir():
-        raise DeckWriteError(
-            DeckWriteReason.NOT_CREATED_HERE, f"{deck} has images but no {SOURCE}/"
-        )
+        raise DeckWriteError(DeckWriteReason.NOT_HANDMADE, f"{deck} has images but no {SOURCE}/")
     _remove_strays(deck)
     return deck
 

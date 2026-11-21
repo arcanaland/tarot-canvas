@@ -1,4 +1,4 @@
-"""Writes to a created deck, one at a time off the GUI thread"""
+"""Writes to a handmade deck, one at a time off the GUI thread"""
 
 import os
 

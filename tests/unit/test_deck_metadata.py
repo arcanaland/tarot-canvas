@@ -1,9 +1,9 @@
 from tarot_canvas.models.deck_types import DeckLink, DeckMetadata
-from tarot_canvas.ui.library.decks.header import (
+from tarot_canvas.ui.dates import format_date
+from tarot_canvas.ui.library.decks.deck_metadata import (
     DETAIL_FIELDS,
     buy_link,
     detail_rows,
-    format_date,
     format_value,
 )
 

@@ -153,7 +153,7 @@ def test_a_blank_name_is_refused(decks_root):
     assert not decks_root.exists() or not any(decks_root.iterdir())
 
 
-def test_a_created_deck_is_a_minimal_manifest_in_a_folder_named_by_its_identifier(deck):
+def test_a_handmade_deck_is_a_minimal_manifest_in_a_folder_named_by_its_identifier(deck):
     table = manifest(deck)
 
     assert table == {
@@ -169,9 +169,9 @@ def test_a_created_deck_is_a_minimal_manifest_in_a_folder_named_by_its_identifie
     assert sorted(os.listdir(deck)) == ["deck.toml"]
 
 
-def test_a_created_deck_is_listed_as_created_here(deck):
-    assert library_curation.was_created_here(deck)
-    assert library_curation.created_decks() == {deck.name}
+def test_a_handmade_deck_is_listed_as_handmade(deck):
+    assert library_curation.is_handmade(deck)
+    assert library_curation.handmade_decks() == {deck.name}
 
 
 def test_a_taken_folder_name_mints_again(decks_root, monkeypatch):
@@ -203,9 +203,9 @@ def test_a_majors_only_deck_loads_with_22_cards_and_every_suit_excluded(majors):
 
 
 def test_a_new_deck_is_majors_only_unless_told_otherwise(decks_root):
-    created = writer.create("Default", decks_root=decks_root)
+    handmade = writer.create("Default", decks_root=decks_root)
 
-    assert len(arcana_tarot.load_deck(created).cards) == 22
+    assert len(arcana_tarot.load_deck(handmade).cards) == 22
 
 
 def test_including_the_minors_makes_a_majors_only_deck_whole(majors):
@@ -245,7 +245,7 @@ def test_a_majors_only_deck_reports_no_exclusion_reason(majors):
     assert load_deck(majors).exclusion_reason is None
 
 
-def test_a_created_deck_is_in_the_library_after_a_rescan(deck, decks_root, monkeypatch):
+def test_a_handmade_deck_is_in_the_library_after_a_rescan(deck, decks_root, monkeypatch):
     monkeypatch.setattr(deck_library_module, "get_decks_directory", lambda: [decks_root])
     monkeypatch.setattr(ReferenceDeck, "is_reference_deck_present", staticmethod(lambda: False))
     library = DeckLibrary()
@@ -332,7 +332,7 @@ def test_set_fields_refuses_the_identifier_and_schema_version(deck):
             writer.set_fields(deck, **{field: "x"})
 
 
-def test_a_deck_not_created_here_is_refused(tmp_path, images):
+def test_a_deck_not_handmade_is_refused(tmp_path, images):
     installed = tmp_path / "installed"
     installed.mkdir()
     (installed / "deck.toml").write_text(
@@ -348,7 +348,7 @@ def test_a_deck_not_created_here_is_refused(tmp_path, images):
     ):
         with pytest.raises(DeckWriteError) as raised:
             call()
-        assert raised.value.reason is DeckWriteReason.NOT_CREATED_HERE
+        assert raised.value.reason is DeckWriteReason.NOT_HANDMADE
 
 
 # -- placing -------------------------------------------------------------------------------
@@ -481,10 +481,32 @@ def test_an_unsorted_image_keeps_its_name_steps_past_a_taken_one_and_moves_when_
     writer.place(deck, FOOL, deck / "unsorted/The Fool-2.png")
     assert sorted(os.listdir(deck / "unsorted")) == ["The Fool-3.png", "The Fool.png"]
 
-    writer.discard_unsorted(deck, "The Fool-3.png")
+    writer.stage_unsorted(deck, "The Fool-3.png")
+    writer.commit_unsorted(deck, "The Fool-3.png")
     assert os.listdir(deck / "unsorted") == ["The Fool.png"]
     with pytest.raises(ValueError):
-        writer.discard_unsorted(deck, "../deck.toml")
+        writer.stage_unsorted(deck, "../deck.toml")
+
+
+def test_a_staged_unsorted_image_outlives_other_writes_and_comes_back_under_a_free_name(
+    deck, images
+):
+    writer.place_unsorted(deck, save(images, "loose.png", 100, 200))
+    writer.stage_unsorted(deck, "loose.png")
+    writer.place_unsorted(deck, save(images, "loose.png", 100, 200))
+    assert sorted(os.listdir(deck / "unsorted")) == ["loose.png", "loose.png.deleted"]
+
+    assert writer.restore_unsorted(deck, "loose.png") == "loose-2.png"
+    assert sorted(os.listdir(deck / "unsorted")) == ["loose-2.png", "loose.png"]
+
+
+def test_refresh_removes_an_unsorted_image_left_staged(deck, images):
+    writer.place_unsorted(deck, save(images, "loose.png", 100, 200))
+    writer.stage_unsorted(deck, "loose.png")
+
+    writer.refresh(deck)
+
+    assert os.listdir(deck / "unsorted") == []
 
 
 def test_a_minor_in_a_majors_only_deck_is_not_in_the_deck(majors, images):
@@ -602,3 +624,72 @@ def test_an_image_qt_will_not_decode_goes_back_to_unsorted(deck, images, monkeyp
     assert files(deck / "h200") == ["major_arcana/00.png"]
     monkeypatch.undo()
     writer.refresh(deck)
+
+
+# -- exclude_minors -------------------------------------------------------------------------
+
+
+def test_excluding_the_minors_sends_a_placed_minors_original_to_unsorted(deck, images):
+    writer.place(deck, TWO_OF_CUPS, save(images, "my-two.png", 40, 70))
+    writer.place(deck, FOOL, save(images, "fool.png", 40, 70))
+
+    writer.exclude_minors(deck)
+
+    assert files(deck / writer.UNSORTED) == ["my-two.png"]
+    assert not (deck / writer.SOURCE / "minor_arcana").exists()
+    assert not any((root / "minor_arcana").exists() for root in (deck / r for r in roots(deck)))
+    assert files(deck / "h70") == ["major_arcana/00.png"]
+    assert sorted(manifest(deck)["excluded_cards"]["cards"]) == sorted(
+        card for card in CANONICAL_CARD_IDS if card.startswith("minor_arcana.")
+    )
+    assert "reason" not in manifest(deck)["excluded_cards"]
+    assert len(arcana_tarot.load_deck(deck).cards) == 22
+
+
+def test_excluding_then_including_the_minors_round_trips(majors):
+    before = manifest(majors)
+
+    writer.include_minors(majors)
+    writer.exclude_minors(majors)
+
+    assert sorted(manifest(majors)["excluded_cards"]["cards"]) == sorted(
+        before["excluded_cards"]["cards"]
+    )
+
+
+# -- place_many -----------------------------------------------------------------------------
+
+
+def test_place_many_places_shortest_first_into_one_root(deck, images, monkeypatch):
+    tall = save(images, "tall.png", 30, 4800)
+    short = save(images, "short.png", 12, 2000)
+    order = []
+    original = writer.place
+
+    def placing(deck_path, card_id, image, progress=None):
+        order.append(card_id)
+        original(deck_path, card_id, image, progress)
+
+    monkeypatch.setattr(writer, "place", placing)
+    failed = writer.place_many(deck, {FOOL: tall, MAGICIAN: short}, [])
+
+    assert failed == []
+    assert order == [MAGICIAN, FOOL]
+    assert roots(deck) == ["h2000"]
+
+
+def test_place_many_carries_on_past_a_failure_and_reports_it(deck, images):
+    broken = images / "02.png"
+    broken.write_text("not an image")
+    good = save(images, "00.png", 40, 70)
+    stray = save(images, "IMG_1.png", 40, 70)
+    steps = []
+
+    failed = writer.place_many(
+        deck, {PRIESTESS: broken, FOOL: good}, [stray], lambda done, total: steps.append(done)
+    )
+
+    assert failed == [os.fspath(broken)]
+    assert files(deck / writer.UNSORTED) == ["IMG_1.png"]
+    assert files(deck / "h70") == ["major_arcana/00.png"]
+    assert steps[0] == 0 and steps[-1] == 3
