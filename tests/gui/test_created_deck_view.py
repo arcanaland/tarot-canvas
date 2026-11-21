@@ -8,7 +8,15 @@ from PyQt6.QtGui import QColor, QDragEnterEvent, QDropEvent, QImage, QKeyEvent
 from PyQt6.QtWidgets import QApplication, QDialog, QMessageBox
 
 from tarot_canvas.models import deck_writer as writer
-from tarot_canvas.ui.deck_view.card_model import KIND_BACK, CardRole, KindRole
+from tarot_canvas.ui.deck_view import deck_filler
+from tarot_canvas.ui.deck_view.card_model import (
+    KIND_BACK,
+    BackPathRole,
+    CardRole,
+    KindRole,
+    SlotIdRole,
+)
+from tarot_canvas.ui.deck_view.unsorted_strip import PathRole
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.tabs import deck_view_tab as module
 from tarot_canvas.ui.tabs.deck_view_tab import DeckViewTab
@@ -38,7 +46,7 @@ def picture(tmp_path, name, colour="red"):
 
 
 def settled(qtbot, tab):
-    qtbot.waitUntil(lambda: not tab.editor.is_busy())
+    qtbot.waitUntil(lambda: not tab.filler.editor.is_busy())
     return tab
 
 
@@ -99,7 +107,7 @@ def chosen(monkeypatch):
     """The file the chooser returns next"""
     picked = {}
     monkeypatch.setattr(
-        module.QFileDialog, "getOpenFileName", lambda *args: (os.fspath(picked["path"]), "")
+        deck_filler.QFileDialog, "getOpenFileName", lambda *args: (os.fspath(picked["path"]), "")
     )
     return picked
 
@@ -107,7 +115,7 @@ def chosen(monkeypatch):
 @pytest.fixture
 def warnings(monkeypatch):
     shown_ = []
-    monkeypatch.setattr(module.QMessageBox, "warning", lambda *args: shown_.append(args[2]))
+    monkeypatch.setattr(deck_filler.QMessageBox, "warning", lambda *args: shown_.append(args[2]))
     return shown_
 
 
@@ -155,35 +163,35 @@ def test_a_ctrl_click_on_an_empty_slot_only_selects(qtbot, tab, chosen):
         rect.center(),
     )
 
-    assert not tab.editor.is_busy()
+    assert not tab.filler.editor.is_busy()
     assert view.selectionModel().isSelected(slot(tab, FOOL))
 
 
 def test_remove_leaves_the_card_imageless_and_its_file_in_unsorted(qtbot, tab, tmp_path, created):
-    tab.editor.place(FOOL, picture(tmp_path, "fool.png"))
+    tab.filler.editor.place(FOOL, picture(tmp_path, "fool.png"))
     settled(qtbot, tab)
 
-    menu = tab.slot_menu(slot(tab, FOOL))
+    menu = tab.menu_for(slot(tab, FOOL))
     remove = next(a for a in menu.actions() if a.text() == module.DECK_VIEW["remove_card"])
     remove.trigger()
     settled(qtbot, tab)
 
     assert not image_of(tab, FOOL)
     assert unsorted_files(created) == ["fool.png"]
-    assert tab.unsorted.names() == ["fool.png"]
+    assert tab.filler.unsorted.names() == ["fool.png"]
 
 
 def test_an_empty_slot_offers_only_choose_image(tab):
-    menu = tab.slot_menu(slot(tab, FOOL))
+    menu = tab.menu_for(slot(tab, FOOL))
 
     assert [a.text() for a in menu.actions()] == [module.DECK_VIEW["choose_image"]]
 
 
 def test_a_filled_back_offers_replace_and_remove_and_nothing_for_a_card(qtbot, tab, tmp_path):
-    tab.editor.place(writer.BACK, picture(tmp_path, "back.png"))
+    tab.filler.editor.place(writer.BACK, picture(tmp_path, "back.png"))
     settled(qtbot, tab)
 
-    menu = tab.slot_menu(slot(tab, writer.BACK))
+    menu = tab.menu_for(slot(tab, writer.BACK))
 
     assert [a.text() for a in menu.actions()] == [
         module.DECK_VIEW["replace_image"],
@@ -192,8 +200,8 @@ def test_a_filled_back_offers_replace_and_remove_and_nothing_for_a_card(qtbot, t
 
 
 def test_edit_delete_removes_every_selected_filled_card(qtbot, tab, tmp_path, created):
-    tab.editor.place(FOOL, picture(tmp_path, "fool.png"))
-    tab.editor.place(MAGICIAN, picture(tmp_path, "magician.png"))
+    tab.filler.editor.place(FOOL, picture(tmp_path, "fool.png"))
+    tab.filler.editor.place(MAGICIAN, picture(tmp_path, "magician.png"))
     settled(qtbot, tab)
     view = tab.current_view()
     for card_id in (FOOL, MAGICIAN, "major_arcana.02"):
@@ -208,7 +216,7 @@ def test_edit_delete_removes_every_selected_filled_card(qtbot, tab, tmp_path, cr
 
 
 def test_one_file_dropped_on_a_filled_slot_replaces_it(qtbot, tab, tmp_path, created):
-    tab.editor.place(FOOL, picture(tmp_path, "fool.png", "red"))
+    tab.filler.editor.place(FOOL, picture(tmp_path, "fool.png", "red"))
     settled(qtbot, tab)
 
     _, dropped = drop(tab, slot(tab, FOOL), [picture(tmp_path, "new.png", "blue")])
@@ -231,7 +239,7 @@ def test_in_the_tableau_a_drag_over_the_back_highlights_it_and_the_drop_fills_it
     assert enter.isAccepted() and dropped.isAccepted()
     assert tab.delegate.drop_target is None
     settled(qtbot, tab)
-    assert slot(tab, writer.BACK).data(module.BackPathRole)
+    assert slot(tab, writer.BACK).data(BackPathRole)
 
 
 def test_a_drag_over_a_slot_highlights_it(tab, tmp_path):
@@ -269,15 +277,15 @@ def test_a_drop_on_a_heading_is_refused(qtbot, tab, tmp_path, monkeypatch):
     enter, _ = drop(tab, heading, [picture(tmp_path, "a.png")])
 
     assert not enter.isAccepted()
-    assert not tab.editor.is_busy()
+    assert not tab.filler.editor.is_busy()
 
 
 def test_a_failed_write_says_why_and_the_queue_continues(qtbot, tab, tmp_path, warnings):
     text = tmp_path / "notes.txt"
     text.write_text("not an image")
 
-    tab.editor.place(FOOL, text)
-    tab.editor.place(MAGICIAN, picture(tmp_path, "magician.png"))
+    tab.filler.editor.place(FOOL, text)
+    tab.filler.editor.place(MAGICIAN, picture(tmp_path, "magician.png"))
     settled(qtbot, tab)
 
     assert warnings == [
@@ -290,7 +298,7 @@ def test_the_header_counts_the_cards_and_not_the_back(qtbot, tab, tmp_path):
     expected = module.DECK_VIEW["created_count"]
     assert expected.format(placed=0, expected=22) in tab.header.subtitle_text()
 
-    tab.editor.place(writer.BACK, picture(tmp_path, "back.png"))
+    tab.filler.editor.place(writer.BACK, picture(tmp_path, "back.png"))
     settled(qtbot, tab)
 
     assert expected.format(placed=0, expected=22) in tab.header.subtitle_text()
@@ -300,22 +308,22 @@ def test_the_header_counts_the_cards_and_not_the_back(qtbot, tab, tmp_path):
 
 
 def test_unsorted_lists_the_old_image_after_a_replace(qtbot, tab, tmp_path, chosen):
-    tab.editor.place(FOOL, picture(tmp_path, "fool.png"))
+    tab.filler.editor.place(FOOL, picture(tmp_path, "fool.png"))
     settled(qtbot, tab)
     chosen["path"] = picture(tmp_path, "other.png")
 
-    tab.choose_image(slot(tab, FOOL))
+    tab.filler.choose_image(slot(tab, FOOL))
     settled(qtbot, tab)
 
-    assert tab.unsorted.names() == ["fool.png"]
-    assert tab.unsorted.view.isVisible()
-    assert not tab.unsorted.empty_label.isVisible()
+    assert tab.filler.unsorted.names() == ["fool.png"]
+    assert tab.filler.unsorted.view.isVisible()
+    assert not tab.filler.unsorted.empty_label.isVisible()
 
 
 def test_an_unsorted_item_drags_as_its_file_url(qtbot, tab, tmp_path, created):
-    tab.editor.place_unsorted(picture(tmp_path, "loose.png"))
+    tab.filler.editor.place_unsorted(picture(tmp_path, "loose.png"))
     settled(qtbot, tab)
-    model = tab.unsorted.model
+    model = tab.filler.unsorted.model
 
     mime = model.mimeData([model.index(0, 0)])
 
@@ -323,7 +331,7 @@ def test_an_unsorted_item_drags_as_its_file_url(qtbot, tab, tmp_path, created):
 
 
 def test_an_unsorted_file_dropped_on_a_slot_moves_into_it(qtbot, tab, tmp_path, created):
-    tab.editor.place_unsorted(picture(tmp_path, "loose.png"))
+    tab.filler.editor.place_unsorted(picture(tmp_path, "loose.png"))
     settled(qtbot, tab)
 
     drop(tab, slot(tab, FOOL), [created / writer.UNSORTED / "loose.png"])
@@ -331,20 +339,20 @@ def test_an_unsorted_file_dropped_on_a_slot_moves_into_it(qtbot, tab, tmp_path, 
 
     assert image_of(tab, FOOL)
     assert unsorted_files(created) == []
-    assert tab.unsorted.names() == []
+    assert tab.filler.unsorted.names() == []
 
 
 def test_delete_in_unsorted_asks_then_removes_the_file(qtbot, tab, tmp_path, created, monkeypatch):
-    tab.editor.place_unsorted(picture(tmp_path, "loose.png"))
+    tab.filler.editor.place_unsorted(picture(tmp_path, "loose.png"))
     settled(qtbot, tab)
     asked = []
     monkeypatch.setattr(
-        module.QMessageBox,
+        deck_filler.QMessageBox,
         "question",
         lambda *args: asked.append(args) or QMessageBox.StandardButton.Yes,
     )
-    view = tab.unsorted.view
-    view.setCurrentIndex(tab.unsorted.model.index(0, 0))
+    view = tab.filler.unsorted.view
+    view.setCurrentIndex(tab.filler.unsorted.model.index(0, 0))
     monkeypatch.setattr(view, "hasFocus", lambda: True)
 
     assert tab.can_delete()
@@ -356,21 +364,23 @@ def test_delete_in_unsorted_asks_then_removes_the_file(qtbot, tab, tmp_path, cre
 
 
 def test_answering_no_keeps_the_unsorted_file(qtbot, tab, tmp_path, created, monkeypatch):
-    tab.editor.place_unsorted(picture(tmp_path, "loose.png"))
+    tab.filler.editor.place_unsorted(picture(tmp_path, "loose.png"))
     settled(qtbot, tab)
-    monkeypatch.setattr(module.QMessageBox, "question", lambda *args: QMessageBox.StandardButton.No)
+    monkeypatch.setattr(
+        deck_filler.QMessageBox, "question", lambda *args: QMessageBox.StandardButton.No
+    )
 
-    tab.unsorted.discard_requested.emit("loose.png")
+    tab.filler.unsorted.discard_requested.emit("loose.png")
     settled(qtbot, tab)
 
     assert unsorted_files(created) == ["loose.png"]
 
 
 def test_files_dropped_on_the_strip_are_copied_in(qtbot, tab, tmp_path, created):
-    tab.unsorted.files_dropped.emit([os.fspath(picture(tmp_path, "a.png"))])
+    tab.filler.unsorted.files_dropped.emit([os.fspath(picture(tmp_path, "a.png"))])
     settled(qtbot, tab)
 
-    assert tab.unsorted.names() == ["a.png"]
+    assert tab.filler.unsorted.names() == ["a.png"]
 
 
 # -- placing from Unsorted ----------------------------------------------------
@@ -381,44 +391,44 @@ def no_file_dialog(monkeypatch):
     """Fails the test if the file chooser opens; lists the calls otherwise"""
     calls = []
     monkeypatch.setattr(
-        module.QFileDialog, "getOpenFileName", lambda *args: calls.append(args) or ("", "")
+        deck_filler.QFileDialog, "getOpenFileName", lambda *args: calls.append(args) or ("", "")
     )
     return calls
 
 
 def removed_fool(qtbot, tab, tmp_path):
-    tab.editor.place(FOOL, picture(tmp_path, "fool.png"))
+    tab.filler.editor.place(FOOL, picture(tmp_path, "fool.png"))
     settled(qtbot, tab)
-    tab.editor.unplace(FOOL)
+    tab.filler.editor.unplace(FOOL)
     return settled(qtbot, tab)
 
 
 def item_menu_action(tab, text):
-    menu = tab.unsorted.item_menu(tab.unsorted.model.index(0, 0))
+    menu = tab.filler.unsorted.item_menu(tab.filler.unsorted.model.index(0, 0))
     return menu, next(action for action in menu.actions() if action.text() == text)
 
 
 def test_an_unsorted_image_shows_the_card_its_name_names(qtbot, tab, tmp_path):
     removed_fool(qtbot, tab, tmp_path)
-    tab.editor.place_unsorted(picture(tmp_path, "IMG_2041.png"))
+    tab.filler.editor.place_unsorted(picture(tmp_path, "IMG_2041.png"))
     settled(qtbot, tab)
 
-    assert tab.unsorted.names() == ["IMG_2041.png", "fool.png"]
-    assert tab.unsorted.card_ids() == [None, FOOL]
-    assert tab.unsorted.model.item(0).text() == "IMG_2041.png"
-    assert tab.unsorted.model.item(1).text() == "fool.png\nThe Fool"
+    assert tab.filler.unsorted.names() == ["IMG_2041.png", "fool.png"]
+    assert tab.filler.unsorted.card_ids() == [None, FOOL]
+    assert tab.filler.unsorted.model.item(0).text() == "IMG_2041.png"
+    assert tab.filler.unsorted.model.item(1).text() == "fool.png\nThe Fool"
 
 
 def test_an_image_taken_out_comes_back_under_its_own_name_not_its_slots(
     qtbot, tab, tmp_path, created
 ):
-    tab.editor.place("major_arcana.02", picture(tmp_path, "03.png"))
+    tab.filler.editor.place("major_arcana.02", picture(tmp_path, "03.png"))
     settled(qtbot, tab)
-    tab.editor.unplace("major_arcana.02")
+    tab.filler.editor.unplace("major_arcana.02")
     settled(qtbot, tab)
 
     assert unsorted_files(created) == ["03.png"]
-    assert tab.unsorted.card_ids() == ["major_arcana.03"]
+    assert tab.filler.unsorted.card_ids() == ["major_arcana.03"]
 
 
 def test_place_as_the_classified_card_is_the_default_and_puts_it_back(
@@ -437,10 +447,10 @@ def test_place_as_the_classified_card_is_the_default_and_puts_it_back(
 
 
 def test_an_unclassified_image_offers_only_place_as_other_and_delete(qtbot, tab, tmp_path):
-    tab.editor.place_unsorted(picture(tmp_path, "IMG_2041.png"))
+    tab.filler.editor.place_unsorted(picture(tmp_path, "IMG_2041.png"))
     settled(qtbot, tab)
 
-    menu = tab.unsorted.item_menu(tab.unsorted.model.index(0, 0))
+    menu = tab.filler.unsorted.item_menu(tab.filler.unsorted.model.index(0, 0))
 
     assert [action.text() for action in menu.actions() if not action.isSeparator()] == [
         module.DECK_VIEW["place_as_other"],
@@ -454,7 +464,7 @@ def test_place_as_other_finds_a_card_by_typing_and_return_places_it(qtbot, tab, 
 
     _menu, other = item_menu_action(tab, module.DECK_VIEW["place_as_other"])
     other.trigger()
-    picker = tab.picker
+    picker = tab.filler.picker
     assert picker.isVisible()
     qtbot.keyClicks(picker.find, "magician")
     assert picker.visible_slots() == [MAGICIAN]
@@ -468,9 +478,11 @@ def test_place_as_other_finds_a_card_by_typing_and_return_places_it(qtbot, tab, 
 
 def test_the_card_picker_lists_the_back_after_the_cards(qtbot, tab, tmp_path):
     removed_fool(qtbot, tab, tmp_path)
-    tab.choose_card(tab.unsorted.model.item(0).data(module.PathRole), tab.mapToGlobal(tab.pos()))
+    tab.filler.choose_card(
+        tab.filler.unsorted.model.item(0).data(PathRole), tab.mapToGlobal(tab.pos())
+    )
 
-    slots = tab.picker.visible_slots()
+    slots = tab.filler.picker.visible_slots()
     assert len(slots) == 23
     assert slots[0] == FOOL
     assert slots[-1] == writer.BACK
@@ -487,7 +499,7 @@ def test_a_click_on_an_empty_slot_offers_unsorted_first(
         Qt.MouseButton.LeftButton,
         pos=view.visualRect(slot(tab, MAGICIAN)).center(),
     )
-    picker = tab.picker
+    picker = tab.filler.picker
     assert picker.isVisible()
     assert no_file_dialog == []
     qtbot.mouseClick(
@@ -505,19 +517,19 @@ def test_from_file_in_the_slot_picker_opens_the_chooser(qtbot, tab, tmp_path, ch
     removed_fool(qtbot, tab, tmp_path)
     chosen["path"] = picture(tmp_path, "magician.png")
 
-    tab.choose_image(slot(tab, MAGICIAN))
-    qtbot.mouseClick(tab.picker.from_file, Qt.MouseButton.LeftButton)
+    tab.filler.choose_image(slot(tab, MAGICIAN))
+    qtbot.mouseClick(tab.filler.picker.from_file, Qt.MouseButton.LeftButton)
     settled(qtbot, tab)
 
     assert image_of(tab, MAGICIAN)
-    assert tab.unsorted.names() == ["fool.png"]
+    assert tab.filler.unsorted.names() == ["fool.png"]
 
 
 def test_a_drag_near_the_bottom_edge_scrolls_the_page_until_it_leaves(qtbot, tab):
     tab.resize(800, 300)
     qtbot.waitUntil(lambda: tab.scroll.verticalScrollBar().maximum() > 0)
     bar = tab.scroll.verticalScrollBar()
-    scroller = tab.drag_scroll
+    scroller = tab.filler.drag_scroll
 
     scroller.follow(tab.scroll.viewport().height() - 1)
     assert scroller.timer.isActive()
@@ -531,6 +543,21 @@ def test_a_drag_near_the_bottom_edge_scrolls_the_page_until_it_leaves(qtbot, tab
     assert not scroller.timer.isActive()
 
 
+def test_a_reload_keeps_the_selection_and_the_current_card(qtbot, tab, tmp_path):
+    view = tab.current_view()
+    selection = view.selectionModel()
+    selection.select(slot(tab, MAGICIAN), selection.SelectionFlag.Select)
+    selection.setCurrentIndex(slot(tab, writer.BACK), selection.SelectionFlag.Select)
+
+    tab.filler.editor.place(FOOL, picture(tmp_path, "fool.png"))
+    settled(qtbot, tab)
+    qtbot.waitUntil(lambda: bool(image_of(tab, FOOL)))
+
+    assert view.currentIndex() == slot(tab, writer.BACK)
+    selected = {index.data(SlotIdRole) for index in selection.selectedIndexes()}
+    assert selected == {MAGICIAN, writer.BACK}
+
+
 # -- decks not created here ---------------------------------------------------
 
 
@@ -538,11 +565,11 @@ def test_a_deck_not_created_here_has_no_editing(qtbot):
     tab = shown(qtbot, MINIMAL_DECK_PATH)
 
     assert not tab.editable
-    assert tab.editor is None and tab.unsorted is None
+    assert tab.filler is None
     assert not tab.delegate.editable
     assert tab.model.back_row() is None
     for view in (tab.grid, tab.tableau):
-        assert not view.findChildren(module._SlotDrops)
+        assert not view.findChildren(deck_filler._SlotDrops)
     assert not tab.can_delete()
     assert tab.progress_bar.isHidden()
     assert module.DECK_VIEW["card_count"].format(count=len(tab.deck.cards)) in (
@@ -580,17 +607,17 @@ def test_new_deck_creates_a_deck_and_opens_its_view(qtbot, decks_root, monkeypat
 
 
 def unsorted_index(tab, name):
-    return tab.unsorted.model.index(tab.unsorted.names().index(name), 0)
+    return tab.filler.unsorted.model.index(tab.filler.unsorted.names().index(name), 0)
 
 
 def test_return_on_an_unsorted_image_places_it_as_its_card_and_walks_on(
     qtbot, tab, tmp_path, created
 ):
     for name in ("fool.png", "01.png", "IMG_2041.png"):
-        tab.editor.place_unsorted(picture(tmp_path, name))
+        tab.filler.editor.place_unsorted(picture(tmp_path, name))
     settled(qtbot, tab)
-    assert tab.unsorted.names() == ["01.png", "IMG_2041.png", "fool.png"]
-    view = tab.unsorted.view
+    assert tab.filler.unsorted.names() == ["01.png", "IMG_2041.png", "fool.png"]
+    view = tab.filler.unsorted.view
     view.setFocus()
     view.setCurrentIndex(unsorted_index(tab, "01.png"))
 
@@ -599,16 +626,16 @@ def test_return_on_an_unsorted_image_places_it_as_its_card_and_walks_on(
 
     assert image_of(tab, MAGICIAN)
     assert unsorted_files(created) == ["IMG_2041.png", "fool.png"]
-    assert tab.unsorted.current_name() == "IMG_2041.png"
+    assert tab.filler.unsorted.current_name() == "IMG_2041.png"
 
 
 def test_the_last_unsorted_image_placed_leaves_the_one_before_it_current(
     qtbot, tab, tmp_path, created
 ):
     for name in ("01.png", "fool.png"):
-        tab.editor.place_unsorted(picture(tmp_path, name))
+        tab.filler.editor.place_unsorted(picture(tmp_path, name))
     settled(qtbot, tab)
-    view = tab.unsorted.view
+    view = tab.filler.unsorted.view
     view.setFocus()
     view.setCurrentIndex(unsorted_index(tab, "fool.png"))
 
@@ -616,12 +643,12 @@ def test_the_last_unsorted_image_placed_leaves_the_one_before_it_current(
     settled(qtbot, tab)
 
     assert image_of(tab, FOOL)
-    assert tab.unsorted.current_name() == "01.png"
+    assert tab.filler.unsorted.current_name() == "01.png"
 
 
 def test_double_clicking_an_unsorted_image_places_it_as_its_card(qtbot, tab, tmp_path, created):
     removed_fool(qtbot, tab, tmp_path)
-    view = tab.unsorted.view
+    view = tab.filler.unsorted.view
     centre = view.visualRect(unsorted_index(tab, "fool.png")).center()
 
     # A real double-click starts with a press; the view activates only what it was pressed on
@@ -634,28 +661,28 @@ def test_double_clicking_an_unsorted_image_places_it_as_its_card(qtbot, tab, tmp
 
 
 def test_return_on_an_unclassified_image_asks_which_card_it_is(qtbot, tab, tmp_path, created):
-    tab.editor.place_unsorted(picture(tmp_path, "IMG_2041.png"))
+    tab.filler.editor.place_unsorted(picture(tmp_path, "IMG_2041.png"))
     settled(qtbot, tab)
-    view = tab.unsorted.view
+    view = tab.filler.unsorted.view
     view.setFocus()
     view.setCurrentIndex(unsorted_index(tab, "IMG_2041.png"))
 
     qtbot.keyClick(view, Qt.Key.Key_Return)
 
-    assert isinstance(tab.picker, module.CardPicker)
+    assert isinstance(tab.filler.picker, deck_filler.CardPicker)
     assert unsorted_files(created) == ["IMG_2041.png"]
-    tab.picker.close()
+    tab.filler.picker.close()
 
 
 def test_return_pressed_faster_than_the_writer_places_each_image_once(
     qtbot, tab, tmp_path, created, monkeypatch
 ):
     warnings = []
-    monkeypatch.setattr(module.QMessageBox, "warning", lambda *args: warnings.append(args))
+    monkeypatch.setattr(deck_filler.QMessageBox, "warning", lambda *args: warnings.append(args))
     for name in ("00.png", "01.png", "02.png"):
-        tab.editor.place_unsorted(picture(tmp_path, name))
+        tab.filler.editor.place_unsorted(picture(tmp_path, name))
     settled(qtbot, tab)
-    view = tab.unsorted.view
+    view = tab.filler.unsorted.view
     view.setFocus()
     view.setCurrentIndex(unsorted_index(tab, "00.png"))
 
@@ -667,19 +694,19 @@ def test_return_pressed_faster_than_the_writer_places_each_image_once(
     assert warnings == []
     assert all(image_of(tab, card_id) for card_id in (FOOL, MAGICIAN, "major_arcana.02"))
     assert unsorted_files(created) == []
-    assert tab.unsorted.names() == []
+    assert tab.filler.unsorted.names() == []
 
 
 def test_an_image_that_fails_to_place_comes_back_to_unsorted(
     qtbot, tab, tmp_path, created, monkeypatch
 ):
     warnings = []
-    monkeypatch.setattr(module.QMessageBox, "warning", lambda *args: warnings.append(args))
-    tab.editor.place_unsorted(picture(tmp_path, "fool.png"))
+    monkeypatch.setattr(deck_filler.QMessageBox, "warning", lambda *args: warnings.append(args))
+    tab.filler.editor.place_unsorted(picture(tmp_path, "fool.png"))
     settled(qtbot, tab)
     # Readable to Qt's header check, but no image
     (created / writer.UNSORTED / "fool.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"\0" * 64)
-    view = tab.unsorted.view
+    view = tab.filler.unsorted.view
     view.setFocus()
     view.setCurrentIndex(unsorted_index(tab, "fool.png"))
 
@@ -687,14 +714,14 @@ def test_an_image_that_fails_to_place_comes_back_to_unsorted(
     settled(qtbot, tab)
 
     assert len(warnings) == 1
-    assert tab.unsorted.names() == ["fool.png"]
+    assert tab.filler.unsorted.names() == ["fool.png"]
 
 
 def test_a_held_return_places_only_the_first_image(qtbot, tab, tmp_path, created):
     for name in ("00.png", "01.png"):
-        tab.editor.place_unsorted(picture(tmp_path, name))
+        tab.filler.editor.place_unsorted(picture(tmp_path, name))
     settled(qtbot, tab)
-    view = tab.unsorted.view
+    view = tab.filler.unsorted.view
     view.setFocus()
     view.setCurrentIndex(unsorted_index(tab, "00.png"))
 

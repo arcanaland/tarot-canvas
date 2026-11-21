@@ -14,7 +14,9 @@ from tarot_canvas.ui.deck_view.card_model import (
     BackPathRole,
     CardModel,
     CardRole,
+    EmptySlotRole,
     KindRole,
+    SlotIdRole,
     display_rows,
 )
 from tarot_canvas.ui.deck_view.tableau_model import KIND_LABEL, MAJOR_COLUMNS, TableauModel
@@ -133,3 +135,33 @@ def test_created_progress_counts_cards_and_not_the_back(full, majors, tmp_path, 
     writer.place(majors, writer.BACK, picture(tmp_path, "back.png"))
 
     assert created_progress(load_deck(os.fspath(majors))) == (1, 22)
+
+
+def test_each_slot_names_its_writer_id_and_whether_it_is_empty(majors, tmp_path, qapp):
+    fool = "major_arcana.00"
+    writer.place(majors, fool, picture(tmp_path))
+    model = CardModel(load_deck(os.fspath(majors)), editable=True)
+    tableau = TableauModel(model)
+
+    fool_row, back_row = model.row_of(fool), model.row_of(writer.BACK)
+    assert model.index(fool_row, 0).data(SlotIdRole) == fool
+    assert back_row == model.back_row()
+    assert model.row_of("major_arcana.99") is None
+    heading = model.index(0, 0)
+    assert heading.data(SlotIdRole) is None and heading.data(EmptySlotRole) is False
+
+    assert model.index(fool_row, 0).data(EmptySlotRole) is False
+    assert model.index(model.row_of("major_arcana.01"), 0).data(EmptySlotRole) is True
+    assert model.index(back_row, 0).data(EmptySlotRole) is True
+    # The tableau's cells answer for their card
+    back_cell = tableau.mapFromSource(model.index(back_row, 0))
+    assert back_cell.data(SlotIdRole) == writer.BACK
+    assert back_cell.data(EmptySlotRole) is True
+
+
+def test_a_deck_not_created_here_has_no_empty_slots(majors, qapp):
+    model = CardModel(load_deck(os.fspath(majors)), editable=False)
+
+    rows = model.card_rows()
+    assert all(model.index(row, 0).data(EmptySlotRole) is False for row in rows)
+    assert model.row_of(writer.BACK) is None

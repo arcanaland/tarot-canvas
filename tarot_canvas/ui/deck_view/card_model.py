@@ -5,6 +5,7 @@ from PyQt6.QtCore import QAbstractListModel, QSortFilterProxyModel, Qt
 from tarot_canvas.models.card_ids import COURTS, PIPS
 from tarot_canvas.models.card_search import CardTerms, Query
 from tarot_canvas.models.deck_types import CardKind
+from tarot_canvas.models.deck_writer import BACK
 from tarot_canvas.ui.library.decks.model import back_image
 from tarot_canvas.ui.strings import DECK_VIEW
 
@@ -14,11 +15,21 @@ CardRole = Qt.ItemDataRole.UserRole + 2
 CanonicalRole = Qt.ItemDataRole.UserRole + 3
 # The back's image, or None
 BackPathRole = Qt.ItemDataRole.UserRole + 4
+# A card's canonical ID, or BACK; what the deck writer calls the slot
+SlotIdRole = Qt.ItemDataRole.UserRole + 5
+# A created deck's slot with no image yet; never true in a deck not created here
+EmptySlotRole = Qt.ItemDataRole.UserRole + 6
 
 KIND_HEADING = "heading"
 KIND_NOTE = "note"
 KIND_CARD = "card"
 KIND_BACK = "back"
+
+
+def is_slot(index):
+    """A card or the back, in this model or a view's model over it"""
+    return index.isValid() and index.data(KindRole) in (KIND_CARD, KIND_BACK)
+
 
 RANK_ORDER = {rank: position for position, rank in enumerate(PIPS + COURTS)}
 
@@ -108,6 +119,19 @@ class CardModel(QAbstractListModel):
             None,
         )
 
+    def row_of(self, slot_id):
+        """The row of the card, or the back, the writer calls slot_id; None if there is none"""
+        for row in range(len(self._rows)):
+            if self._slot_id(row) == slot_id:
+                return row
+        return None
+
+    def _slot_id(self, row):
+        kind, _text, card, _canonical = self._rows[row]
+        if kind == KIND_BACK:
+            return BACK
+        return card.canonical_id if kind == KIND_CARD else None
+
     def card_rows(self):
         """Row of each card, in order"""
         return [row for row, (kind, *_) in enumerate(self._rows) if kind == KIND_CARD]
@@ -155,6 +179,12 @@ class CardModel(QAbstractListModel):
             return kind
         if role == CanonicalRole:
             return canonical
+        if role == SlotIdRole:
+            return self._slot_id(index.row())
+        if role == EmptySlotRole:
+            if not self._editable or kind not in (KIND_CARD, KIND_BACK):
+                return False
+            return not (self._back if kind == KIND_BACK else card.default_image())
         if kind == KIND_BACK:
             if role == BackPathRole:
                 return self._back

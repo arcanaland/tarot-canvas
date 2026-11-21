@@ -1,26 +1,12 @@
 import logging
-from pathlib import Path
 
-from PyQt6.QtCore import (
-    QEvent,
-    QItemSelection,
-    QItemSelectionModel,
-    QModelIndex,
-    QObject,
-    QPersistentModelIndex,
-    Qt,
-    QTimer,
-    pyqtSignal,
-)
-from PyQt6.QtGui import QAction, QIcon
+from PyQt6.QtCore import QItemSelectionModel, Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
-    QApplication,
     QButtonGroup,
-    QFileDialog,
     QFrame,
     QHBoxLayout,
     QMenu,
-    QMessageBox,
     QProgressBar,
     QScrollArea,
     QSizePolicy,
@@ -30,9 +16,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from tarot_canvas.models import deck_writer, library_curation
+from tarot_canvas.models import library_curation
 from tarot_canvas.models.deck_library import deck_library
-from tarot_canvas.models.deck_writer import DeckWriteError
 from tarot_canvas.settings import (
     DECK_VIEW_DENSITY_DEFAULT,
     DECK_VIEW_DENSITY_KEY,
@@ -47,22 +32,12 @@ from tarot_canvas.ui import units
 from tarot_canvas.ui.activate_on_return import activate_on_return
 from tarot_canvas.ui.card_transfer import copy_cards_to_clipboard
 from tarot_canvas.ui.deck_view.card_delegate import CardDelegate
-from tarot_canvas.ui.deck_view.card_model import (
-    KIND_BACK,
-    KIND_CARD,
-    BackPathRole,
-    CardFilter,
-    CardModel,
-    CardRole,
-    KindRole,
-)
-from tarot_canvas.ui.deck_view.deck_editor import DeckEditor
+from tarot_canvas.ui.deck_view.card_model import CardFilter, CardModel, CardRole, is_slot
+from tarot_canvas.ui.deck_view.deck_filler import DeckFiller
 from tarot_canvas.ui.deck_view.sections_view import SectionsView
-from tarot_canvas.ui.deck_view.slot_pickers import CardPicker, ImagePicker
+from tarot_canvas.ui.deck_view.selection_snapshot import SelectionSnapshot
 from tarot_canvas.ui.deck_view.tableau_model import TableauModel
 from tarot_canvas.ui.deck_view.tableau_view import TableauView
-from tarot_canvas.ui.deck_view.unsorted_strip import PathRole, UnsortedStrip
-from tarot_canvas.ui.dropped_files import dropped_files, offered_files
 from tarot_canvas.ui.icons import deck_icon
 from tarot_canvas.ui.library.decks import header as deck_header
 from tarot_canvas.ui.library.decks.header import DeckHeader
@@ -89,23 +64,17 @@ class DeckViewTab(BaseTab):
     def __init__(self, deck_path, parent=None):
         super().__init__(parent)
         self.deck_path = deck_path
-        self.deck = None
         self.mode = None
-        self.editable = False
-        self.editor = None
-        self.unsorted = None
-        self.picker = None  # the open slot or card picker
+        self.filler = None  # a DeckFiller, for a deck created here
         self.settings = get_settings()
-        self.setup_ui()
+        self._build(deck_library.load(deck_path))
 
-    def setup_ui(self):
-        self.load_deck(self.deck_path)
+    @property
+    def deck(self):
+        return self.model.deck
 
-    def load_deck(self, deck_path):
-        self.deck = deck_library.load(deck_path)
-        self.editable = library_curation.was_created_here(self.deck.root_path)
-
-        self.tab_label_changed.emit()
+    def _build(self, deck):
+        self.editable = library_curation.was_created_here(deck.root_path)
 
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(0)
@@ -120,14 +89,13 @@ class DeckViewTab(BaseTab):
         main_layout.setContentsMargins(0, 0, 0, 0)
 
         # Deck-level header at the top of the page
-        self.content_layout = main_layout
-        self.header = DeckHeader(self.deck, parent=content, created=self.editable)
+        self.header = DeckHeader(deck, parent=content, created=self.editable)
         main_layout.addWidget(self.header)
 
         # The grid's own spacing makes up the rest of the margin, so headings line up
         # with the header's text
         grid_row = QVBoxLayout()
-        self.grid = self._build_grid()
+        self.grid = self._build_grid(deck)
         self.tableau = self._build_tableau()
         self._views = {DECK_VIEW_MODE_SECTIONS: self.grid, DECK_VIEW_MODE_TABLEAU: self.tableau}
         self.views = QStackedWidget()
@@ -140,22 +108,23 @@ class DeckViewTab(BaseTab):
         inset = SECTION_MARGIN - self.grid.spacing()
         grid_row.setContentsMargins(inset, 0, inset, SECTION_MARGIN)
         grid_row.addWidget(self.views)
+
+        self.scroll = scroll = QScrollArea()
         if self.editable:
-            self.unsorted = UnsortedStrip(self.deck, self.delegate.cover_size())
-            self.unsorted.files_dropped.connect(self.send_to_unsorted)
-            self.unsorted.discard_requested.connect(self.discard_unsorted)
-            self.unsorted.place_requested.connect(self.place_unsorted_image)
-            self.unsorted.card_wanted.connect(self.choose_card)
-            self.unsorted.view.selectionModel().currentChanged.connect(self.edit_state_changed)
+            self.filler = DeckFiller(
+                deck, self.delegate, [self.grid, self.tableau], scroll, self.current_view, self
+            )
+            self.filler.progress.connect(self.on_write_progress)
+            self.filler.written.connect(self.on_written)
+            self.filler.edit_state_changed.connect(self.edit_state_changed)
             unsorted_row = QHBoxLayout()
             unsorted_row.setContentsMargins(self.grid.spacing(), 0, self.grid.spacing(), 0)
-            unsorted_row.addWidget(self.unsorted)
+            unsorted_row.addWidget(self.filler.unsorted)
             grid_row.addLayout(unsorted_row)
         main_layout.addLayout(grid_row)
         main_layout.addStretch()
 
         # Add the content to a scroll area
-        self.scroll = scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setWidget(content)
         # Anywhere on the page, where a wheel over the grid ends up too
@@ -163,25 +132,11 @@ class DeckViewTab(BaseTab):
 
         # The frame would put a line between the banner and the tab bar.
         scroll.setFrameShape(QFrame.Shape.NoFrame)
-        if self.editable:
-            # Last, so it sees drags before _SlotDrops takes them
-            self.drag_scroll = _DragScroll(
-                scroll, [self.grid.viewport(), self.tableau.viewport(), self.unsorted]
-            )
-
         self.layout.addWidget(scroll)
 
         self.set_view_mode(
             self.settings.value(DECK_VIEW_MODE_KEY, DECK_VIEW_MODE_DEFAULT, type=str)
         )
-
-        if self.editable:
-            self.editor = DeckEditor(self.deck.root_path, self)
-            self.editor.progress.connect(self.on_write_progress)
-            self.editor.finished.connect(self.on_write_done)
-            self.editor.failed.connect(self.on_write_failed)
-            # Converges whatever an interrupted write left
-            self.editor.refresh()
 
     def _build_header(self):
         header = QWidget()
@@ -243,8 +198,8 @@ class DeckViewTab(BaseTab):
             buttons.addWidget(button)
         return bar
 
-    def _build_grid(self):
-        self.model = CardModel(self.deck, self, editable=self.editable)
+    def _build_grid(self, deck):
+        self.model = CardModel(deck, self, editable=self.editable)
         # The grid shows what Find leaves of the deck
         self.found = CardFilter(self)
         self.found.setSourceModel(self.model)
@@ -271,10 +226,6 @@ class DeckViewTab(BaseTab):
         view.customContextMenuRequested.connect(self.on_context_menu)
         view.selectionModel().currentChanged.connect(self.on_current_changed)
         view.selectionModel().selectionChanged.connect(self.edit_state_changed)
-        if self.editable:
-            view.setAcceptDrops(True)
-            view.viewport().setAcceptDrops(True)
-            view.viewport().installEventFilter(_SlotDrops(view, self))
 
     @staticmethod
     def _page(view, centred=False):
@@ -319,17 +270,7 @@ class DeckViewTab(BaseTab):
     def _carry_selection(self, old, new):
         """The same cards, and the same current card, in the view switched to"""
         had_focus = old.hasFocus()
-        current = old.model().mapToSource(old.currentIndex())
-        selection = QItemSelection()
-        for row in self.selected_source_rows(old):
-            index = new.model().mapFromSource(self.model.index(row, 0))
-            if index.isValid():
-                selection.select(index, index)
-
-        target = new.model().mapFromSource(current) if current.isValid() else QModelIndex()
-        selection_model = new.selectionModel()
-        selection_model.setCurrentIndex(target, QItemSelectionModel.SelectionFlag.NoUpdate)
-        selection_model.select(selection, QItemSelectionModel.SelectionFlag.ClearAndSelect)
+        SelectionSnapshot.take(old).restore(new)
         if had_focus:
             new.setFocus(Qt.FocusReason.OtherFocusReason)
         # Once the page it's on is laid out
@@ -351,19 +292,14 @@ class DeckViewTab(BaseTab):
         return [card for card in cards if card is not None]
 
     def on_card_clicked(self, index):
-        if (
-            self.is_empty_slot(index)
-            and QApplication.keyboardModifiers() == Qt.KeyboardModifier.NoModifier
-        ):
-            self.choose_image(index)
+        if self.filler is not None and self.filler.click(index):
             return
         card = index.data(CardRole)
         if card and card.default_image():
             self.card_clicked.emit(card.default_image())
 
     def on_card_activated(self, index):
-        if self.is_empty_slot(index):
-            self.choose_image(index)
+        if self.filler is not None and self.filler.activate(index):
             return
         card = index.data(CardRole)
         if card:
@@ -408,135 +344,27 @@ class DeckViewTab(BaseTab):
         canvas_action.triggered.connect(self.new_canvas_from_selection)
         return menu
 
-    def slot_menu(self, index):
-        """Choose Image… on an empty slot; Replace… and Remove, then the card's, on a filled one"""
-        if self.is_empty_slot(index):
-            menu = QMenu(self)
-            choose = menu.addAction(QIcon.fromTheme("list-add"), DECK_VIEW["choose_image"])
-            choose.triggered.connect(lambda: self.choose_image(index))
-            return menu
-        slot = self.slot_id(index)
-        menu = self.card_menu(index) if index.data(CardRole) is not None else QMenu(self)
-        first = menu.actions()[0] if menu.actions() else None
-        replace = QAction(QIcon.fromTheme("document-open"), DECK_VIEW["replace_image"], menu)
-        replace.triggered.connect(lambda: self.choose_image(index))
-        remove = QAction(QIcon.fromTheme("edit-delete"), DECK_VIEW["remove_card"], menu)
-        remove.triggered.connect(lambda: self.editor.unplace(slot))
-        menu.insertActions(first, [replace, remove])
-        if first is not None:
-            menu.insertSeparator(first)
-        return menu
+    def menu_for(self, index):
+        """The context menu for the card or slot at index"""
+        if self.filler is not None:
+            return self.filler.slot_menu(index, self.card_menu)
+        return self.card_menu(index)
 
     def on_context_menu(self, pos):
         view = self.current_view()
         index = view.indexAt(pos)
-        if not self.is_slot(index):
+        if not is_slot(index):
             return
-        if not self.editable and index.data(CardRole) is None:
+        if self.filler is None and index.data(CardRole) is None:
             return
         selection = view.selectionModel()
         if not selection.isSelected(index):
             selection.setCurrentIndex(index, QItemSelectionModel.SelectionFlag.ClearAndSelect)
-        menu = self.slot_menu(index) if self.editable else self.card_menu(index)
+        menu = self.menu_for(index)
         menu.exec(view.viewport().mapToGlobal(pos))
         menu.deleteLater()
 
-    # -- filling a created deck -------------------------------------------
-
-    @staticmethod
-    def is_slot(index):
-        return index.isValid() and index.data(KindRole) in (KIND_CARD, KIND_BACK)
-
-    def is_empty_slot(self, index):
-        if not self.editable or not self.is_slot(index):
-            return False
-        if index.data(KindRole) == KIND_BACK:
-            return not index.data(BackPathRole)
-        return not index.data(CardRole).default_image()
-
-    @staticmethod
-    def slot_id(index):
-        if index.data(KindRole) == KIND_BACK:
-            return deck_writer.BACK
-        return index.data(CardRole).canonical_id
-
-    def choose_image(self, index):
-        """Unsorted's images for the slot at index, or the file chooser when there are none"""
-        slot = self.slot_id(index)
-        if self.unsorted is None or not self.unsorted.names():
-            self.choose_file(slot)
-            return
-        strip = self.unsorted
-        picker = ImagePicker(
-            strip.model, PathRole, strip.view.iconSize(), strip.view.gridSize(), self
-        )
-        picker.image_chosen.connect(lambda path: self.place_unsorted_image(path, slot))
-        picker.file_requested.connect(lambda: self.choose_file(slot))
-        view = self.current_view()
-        rect = view.visualRect(index)
-        self._show_picker(picker, view.viewport().mapToGlobal(rect.bottomLeft()))
-
-    def choose_card(self, path, where):
-        """The deck's slots, for the unsorted image at path"""
-        picker = CardPicker(self.deck, self)
-        picker.card_chosen.connect(lambda slot: self.place_unsorted_image(path, slot))
-        self._show_picker(picker, where)
-
-    def _show_picker(self, picker, where):
-        # A popup; a click anywhere else, or Esc, closes and deletes it
-        self.picker = picker
-        picker.show_at(where)
-        picker.setFocus(Qt.FocusReason.PopupFocusReason)
-
-    def place_unsorted_image(self, path, slot):
-        self.unsorted.leave(path)
-        self.editor.place(slot, path)
-
-    def choose_file(self, slot):
-        suffixes = " ".join(f"*{suffix}" for suffix in sorted(deck_writer.image_suffixes()))
-        path, _filter = QFileDialog.getOpenFileName(
-            self, DECK_VIEW["chooser_title"], "", f"{DECK_VIEW['image_filter']} ({suffixes})"
-        )
-        if path:
-            self.editor.place(slot, path)
-
-    def drop_on_slot(self, index, files):
-        """One file fills the slot; more go to Unsorted"""
-        if len(files) == 1:
-            self.editor.place(self.slot_id(index), files[0])
-        else:
-            self.send_to_unsorted(files)
-
-    def unsorted_folder(self):
-        return (Path(self.deck.root_path) / deck_writer.UNSORTED).resolve()
-
-    def send_to_unsorted(self, files):
-        for path in files:
-            if Path(path).resolve().parent != self.unsorted_folder():
-                self.editor.place_unsorted(path)
-
-    def discard_unsorted(self, name):
-        answer = QMessageBox.question(
-            self,
-            DECK_VIEW["delete_unsorted_title"],
-            DECK_VIEW["delete_unsorted_text"].format(name=name),
-        )
-        if answer == QMessageBox.StandardButton.Yes:
-            self.editor.discard_unsorted(name)
-
-    def filled_selected_slots(self):
-        view = self.current_view()
-        indexes = [
-            view.model().mapToSource(index) for index in view.selectionModel().selectedIndexes()
-        ]
-        return [
-            self.slot_id(index)
-            for index in indexes
-            if self.is_slot(index) and not self.is_empty_slot(index)
-        ]
-
-    def unsorted_has_focus(self):
-        return self.unsorted is not None and self.unsorted.view.hasFocus()
+    # -- a created deck's writes --------------------------------------------
 
     def on_write_progress(self, done, total):
         if total <= 0:
@@ -545,8 +373,8 @@ class DeckViewTab(BaseTab):
         self.progress_bar.setValue(done)
         self.progress_bar.show()
 
-    def on_write_done(self):
-        if not self.editor.is_busy():
+    def on_written(self):
+        if not self.filler.is_busy():
             self.progress_bar.hide()
         try:
             deck = deck_library.reload(self.deck_path)
@@ -555,57 +383,23 @@ class DeckViewTab(BaseTab):
             return
         self.set_deck(deck)
 
-    def on_write_failed(self, error):
-        log.warning("Could not change %s: %s", self.deck_path, error)
-        if isinstance(error, DeckWriteError):
-            text = DECK_VIEW[f"write_failed.{error.reason.name.lower()}"].format(
-                detail=error.detail
-            )
-        else:
-            text = DECK_VIEW["write_failed_os"].format(error=error)
-        self.on_write_done()
-        QMessageBox.warning(self, DECK_VIEW["write_failed_title"], text)
-
     def set_deck(self, deck):
         """Show deck, as reloaded, keeping the current card, the selection and the scroll"""
         view = self.current_view()
-        current = view.model().mapToSource(view.currentIndex())
-        current_id = self.slot_id(current) if self.is_slot(current) else None
-        selected = {
-            self.slot_id(self.model.index(row, 0))
-            for row in self.selected_source_rows(view)
-            if self.is_slot(self.model.index(row, 0))
-        }
+        snapshot = SelectionSnapshot.take(view)
         scrolled = self.scroll.verticalScrollBar().value()
 
-        self.deck = deck
         self.model.set_deck(deck)
 
-        header = DeckHeader(deck, parent=self.header.parentWidget(), created=self.editable)
-        self.content_layout.replaceWidget(self.header, header)
+        page = self.header.parentWidget()
+        header = DeckHeader(deck, parent=page, created=self.editable)
+        page.layout().replaceWidget(self.header, header)
         self.header.deleteLater()
         self.header = header
 
-        rows = {
-            self.slot_id(self.model.index(row, 0)): row
-            for row in range(self.model.rowCount())
-            if self.is_slot(self.model.index(row, 0))
-        }
-        selection = QItemSelection()
-        for slot in selected:
-            if slot in rows:
-                index = view.model().mapFromSource(self.model.index(rows[slot], 0))
-                selection.select(index, index)
-        selection_model = view.selectionModel()
-        if current_id in rows:
-            target = view.model().mapFromSource(self.model.index(rows[current_id], 0))
-            selection_model.setCurrentIndex(target, QItemSelectionModel.SelectionFlag.NoUpdate)
-        selection_model.select(selection, QItemSelectionModel.SelectionFlag.ClearAndSelect)
-
-        if self.unsorted is not None:
-            if not self.editor.is_busy():
-                self.unsorted.settle()
-            self.unsorted.set_deck(deck)
+        snapshot.restore(view)
+        if self.filler is not None:
+            self.filler.set_deck(deck)
         self.tab_label_changed.emit()
         self.edit_state_changed()
         self._scrolled = scrolled
@@ -626,14 +420,14 @@ class DeckViewTab(BaseTab):
         if self.delegate.set_density(density):
             self.grid.doItemsLayout()
             self.tableau.update_sections()
-            if self.unsorted is not None:
-                self.unsorted.set_cover_size(self.delegate.cover_size())
+            if self.filler is not None:
+                self.filler.set_cover_size(self.delegate.cover_size())
         self.zoom_state_changed()
 
     # -- find ---------------------------------------------------------------
 
     def can_find(self):
-        return self.deck is not None
+        return True
 
     def find(self):
         self.search_field.setFocus(Qt.FocusReason.ShortcutFocusReason)
@@ -647,7 +441,7 @@ class DeckViewTab(BaseTab):
     # -- zoom ---------------------------------------------------------------
 
     def can_zoom(self, how):
-        return self.deck is not None and self.zoom_slider.can_zoom(how)
+        return self.zoom_slider.can_zoom(how)
 
     def zoom(self, how):
         self.zoom_slider.zoom(how)
@@ -655,24 +449,14 @@ class DeckViewTab(BaseTab):
     # -- edit ---------------------------------------------------------------
 
     def can_copy_card(self):
-        return self.deck is not None and bool(self.selected_cards())
+        return bool(self.selected_cards())
 
     def can_delete(self):
-        if not self.editable:
-            return False
-        if self.unsorted_has_focus():
-            return self.unsorted.current_name() is not None
-        return bool(self.filled_selected_slots())
+        return self.filler is not None and self.filler.can_delete()
 
     def delete(self):
-        """The selected cards go to Unsorted; with Unsorted focused, its image is deleted"""
-        if not self.can_delete():
-            return
-        if self.unsorted_has_focus():
-            self.discard_unsorted(self.unsorted.current_name())
-            return
-        for slot in self.filled_selected_slots():
-            self.editor.unplace(slot)
+        if self.filler is not None:
+            self.filler.delete()
 
     def copy_card(self):
         cards = self.selected_cards()
@@ -684,113 +468,3 @@ class DeckViewTab(BaseTab):
 
     def tab_icon(self):
         return deck_icon()
-
-
-class _SlotDrops(QObject):
-    """Local files dropped on a view of a created deck: onto a slot, or anywhere else to Unsorted"""
-
-    def __init__(self, view, tab):
-        super().__init__(view)
-        self._view = view
-        self._tab = tab
-
-    def _target(self, event):
-        """(accepted, the slot's index or None)"""
-        if not offered_files(event.mimeData()):
-            return False, None
-        index = self._view.indexAt(event.position().toPoint())
-        if self._tab.is_slot(index):
-            return True, index
-        if index.isValid() and index.data(KindRole) is not None:
-            # A heading, label, note or ghost
-            return False, None
-        return bool(self._tab.unsorted.arriving(event.mimeData())), None
-
-    def _highlight(self, index):
-        delegate = self._tab.delegate
-        target = QPersistentModelIndex(index) if index is not None else None
-        if delegate.drop_target != target:
-            delegate.drop_target = target
-            self._view.viewport().update()
-
-    def eventFilter(self, watched, event):
-        kind = event.type()
-        if kind in (QEvent.Type.DragEnter, QEvent.Type.DragMove):
-            accepted, index = self._target(event)
-            self._highlight(index)
-            if accepted:
-                event.acceptProposedAction()
-            else:
-                event.ignore()
-            return True
-        if kind == QEvent.Type.DragLeave:
-            self._highlight(None)
-            return True
-        if kind == QEvent.Type.Drop:
-            accepted, index = self._target(event)
-            self._highlight(None)
-            if not accepted:
-                event.ignore()
-                return True
-            event.acceptProposedAction()
-            files = dropped_files(event.mimeData())
-            if index is not None:
-                self._tab.drop_on_slot(index, files)
-            else:
-                self._tab.send_to_unsorted(files)
-            return True
-        return False
-
-
-class _DragScroll(QObject):
-    """Scrolls the page while a file is dragged near its top or bottom edge
-
-    The views never scroll themselves (the page does), so without this a slot off screen could
-    not be reached mid-drag: from Unsorted at the bottom to the majors at the top, say.
-    """
-
-    MARGIN = 3 * units.GRID_UNIT
-    MAX_STEP = units.GRID_UNIT
-    INTERVAL_MS = 30
-
-    def __init__(self, scroll, watched):
-        super().__init__(scroll)
-        self._scroll = scroll
-        self.step = 0
-        self.timer = QTimer(self)
-        self.timer.setInterval(self.INTERVAL_MS)
-        self.timer.timeout.connect(self._tick)
-        # Each takes drops, so sees every move over it, refused or not; it decides nothing here
-        for widget in watched:
-            widget.installEventFilter(self)
-
-    def eventFilter(self, watched, event):
-        kind = event.type()
-        if kind in (QEvent.Type.DragEnter, QEvent.Type.DragMove):
-            viewport = self._scroll.viewport()
-            self.follow(watched.mapTo(viewport, event.position().toPoint()).y())
-        elif kind in (QEvent.Type.DragLeave, QEvent.Type.Drop):
-            self.follow(None)
-        return False
-
-    def follow(self, y):
-        """The drag is at y in the page's viewport, or has gone (None)"""
-        height = self._scroll.viewport().height()
-        step = 0
-        if y is not None and y < self.MARGIN:
-            step = -self._speed(self.MARGIN - y)
-        elif y is not None and y > height - self.MARGIN:
-            step = self._speed(y - (height - self.MARGIN))
-        self.step = step
-        if step and not self.timer.isActive():
-            self.timer.start()
-        elif not step:
-            self.timer.stop()
-
-    def _speed(self, depth):
-        """Faster the nearer the edge"""
-        return max(1, round(self.MAX_STEP * min(depth, self.MARGIN) / self.MARGIN))
-
-    def _tick(self):
-        bar = self._scroll.verticalScrollBar()
-        bar.setValue(bar.value() + self.step)

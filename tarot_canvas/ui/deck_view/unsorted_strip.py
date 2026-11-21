@@ -241,9 +241,10 @@ class UnsortedStrip(QWidget):
 
     def arriving(self, mime):
         """The files a drag offers that aren't already here"""
-        return self._not_here(offered_files(mime))
+        return self.not_here(offered_files(mime))
 
-    def _not_here(self, paths):
+    def not_here(self, paths):
+        """paths, less those already in unsorted/"""
         folder = self.folder.resolve()
         return [path for path in paths if Path(path).resolve().parent != folder]
 
@@ -261,6 +262,6 @@ class UnsortedStrip(QWidget):
             event.ignore()
             return
         event.acceptProposedAction()
-        files = self._not_here(dropped_files(event.mimeData()))
+        files = self.not_here(dropped_files(event.mimeData()))
         if files:
             self.files_dropped.emit(files)
