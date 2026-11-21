@@ -1,7 +1,8 @@
 import logging
+import os
 
 from PyQt6.QtCore import QItemSelectionModel, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QAction, QIcon
 from PyQt6.QtWidgets import (
     QButtonGroup,
     QFrame,
@@ -34,6 +35,7 @@ from tarot_canvas.ui.card_transfer import copy_cards_to_clipboard
 from tarot_canvas.ui.deck_view.card_delegate import CardDelegate
 from tarot_canvas.ui.deck_view.card_model import CardFilter, CardModel, CardRole, is_slot
 from tarot_canvas.ui.deck_view.deck_editor import DeckEditor
+from tarot_canvas.ui.deck_view.exporter import DeckExporter
 from tarot_canvas.ui.deck_view.sections_view import SectionsView
 from tarot_canvas.ui.deck_view.selection_snapshot import SelectionSnapshot
 from tarot_canvas.ui.deck_view.tableau_model import TableauModel
@@ -44,6 +46,7 @@ from tarot_canvas.ui.library.decks.handmade_header import HandmadeDeckHeader
 from tarot_canvas.ui.library.decks.header import DeckHeader
 from tarot_canvas.ui.strings import DECK_VIEW
 from tarot_canvas.ui.tabs.base_tab import BaseTab
+from tarot_canvas.ui.widgets.inline_message import InlineMessage
 from tarot_canvas.ui.widgets.search_field import search_field
 from tarot_canvas.ui.widgets.zoom_slider import ZoomSlider
 
@@ -61,12 +64,19 @@ class DeckViewTab(BaseTab):
     card_clicked = pyqtSignal(str)  # Signal when a card is clicked
     card_action_requested = pyqtSignal(str, object, object)  # action, card, deck
     new_canvas_requested = pyqtSignal(list, object)  # cards, deck
+    message = pyqtSignal(str)  # for a toast
+    install_requested = pyqtSignal(str)  # the .tarotdeck a temporary deck came from
+    open_deck_requested = pyqtSignal(str)  # a deck root
 
-    def __init__(self, deck_path, parent=None):
+    def __init__(self, deck_path, parent=None, origin=None):
         super().__init__(parent)
         self.deck_path = deck_path
+        # The .tarotdeck this deck was unpacked from, when it is outside the Library
+        self.origin = origin
+        self.banner = None
         self.mode = None
         self.editor = None  # a DeckEditor, for a handmade deck
+        self.exporter = None
         self.settings = get_settings()
         self._build(deck_library.load(deck_path))
 
@@ -82,6 +92,8 @@ class DeckViewTab(BaseTab):
 
         # Pinned above the page, as the Library's is
         self.layout.addWidget(self._build_header())
+        if self.origin is not None:
+            self.layout.addLayout(self._build_banner(deck))
 
         # Main content widget with vertical layout
         content = QWidget()
@@ -126,6 +138,12 @@ class DeckViewTab(BaseTab):
             self.header.fields_edited.connect(self.on_fields_edited)
             self.header.add_images_requested.connect(self.editor.add_images)
             self.header.cards_chosen.connect(self.on_cards_chosen)
+            self.exporter = DeckExporter(self.editor.queue, lambda: self.deck, self)
+            self.exporter.message.connect(self.message)
+            self.exporter.running_changed.connect(self.update_export_button)
+            self.editor.queue.busy_changed.connect(self.update_export_button)
+            self.header.export_requested.connect(self.exporter.start)
+            self.update_export_button()
         main_layout.addLayout(grid_row)
         main_layout.addStretch()
 
@@ -142,6 +160,40 @@ class DeckViewTab(BaseTab):
         self.set_view_mode(
             self.settings.value(DECK_VIEW_MODE_KEY, DECK_VIEW_MODE_DEFAULT, type=str)
         )
+
+    def _build_banner(self, deck):
+        """Warning that the deck is outside the Library"""
+        row = QVBoxLayout()
+        row.setContentsMargins(SECTION_MARGIN, 0, SECTION_MARGIN, units.LARGE_SPACING)
+        self.banner = InlineMessage(parent=self, closable=False)
+        row.addWidget(self.banner)
+
+        file = os.path.basename(os.fspath(self.origin))
+        identifier = deck.metadata.identifier
+        installed = deck_library.find_by_identifier(identifier) if identifier else ()
+        if installed:
+            self.banner_action = QAction(
+                QIcon.fromTheme("document-open"), DECK_VIEW["open_library_copy"], self
+            )
+            root = os.fspath(installed[0].root_path)
+            self.banner_action.triggered.connect(lambda: self.open_deck_requested.emit(root))
+            text = DECK_VIEW["temporary_installed"].format(file=file)
+        else:
+            self.banner_action = QAction(
+                QIcon.fromTheme("list-add"), DECK_VIEW["add_to_library"], self
+            )
+            self.banner_action.triggered.connect(self.request_install)
+            text = DECK_VIEW["temporary"].format(file=file)
+        self.banner.show_message(text, [self.banner_action])
+        return row
+
+    def request_install(self):
+        self.banner_action.setEnabled(False)
+        self.install_requested.emit(os.fspath(self.origin))
+
+    def install_finished(self):
+        """The install failed; the deck can be offered again"""
+        self.banner_action.setEnabled(True)
 
     def _build_header(self):
         header = QWidget()
@@ -424,6 +476,11 @@ class DeckViewTab(BaseTab):
 
     def on_fields_edited(self, fields):
         self.editor.queue.set_fields(**fields)
+
+    def update_export_button(self, *_):
+        self.header.export_button.setEnabled(
+            not self.editor.is_busy() and not self.exporter.running
+        )
 
     def on_cards_chosen(self, whole):
         if whole:

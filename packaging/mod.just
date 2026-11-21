@@ -2,6 +2,9 @@ dbus := if env('DBUS_SESSION_BUS_ADDRESS', '') == '' { 'dbus-run-session --' } e
 
 flathub_repo := 'flathub/land.arcana.TarotCanvas'
 
+# What devel-install last installed: its inputs' fingerprint and the installed commit
+devel_stamp := env('XDG_CACHE_HOME', home_dir() / '.cache') / 'tarot-canvas' / 'devel-installed'
+
 # Where the Flathub checkout lives. Not in this repo: it is a different repo with a
 # different owner, and Flathub's copy of python3-modules.yaml is the canonical one.
 flathub_checkout := env('FLATHUB_CHECKOUT', \
@@ -150,25 +153,53 @@ devel-build: deps gen-devel
   {{dbus}} flatpak run org.flatpak.Builder --user --force-clean \
     build-devel devel/land.arcana.TarotCanvas.yml
 
-# Build and install the devel build
-[private]
+# Build and install the devel build, whether or not anything changed
 devel-install: deps gen-devel
   {{dbus}} flatpak run org.flatpak.Builder --user --install --force-clean \
     build-devel devel/land.arcana.TarotCanvas.yml
+  @mkdir -p "$(dirname {{devel_stamp}})"
+  @echo "$({{just_executable()}} --justfile {{source_file()}} devel-fingerprint) $({{just_executable()}} --justfile {{source_file()}} devel-commit)" >{{devel_stamp}}
+
+# Build and install the devel build only if its inputs or the installed build changed
+[private]
+devel-ensure:
+  #!/bin/bash
+  set -euo pipefail
+  now="$({{just_executable()}} --justfile {{source_file()}} devel-fingerprint) $({{just_executable()}} --justfile {{source_file()}} devel-commit)"
+  if [ -f {{devel_stamp}} ] && [ "$(cat {{devel_stamp}})" = "${now}" ]; then
+    echo "devel build is current; just devel-install to rebuild anyway"
+    exit 0
+  fi
+  {{just_executable()}} --justfile {{source_file()}} devel-install
+
+# What goes into the devel build: every file git doesn't ignore, by path and content
+[private]
+devel-fingerprint:
+  #!/bin/bash
+  set -euo pipefail
+  cd ..
+  git ls-files -co --exclude-standard -z -- tarot_canvas packaging pyproject.toml uv.lock README.md \
+    | while IFS= read -r -d '' file; do [ -f "${file}" ] && printf '%s\0' "${file}"; done \
+    | xargs -0 --no-run-if-empty sha256sum | sha256sum | cut -d ' ' -f 1
+
+# The installed devel build's commit, or "none"
+[private]
+devel-commit:
+  @flatpak info --user --show-commit land.arcana.TarotCanvas.Devel//master 2>/dev/null || echo none
 
 # Build, install and run the dev build.
-devel: devel-install
+devel: devel-ensure
   flatpak run land.arcana.TarotCanvas.Devel//master
 
 # Build, install and run the dev build with a fresh config, data or both (all), kept
 # until the next fresh run, the reference deck already in place.
-devel-fresh WHAT="all": (fresh-what WHAT) devel-install (devel-in "fresh" WHAT "wipe" "seed")
+devel-fresh WHAT="all": (fresh-what WHAT) devel-ensure (devel-in "fresh" WHAT "wipe" "seed")
 
 # As devel-fresh, but a fresh data dir downloads the reference deck
-devel-pristine WHAT="all": (fresh-what WHAT) devel-install (devel-in "pristine" WHAT "wipe")
+devel-pristine WHAT="all": (fresh-what WHAT) devel-ensure (devel-in "pristine" WHAT "wipe")
 
 # Build, install and run the dev build in a profile of its own, made empty if new
-devel-as NAME: devel-install (devel-in NAME "all")
+devel-as NAME: devel-ensure (devel-in NAME "all")
 
 # Copy the dev build's config, data and cache into a new profile for devel-as
 devel-snapshot NAME:

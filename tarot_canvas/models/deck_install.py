@@ -43,13 +43,52 @@ def install_container(container_path, dest, staging_root):
     dest = Path(dest)
     if os.path.lexists(dest):
         raise InstallError(InstallReason.DESTINATION_EXISTS, str(dest))
+    return _install(container_path, staging_root, dest.name, lambda _staged: dest)
 
+
+def install_local(container_path, decks_root, staging_root):
+    """Unpack a container file into decks_root"""
+    decks_root = Path(decks_root)
+
+    def destination(staged):
+        with open(staged / DECK_TOML, "rb") as f:
+            table = tomllib.load(f).get("deck", {})
+        identifier = table.get("identifier") if isinstance(table, dict) else None
+        name = install_dir_name(
+            identifier if isinstance(identifier, str) else None, Path(container_path).stem
+        )
+        dest = decks_root / name
+        if os.path.lexists(dest):
+            raise InstallError(InstallReason.DESTINATION_EXISTS, str(dest))
+        return dest
+
+    return _install(container_path, staging_root, Path(container_path).stem, destination)
+
+
+def open_local(container_path, staging_root):
+    """Unpack a container file into a folder of its own under staging_root, and return it"""
+    return _unpack(container_path, staging_root, f"{Path(container_path).stem}.open")
+
+
+def _unpack(container_path, staging_root, prefix):
+    """Unpack into a new folder under staging and check its deck.toml"""
     staging_root = Path(staging_root)
     staging_root.mkdir(parents=True, exist_ok=True)
-    staged = Path(tempfile.mkdtemp(prefix=f"{dest.name}.", dir=staging_root))
+    staged = Path(tempfile.mkdtemp(prefix=f"{prefix}.", dir=staging_root))
     try:
         unpack_container(container_path, staged)
         _check_deck_toml(staged / DECK_TOML)
+    except BaseException:
+        shutil.rmtree(staged, ignore_errors=True)
+        raise
+    return staged
+
+
+def _install(container_path, staging_root, prefix, destination):
+    """Unpack into staging, check deck.toml, then rename to destination(staged)"""
+    staged = _unpack(container_path, staging_root, prefix)
+    try:
+        dest = destination(staged)
         dest.parent.mkdir(parents=True, exist_ok=True)
         _rename(staged, dest)
     except BaseException:
@@ -71,7 +110,25 @@ def _rename(staged, dest):
         os.rename(staged, dest)
     except OSError as e:
         if e.errno == errno.EXDEV:
-            raise InstallError(InstallReason.FILESYSTEM, str(e)) from e
+            _copy_across(staged, dest)
+            return
         if e.errno in (errno.EEXIST, errno.ENOTEMPTY, errno.ENOTDIR):
             raise InstallError(InstallReason.DESTINATION_EXISTS, str(dest)) from e
         raise
+
+
+def _copy_across(staged, dest):
+    """Copy staged beside dest under a hidden name the library skips, then rename it into place"""
+    partial = Path(tempfile.mkdtemp(prefix=f".{dest.name}.", suffix=".partial", dir=dest.parent))
+    try:
+        shutil.copytree(staged, partial, dirs_exist_ok=True)
+        try:
+            os.rename(partial, dest)
+        except OSError as e:
+            if e.errno in (errno.EEXIST, errno.ENOTEMPTY, errno.ENOTDIR):
+                raise InstallError(InstallReason.DESTINATION_EXISTS, str(dest)) from e
+            raise
+    except BaseException:
+        shutil.rmtree(partial, ignore_errors=True)
+        raise
+    shutil.rmtree(staged, ignore_errors=True)

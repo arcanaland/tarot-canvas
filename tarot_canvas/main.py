@@ -4,6 +4,7 @@ import os
 import sys
 import urllib.parse
 from importlib.resources import files
+from pathlib import Path
 
 from PyQt6 import sip
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
@@ -206,17 +207,20 @@ def main():
 
 
 def process_uri_argument(args, main_window):
-    """Process URI argument for opening specific cards"""
+    """Open the card a tarot:// URI names, or the .tarotdeck a path or file:// URL names"""
     # Create argument parser
     parser = argparse.ArgumentParser(description=MAIN_WINDOW["app_name"])
     parser.add_argument("uri", nargs="?", help=SETUP["uri_help"])
 
     # Parse just the known args, ignoring Qt's own args
     known_args, _ = parser.parse_known_args(args)
+    uri = known_args.uri
+    if not uri:
+        return
 
-    if hasattr(known_args, "uri") and known_args.uri and known_args.uri.startswith("tarot://"):
+    if uri.startswith("tarot://"):
         # Parse the URI
-        parsed_uri = urllib.parse.urlparse(known_args.uri)
+        parsed_uri = urllib.parse.urlparse(uri)
         path = parsed_uri.netloc + parsed_uri.path
 
         # Remove any leading/trailing slashes
@@ -228,6 +232,21 @@ def process_uri_argument(args, main_window):
             main_window.open_card_view(card, deck)
         elif card_id:
             log.warning("Card not found in the reference deck: %s", card_id)
+        return
+
+    container = _container_path(uri)
+    if container is not None:
+        main_window.open_deck_file_temporarily(container)
+
+
+def _container_path(argument):
+    """The .tarotdeck file a path or file:// URL names, if it exists"""
+    if argument.startswith("file://"):
+        argument = urllib.parse.unquote(urllib.parse.urlparse(argument).path)
+    path = Path(argument)
+    if path.suffix.lower() == ".tarotdeck" and path.is_file():
+        return path
+    return None
 
 
 if __name__ == "__main__":

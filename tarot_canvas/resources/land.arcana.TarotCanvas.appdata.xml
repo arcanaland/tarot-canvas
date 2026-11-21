@@ -219,5 +219,6 @@
     <binary>tarot-canvas</binary>
     <id>tarot-canvas.desktop</id>
     <mediatype>x-scheme-handler/tarot</mediatype>
+    <mediatype>application/vnd.arcana-land.tarotdeck+zip</mediatype>
   </provides>
 </component>

@@ -168,19 +168,25 @@ def exclude_minors(deck, progress=None):
     _remove_empty_folders(deck / SOURCE / "minor_arcana")
     for derived in _roots(deck):
         _remove_empty_folders(derived / "minor_arcana")
-    manifest = deck / DECK_TOML
-    document = tomlkit.parse(manifest.read_text(encoding="utf-8"))
+    list_excluded(deck / DECK_TOML, _MINORS)
+    _sync(deck, progress)
+
+
+def list_excluded(manifest, card_ids):
+    """Add card_ids to manifest's [excluded_cards], after those it lists already; no check
+    that they are empty, and nothing derived is touched, so it suits a staged copy"""
+    document = tomlkit.parse(Path(manifest).read_text(encoding="utf-8"))
     excluded = document.get("excluded_cards")
     if excluded is None:
         excluded = tomlkit.table()
         document["excluded_cards"] = excluded
     listed = list(excluded.get("cards", ()))
+    wanted = set(card_ids)
     cards = tomlkit.array()
-    cards.extend([*listed, *(card for card in _MINORS if card not in listed)])
+    cards.extend([*listed, *(c for c in CANONICAL_CARD_IDS if c in wanted and c not in listed)])
     cards.multiline(True)
     excluded["cards"] = cards
-    write_atomically(manifest, tomlkit.dumps(document))
-    _sync(deck, progress)
+    write_atomically(Path(manifest), tomlkit.dumps(document))
 
 
 def _remove_empty_folders(top):
@@ -367,6 +373,31 @@ def refresh(deck, progress=None):
             if staged_delete.is_staged(entry.name):
                 os.unlink(entry.path)
     _sync(deck, progress)
+
+
+def exported_files(deck):
+    """Our files without staging stuff"""
+    deck = _checked(deck)
+    working = {SOURCE, UNSORTED}
+    found = []
+    for directory, folders, files in os.walk(deck):
+        here = Path(directory)
+        top = here == deck
+        folders[:] = [
+            name
+            for name in folders
+            if not name.startswith(".")
+            and not staged_delete.is_staged(name)
+            and not (here / name).is_symlink()
+            and not (top and name in working)
+        ]
+        for name in files:
+            path = here / name
+            if name.startswith(".") or staged_delete.is_staged(name) or path.is_symlink():
+                continue
+            if path.is_file():
+                found.append(path.relative_to(deck))
+    return sorted(found)
 
 
 # -- the deck's layout ---------------------------------------------------------------------

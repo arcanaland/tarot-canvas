@@ -1,7 +1,14 @@
 import enum
 
-from PyQt6.QtCore import QEvent, QObject, pyqtSignal
-from PyQt6.QtGui import QFont, QFontDatabase, QFontInfo
+from PyQt6.QtCore import QEvent, QObject, Qt, pyqtSignal
+from PyQt6.QtGui import (
+    QFont,
+    QFontDatabase,
+    QFontInfo,
+    QFontMetricsF,
+    QTextLayout,
+    QTextOption,
+)
 from PyQt6.QtWidgets import QApplication
 
 from tarot_canvas.settings import (
@@ -96,6 +103,33 @@ def in_pixels(base, px):
     result = QFont(base)
     result.setPixelSize(max(1, round(px)))
     return result
+
+
+def wrapped_lines(text, font, width, max_lines):
+    """text wrapped to width, at most max_lines of it, the last elided if it runs over
+
+    A newline in text starts a new line.
+    """
+    text = text.replace("\r\n", "\n").replace("\n", "\u2028")
+    layout = QTextLayout(text, font)
+    option = QTextOption()
+    option.setWrapMode(QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)
+    layout.setTextOption(option)
+
+    starts = []
+    layout.beginLayout()
+    while (line := layout.createLine()).isValid():
+        line.setLineWidth(width)
+        starts.append(line.textStart())
+    layout.endLayout()
+
+    ends = [*starts[1:], len(text)]
+    lines = [text[start:end].strip() for start, end in zip(starts, ends, strict=True)]
+    if len(lines) > max_lines:
+        rest = " ".join(text[starts[max_lines - 1] :].split())
+        elided = QFontMetricsF(font).elidedText(rest, Qt.TextElideMode.ElideRight, width)
+        lines = [*lines[: max_lines - 1], elided]
+    return lines
 
 
 def _encode(role, primary, fixed, reading):

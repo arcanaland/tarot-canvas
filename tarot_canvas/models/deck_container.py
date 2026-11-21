@@ -1,9 +1,10 @@
-"""Unpack a zipped deck container
+"""Pack and unpack a zipped deck container
 
 TODO: This will eventually be replaced by libarcana.
 """
 
 import enum
+import os
 import re
 import stat
 import zipfile
@@ -13,12 +14,14 @@ from pathlib import Path
 
 DECK_TOML = "deck.toml"
 MIMETYPE = "mimetype"
+MEDIA_TYPE = "application/vnd.arcana-land.tarotdeck+zip"
 
 _UTF8_NAME_FLAG = 0x800
 _ENCRYPTED_FLAG = 0x1
 _UNIX = 3
 _DRIVE = re.compile(r"^[A-Za-z]:")
 _CHUNK = 1 << 16
+_DEFLATED_SUFFIXES = {".toml", ".txt", ".md", ".svg"}
 
 
 class Reason(enum.Enum):
@@ -54,6 +57,29 @@ class Limits:
 
 
 DEFAULT_LIMITS = Limits(max_total_size=2 * 1024**3, max_entries=20_000, max_ratio=100)
+
+
+def pack_container(deck_dir, target):
+    """Write the deck in deck_dir to target as a container: mimetype first, then every file, sorted"""
+    deck_dir = Path(deck_dir)
+    files = sorted(
+        path.relative_to(deck_dir).as_posix()
+        for path in deck_dir.rglob("*")
+        if path.is_file() and not path.is_symlink()
+    )
+    with zipfile.ZipFile(target, "w") as archive:
+        archive.writestr(zipfile.ZipInfo(MIMETYPE), MEDIA_TYPE.encode("ascii"), zipfile.ZIP_STORED)
+        for name in files:
+            source = deck_dir / name
+            info = zipfile.ZipInfo.from_file(source, name)
+            info.compress_type = (
+                zipfile.ZIP_DEFLATED
+                if os.path.splitext(name)[1].lower() in _DEFLATED_SUFFIXES
+                else zipfile.ZIP_STORED
+            )
+            with open(source, "rb") as src, archive.open(info, "w") as out:
+                while chunk := src.read(_CHUNK):
+                    out.write(chunk)
 
 
 def unpack_container(container_path, dest_dir, limits=DEFAULT_LIMITS):

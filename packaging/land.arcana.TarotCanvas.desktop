@@ -8,7 +8,7 @@ Categories=Graphics;Spirituality;
 Keywords=tarot;divination;cartomancy;arcana;occult;spread;deck;
 StartupNotify=true
 Terminal=false
-MimeType=x-scheme-handler/tarot;
+MimeType=x-scheme-handler/tarot;application/vnd.arcana-land.tarotdeck+zip;
 X-Flatpak-RenamedFrom=tarot-canvas.desktop;
 StartupWMClass=tarot-canvas
 

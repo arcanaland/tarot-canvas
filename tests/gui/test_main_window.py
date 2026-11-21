@@ -810,7 +810,7 @@ def test_file_makes_then_opens_and_saves_then_handles_tabs(qtbot):
             COMMANDS["new_spread"],
             COMMANDS["new_deck"],
         ],
-        [COMMANDS["open_deck"], window.save_action.text()],
+        [COMMANDS["open_deck"], COMMANDS["open_deck_folder"], window.save_action.text()],
         [COMMANDS["new_library"], COMMANDS["new_card_view"], COMMANDS["close_tab"]],
         [COMMANDS["quit"]],
     ]
@@ -1347,3 +1347,20 @@ def test_a_first_launch_fits_the_screen_and_a_kept_geometry_comes_back(qtbot):
     again = MainWindow()
     qtbot.addWidget(again)
     assert again.size() == QSize(500, 400)
+
+
+@pytest.mark.parametrize(
+    ("picked", "opened"), [("/tmp/x.tarotdeck", ["/tmp/x.tarotdeck"]), ("", [])]
+)
+def test_open_deck_opens_the_tarotdeck_picked(qtbot, monkeypatch, picked, opened):
+    window = MainWindow()
+    qtbot.addWidget(window)
+    calls = []
+    monkeypatch.setattr(
+        main_window_module.QFileDialog, "getOpenFileName", lambda *args: (picked, "")
+    )
+    monkeypatch.setattr(window, "open_deck_file_temporarily", calls.append)
+
+    window.open_deck_file()
+
+    assert calls == opened

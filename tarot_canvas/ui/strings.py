@@ -9,6 +9,7 @@ COMMANDS = {
     "new_library": "New &Library View",
     "new_card_view": "New C&ard View",
     "open_deck": "&Open Deck…",
+    "open_deck_folder": "Open Deck Folder…",
     "close_tab": "Close &Tab",
     "quit": "&Exit",
     # Tab bar context menu
@@ -321,6 +322,7 @@ def label_for(key):
 # What the library says about catalog downloads
 DOWNLOAD = {
     "installed_toast": "Installed {name}",
+    "install_failed_title": "Deck Not Installed",
     "failed: network": "Network error",
     "failed: http": "Transport error",
     "failed: integrity": "Checksum doesn't match",
@@ -418,6 +420,26 @@ DECK_VIEW = {
     "majors_only_text": "{count} cards will be unassigned.",
     "majors_only_text_one": "1 card will be unassigned.",
     "majors_only_confirm": "Unassign",
+    "export": "Export…",
+    "export_title": "Export Deck",
+    "export_confirm": "Export",
+    "export_empty": "{count} cards will be excluded.",
+    "export_empty_show": "Show Missing",
+    "export_blocked_title": "Invalid Deck",
+    "export_blocked": "This deck is invalid for the following reasons.",
+    "export_load_error": "Could not load deck ({code}): {message}",
+    "export_deck_level": "Entire deck",
+    "export_show_details": "Show details",
+    "export_unchecked": "{count} rules were skipped",
+    "export_save_title": "Export Deck",
+    "export_filter": "Tarot decks (*.tarotdeck)",
+    "export_done": "Created {file}!",
+    "export_done_with_warnings": "Created (with {count} warnings)",
+    "export_failed": "Export failed: {error}",
+    "temporary": "You are previewing {file}.",
+    "temporary_installed": "This deck is already in your Library.",
+    "add_to_library": "Add to Library",
+    "open_library_copy": "Open Library Copy",
 }
 
 # File > New Deck…
@@ -643,6 +665,7 @@ MAIN_WINDOW = {
     "rename_canvas": "Rename Canvas",
     "rename_canvas_prompt": "Enter a new name for this canvas:",
     "select_deck": "Select Tarot Deck Directory",
+    "select_deck_file": "Open Deck",
     "invalid_deck": "Invalid Deck Directory",
     "invalid_deck_detail": (
         "The selected directory does not contain a deck.toml file.\n"
