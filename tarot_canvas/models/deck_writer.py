@@ -193,10 +193,11 @@ def place(deck, card_id, image, progress=None):
     _read_header(image)
     for derived in _roots(deck):
         _clear_stem(derived / _subpath(card_id))
-    for old in _files_with_stem(deck / SOURCE / _subpath(card_id)):
+    for old in _originals(deck, card_id):
         _to_unsorted(deck, old)
-    target = deck / SOURCE / _subpath(card_id)
-    target = target.with_name(target.name + _source_suffix(image))
+    # Under its own name, so taking it out gives that name back
+    name = image.name if image.suffix else image.name + _source_suffix(image)
+    target = _slot_folder(deck, card_id) / name
     target.parent.mkdir(parents=True, exist_ok=True)
     if _is_unsorted(deck, image):
         os.replace(image, target)
@@ -217,8 +218,10 @@ def unplace(deck, card_id, progress=None):
     _check_card_id(card_id)
     for derived in _roots(deck):
         _clear_stem(derived / _subpath(card_id))
-    for old in _files_with_stem(deck / SOURCE / _subpath(card_id)):
+    for old in _originals(deck, card_id):
         _to_unsorted(deck, old)
+    with contextlib.suppress(OSError):  # gone already, or not empty
+        _slot_folder(deck, card_id).rmdir()
     _sync(deck, progress)
 
 
@@ -314,6 +317,25 @@ def _check_slot(deck, card_id):
 def _subpath(card_id):
     """card_id's path under an image root, without an extension"""
     return Path(*card_id.split("."))
+
+
+def _slot_folder(deck, card_id):
+    """Where card_id's original is kept, under the name it came with"""
+    return deck / SOURCE / _subpath(card_id)
+
+
+def _originals(deck, card_id):
+    """card_id's files in source/: in its folder, or named for the slot itself as decks made
+    before 2026-11-20 kept them (they come back under that name, the only one they still have)"""
+    folder = _slot_folder(deck, card_id)
+    kept = []
+    with contextlib.suppress(FileNotFoundError, NotADirectoryError):
+        kept = [
+            entry
+            for entry in folder.iterdir()
+            if entry.is_file() and not entry.name.startswith(".")
+        ]
+    return kept + _files_with_stem(folder)
 
 
 def _files_with_stem(path):
@@ -443,7 +465,7 @@ def _sources(deck):
     """{card_id: its one file in source/}; where a slot holds several, the newest stays"""
     found = {}
     for card_id in _SLOTS:
-        files = _files_with_stem(deck / SOURCE / _subpath(card_id))
+        files = _originals(deck, card_id)
         if not files:
             continue
         files.sort(key=lambda entry: entry.stat().st_mtime_ns, reverse=True)

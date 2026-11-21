@@ -59,9 +59,10 @@ from tarot_canvas.ui.deck_view.card_model import (
 from tarot_canvas.ui.deck_view.deck_editor import DeckEditor
 from tarot_canvas.ui.deck_view.minors_offer import MinorsOffer
 from tarot_canvas.ui.deck_view.sections_view import SectionsView
+from tarot_canvas.ui.deck_view.slot_pickers import CardPicker, ImagePicker
 from tarot_canvas.ui.deck_view.tableau_model import TableauModel
 from tarot_canvas.ui.deck_view.tableau_view import TableauView
-from tarot_canvas.ui.deck_view.unsorted_strip import UnsortedStrip
+from tarot_canvas.ui.deck_view.unsorted_strip import PathRole, UnsortedStrip
 from tarot_canvas.ui.dropped_files import dropped_files, offered_files
 from tarot_canvas.ui.icons import deck_icon
 from tarot_canvas.ui.library.decks import header as deck_header
@@ -96,6 +97,7 @@ class DeckViewTab(BaseTab):
         self.editor = None
         self.unsorted = None
         self.minors_offer = None
+        self.picker = None  # the open slot or card picker
         self.settings = get_settings()
         self.setup_ui()
 
@@ -149,9 +151,11 @@ class DeckViewTab(BaseTab):
             offer_row.setContentsMargins(self.grid.spacing(), 0, self.grid.spacing(), 0)
             offer_row.addWidget(self.minors_offer)
             grid_row.addLayout(offer_row)
-            self.unsorted = UnsortedStrip(self.deck.root_path, self.delegate.cover_size())
+            self.unsorted = UnsortedStrip(self.deck, self.delegate.cover_size())
             self.unsorted.files_dropped.connect(self.send_to_unsorted)
             self.unsorted.discard_requested.connect(self.discard_unsorted)
+            self.unsorted.place_requested.connect(self.place_unsorted_image)
+            self.unsorted.card_wanted.connect(self.choose_card)
             self.unsorted.view.selectionModel().currentChanged.connect(self.edit_state_changed)
             unsorted_row = QHBoxLayout()
             unsorted_row.setContentsMargins(self.grid.spacing(), 0, self.grid.spacing(), 0)
@@ -169,6 +173,11 @@ class DeckViewTab(BaseTab):
 
         # The frame would put a line between the banner and the tab bar.
         scroll.setFrameShape(QFrame.Shape.NoFrame)
+        if self.editable:
+            # Last, so it sees drags before _SlotDrops takes them
+            self.drag_scroll = _DragScroll(
+                scroll, [self.grid.viewport(), self.tableau.viewport(), self.unsorted]
+            )
 
         self.layout.addWidget(scroll)
 
@@ -462,7 +471,38 @@ class DeckViewTab(BaseTab):
         return index.data(CardRole).canonical_id
 
     def choose_image(self, index):
+        """Unsorted's images for the slot at index, or the file chooser when there are none"""
         slot = self.slot_id(index)
+        if self.unsorted is None or not self.unsorted.names():
+            self.choose_file(slot)
+            return
+        strip = self.unsorted
+        picker = ImagePicker(
+            strip.model, PathRole, strip.view.iconSize(), strip.view.gridSize(), self
+        )
+        picker.image_chosen.connect(lambda path: self.place_unsorted_image(path, slot))
+        picker.file_requested.connect(lambda: self.choose_file(slot))
+        view = self.current_view()
+        rect = view.visualRect(index)
+        self._show_picker(picker, view.viewport().mapToGlobal(rect.bottomLeft()))
+
+    def choose_card(self, path, where):
+        """The deck's slots, for the unsorted image at path"""
+        picker = CardPicker(self.deck, self)
+        picker.card_chosen.connect(lambda slot: self.place_unsorted_image(path, slot))
+        self._show_picker(picker, where)
+
+    def _show_picker(self, picker, where):
+        # A popup; a click anywhere else, or Esc, closes and deletes it
+        self.picker = picker
+        picker.show_at(where)
+        picker.setFocus(Qt.FocusReason.PopupFocusReason)
+
+    def place_unsorted_image(self, path, slot):
+        self.unsorted.leave(path)
+        self.editor.place(slot, path)
+
+    def choose_file(self, slot):
         suffixes = " ".join(f"*{suffix}" for suffix in sorted(deck_writer.image_suffixes()))
         path, _filter = QFileDialog.getOpenFileName(
             self, DECK_VIEW["chooser_title"], "", f"{DECK_VIEW['image_filter']} ({suffixes})"
@@ -580,7 +620,9 @@ class DeckViewTab(BaseTab):
             self.minors_offer.setVisible(is_majors_only(deck))
             self.minors_offer.button.setEnabled(True)
         if self.unsorted is not None:
-            self.unsorted.reload()
+            if not self.editor.is_busy():
+                self.unsorted.settle()
+            self.unsorted.set_deck(deck)
         self.tab_label_changed.emit()
         self.edit_state_changed()
         self._scrolled = scrolled
@@ -715,3 +757,57 @@ class _SlotDrops(QObject):
                 self._tab.send_to_unsorted(files)
             return True
         return False
+
+
+class _DragScroll(QObject):
+    """Scrolls the page while a file is dragged near its top or bottom edge
+
+    The views never scroll themselves (the page does), so without this a slot off screen could
+    not be reached mid-drag: from Unsorted at the bottom to the majors at the top, say.
+    """
+
+    MARGIN = 3 * units.GRID_UNIT
+    MAX_STEP = units.GRID_UNIT
+    INTERVAL_MS = 30
+
+    def __init__(self, scroll, watched):
+        super().__init__(scroll)
+        self._scroll = scroll
+        self.step = 0
+        self.timer = QTimer(self)
+        self.timer.setInterval(self.INTERVAL_MS)
+        self.timer.timeout.connect(self._tick)
+        # Each takes drops, so sees every move over it, refused or not; it decides nothing here
+        for widget in watched:
+            widget.installEventFilter(self)
+
+    def eventFilter(self, watched, event):
+        kind = event.type()
+        if kind in (QEvent.Type.DragEnter, QEvent.Type.DragMove):
+            viewport = self._scroll.viewport()
+            self.follow(watched.mapTo(viewport, event.position().toPoint()).y())
+        elif kind in (QEvent.Type.DragLeave, QEvent.Type.Drop):
+            self.follow(None)
+        return False
+
+    def follow(self, y):
+        """The drag is at y in the page's viewport, or has gone (None)"""
+        height = self._scroll.viewport().height()
+        step = 0
+        if y is not None and y < self.MARGIN:
+            step = -self._speed(self.MARGIN - y)
+        elif y is not None and y > height - self.MARGIN:
+            step = self._speed(y - (height - self.MARGIN))
+        self.step = step
+        if step and not self.timer.isActive():
+            self.timer.start()
+        elif not step:
+            self.timer.stop()
+
+    def _speed(self, depth):
+        """Faster the nearer the edge"""
+        return max(1, round(self.MAX_STEP * min(depth, self.MARGIN) / self.MARGIN))
+
+    def _tick(self):
+        bar = self._scroll.verticalScrollBar()
+        bar.setValue(bar.value() + self.step)
