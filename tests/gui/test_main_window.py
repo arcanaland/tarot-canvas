@@ -793,7 +793,7 @@ def test_opening_a_tab_takes_no_drill_down(qtbot):
     assert submenus == [window.new_reading_menu.menuAction()]
 
 
-def test_file_makes_then_opens_and_saves_then_handles_tabs(qtbot):
+def test_file_makes_then_opens_then_saves_then_handles_tabs(qtbot):
     window = MainWindow()
     qtbot.addWidget(window)
     blocks = [[]]
@@ -810,8 +810,9 @@ def test_file_makes_then_opens_and_saves_then_handles_tabs(qtbot):
             COMMANDS["new_spread"],
             COMMANDS["new_deck"],
         ],
-        [COMMANDS["open_deck"], COMMANDS["open_deck_folder"], window.save_action.text()],
-        [COMMANDS["new_library"], COMMANDS["new_card_view"], COMMANDS["close_tab"]],
+        [COMMANDS["open_deck"], COMMANDS["open_deck_folder"]],
+        [window.save_action.text()],
+        [COMMANDS["new_card_view"], COMMANDS["close_tab"]],
         [COMMANDS["quit"]],
     ]
 
@@ -822,9 +823,9 @@ def test_the_new_tab_shortcuts_survived_the_flattening(qtbot):
     shortcuts = {
         action.text(): action.shortcut().toString() for action in file_menu(window).actions()
     }
-    assert shortcuts["New &Library View"] == "Ctrl+L"
-    assert shortcuts["New &Canvas"] == "Ctrl+N"
-    assert shortcuts["New C&ard View"] == "Ctrl+T"
+    assert shortcuts[COMMANDS["new_canvas"]] == "Ctrl+N"
+    assert shortcuts[COMMANDS["new_card_view"]] == "Ctrl+T"
+    assert window.new_library_action.shortcut().toString() == "Ctrl+L"
 
 
 def test_the_tab_bar_has_a_new_tab_button(qtbot):
