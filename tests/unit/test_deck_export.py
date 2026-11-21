@@ -60,6 +60,18 @@ def test_only_the_staged_copy_lists_the_cards_left_out(deck, staging, tmp_path):
     assert (deck / "deck.toml").read_text(encoding="utf-8") == working
 
 
+def test_a_failed_copy_into_staging_leaves_nothing_there(deck, staging, monkeypatch):
+    def full(*_args, **_kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(deck_export.shutil, "copy2", full)
+
+    with pytest.raises(OSError):
+        deck_export.stage(deck, staging)
+
+    assert list(staging.iterdir()) == []
+
+
 def test_the_written_container_validates_as_the_staged_copy_did(deck, staging, tmp_path):
     writer.place(deck, FOOL, image(tmp_path, "fool.png"))
     staged = deck_export.stage(deck, staging)

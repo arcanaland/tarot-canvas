@@ -210,6 +210,76 @@ def test_a_failed_write_before_staging_says_why_and_offers_no_save(
     assert tab.header.export_button.isEnabled()
 
 
+@pytest.fixture
+def failures(monkeypatch):
+    """What Export's own warning box said"""
+    said = []
+    monkeypatch.setattr(exporter.QMessageBox, "warning", lambda *args: said.append(args[2]))
+    return said
+
+
+def test_a_failed_stage_says_why_and_offers_no_save(
+    qtbot, tmp_path, curation_file, dialogs, failures, monkeypatch
+):
+    deck = made(tmp_path, placed=MAJORS)
+    tab = settled(qtbot, shown(qtbot, deck))
+
+    def full(*_args):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(exporter.deck_export, "stage", full)
+
+    exported(qtbot, tab)
+
+    assert failures == [DECK_VIEW["export_failed"].format(error="disk full")]
+    assert dialogs["suggested"] == []
+    assert tab.header.export_button.isEnabled()
+
+
+def test_a_failed_save_says_why_and_leaves_nothing_staged(
+    qtbot, tmp_path, curation_file, dialogs, failures, monkeypatch
+):
+    deck = made(tmp_path, placed=MAJORS)
+    tab = settled(qtbot, shown(qtbot, deck))
+
+    def full(_staged, _target):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(exporter.deck_export, "write", full)
+    messages = exported(qtbot, tab)
+
+    assert failures == [DECK_VIEW["export_failed"].format(error="disk full")]
+    assert messages == []
+    assert list(staging_contents(tab)) == []
+    assert tab.header.export_button.isEnabled()
+
+
+def test_warnings_are_listed_once_the_file_is_written(
+    qtbot, tmp_path, curation_file, dialogs, monkeypatch
+):
+    deck = made(tmp_path, placed=MAJORS)
+    tab = settled(qtbot, shown(qtbot, deck))
+    warning = Finding(Level.WARNING, "some-warning", "a warning", card=MAJORS[0])
+    monkeypatch.setattr(
+        exporter.deck_export, "validate_deck", lambda _path: Verdict(None, (warning,), 0)
+    )
+    boxes = []
+    monkeypatch.setattr(
+        exporter.QMessageBox, "exec", lambda box: boxes.append((box.text(), box.detailedText()))
+    )
+
+    messages = exported(qtbot, tab)
+
+    assert messages == []
+    assert dialogs["save_as"].with_name("exported.tarotdeck").is_file()
+    assert boxes == [
+        (
+            DECK_VIEW["export_done_with_warnings"].format(count=1),
+            f"some-warning {MAJORS[0]} a warning",
+        )
+    ]
+
+
 def test_export_waits_for_queued_writes(qtbot, tmp_path, curation_file, dialogs):
     deck = made(tmp_path)
     tab = settled(qtbot, shown(qtbot, deck))
