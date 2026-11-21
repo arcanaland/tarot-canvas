@@ -56,6 +56,11 @@ def fill_progress(deck):
     return sum(1 for card in deck.cards if card.default_image()), len(deck.cards)
 
 
+def placed_minors(deck):
+    """How many of the deck's minors have an image"""
+    return sum(1 for card in deck.cards_of_kind(CardKind.MINOR) if card.default_image())
+
+
 def filled_slots(deck):
     """The card IDs with an image, and the back's if it has one"""
     filled = {card.canonical_id for card in deck.cards if card.default_image()}

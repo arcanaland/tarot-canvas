@@ -414,6 +414,10 @@ DECK_VIEW = {
     "cards_label": "Cards:",
     "cards_majors_only": "Majors only",
     "cards_all": "Complete deck",
+    "majors_only_title": "Remove Minor Arcana",
+    "majors_only_text": "{count} cards will be unassigned.",
+    "majors_only_text_one": "1 card will be unassigned.",
+    "majors_only_confirm": "Unassign",
 }
 
 # File > New Deck…

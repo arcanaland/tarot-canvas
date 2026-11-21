@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (
     QButtonGroup,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QProgressBar,
     QPushButton,
     QRadioButton,
@@ -17,7 +18,11 @@ from PyQt6.QtWidgets import (
 
 from tarot_canvas.ui import typography, units
 from tarot_canvas.ui.library.decks.header import HeaderFrame, measure
-from tarot_canvas.ui.library.decks.model import fill_progress, is_majors_only
+from tarot_canvas.ui.library.decks.model import (
+    fill_progress,
+    is_majors_only,
+    placed_minors,
+)
 from tarot_canvas.ui.strings import DECK_VIEW
 from tarot_canvas.ui.widgets.inline_editors import InlineLineEdit, InlineTextEdit
 
@@ -30,6 +35,7 @@ class CardsChoice(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._whole = False
+        self._deck = None
         row = QHBoxLayout(self)
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(units.LARGE_SPACING)
@@ -47,6 +53,7 @@ class CardsChoice(QWidget):
         row.addStretch()
 
     def show_deck(self, deck):
+        self._deck = deck
         self._whole = not is_majors_only(deck)
         self.majors_radio.setChecked(not self._whole)
         self.all_radio.setChecked(self._whole)
@@ -54,10 +61,34 @@ class CardsChoice(QWidget):
 
     def _on_clicked(self, button):
         whole = button is self.all_radio
-        if whole != self._whole:
-            # Until the reload, so a second click can't queue a second write
-            self.setEnabled(False)
-            self.chosen.emit(whole)
+        if whole == self._whole:
+            return
+        if not whole and not self._confirm_majors_only():
+            self.show_deck(self._deck)
+            return
+        # Until the reload, so a second click can't queue a second write
+        self.setEnabled(False)
+        self.chosen.emit(whole)
+
+    def _confirm_majors_only(self):
+        """Ask before placed minors go to unsorted/; nothing to ask when none are"""
+        count = placed_minors(self._deck)
+        if not count:
+            return True
+        box = QMessageBox(self.window())
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setWindowTitle(DECK_VIEW["majors_only_title"])
+        box.setText(
+            DECK_VIEW["majors_only_text_one"]
+            if count == 1
+            else DECK_VIEW["majors_only_text"].format(count=count)
+        )
+        confirm = box.addButton(
+            DECK_VIEW["majors_only_confirm"], QMessageBox.ButtonRole.DestructiveRole
+        )
+        box.setDefaultButton(box.addButton(QMessageBox.StandardButton.Cancel))
+        box.exec()
+        return box.clickedButton() is confirm
 
 
 class FillProgress(QWidget):
