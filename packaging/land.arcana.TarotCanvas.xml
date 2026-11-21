@@ -2,6 +2,8 @@
 <mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
   <mime-type type="application/vnd.arcana-land.tarotdeck+zip">
     <comment>Tarot deck</comment>
+    <icon name="land.arcana.TarotCanvas.tarotdeck"/>
+    <generic-icon name="land.arcana.TarotCanvas"/>
     <glob pattern="*.tarotdeck"/>
     <magic priority="60">
       <match type="string" value="PK\003\004" offset="0">

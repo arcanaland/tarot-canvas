@@ -130,13 +130,40 @@ def test_the_default_back_is_preferred(tmp_path, qapp):
 
 
 def test_the_house_back_is_drawn_once_per_size(qapp):
-    from tarot_canvas.ui.canvas.backs import HOUSE_FILL, house_back
+    from tarot_canvas.ui.canvas.backs import house_back
+    from tarot_canvas.ui.house_back import HOUSE_FILL
 
     first = house_back(QSize(61, 101))
     assert house_back(QSize(61, 101)).cacheKey() == first.cacheKey()
     assert house_back(QSize(62, 101)).cacheKey() != first.cacheKey()
     # Plum between the edge and the icon
     assert first.toImage().pixelColor(10, 10) == HOUSE_FILL
+
+
+# -- house_back.py -----------------------------------------------------------------
+
+
+def _near(colour, target, tolerance=24):
+    return all(
+        abs(a - b) <= tolerance
+        for a, b in zip(colour.getRgb()[:3], target.getRgb()[:3], strict=True)
+    )
+
+
+@pytest.mark.parametrize("size", [16, 22, 24, 32, 48, 64, 128, 256])
+def test_a_file_icon_is_the_house_back_standing_in_a_square(qapp, size):
+    from tarot_canvas.ui.house_back import HOUSE_EDGE, HOUSE_FILL, file_icon
+
+    icon = file_icon(size)
+    assert (icon.width(), icon.height()) == (size, size)
+    for y in range(size):
+        assert icon.pixelColor(0, y).alpha() == 0
+        assert icon.pixelColor(size - 1, y).alpha() == 0
+    mid = size // 2
+    assert _near(icon.pixelColor(mid, 0), HOUSE_EDGE)
+    assert _near(icon.pixelColor(mid, size // 4), HOUSE_FILL)
+    if size == 16:
+        assert _near(icon.pixelColor(mid, 1), HOUSE_FILL)
 
 
 def test_the_reference_deck_once_dropped_wears_the_house_back(tmp_path, qapp):
