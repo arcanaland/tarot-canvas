@@ -1,3 +1,4 @@
+import os
 from functools import partial
 
 from PyQt6.QtCore import QSignalBlocker, Qt
@@ -78,11 +79,16 @@ class LibraryTab(BaseTab):
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(0)
 
-        self.decks_page = DecksPage()
+        self.decks_page = DecksPage(spread_menu=spread_menu)
         self.decks_page.open_requested.connect(self.on_deck_open_requested)
         self.decks_page.details_requested.connect(self._open_details)
         self.decks_page.row_chosen.connect(self._open_details_for_selection)
         self.decks_page.details_changed.connect(self._sync_details_toggle)
+        self.decks_page.reading_requested.connect(self.on_spread_reading_requested)
+        self.decks_page.browse_spreads_requested.connect(
+            partial(self.show_view, LIBRARY_VIEW_SPREADS)
+        )
+        self.decks_page.export_requested.connect(self.on_deck_export_requested)
 
         self.notes_page = NotesPage(deck_library.reference())
         self.notes_page.card_activated.connect(self.on_card_activated)
@@ -470,6 +476,13 @@ class LibraryTab(BaseTab):
         if hasattr(main_window, "open_reading"):
             main_window.open_reading(path)
 
+    def on_deck_export_requested(self, deck):
+        main_window = self.window()
+        if hasattr(main_window, "new_deck_view_tab"):
+            tab = main_window.new_deck_view_tab(deck_path=os.fspath(deck.root_path))
+            if tab is not None:
+                tab.start_export()
+
     def on_spread_duplicate_requested(self, path):
         main_window = self.window()
         if hasattr(main_window, "duplicate_spread"):
@@ -533,6 +546,7 @@ class LibraryTab(BaseTab):
 
     def about_to_close(self):
         # Its Undo goes with the tab
+        self.decks_page.commit_pending_delete()
         self.spreads_page.commit_pending_delete()
         self.readings_page.commit_pending_delete()
 

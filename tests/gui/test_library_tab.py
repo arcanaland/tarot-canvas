@@ -53,6 +53,7 @@ def deck_library_stub(decks):
     return SimpleNamespace(
         decks=lambda: list(decks),
         reference=_reference_deck,
+        rescan=lambda: None,
     )
 
 

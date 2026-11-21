@@ -258,3 +258,22 @@ def test_a_deck_never_added_was_not_handmade(curation_file, tmp_path):
     folder.mkdir(parents=True)
 
     assert not curation.is_handmade(folder)
+
+
+def test_forgetting_a_removed_deck_drops_only_its_handmade_key(curation_file, tmp_path):
+    for name in ("mine", "other"):
+        (tmp_path / name).mkdir()
+        curation.add_handmade_deck(tmp_path / name)
+
+    curation.forget_deck(tmp_path / "mine")
+
+    assert stored(curation_file) == {"decks": {"handmade": ["other"]}}
+
+
+def test_forgetting_the_last_handmade_deck_empties_the_table(curation_file, tmp_path):
+    (tmp_path / "mine").mkdir()
+    curation.add_handmade_deck(tmp_path / "mine")
+
+    curation.forget_deck(tmp_path / "mine")
+
+    assert stored(curation_file) == {}

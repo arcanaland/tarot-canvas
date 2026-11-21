@@ -65,13 +65,13 @@ class ReadingsPage(DeletableListPage):
             ReadingRowDelegate,
             ReadingDetailsPane(),
             parent,
-            changed=reading_events().readings_changed,
             texts={
                 "deleted": READINGS["library_deleted_message"],
                 "delete_failed": READINGS["library_delete_failed"],
                 "restore_failed": READINGS["library_restore_failed"],
             },
         )
+        self.folders_changed.connect(reading_events().readings_changed)
         self._programmatic = 0  # nesting depth of selection the user didn't make
         # The view's clicked follows the release on a row's button
         self._button_click = False
