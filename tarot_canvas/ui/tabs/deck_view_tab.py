@@ -476,6 +476,11 @@ class DeckViewTab(BaseTab):
         if self.editor is not None:
             self.editor.delete()
 
+    def about_to_close(self):
+        # Its Undo goes with the tab
+        if self.editor is not None:
+            self.editor.commit_pending_delete()
+
     def copy_card(self):
         cards = self.selected_cards()
         if cards:

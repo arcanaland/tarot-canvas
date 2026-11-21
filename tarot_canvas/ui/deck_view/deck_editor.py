@@ -23,7 +23,8 @@ from tarot_canvas.ui.deck_view.unsorted_strip import PathRole, UnsortedStrip
 from tarot_canvas.ui.deck_view.write_queue import ImagesFailed, WriteQueue
 from tarot_canvas.ui.dropped_files import dropped_files, offered_files
 from tarot_canvas.ui.library.decks.model import filled_slots
-from tarot_canvas.ui.strings import DECK_VIEW
+from tarot_canvas.ui.strings import DECK_VIEW, notes_text
+from tarot_canvas.ui.widgets.pending_delete import PendingDelete
 
 log = logging.getLogger(__name__)
 
@@ -53,6 +54,14 @@ class DeckEditor(QObject):
         self.unsorted.place_requested.connect(self.place_unsorted_image)
         self.unsorted.card_wanted.connect(self.choose_card)
         self.unsorted.view.selectionModel().currentChanged.connect(self.edit_state_changed)
+        self.pending_delete = PendingDelete(
+            self.unsorted.message,
+            notes_text("undo"),
+            self,
+            stage=self._stage_unsorted,
+            restore=self._restore_unsorted,
+            commit=self._commit_unsorted,
+        )
 
         for view in views:
             view.setAcceptDrops(True)
@@ -220,14 +229,28 @@ class DeckEditor(QObject):
         for path in self.unsorted.not_here(files):
             self.queue.place_unsorted(path)
 
+    # -- deleting from Unsorted, undoably ----------------------------------
+
     def discard_unsorted(self, name):
-        answer = QMessageBox.question(
-            self._widget,
-            DECK_VIEW["delete_unsorted_title"],
-            DECK_VIEW["delete_unsorted_text"].format(name=name),
-        )
-        if answer == QMessageBox.StandardButton.Yes:
-            self.queue.discard_unsorted(name)
+        """Out of Unsorted now, under an Undo; the file goes once that Undo does"""
+        self.pending_delete.delete(name, DECK_VIEW["unsorted_deleted"].format(name=name))
+
+    def commit_pending_delete(self):
+        self.pending_delete.commit()
+
+    def _stage_unsorted(self, name):
+        # Hidden now; the writer moves it aside in its turn
+        self.unsorted.leave(os.fspath(self.unsorted.folder / name))
+        self.queue.stage_unsorted(name)
+        return name
+
+    def _restore_unsorted(self, name, _name):
+        self.queue.restore_unsorted(name)
+
+    def _commit_unsorted(self, name):
+        # Queued, so it can't run before the staging it ends. A tab closed first drops it,
+        # and the next refresh removes the staged file instead
+        self.queue.commit_unsorted(name)
 
     def _on_failed(self, error):
         log.warning("Could not change %s: %s", self.unsorted.deck.root_path, error)

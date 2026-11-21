@@ -19,7 +19,7 @@ import tomlkit
 from PyQt6.QtCore import QBuffer, QByteArray, QIODevice, Qt
 from PyQt6.QtGui import QImageIOHandler, QImageReader, QImageWriter
 
-from tarot_canvas.models import library_curation
+from tarot_canvas.models import library_curation, staged_delete
 from tarot_canvas.models.card_ids import CANONICAL_CARD_IDS
 from tarot_canvas.models.deck_container import DECK_TOML
 from tarot_canvas.models.deck_install import install_dir_name
@@ -326,17 +326,47 @@ def place_unsorted(deck, image):
     return target.name
 
 
-def discard_unsorted(deck, name):
-    """Delete one image from unsorted/"""
+def stage_unsorted(deck, name):
+    """Move one image in unsorted/ aside, where restore_unsorted can bring it back
+
+    Not a dot file, so the strays every call removes leave it alone; refresh removes it.
+    """
+    staged_delete.stage(_unsorted_file(_checked(deck), name))
+
+
+def restore_unsorted(deck, name):
+    """Bring back the image stage_unsorted moved aside; its name if free, else the next one"""
     deck = _checked(deck)
+    staged = staged_delete.staged_path(_unsorted_file(deck, name))
+    target = _free_name(deck / UNSORTED, name)
+    staged_delete.restore(staged, target)
+    return target.name
+
+
+def commit_unsorted(deck, name):
+    """Delete the image stage_unsorted moved aside"""
+    staged = staged_delete.staged_path(_unsorted_file(_checked(deck), name))
+    with contextlib.suppress(FileNotFoundError):
+        staged_delete.commit(staged)
+
+
+def _unsorted_file(deck, name):
     if not name or name != Path(name).name or name in (".", ".."):
         raise ValueError(f"not a file name in unsorted/: {name!r}")
-    (deck / UNSORTED / name).unlink()
+    return deck / UNSORTED / name
 
 
 def refresh(deck, progress=None):
-    """Make h<H>/ match source/, finishing whatever an interrupted call left"""
-    _sync(_checked(deck), progress)
+    """Make h<H>/ match source/, finishing whatever an interrupted call left
+
+    Unsorted images still staged for deletion go: no Undo survives the editor that offered it.
+    """
+    deck = _checked(deck)
+    with contextlib.suppress(FileNotFoundError):
+        for entry in os.scandir(deck / UNSORTED):
+            if staged_delete.is_staged(entry.name):
+                os.unlink(entry.path)
+    _sync(deck, progress)
 
 
 # -- the deck's layout ---------------------------------------------------------------------

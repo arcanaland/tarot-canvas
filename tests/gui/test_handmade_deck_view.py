@@ -342,15 +342,19 @@ def test_an_unsorted_file_dropped_on_a_slot_moves_into_it(qtbot, tab, tmp_path, 
     assert tab.editor.unsorted.names() == []
 
 
-def test_delete_in_unsorted_asks_then_removes_the_file(qtbot, tab, tmp_path, handmade, monkeypatch):
+def deleted_from_unsorted(qtbot, tab, tmp_path, name="loose.png"):
+    tab.editor.queue.place_unsorted(picture(tmp_path, name))
+    settled(qtbot, tab)
+    tab.editor.unsorted.discard_requested.emit(name)
+    return settled(qtbot, tab)
+
+
+def test_delete_in_unsorted_hides_the_image_under_an_undo_and_asks_nothing(
+    qtbot, tab, tmp_path, handmade, monkeypatch
+):
     tab.editor.queue.place_unsorted(picture(tmp_path, "loose.png"))
     settled(qtbot, tab)
-    asked = []
-    monkeypatch.setattr(
-        deck_editor.QMessageBox,
-        "question",
-        lambda *args: asked.append(args) or QMessageBox.StandardButton.Yes,
-    )
+    monkeypatch.setattr(QMessageBox, "exec", lambda *args: pytest.fail("a dialog was shown"))
     view = tab.editor.unsorted.view
     view.setCurrentIndex(tab.editor.unsorted.model.index(0, 0))
     monkeypatch.setattr(view, "hasFocus", lambda: True)
@@ -359,21 +363,62 @@ def test_delete_in_unsorted_asks_then_removes_the_file(qtbot, tab, tmp_path, han
     tab.delete()
     settled(qtbot, tab)
 
-    assert len(asked) == 1
+    assert tab.editor.unsorted.names() == []
+    assert unsorted_files(handmade) == ["loose.png.deleted"]
+    message = tab.editor.unsorted.message
+    assert message.isVisibleTo(tab)
+    assert "loose.png" in message.label.text()
+
+
+def test_dismissing_the_undo_removes_the_file(qtbot, tab, tmp_path, handmade):
+    deleted_from_unsorted(qtbot, tab, tmp_path)
+
+    tab.editor.unsorted.message.dismiss()
+    settled(qtbot, tab)
+
     assert unsorted_files(handmade) == []
+    assert not tab.editor.unsorted.message.isVisibleTo(tab)
 
 
-def test_answering_no_keeps_the_unsorted_file(qtbot, tab, tmp_path, handmade, monkeypatch):
-    tab.editor.queue.place_unsorted(picture(tmp_path, "loose.png"))
-    settled(qtbot, tab)
-    monkeypatch.setattr(
-        deck_editor.QMessageBox, "question", lambda *args: QMessageBox.StandardButton.No
-    )
+def test_undo_brings_the_image_back(qtbot, tab, tmp_path, handmade):
+    deleted_from_unsorted(qtbot, tab, tmp_path)
 
-    tab.editor.unsorted.discard_requested.emit("loose.png")
+    tab.editor.pending_delete.undo_action.trigger()
     settled(qtbot, tab)
 
+    assert tab.editor.unsorted.names() == ["loose.png"]
     assert unsorted_files(handmade) == ["loose.png"]
+
+
+def test_undo_never_overwrites_an_image_that_took_the_name_meanwhile(
+    qtbot, tab, tmp_path, handmade
+):
+    deleted_from_unsorted(qtbot, tab, tmp_path)
+    other = tmp_path / "other"
+    other.mkdir()
+    tab.editor.queue.place_unsorted(picture(other, "loose.png", "blue"))
+    settled(qtbot, tab)
+
+    tab.editor.pending_delete.undo_action.trigger()
+    settled(qtbot, tab)
+
+    assert unsorted_files(handmade) == ["loose-2.png", "loose.png"]
+
+
+def test_a_second_delete_makes_the_first_final(qtbot, tab, tmp_path, handmade):
+    deleted_from_unsorted(qtbot, tab, tmp_path, "a.png")
+    deleted_from_unsorted(qtbot, tab, tmp_path, "b.png")
+
+    assert unsorted_files(handmade) == ["b.png.deleted"]
+
+
+def test_closing_the_tab_makes_the_delete_final(qtbot, tab, tmp_path, handmade):
+    deleted_from_unsorted(qtbot, tab, tmp_path)
+
+    tab.about_to_close()
+    settled(qtbot, tab)
+
+    assert unsorted_files(handmade) == []
 
 
 def test_files_dropped_on_the_strip_are_copied_in(qtbot, tab, tmp_path, handmade):

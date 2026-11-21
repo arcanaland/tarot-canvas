@@ -7,7 +7,6 @@ from pathlib import Path
 from PyQt6.QtCore import Qt, QTimer, pyqtSlot
 from PyQt6.QtGui import QAction, QIcon
 from PyQt6.QtWidgets import (
-    QApplication,
     QFileDialog,
     QFrame,
     QHBoxLayout,
@@ -21,7 +20,6 @@ from PyQt6.QtWidgets import (
 )
 
 from tarot_canvas.models import notes as notes_model
-from tarot_canvas.models import staged_delete
 from tarot_canvas.models.note_events import note_events
 from tarot_canvas.ui import commands, typography, units
 from tarot_canvas.ui.activate_on_return import activate_on_return
@@ -34,6 +32,7 @@ from tarot_canvas.ui.library.row_delegate import NoteRowDelegate
 from tarot_canvas.ui.strings import NOTES, notes_text
 from tarot_canvas.ui.widgets.heading_edit import heading_edit
 from tarot_canvas.ui.widgets.inline_message import InlineMessage
+from tarot_canvas.ui.widgets.pending_delete import PendingDelete
 
 log = logging.getLogger(__name__)
 
@@ -68,8 +67,6 @@ class NotesTab(QWidget):
         self.pending_path = None
         self.pending_name = ""
 
-        # (original path, staged path) of a delete that can still be undone
-        self.staged_delete = None
         # The note a menu was opened on; see action_target
         self.menu_target = None
 
@@ -80,11 +77,6 @@ class NotesTab(QWidget):
         self.auto_save_timer = QTimer(self)
         self.auto_save_timer.timeout.connect(self.auto_save)
         self.auto_save_timer.start(30000)  # 30 seconds
-
-        # Closing the window closes no tab, so quitting is the last chance to commit
-        app = QApplication.instance()
-        if app is not None:
-            app.aboutToQuit.connect(self.commit_pending_delete)
 
     def setup_actions(self):
         """One set of actions, shown on the row, in its context menu and in the editor."""
@@ -126,9 +118,6 @@ class NotesTab(QWidget):
         self.new_note_action.setToolTip(notes_text("new_note_tooltip"))
         self.new_note_action.triggered.connect(self.create_new_note)
 
-        self.undo_action = QAction(QIcon.fromTheme("edit-undo"), notes_text("undo"), self)
-        self.undo_action.triggered.connect(self.undo_delete)
-
     def setup_ui(self):
         """Set up the notes tab UI"""
         layout = QVBoxLayout(self)
@@ -140,7 +129,10 @@ class NotesTab(QWidget):
         margin = units.LARGE_SPACING
         message_row.setContentsMargins(margin, margin, margin, 0)
         self.message = InlineMessage(close_text=notes_text("dismiss"))
-        self.message.dismissed.connect(self.commit_pending_delete)
+        self.pending = PendingDelete(self.message, notes_text("undo"), self)
+        self.pending.delete_failed.connect(lambda error: self._failed("delete_failed", error))
+        self.pending.restore_failed.connect(lambda error: self._failed("restore_failed", error))
+        self.pending.restored.connect(self._on_restored)
         message_row.addWidget(self.message)
         layout.addLayout(message_row)
 
@@ -485,6 +477,15 @@ class NotesTab(QWidget):
 
     # -- deleting, undoably ---------------------------------------------------
 
+    @property
+    def staged_delete(self):
+        """(original path, staged path) of a delete that can still be undone"""
+        return self.pending.staged
+
+    @property
+    def undo_action(self):
+        return self.pending.undo_action
+
     def delete_note(self, file_path):
         """Take the note out of every view now; remove the file once Undo is gone."""
         # One Undo at a time: the delete it offered becomes final
@@ -495,49 +496,25 @@ class NotesTab(QWidget):
             self.save_if_modified()
             self.current_file_path = None
 
-        try:
-            staged_path = staged_delete.stage(file_path)
-        except OSError as error:
-            QMessageBox.critical(self, NOTES["error"], NOTES["delete_failed"].format(error=error))
+        if not self.pending.delete(file_path, notes_text("deleted_message")):
             return
-
-        self.staged_delete = (file_path, staged_path)
         self.show_note_list()
         note_events().notes_changed.emit()
-        self.message.show_message(notes_text("deleted_message"), [self.undo_action])
 
     def undo_delete(self):
-        if not self.staged_delete:
-            return
+        self.pending.undo()
 
-        file_path, staged_path = self.staged_delete
-        self.staged_delete = None
-        self.message.hide()
-
-        try:
-            staged_delete.restore(staged_path, file_path)
-        except OSError as error:
-            QMessageBox.critical(self, NOTES["error"], NOTES["restore_failed"].format(error=error))
-            return
-
+    def _on_restored(self, _file_path):
         self.refresh_list()
         note_events().notes_changed.emit()
+
+    def _failed(self, key, error):
+        QMessageBox.critical(self, NOTES["error"], NOTES[key].format(error=error))
 
     @pyqtSlot()
     def commit_pending_delete(self):
         """Make the staged delete final."""
-        if not self.staged_delete:
-            return
-
-        _file_path, staged_path = self.staged_delete
-        self.staged_delete = None
-        self.message.hide()
-
-        try:
-            staged_delete.commit(staged_path)
-        except OSError as error:
-            # Left where it is, the file can still be recovered by hand
-            log.exception("Could not remove deleted note %s: %s", staged_path, error)
+        self.pending.commit()
 
     def export_note(self, file_path):
         """Copy a note to a file of the user's choosing"""

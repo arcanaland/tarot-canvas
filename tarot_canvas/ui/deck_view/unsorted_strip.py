@@ -7,6 +7,7 @@ from PyQt6.QtCore import QEvent, QMimeData, QObject, QPoint, QSize, Qt, QUrl, py
 from PyQt6.QtGui import QFontMetrics, QIcon, QPalette, QStandardItem, QStandardItemModel
 from PyQt6.QtWidgets import QAbstractItemView, QLabel, QMenu, QVBoxLayout, QWidget
 
+from tarot_canvas.models import staged_delete
 from tarot_canvas.models.card_id_classifier import classify_card_id
 from tarot_canvas.models.deck_writer import BACK, UNSORTED
 from tarot_canvas.ui import typography, units
@@ -14,7 +15,8 @@ from tarot_canvas.ui.activate_on_return import RETURN_KEYS, activate_on_return
 from tarot_canvas.ui.covers.cache import CoverCache
 from tarot_canvas.ui.deck_view.sections_view import SectionsView
 from tarot_canvas.ui.dropped_files import dropped_files, offered_files
-from tarot_canvas.ui.strings import DECK_VIEW
+from tarot_canvas.ui.strings import DECK_VIEW, notes_text
+from tarot_canvas.ui.widgets.inline_message import InlineMessage
 
 PathRole = Qt.ItemDataRole.UserRole + 1
 NameRole = Qt.ItemDataRole.UserRole + 2
@@ -83,6 +85,10 @@ class UnsortedStrip(QWidget):
         heading = QLabel(DECK_VIEW["unsorted"])
         typography.apply(heading, typography.Role.HEADING_2)
 
+        # A deleted image's Undo, here and not atop the page: Delete is pressed in this strip,
+        # which may be scrolled far below the page's top
+        self.message = InlineMessage(close_text=notes_text("dismiss"))
+
         self.empty_label = QLabel(DECK_VIEW["unsorted_empty"])
         self.empty_label.setForegroundRole(QPalette.ColorRole.PlaceholderText)
 
@@ -102,6 +108,7 @@ class UnsortedStrip(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(units.LARGE_SPACING)
         layout.addWidget(heading)
+        layout.addWidget(self.message)
         layout.addWidget(self.empty_label)
         layout.addWidget(self.view)
         self.reload()
@@ -140,6 +147,7 @@ class UnsortedStrip(QWidget):
                 for entry in os.scandir(self.folder)
                 if entry.is_file()
                 and not entry.name.startswith(".")
+                and not staged_delete.is_staged(entry.name)
                 and entry.path not in self._leaving
             ]
         except FileNotFoundError:

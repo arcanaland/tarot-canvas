@@ -74,8 +74,14 @@ class WriteQueue(QObject):
     def place_unsorted(self, image):
         self._add(lambda _progress: deck_writer.place_unsorted(self._deck, image))
 
-    def discard_unsorted(self, name):
-        self._add(lambda _progress: deck_writer.discard_unsorted(self._deck, name))
+    def stage_unsorted(self, name):
+        self._add(lambda _progress: deck_writer.stage_unsorted(self._deck, name))
+
+    def restore_unsorted(self, name):
+        self._add(lambda _progress: deck_writer.restore_unsorted(self._deck, name))
+
+    def commit_unsorted(self, name):
+        self._add(lambda _progress: deck_writer.commit_unsorted(self._deck, name))
 
     def refresh(self):
         self._add(lambda progress: deck_writer.refresh(self._deck, progress))

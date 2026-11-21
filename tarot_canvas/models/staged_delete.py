@@ -11,9 +11,14 @@ def is_staged(path):
     return Path(path).name.endswith(SUFFIX)
 
 
+def staged_path(path):
+    """Where stage() puts path"""
+    return f"{path}{SUFFIX}"
+
+
 def stage(path):
     """Rename the file or folder at path aside, and return where it went"""
-    staged = f"{path}{SUFFIX}"
+    staged = staged_path(path)
     os.rename(path, staged)
     return staged
 

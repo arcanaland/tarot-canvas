@@ -481,10 +481,32 @@ def test_an_unsorted_image_keeps_its_name_steps_past_a_taken_one_and_moves_when_
     writer.place(deck, FOOL, deck / "unsorted/The Fool-2.png")
     assert sorted(os.listdir(deck / "unsorted")) == ["The Fool-3.png", "The Fool.png"]
 
-    writer.discard_unsorted(deck, "The Fool-3.png")
+    writer.stage_unsorted(deck, "The Fool-3.png")
+    writer.commit_unsorted(deck, "The Fool-3.png")
     assert os.listdir(deck / "unsorted") == ["The Fool.png"]
     with pytest.raises(ValueError):
-        writer.discard_unsorted(deck, "../deck.toml")
+        writer.stage_unsorted(deck, "../deck.toml")
+
+
+def test_a_staged_unsorted_image_outlives_other_writes_and_comes_back_under_a_free_name(
+    deck, images
+):
+    writer.place_unsorted(deck, save(images, "loose.png", 100, 200))
+    writer.stage_unsorted(deck, "loose.png")
+    writer.place_unsorted(deck, save(images, "loose.png", 100, 200))
+    assert sorted(os.listdir(deck / "unsorted")) == ["loose.png", "loose.png.deleted"]
+
+    assert writer.restore_unsorted(deck, "loose.png") == "loose-2.png"
+    assert sorted(os.listdir(deck / "unsorted")) == ["loose-2.png", "loose.png"]
+
+
+def test_refresh_removes_an_unsorted_image_left_staged(deck, images):
+    writer.place_unsorted(deck, save(images, "loose.png", 100, 200))
+    writer.stage_unsorted(deck, "loose.png")
+
+    writer.refresh(deck)
+
+    assert os.listdir(deck / "unsorted") == []
 
 
 def test_a_minor_in_a_majors_only_deck_is_not_in_the_deck(majors, images):
