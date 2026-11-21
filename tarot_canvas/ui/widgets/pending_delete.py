@@ -12,14 +12,6 @@ log = logging.getLogger(__name__)
 
 
 class PendingDelete(QObject):
-    """The one delete an InlineMessage offers to undo
-
-    The owner says how a path is moved aside (stage, returning where it went), brought back
-    (restore) and removed for good (commit); by default these are staged_delete's. The delete
-    becomes final on the next delete, when the message is dismissed, when the owner calls
-    commit() or when the app quits.
-    """
-
     delete_failed = pyqtSignal(object)  # the OSError
     restored = pyqtSignal(object)  # the path, back where it was
     restore_failed = pyqtSignal(object)  # the OSError
@@ -37,7 +29,6 @@ class PendingDelete(QObject):
     ):
         super().__init__(parent)
         self._message = message
-        # Looked up when called, not bound here, so staged_delete can be patched in tests
         self._stage = stage or (lambda path: staged_delete.stage(path))
         self._restore = restore or (lambda staged, path: staged_delete.restore(staged, path))
         self._commit = commit or (lambda staged: staged_delete.commit(staged))
@@ -49,7 +40,7 @@ class PendingDelete(QObject):
         self.undo_action.triggered.connect(self.undo)
         message.dismissed.connect(self.commit)
 
-        # Closing the window closes no tab, so quitting is the last chance to commit
+        # when app quits, use as last chance to commit
         app = QApplication.instance()
         if app is not None:
             app.aboutToQuit.connect(self.commit)

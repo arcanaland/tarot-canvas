@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import QLabel, QRadioButton, QToolButton
 
 from tarot_canvas.models import deck_writer as writer
 from tarot_canvas.ui.deck_view import deck_editor
+from tarot_canvas.ui.library.decks import handmade_header
 from tarot_canvas.ui.library.decks.handmade_header import HandmadeDeckHeader
 from tarot_canvas.ui.strings import DECK_VIEW
 from tarot_canvas.ui.widgets.inline_editors import InlineLineEdit, InlineTextEdit
@@ -60,6 +61,24 @@ def warnings(monkeypatch):
     shown_ = []
     monkeypatch.setattr(deck_editor.QMessageBox, "warning", lambda *args: shown_.append(args[2]))
     return shown_
+
+
+@pytest.fixture
+def majors_only_answer(monkeypatch):
+    """Answers the Majors only confirmation by role, and keeps the texts it was asked"""
+    asked = []
+    answer = {"role": handmade_header.QMessageBox.ButtonRole.DestructiveRole}
+
+    def exec_(box):
+        asked.append(box.text())
+        for button in box.buttons():
+            if box.buttonRole(button) == answer["role"]:
+                button.click()
+        return 0
+
+    monkeypatch.setattr(handmade_header.QMessageBox, "exec", exec_)
+    answer["asked"] = asked
+    return answer
 
 
 def tall(folder, name, height):
@@ -309,21 +328,53 @@ def test_all_78_lays_out_the_minors_and_drops_the_exclusion(qtbot, tab, handmade
     assert tab.header.cards.all_radio.isChecked() and tab.header.cards.all_radio.isEnabled()
 
 
-def test_majors_only_from_78_returns_22_with_a_placed_minor_in_unsorted(
-    qtbot, tab, tmp_path, handmade
-):
+def complete_with_a_placed_minor(qtbot, tab, tmp_path):
     tab.header.cards.all_radio.click()
     settled(qtbot, tab)
     tab.editor.queue.place(TWO_OF_CUPS, picture(tmp_path, "my-two.png"))
     settled(qtbot, tab)
 
+
+def test_majors_only_from_78_returns_22_with_a_placed_minor_in_unsorted(
+    qtbot, tab, tmp_path, handmade, majors_only_answer
+):
+    complete_with_a_placed_minor(qtbot, tab, tmp_path)
+
     tab.header.cards.majors_radio.click()
     settled(qtbot, tab)
 
+    assert majors_only_answer["asked"] == [DECK_VIEW["majors_only_text_one"]]
     assert len(tab.deck.cards) == 22
     assert unsorted_files(handmade) == ["my-two.png"]
     assert "my-two.png" in tab.editor.unsorted.names()
     assert tab.header.cards.majors_radio.isChecked()
+
+
+def test_cancelling_majors_only_keeps_the_placed_minors_and_writes_nothing(
+    qtbot, tab, tmp_path, handmade, majors_only_answer
+):
+    complete_with_a_placed_minor(qtbot, tab, tmp_path)
+    before = (handmade / "deck.toml").read_bytes()
+    majors_only_answer["role"] = handmade_header.QMessageBox.ButtonRole.RejectRole
+
+    tab.header.cards.majors_radio.click()
+    settled(qtbot, tab)
+
+    assert (handmade / "deck.toml").read_bytes() == before
+    assert len(tab.deck.cards) == 78
+    assert unsorted_files(handmade) == []
+    assert tab.header.cards.all_radio.isChecked() and tab.header.cards.all_radio.isEnabled()
+
+
+def test_majors_only_with_no_minor_placed_asks_nothing(qtbot, tab, handmade, majors_only_answer):
+    tab.header.cards.all_radio.click()
+    settled(qtbot, tab)
+
+    tab.header.cards.majors_radio.click()
+    settled(qtbot, tab)
+
+    assert majors_only_answer["asked"] == []
+    assert len(tab.deck.cards) == 22
 
 
 def test_clicking_the_checked_choice_writes_nothing(qtbot, tab, handmade):

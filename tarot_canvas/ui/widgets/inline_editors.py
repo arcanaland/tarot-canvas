@@ -1,9 +1,4 @@
-"""Editors that read as the text they edit until hovered or focused
-
-Each keeps the text last saved: committed(text) fires when it loses focus (or on Return, for a
-line) with text that differs from it, and Esc puts it back. The text sits at the same inset
-whether the frame is shown or not, so it doesn't move on hover and lines up with plain labels.
-"""
+"""Editors that display text they edit until hovered or focused"""
 
 from PyQt6.QtCore import QMargins, QRect, Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QPalette
@@ -16,7 +11,6 @@ from PyQt6.QtWidgets import (
     QStyleOptionFrame,
 )
 
-# QLineEdit draws its text this far inside its contents rect (horizontalMargin, qlineedit_p.h)
 LINE_EDIT_TEXT_MARGIN = 2
 
 
