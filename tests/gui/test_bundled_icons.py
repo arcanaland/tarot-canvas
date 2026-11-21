@@ -6,9 +6,9 @@ from pathlib import Path
 import pytest
 from PyQt6.QtGui import QColor, QIcon
 
-from tarot_canvas.ui.tabs.card_view.notes_list import EMPTY_ICON
+from tarot_canvas.ui.card_view.notes_list import EMPTY_ICON
+from tarot_canvas.ui.style.theme_manager import ICON_THEMES
 from tarot_canvas.ui.widgets.placeholder_message import ICON_SIZE, tint_icon
-from tarot_canvas.utils.theme_manager import ICON_THEMES
 
 THEMES = ("breeze", "breeze-dark")
 

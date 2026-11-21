@@ -49,6 +49,7 @@ from tarot_canvas.ui import typography, units
 from tarot_canvas.ui.canvas.gl_marker import clear_marker
 from tarot_canvas.ui.icons import LIBRARY_ICON
 from tarot_canvas.ui.strings import MAIN_WINDOW, PREFERENCES
+from tarot_canvas.ui.style.theme_manager import ThemeManager, ThemeType
 from tarot_canvas.ui.widgets.pane_text import pane_form
 from tarot_canvas.ui.widgets.places_sidebar import PlacesSidebar
 from tarot_canvas.ui.windows.background_form import (
@@ -59,7 +60,6 @@ from tarot_canvas.ui.windows.background_form import (
     select_data,
 )
 from tarot_canvas.ui.windows.shortcuts_page import ShortcutsPage
-from tarot_canvas.utils.theme_manager import ThemeManager, ThemeType
 
 THEME_LABELS = (
     (ThemeType.SYSTEM.value, PREFERENCES["theme_system"]),

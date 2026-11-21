@@ -7,7 +7,7 @@
 # SPDX-FileCopyrightText: Thomas Duckworth <tduck973564@gmail.com>
 # SPDX-License-Identifier: LGPL-2.0-or-later
 #
-# Trimmed from KDE breeze's colors/BreezeDark.colors to the roles tarot_canvas.ui.colour_scheme reads
+# Trimmed from KDE breeze's colors/BreezeDark.colors to the roles tarot_canvas.ui.style.colour_scheme reads
 
 [ColorEffects:Disabled]
 Color=56,56,56

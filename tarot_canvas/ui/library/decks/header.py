@@ -20,6 +20,7 @@ from tarot_canvas.settings import (
 )
 from tarot_canvas.ui import typography, units
 from tarot_canvas.ui.covers.cache import CoverCache
+from tarot_canvas.ui.dates import format_date
 from tarot_canvas.ui.library.decks.model import created_progress, deck_cover_path
 from tarot_canvas.ui.strings import DECK_VIEW, license_name
 from tarot_canvas.ui.widgets.cover_banner import (
@@ -31,7 +32,6 @@ from tarot_canvas.ui.widgets.cover_banner import (
 )
 from tarot_canvas.ui.widgets.pane_text import display_address, is_link, link_html
 from tarot_canvas.ui.widgets.tag_chips import TagChips, normalized_tags
-from tarot_canvas.utils.dates import format_date
 
 MEASURE_CHARACTERS = 85
 

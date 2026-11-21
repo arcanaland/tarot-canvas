@@ -21,10 +21,10 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from tarot_canvas.about import AboutData, Person, Release, load_about_data
 from tarot_canvas.ui import typography
+from tarot_canvas.ui.dates import relative_date_from_iso
+from tarot_canvas.ui.metainfo import AboutData, Person, Release, load_about_data
 from tarot_canvas.ui.strings import ABOUT
-from tarot_canvas.utils.dates import relative_date_from_iso
 
 ICON_PATH = files("tarot_canvas.resources.icons").joinpath("icon.png")
 

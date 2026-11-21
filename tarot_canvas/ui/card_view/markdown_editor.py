@@ -5,8 +5,8 @@ from PyQt6.QtGui import QColor, QFont, QSyntaxHighlighter, QTextCharFormat, QTex
 from PyQt6.QtWidgets import QCompleter, QPlainTextEdit
 
 from tarot_canvas.ui import typography
+from tarot_canvas.ui.card_view.card_preview import CardPreviewWidget
 from tarot_canvas.ui.strings import NOTES
-from tarot_canvas.ui.tabs.card_view.card_preview import CardPreviewWidget
 
 log = logging.getLogger(__name__)
 

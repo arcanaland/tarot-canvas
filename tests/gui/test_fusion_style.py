@@ -5,14 +5,14 @@ from PyQt6.QtCore import QRect, Qt
 from PyQt6.QtGui import QColor, QIcon, QImage, QPainter, QPalette
 from PyQt6.QtWidgets import QScrollBar, QStyle, QStyleOption, QStyleOptionSlider
 
-from tarot_canvas.ui import fusion_style
-from tarot_canvas.ui.fusion_style import (
+from tarot_canvas.ui.style import fusion_style
+from tarot_canvas.ui.style.fusion_style import (
     HANDLE_MIN,
     SCROLLBAR_EXTENT,
     TAB_CLOSE_ICON,
     breeze_fusion,
 )
-from tarot_canvas.utils.theme_manager import ICON_THEMES
+from tarot_canvas.ui.style.theme_manager import ICON_THEMES
 
 SC = QStyle.SubControl
 CC = QStyle.ComplexControl

@@ -23,10 +23,10 @@ from tarot_canvas.models.reference_deck import ReferenceDeck
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.strings import MAIN_WINDOW, SETUP
+from tarot_canvas.ui.style.theme_manager import ThemeManager
 from tarot_canvas.utils import crash_log
 from tarot_canvas.utils.bundle_name import set_bundle_name
 from tarot_canvas.utils.logger import configure_logging
-from tarot_canvas.utils.theme_manager import ThemeManager
 
 log = logging.getLogger(__name__)
 
@@ -43,8 +43,8 @@ class DeckDownloadThread(QThread):
         except Exception as e:
             self.download_complete.emit(False, str(e))
 
-    def update_progress(self, percent, message):
-        self.progress_update.emit(percent, message)
+    def update_progress(self, percent, key):
+        self.progress_update.emit(percent, key)
 
 
 class SetupDialog(QDialog):
@@ -116,9 +116,9 @@ class SetupDialog(QDialog):
         self.download_thread.download_complete.connect(self.handle_download_completion)
         self.download_thread.start()
 
-    def update_progress(self, percent, message):
+    def update_progress(self, percent, key):
         self.progress_bar.setValue(percent)
-        self.status_label.setText(message)
+        self.status_label.setText(SETUP[key])
 
     def handle_download_completion(self, success, error):
         if success:

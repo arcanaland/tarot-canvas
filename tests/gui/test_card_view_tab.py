@@ -8,8 +8,8 @@ from PyQt6.QtGui import QColor, QMouseEvent, QPixmap
 from PyQt6.QtWidgets import QStyle, QTabWidget
 
 from tarot_canvas.models.arcana_backend import load_deck
+from tarot_canvas.ui.card_view.card_bar import CardBar, DeckBar
 from tarot_canvas.ui.tabs import card_view_tab
-from tarot_canvas.ui.tabs.card_view.card_bar import CardBar, DeckBar
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tests.conftest import MINIMAL_DECK_PATH
 

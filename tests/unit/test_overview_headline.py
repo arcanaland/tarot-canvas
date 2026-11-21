@@ -2,7 +2,7 @@ from dataclasses import replace
 
 from tarot_canvas.models.esoterica import Entry, SourceReading
 from tarot_canvas.models.esoterica_registry import PASSAGES, Role
-from tarot_canvas.ui.tabs.card_view.overview_tab import headline_of
+from tarot_canvas.ui.card_view.overview_tab import headline_of
 
 KEYWORDS = Entry(PASSAGES, "keywords", Role.KEYWORDS, ("a", "b"))
 EPITHET = Entry(PASSAGES, "x_subtitle", Role.EPITHET, "The Turning")

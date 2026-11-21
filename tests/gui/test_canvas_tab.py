@@ -44,9 +44,9 @@ from tarot_canvas.ui.card_transfer import (
     cards_mime_data,
     copy_card_to_clipboard,
 )
-from tarot_canvas.ui.document_tabs import DocumentTabs
 from tarot_canvas.ui.strings import CANVAS
 from tarot_canvas.ui.tabs.canvas_tab import GROUNDS, CanvasTab, wheel_turn
+from tarot_canvas.ui.tabs.document_tabs import DocumentTabs
 
 
 def add_cards(tab, count):

@@ -4,9 +4,8 @@ import pytest
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPalette
 
-from tarot_canvas.ui import colour_scheme
-from tarot_canvas.utils import theme_manager
-from tarot_canvas.utils.theme_manager import ThemeManager, ThemeType
+from tarot_canvas.ui.style import colour_scheme, theme_manager
+from tarot_canvas.ui.style.theme_manager import ThemeManager, ThemeType
 
 
 class FakeStyle:

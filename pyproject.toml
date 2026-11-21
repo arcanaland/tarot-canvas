@@ -46,6 +46,93 @@ dev = [
     "pytest-cov>=5.0,<6.0",
     "pytest-xdist>=3.6,<4.0",
     "ruff>=0.6,<0.7",
+    "import-linter>=2.17,<3.0",
+]
+
+[tool.importlinter]
+root_packages = ["tarot_canvas"]
+
+[[tool.importlinter.contracts]]
+name = "Files outside ui shouldn't imports ui"
+type = "forbidden"
+source_modules = [
+    "tarot_canvas.models",
+    "tarot_canvas.utils",
+    "tarot_canvas.settings",
+    "tarot_canvas._version",
+]
+forbidden_modules = ["tarot_canvas.ui"]
+
+[[tool.importlinter.contracts]]
+name = "Widgets import only widgets and foundations"
+type = "forbidden"
+allow_indirect_imports = true
+source_modules = ["tarot_canvas.ui.widgets"]
+forbidden_modules = [
+    "tarot_canvas.ui.activate_on_return",
+    "tarot_canvas.ui.canvas",
+    "tarot_canvas.ui.card_colours",
+    "tarot_canvas.ui.card_explorer",
+    "tarot_canvas.ui.card_transfer",
+    "tarot_canvas.ui.card_view",
+    "tarot_canvas.ui.catalog",
+    "tarot_canvas.ui.command_palette",
+    "tarot_canvas.ui.commands",
+    "tarot_canvas.ui.covers",
+    "tarot_canvas.ui.dates",
+    "tarot_canvas.ui.deck_view",
+    "tarot_canvas.ui.dropped_files",
+    "tarot_canvas.ui.focused_text",
+    "tarot_canvas.ui.icons",
+    "tarot_canvas.ui.library",
+    "tarot_canvas.ui.main_window",
+    "tarot_canvas.ui.metainfo",
+    "tarot_canvas.ui.refresh_when_shown",
+    "tarot_canvas.ui.spread_menu",
+    "tarot_canvas.ui.style",
+    "tarot_canvas.ui.tabs",
+    "tarot_canvas.ui.windows",
+]
+
+[[tool.importlinter.contracts]]
+name = "The Library doesn't import tabs directly"
+type = "forbidden"
+source_modules = ["tarot_canvas.ui.library"]
+forbidden_modules = ["tarot_canvas.ui.tabs"]
+ignore_imports = [
+    # The Library tab is a tab
+    "tarot_canvas.ui.library.tab -> tarot_canvas.ui.tabs.base_tab",
+]
+
+[[tool.importlinter.contracts]]
+name = "App-wide services import no screen"
+type = "forbidden"
+source_modules = ["tarot_canvas.ui.covers", "tarot_canvas.ui.catalog"]
+forbidden_modules = [
+    "tarot_canvas.ui.library",
+    "tarot_canvas.ui.tabs",
+    "tarot_canvas.ui.windows",
+]
+
+[[tool.importlinter.contracts]]
+name = "A Library view imports no other view but decks"
+type = "independence"
+modules = [
+    "tarot_canvas.ui.library.notes",
+    "tarot_canvas.ui.library.spreads",
+    "tarot_canvas.ui.library.esoterica",
+    "tarot_canvas.ui.library.readings",
+]
+
+[[tool.importlinter.contracts]]
+name = "Decks imports no other Library view"
+type = "forbidden"
+source_modules = ["tarot_canvas.ui.library.decks"]
+forbidden_modules = [
+    "tarot_canvas.ui.library.notes",
+    "tarot_canvas.ui.library.spreads",
+    "tarot_canvas.ui.library.esoterica",
+    "tarot_canvas.ui.library.readings",
 ]
 
 [tool.poetry]

@@ -11,10 +11,10 @@ from tarot_canvas.models.esoterica import Entry, SourceReading
 from tarot_canvas.models.esoterica_registry import PASSAGES, Role
 from tarot_canvas.settings import get_reading_text_scale
 from tarot_canvas.ui import strings, typography
+from tarot_canvas.ui.card_view import esoterica_tab, overview_tab
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.passage_metrics import column_width
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
-from tarot_canvas.ui.tabs.card_view import esoterica_tab, overview_tab
 
 PROSE = "The source's prose about the card."
 
@@ -357,7 +357,7 @@ def test_the_view_menu_zooms_the_text_once_focus_leaves_the_art(qtbot):
 
 def test_on_the_mac_the_passages_still_scale(qtbot, qapp, startup_style):
     """An app stylesheet broke this: the prose label stopped inheriting the reading font"""
-    from tarot_canvas.utils.theme_manager import ThemeManager, ThemeType
+    from tarot_canvas.ui.style.theme_manager import ThemeManager, ThemeType
 
     manager = ThemeManager()
     manager._current_theme = ThemeType.DARK

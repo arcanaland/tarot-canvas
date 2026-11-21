@@ -11,9 +11,9 @@ from tarot_canvas.models.deck_library import deck_library
 from tarot_canvas.models.notes import read_directory
 from tarot_canvas.models.reading_events import reading_events
 from tarot_canvas.ui import typography, units
+from tarot_canvas.ui.card_view.markdown_editor import MarkdownEditor
+from tarot_canvas.ui.card_view.note_editing import NoteLinks, write_note
 from tarot_canvas.ui.strings import CARD_VIEW, READINGS
-from tarot_canvas.ui.tabs.card_view.markdown_editor import MarkdownEditor
-from tarot_canvas.ui.tabs.card_view.note_editing import NoteLinks, write_note
 
 log = logging.getLogger(__name__)
 

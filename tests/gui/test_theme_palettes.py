@@ -11,9 +11,9 @@ from tarot_canvas.settings import (
     get_settings,
     get_theme,
 )
-from tarot_canvas.ui import colour_scheme
-from tarot_canvas.ui.colour_scheme import palette_from_scheme
-from tarot_canvas.utils.theme_manager import SCHEME_PATH_PROPERTY, ThemeManager, ThemeType
+from tarot_canvas.ui.style import colour_scheme
+from tarot_canvas.ui.style.colour_scheme import palette_from_scheme
+from tarot_canvas.ui.style.theme_manager import SCHEME_PATH_PROPERTY, ThemeManager, ThemeType
 
 Role = QPalette.ColorRole
 Group = QPalette.ColorGroup

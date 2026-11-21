@@ -18,10 +18,10 @@ from tarot_canvas.ui.card_transfer import CARD_MIME
 from tarot_canvas.ui.library.tab import LibraryTab
 from tarot_canvas.ui.main_window import MainWindow, corner_search_button
 from tarot_canvas.ui.strings import COMMANDS, MAIN_WINDOW
+from tarot_canvas.ui.style.theme_manager import ThemeType
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tarot_canvas.ui.tabs.deck_view_tab import DeckViewTab
-from tarot_canvas.utils.theme_manager import ThemeType
 from tests.conftest import MINIMAL_DECK_PATH
 
 
@@ -938,8 +938,8 @@ def test_help_menu_offers_a_path_to_the_bug_tracker(qtbot):
 
 
 def test_the_help_menu_opens_the_community(qtbot, monkeypatch):
-    from tarot_canvas.about import load_about_data
     from tarot_canvas.ui import main_window as main_window_module
+    from tarot_canvas.ui.metainfo import load_about_data
 
     opened = []
     monkeypatch.setattr(
@@ -955,8 +955,8 @@ def test_the_help_menu_opens_the_community(qtbot, monkeypatch):
 
 
 def test_the_faq_url_also_comes_from_the_metainfo(qtbot, monkeypatch):
-    from tarot_canvas.about import load_about_data
     from tarot_canvas.ui import main_window as main_window_module
+    from tarot_canvas.ui.metainfo import load_about_data
 
     opened = []
     monkeypatch.setattr(
@@ -1224,7 +1224,7 @@ def test_ctrl_c_in_esoterica_copies_the_text_not_the_card(qtbot, clipboard, monk
 
     from tarot_canvas.models.esoterica import Entry, SourceReading
     from tarot_canvas.models.esoterica_registry import Role
-    from tarot_canvas.ui.tabs.card_view import esoterica_tab
+    from tarot_canvas.ui.card_view import esoterica_tab
 
     entry = Entry("passages", "text", Role.PRINCIPAL, "Selectable passage text.")
     readings = [SourceReading("A Source", None, (entry,), ())]

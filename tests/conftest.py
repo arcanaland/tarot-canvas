@@ -76,7 +76,7 @@ def startup_app_style():
 @pytest.fixture(autouse=True)
 def colour_schemes(monkeypatch):
     """Light and Dark read the bundled schemes, not the host's /usr/share."""
-    from tarot_canvas.ui import colour_scheme
+    from tarot_canvas.ui.style import colour_scheme
 
     monkeypatch.setattr(colour_scheme, "SCHEME_DIR", colour_scheme.BUNDLED_SCHEME_DIR)
     return colour_scheme.BUNDLED_SCHEME_DIR

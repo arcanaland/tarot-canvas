@@ -17,6 +17,7 @@ from tarot_canvas.ui.canvas.tab_icon import (
     snapped,
     spread_icon,
 )
+from tarot_canvas.ui.dates import format_month, format_recent
 from tarot_canvas.ui.library.cards import card_name
 from tarot_canvas.ui.library.roles import (
     BadgeRole,
@@ -26,7 +27,6 @@ from tarot_canvas.ui.library.roles import (
     SubtitleRole,
 )
 from tarot_canvas.ui.strings import READINGS, SPREADS
-from tarot_canvas.utils.dates import format_month, format_recent
 
 ReadingPathRole = Qt.ItemDataRole.UserRole + 31
 ReadingRole = Qt.ItemDataRole.UserRole + 32

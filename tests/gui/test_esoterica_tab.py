@@ -25,6 +25,13 @@ from tarot_canvas.models.esoterica_registry import (
 from tarot_canvas.models.library_curation import set_esoterica_disabled
 from tarot_canvas.settings import set_esoterica_expanded
 from tarot_canvas.ui import strings, typography
+from tarot_canvas.ui.card_view import esoterica_tab
+from tarot_canvas.ui.card_view.esoterica_tab import (
+    PASSAGES_PAGE,
+    PLACEHOLDER_PAGE,
+    EsotericaTab,
+    PassageWidget,
+)
 from tarot_canvas.ui.palette import muted_text
 from tarot_canvas.ui.passage_metrics import (
     HEADER_TO_ROWS,
@@ -32,13 +39,6 @@ from tarot_canvas.ui.passage_metrics import (
     TITLE_TO_AUTHOR,
     body_html,
     column_width,
-)
-from tarot_canvas.ui.tabs.card_view import esoterica_tab
-from tarot_canvas.ui.tabs.card_view.esoterica_tab import (
-    PASSAGES_PAGE,
-    PLACEHOLDER_PAGE,
-    EsotericaTab,
-    PassageWidget,
 )
 from tarot_canvas.ui.widgets import contextual_help
 

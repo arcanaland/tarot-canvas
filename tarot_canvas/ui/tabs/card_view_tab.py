@@ -22,14 +22,14 @@ from tarot_canvas.settings import READING_TEXT_SCALE_DEFAULT, READING_TEXT_SCALE
 from tarot_canvas.ui import commands, typography
 from tarot_canvas.ui.card_colours import card_colour
 from tarot_canvas.ui.card_transfer import copy_card_to_clipboard
+from tarot_canvas.ui.card_view.card_bar import CardBar, DeckBar
+from tarot_canvas.ui.card_view.color_dot import ColorDot
+from tarot_canvas.ui.card_view.esoterica_tab import EsotericaTab
+from tarot_canvas.ui.card_view.notes_tab import NotesTab
+from tarot_canvas.ui.card_view.overview_tab import OverviewTab
 from tarot_canvas.ui.commands import Scope, set_tooltip_with_keys
 from tarot_canvas.ui.strings import CARD_VIEW
 from tarot_canvas.ui.tabs.base_tab import BaseTab
-from tarot_canvas.ui.tabs.card_view.card_bar import CardBar, DeckBar
-from tarot_canvas.ui.tabs.card_view.color_dot import ColorDot
-from tarot_canvas.ui.tabs.card_view.esoterica_tab import EsotericaTab
-from tarot_canvas.ui.tabs.card_view.notes_tab import NotesTab
-from tarot_canvas.ui.tabs.card_view.overview_tab import OverviewTab
 from tarot_canvas.ui.widgets.overlay_button import OverlayButton
 from tarot_canvas.ui.widgets.toast import Toast
 from tarot_canvas.ui.widgets.zoomable_image_view import ZoomableImageView

@@ -22,6 +22,7 @@ from tarot_canvas.settings import (
 from tarot_canvas.ui import commands
 from tarot_canvas.ui.canvas.detail import card_unit_size
 from tarot_canvas.ui.canvas.saved_canvas import AUTOSAVE_MS, local_qdatetime
+from tarot_canvas.ui.dates import format_month, format_qdatetime, format_recent
 from tarot_canvas.ui.library import diagram as diagram_module
 from tarot_canvas.ui.library.readings.details_pane import ReadingDetailsPane
 from tarot_canvas.ui.library.readings.model import (
@@ -44,7 +45,6 @@ from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.strings import READINGS, SPREADS
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
-from tarot_canvas.utils.dates import format_month, format_qdatetime, format_recent
 
 NOW = datetime.now().astimezone().replace(microsecond=0)
 

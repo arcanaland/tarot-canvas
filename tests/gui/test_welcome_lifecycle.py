@@ -7,7 +7,7 @@ from tarot_canvas.settings import SHOW_WELCOME_KEY, get_settings, get_show_welco
 from tarot_canvas.ui.library.tab import LibraryTab
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
-from tarot_canvas.ui.welcome_tab import WelcomeTab
+from tarot_canvas.ui.tabs.welcome_tab import WelcomeTab
 from tarot_canvas.ui.windows.preferences_dialog import PreferencesDialog
 
 

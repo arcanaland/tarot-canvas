@@ -6,7 +6,7 @@ import pytest
 from PyQt6.QtWidgets import QInputDialog
 
 from tarot_canvas.models.notes import NoteAnchor
-from tarot_canvas.ui.tabs.card_view.notes_tab import NotesTab
+from tarot_canvas.ui.card_view.notes_tab import NotesTab
 
 
 @pytest.fixture

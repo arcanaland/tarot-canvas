@@ -2,8 +2,8 @@ import pytest
 from PyQt6.QtCore import QDate, QLocale, Qt
 
 from tarot_canvas._version import __version__
-from tarot_canvas.about import AboutData, Release, load_about_data
 from tarot_canvas.ui.library.decks.header import format_date
+from tarot_canvas.ui.metainfo import AboutData, Release, load_about_data
 from tarot_canvas.ui.windows.about import AboutDialog, _release_date
 
 
@@ -141,7 +141,7 @@ def test_whats_new_follows_a_palette_change(qtbot):
 
 
 def test_opens_when_the_metainfo_cannot_be_parsed(qtbot, monkeypatch, caplog):
-    import tarot_canvas.about as about_module
+    import tarot_canvas.ui.metainfo as about_module
 
     def explode(*args, **kwargs):
         raise OSError("no metainfo here")

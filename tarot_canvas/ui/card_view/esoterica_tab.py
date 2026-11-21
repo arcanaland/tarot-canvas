@@ -20,7 +20,6 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from tarot_canvas.about import FALLBACK_URLS, load_about_data
 from tarot_canvas.models.esoterica import get_esoterica_manager
 from tarot_canvas.models.esoterica_events import esoterica_events
 from tarot_canvas.models.esoterica_registry import FAMILIES, GROUPS, SYMBOLS, Role
@@ -31,6 +30,9 @@ from tarot_canvas.settings import (
     set_esoterica_hidden,
 )
 from tarot_canvas.ui import typography, units
+from tarot_canvas.ui.card_view.fold import Fold
+from tarot_canvas.ui.card_view.ghost_passages import GhostPassages
+from tarot_canvas.ui.metainfo import FALLBACK_URLS, load_about_data
 from tarot_canvas.ui.palette import muted_text, subtle_fill, with_text_colour
 from tarot_canvas.ui.passage_metrics import (
     FOLD_INDENT,
@@ -48,8 +50,6 @@ from tarot_canvas.ui.passage_metrics import (
     line_height_css,
 )
 from tarot_canvas.ui.strings import CARD_VIEW, label_for
-from tarot_canvas.ui.tabs.card_view.fold import Fold
-from tarot_canvas.ui.tabs.card_view.ghost_passages import GhostPassages
 from tarot_canvas.ui.widgets.contextual_help import ContextualHelpButton
 from tarot_canvas.ui.widgets.placeholder_message import (
     ICON_SIZE,
