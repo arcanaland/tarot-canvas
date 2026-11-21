@@ -82,13 +82,12 @@ T = COMMANDS
 COMMANDS = (
     # File
     _command("window.new_canvas", T["new_canvas"], "draw-rectangle", ["Ctrl+N"], W),
-    _command("window.new_library", T["new_library"], LIBRARY_ICON, ["Ctrl+L"], W),
     _command("window.new_card_view", T["new_card_view"], "view-pages-single", ["Ctrl+T"], W),
     _command("window.new_spread", T["new_spread"], SPREAD_ICON, ["Ctrl+Shift+N"], W),
     _command("window.new_deck", T["new_deck"], deck_icon, [], W),
     _command("window.open_deck", T["open_deck"], "document-open", ["Ctrl+O"], W),
     _command("window.open_deck_folder", T["open_deck_folder"], "document-open-folder", [], W),
-    _command("window.save", T["save_spread"], "document-save", ["Ctrl+S"], W),
+    _command("window.save", T["save"], "document-save", ["Ctrl+S"], W),
     _command("window.close_tab", T["close_tab"], "tab-close", ["Ctrl+W"], W),
     _command("window.quit", T["quit"], "application-exit", ["Ctrl+Q"], W),
     # Edit
@@ -138,6 +137,7 @@ COMMANDS = (
         W,
         shows="card_image.next_deck",
     ),
+    _command("window.new_library", T["new_library"], LIBRARY_ICON, ["Ctrl+L"], W),
     _command("window.find_card", T["find_card"], "edit-find", ["Ctrl+P"], W),
     # Settings
     _command(

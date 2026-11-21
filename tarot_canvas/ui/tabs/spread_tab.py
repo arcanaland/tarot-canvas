@@ -245,6 +245,9 @@ class SpreadTab(SpreadSlots, CanvasTab):
         spread_events().spreads_changed.emit()
         return True
 
+    def save_label(self):
+        return COMMANDS["save_spread"]
+
     def can_save(self):
         return not self.arranging and (self.spread_path is None or self._modified)
 

@@ -6,10 +6,11 @@ COMMANDS = {
     "new_canvas": "New &Canvas",
     "new_spread": "New Spread",
     "new_deck": "New Deck…",
-    "new_library": "New &Library View",
+    "new_library": "L&ibrary",
     "new_card_view": "New C&ard View",
     "open_deck": "&Open Deck…",
     "open_deck_folder": "Open Deck Folder…",
+    "save": "&Save",
     "close_tab": "Close &Tab",
     "quit": "&Exit",
     # Tab bar context menu

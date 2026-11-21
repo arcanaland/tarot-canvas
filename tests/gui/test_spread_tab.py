@@ -744,11 +744,13 @@ def test_new_spread_opens_a_spread_tab(window):
 # -- keeping it
 
 
-def test_save_follows_open_deck_folder_in_the_file_menu(window):
+def test_save_sits_alone_after_open_deck_folder_in_the_file_menu(window):
     actions = window.menuBar().actions()[0].menu().actions()
-    folder = next(a for a in actions if a.text() == COMMANDS["open_deck_folder"])
+    save = actions.index(window.save_action)
 
-    assert actions[actions.index(folder) + 1] is window.save_action
+    assert actions[save - 2].text() == COMMANDS["open_deck_folder"]
+    assert actions[save - 1].isSeparator()
+    assert actions[save + 1].isSeparator()
 
 
 def test_save_starts_disabled(window):

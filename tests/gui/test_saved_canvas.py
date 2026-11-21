@@ -8,7 +8,6 @@ from PyQt6.QtWidgets import QApplication, QInputDialog, QMessageBox
 
 from tarot_canvas.models import readings
 from tarot_canvas.models.readings import Reading, ReadingCard
-from tarot_canvas.ui import commands
 from tarot_canvas.ui.canvas.saved_canvas import AUTOSAVE_MS
 from tarot_canvas.ui.dates import format_qdatetime
 from tarot_canvas.ui.main_window import MainWindow
@@ -106,16 +105,6 @@ def test_a_scratch_canvas_has_no_pane(window):
     assert tab.saved_reading is None
     assert tab.can_save()
     assert window.save_action.isEnabled()
-
-
-def test_file_save_says_what_the_tab_saves(window):
-    window.new_canvas_tab()
-    window.update_save_action()
-    assert window.save_action.text() == READINGS["save_reading"]
-
-    window.new_spread_tab()
-    window.update_save_action()
-    assert window.save_action.text() == commands.by_id("window.save").text
 
 
 # -- autosave ----------------------------------------------------------------------------

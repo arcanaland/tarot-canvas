@@ -296,18 +296,17 @@ class MainWindow(QMainWindow):
         self.new_reading_menu = self.new_spread_menu(self)
         self.new_reading_menu.setTitle(MAIN_WINDOW["new_reading_from_spread"])
         self.new_reading_menu.setIcon(QIcon.fromTheme("media-playback-start"))
-        # What makes a file, then opening and saving, then tabs onto what exists
+        # What makes a file, then opening, then saving, then tabs onto what exists
         file_menu.addAction(self.new_canvas_action)
         file_menu.addMenu(self.new_reading_menu)
         file_menu.addActions([self.new_spread_action, self.new_deck_action])
         file_menu.addSeparator()
         file_menu.addActions([actions["window.open_deck"], actions["window.open_deck_folder"]])
+        file_menu.addSeparator()
         self.save_action = actions["window.save"]
         file_menu.addAction(self.save_action)
         file_menu.addSeparator()
-        file_menu.addActions(
-            [self.new_library_action, self.new_card_view_action, actions["window.close_tab"]]
-        )
+        file_menu.addActions([self.new_card_view_action, actions["window.close_tab"]])
         file_menu.addSeparator()
         file_menu.addAction(actions["window.quit"])
 
@@ -372,7 +371,7 @@ class MainWindow(QMainWindow):
 
         # On the window as well, so Ctrl+P works with the menu bar hidden in fullscreen
         self.find_card_action = actions["window.find_card"]
-        go_menu.addAction(self.find_card_action)
+        go_menu.addActions([self.new_library_action, self.find_card_action])
 
         self.add_tab_number_shortcuts()
 
