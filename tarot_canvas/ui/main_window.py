@@ -1,6 +1,7 @@
 import contextlib
 import logging
 import os
+import shutil
 import sys
 from functools import partial
 from importlib.resources import files
@@ -89,7 +90,7 @@ from tarot_canvas.ui.widgets.toast import Toast
 from tarot_canvas.ui.windows.about import AboutDialog, app_icon
 from tarot_canvas.ui.windows.log_viewer import LogViewerDialog
 from tarot_canvas.ui.windows.new_deck_dialog import NewDeckDialog
-from tarot_canvas.utils.package_download import FileInstall
+from tarot_canvas.utils.package_download import FileJob
 from tarot_canvas.utils.path_helper import get_decks_directory, get_staging_directory
 
 log = logging.getLogger(__name__)
@@ -219,6 +220,8 @@ class MainWindow(QMainWindow):
 
         # The window's, not a library's: a download outlives the library that started it
         self.toast = Toast(self.tab_widget)
+        # Folders open_deck_file_temporarily unpacked, deleted at quit
+        self.temporary_decks = []
         deck_downloads().installed.connect(self.on_deck_installed)
 
         QGuiApplication.clipboard().dataChanged.connect(self.update_edit_actions)
@@ -902,7 +905,8 @@ class MainWindow(QMainWindow):
 
         return None
 
-    def new_deck_view_tab(self, deck_path=None):
+    def new_deck_view_tab(self, deck_path=None, origin=None, index=-1):
+        """origin is the .tarotdeck a temporary deck was unpacked from; index is where its tab goes"""
         existing = self.find_deck_view_tab(deck_path)
         if existing is not None:
             self.tab_widget.setCurrentWidget(existing)
@@ -910,15 +914,19 @@ class MainWindow(QMainWindow):
 
         # Try to create the deck tab
         try:
-            deck_tab = DeckViewTab(deck_path=deck_path)
+            deck_tab = DeckViewTab(deck_path=deck_path, origin=origin)
             deck_tab.card_action_requested.connect(self.on_card_action_requested)
             deck_tab.new_canvas_requested.connect(self.new_canvas_from_cards)
             deck_tab.message.connect(self.toast.show_message)
+            deck_tab.install_requested.connect(partial(self.install_deck_file, replacing=deck_tab))
+            deck_tab.open_deck_requested.connect(
+                lambda path: self.new_deck_view_tab(deck_path=path)
+            )
 
             # Close welcome tab if needed
             self.close_welcome_tab()
 
-            self.tab_widget.addTab(deck_tab, "")
+            self.tab_widget.insertTab(index, deck_tab, "")
             self.tab_widget.setCurrentWidget(deck_tab)
 
             return deck_tab
@@ -1019,7 +1027,7 @@ class MainWindow(QMainWindow):
         self.save_action.setText(label or commands.by_id("window.save").text)
 
     def open_deck_file(self):
-        """Install a .tarotdeck the user picks, then open it"""
+        """Open a .tarotdeck the user picks, as a temporary deck"""
         path, _filter = QFileDialog.getOpenFileName(
             self,
             MAIN_WINDOW["select_deck_file"],
@@ -1027,7 +1035,7 @@ class MainWindow(QMainWindow):
             DECK_VIEW["export_filter"],
         )
         if path:
-            self.install_deck_file(path)
+            self.open_deck_file_temporarily(path)
 
     def open_deck(self):
         """Open a deck by selecting the directory containing deck.toml"""
@@ -1090,22 +1098,47 @@ class MainWindow(QMainWindow):
     def on_deck_installed(self, entry):
         self.toast.show_message(DOWNLOAD["installed_toast"].format(name=entry.name))
 
-    def install_deck_file(self, container):
-        """Install a .tarotdeck into the Library, then open it"""
-        install = FileInstall(container, get_decks_directory()[0], get_staging_directory(), self)
-        install.succeeded.connect(lambda path: self._on_file_installed(install, path))
-        install.failed.connect(lambda failure: self._on_file_install_failed(install, failure))
-        install.start()
+    def open_deck_file_temporarily(self, container):
+        """Unpack a .tarotdeck into staging and open it, outside the Library until it is added"""
+        key = DeckLibrary.path_key(container)
+        for i in range(self.tab_widget.count()):
+            tab = self.tab_widget.widget(i)
+            if isinstance(tab, DeckViewTab) and DeckLibrary.path_key(tab.origin) == key:
+                self.tab_widget.setCurrentWidget(tab)
+                return
+        job = FileJob.open(container, get_staging_directory(), self)
+        job.succeeded.connect(lambda path: self._on_file_opened(job, container, path))
+        job.failed.connect(lambda failure: self._on_file_install_failed(job, failure))
+        job.start()
 
-    def _on_file_installed(self, install, path):
+    def _on_file_opened(self, job, container, path):
+        job.deleteLater()
+        # Deleted at quit, not with its tab: card views and canvases may still draw from it
+        self.temporary_decks.append(Path(path))
+        self.new_deck_view_tab(deck_path=path, origin=container)
+
+    def install_deck_file(self, container, replacing=None):
+        """Install a .tarotdeck into the Library, then open it, in place of the tab replacing"""
+        job = FileJob.install(container, get_decks_directory()[0], get_staging_directory(), self)
+        job.succeeded.connect(lambda path: self._on_file_installed(job, path, replacing))
+        job.failed.connect(lambda failure: self._on_file_install_failed(job, failure, replacing))
+        job.start()
+
+    def _on_file_installed(self, install, path, replacing=None):
         install.deleteLater()
         deck_library.rescan()
-        tab = self.new_deck_view_tab(deck_path=path)
+        index = self.tab_widget.indexOf(replacing) if replacing is not None else -1
+        if index >= 0:
+            replacing.about_to_close()
+            self.tab_widget.removeTab(index)
+        tab = self.new_deck_view_tab(deck_path=path, index=index)
         if tab is not None:
             self.toast.show_message(DOWNLOAD["installed_toast"].format(name=tab.tab_title()))
 
-    def _on_file_install_failed(self, install, failure):
+    def _on_file_install_failed(self, install, failure, replacing=None):
         install.deleteLater()
+        if replacing is not None:
+            replacing.install_finished()
         log.warning("Could not install a deck file: %s", failure.detail)
         box = QMessageBox(
             QMessageBox.Icon.Warning,
@@ -1297,6 +1330,9 @@ class MainWindow(QMainWindow):
         if self.fullscreen_tab is not None:
             self.exit_tab_fullscreen()
         get_settings().setValue(MAIN_WINDOW_GEOMETRY_KEY, self.saveGeometry())
+        for path in self.temporary_decks:
+            shutil.rmtree(path, ignore_errors=True)
+        self.temporary_decks = []
         super().closeEvent(event)
 
     def size_splitter_to_explorer(self):

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
   <mime-type type="application/vnd.arcana-land.tarotdeck+zip">
-    <comment>&lt;clankertext&gt;Tarot deck&lt;/clankertext&gt;</comment>
+    <comment>Tarot deck</comment>
     <glob pattern="*.tarotdeck"/>
     <magic priority="60">
       <match type="string" value="PK\003\004" offset="0">

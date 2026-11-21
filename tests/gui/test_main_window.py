@@ -1350,17 +1350,17 @@ def test_a_first_launch_fits_the_screen_and_a_kept_geometry_comes_back(qtbot):
 
 
 @pytest.mark.parametrize(
-    ("picked", "installed"), [("/tmp/x.tarotdeck", ["/tmp/x.tarotdeck"]), ("", [])]
+    ("picked", "opened"), [("/tmp/x.tarotdeck", ["/tmp/x.tarotdeck"]), ("", [])]
 )
-def test_open_deck_installs_the_tarotdeck_picked(qtbot, monkeypatch, picked, installed):
+def test_open_deck_opens_the_tarotdeck_picked(qtbot, monkeypatch, picked, opened):
     window = MainWindow()
     qtbot.addWidget(window)
     calls = []
     monkeypatch.setattr(
         main_window_module.QFileDialog, "getOpenFileName", lambda *args: (picked, "")
     )
-    monkeypatch.setattr(window, "install_deck_file", calls.append)
+    monkeypatch.setattr(window, "open_deck_file_temporarily", calls.append)
 
     window.open_deck_file()
 
-    assert calls == installed
+    assert calls == opened

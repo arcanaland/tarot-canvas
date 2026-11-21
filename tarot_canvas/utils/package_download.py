@@ -21,6 +21,7 @@ from tarot_canvas.models.deck_install import (
     InstallReason,
     install_container,
     install_local,
+    open_local,
 )
 
 
@@ -79,21 +80,29 @@ class _InstallJob(QRunnable):
             signal.emit(value)
 
 
-class FileInstall(QObject):
-    """Install a container file the user has, off the GUI thread"""
+class FileJob(QObject):
+    """Unpack a container file the user has, off the GUI thread: to install it, or to open it"""
 
-    succeeded = pyqtSignal(str)  # the installed deck root
+    succeeded = pyqtSignal(str)  # the deck root
     failed = pyqtSignal(object)  # a DownloadFailure
 
-    def __init__(self, container, decks_root, staging_root, parent=None):
+    def __init__(self, call, parent=None):
         super().__init__(parent)
-        self._install = partial(install_local, container, decks_root, staging_root)
+        self._call = call
         self._reporter = _InstallReporter(self)
         self._reporter.succeeded.connect(self.succeeded)
         self._reporter.failed.connect(self.failed)
 
+    @classmethod
+    def install(cls, container, decks_root, staging_root, parent=None):
+        return cls(partial(install_local, container, decks_root, staging_root), parent)
+
+    @classmethod
+    def open(cls, container, staging_root, parent=None):
+        return cls(partial(open_local, container, staging_root), parent)
+
     def start(self):
-        QThreadPool.globalInstance().start(_InstallJob(self._install, self._reporter))
+        QThreadPool.globalInstance().start(_InstallJob(self._call, self._reporter))
 
 
 class _Phase(enum.Enum):

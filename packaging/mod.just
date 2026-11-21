@@ -158,19 +158,19 @@ devel-install: deps gen-devel
   {{dbus}} flatpak run org.flatpak.Builder --user --install --force-clean \
     build-devel devel/land.arcana.TarotCanvas.yml
   @mkdir -p "$(dirname {{devel_stamp}})"
-  @echo "$({{just_executable()}} --justfile {{justfile()}} devel-fingerprint) $({{just_executable()}} --justfile {{justfile()}} devel-commit)" >{{devel_stamp}}
+  @echo "$({{just_executable()}} --justfile {{source_file()}} devel-fingerprint) $({{just_executable()}} --justfile {{source_file()}} devel-commit)" >{{devel_stamp}}
 
 # Build and install the devel build only if its inputs or the installed build changed
 [private]
 devel-ensure:
   #!/bin/bash
   set -euo pipefail
-  now="$({{just_executable()}} --justfile {{justfile()}} devel-fingerprint) $({{just_executable()}} --justfile {{justfile()}} devel-commit)"
+  now="$({{just_executable()}} --justfile {{source_file()}} devel-fingerprint) $({{just_executable()}} --justfile {{source_file()}} devel-commit)"
   if [ -f {{devel_stamp}} ] && [ "$(cat {{devel_stamp}})" = "${now}" ]; then
     echo "devel build is current; just devel-install to rebuild anyway"
     exit 0
   fi
-  {{just_executable()}} --justfile {{justfile()}} devel-install
+  {{just_executable()}} --justfile {{source_file()}} devel-install
 
 # What goes into the devel build: every file git doesn't ignore, by path and content
 [private]

@@ -207,7 +207,7 @@ def main():
 
 
 def process_uri_argument(args, main_window):
-    """Open the card a tarot:// URI names, or install the .tarotdeck a path or file:// URL names"""
+    """Open the card a tarot:// URI names, or the .tarotdeck a path or file:// URL names"""
     # Create argument parser
     parser = argparse.ArgumentParser(description=MAIN_WINDOW["app_name"])
     parser.add_argument("uri", nargs="?", help=SETUP["uri_help"])
@@ -236,7 +236,7 @@ def process_uri_argument(args, main_window):
 
     container = _container_path(uri)
     if container is not None:
-        main_window.install_deck_file(container)
+        main_window.open_deck_file_temporarily(container)
 
 
 def _container_path(argument):

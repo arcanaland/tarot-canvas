@@ -322,7 +322,7 @@ def label_for(key):
 # What the library says about catalog downloads
 DOWNLOAD = {
     "installed_toast": "Installed {name}",
-    "install_failed_title": "<clankertext>Deck Not Installed</clankertext>",
+    "install_failed_title": "Deck Not Installed",
     "failed: network": "Network error",
     "failed: http": "Transport error",
     "failed: integrity": "Checksum doesn't match",
@@ -404,7 +404,7 @@ DECK_VIEW = {
     "write_failed.unknown_card": "{detail} is not a card",
     "write_failed.not_handmade": "This deck was not created from this app",
     "write_failed.required_field": "Field '{detail}' cannot be empty",
-    "write_failed.has_image": "<clankertext>{detail} has an image</clankertext>",
+    "write_failed.has_image": "{detail} has an image",
     "write_failed_os": "The deck could not be saved: {error}",
     "create_failed": "Deck creation failed: {error}",
     "fill_count": "{placed} of {expected} cards",
@@ -438,6 +438,10 @@ DECK_VIEW = {
     "export_failed": "Export failed: {error}",
     "export_left_out": "{count} cards excluded",
     "export_put_back": "Put back",
+    "temporary": "You are viewing a preview of {file}.",
+    "temporary_installed": "This deck is already in your Library.",
+    "add_to_library": "Add to Library",
+    "open_library_copy": "Open Library Copy",
 }
 
 # File > New Deck…

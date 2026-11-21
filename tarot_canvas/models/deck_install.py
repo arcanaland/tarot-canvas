@@ -65,14 +65,29 @@ def install_local(container_path, decks_root, staging_root):
     return _install(container_path, staging_root, Path(container_path).stem, destination)
 
 
-def _install(container_path, staging_root, prefix, destination):
-    """Unpack into staging, check deck.toml, then rename to destination(staged)"""
+def open_local(container_path, staging_root):
+    """Unpack a container file into a folder of its own under staging_root, and return it"""
+    return _unpack(container_path, staging_root, f"{Path(container_path).stem}.open")
+
+
+def _unpack(container_path, staging_root, prefix):
+    """Unpack into a new folder under staging and check its deck.toml"""
     staging_root = Path(staging_root)
     staging_root.mkdir(parents=True, exist_ok=True)
     staged = Path(tempfile.mkdtemp(prefix=f"{prefix}.", dir=staging_root))
     try:
         unpack_container(container_path, staged)
         _check_deck_toml(staged / DECK_TOML)
+    except BaseException:
+        shutil.rmtree(staged, ignore_errors=True)
+        raise
+    return staged
+
+
+def _install(container_path, staging_root, prefix, destination):
+    """Unpack into staging, check deck.toml, then rename to destination(staged)"""
+    staged = _unpack(container_path, staging_root, prefix)
+    try:
         dest = destination(staged)
         dest.parent.mkdir(parents=True, exist_ok=True)
         _rename(staged, dest)

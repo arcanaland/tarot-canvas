@@ -13,6 +13,7 @@ from tarot_canvas.models.deck_install import (
     install_container,
     install_dir_name,
     install_local,
+    open_local,
 )
 from tests.unit.test_deck_container import build, conformant, patch_central
 
@@ -194,4 +195,26 @@ def test_a_second_local_install_is_refused(tmp_path, places):
 
     assert caught.value.reason is InstallReason.DESTINATION_EXISTS
     assert snapshot(root) == before
+    assert list(staging.iterdir()) == []
+
+
+def test_an_opened_container_is_unpacked_under_staging_and_not_installed(tmp_path, places):
+    root, staging = places
+    container = conformant(tmp_path)
+
+    opened = open_local(container, staging)
+
+    assert opened.parent == staging
+    assert opened.name.startswith("deck.open.")
+    assert (opened / "deck.toml").is_file()
+    assert list(root.iterdir()) == []
+
+
+def test_opening_a_rejected_container_leaves_nothing_behind(tmp_path, places):
+    _root, staging = places
+    container = build(tmp_path, [("deck.toml", b"not = [toml")])
+
+    with pytest.raises(ContainerError):
+        open_local(container, staging)
+
     assert list(staging.iterdir()) == []
