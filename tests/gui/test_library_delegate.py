@@ -363,11 +363,11 @@ def test_a_ghost_row_paints_for_real(qapp, fake_downloads):
     assert not image.isNull()
 
 
-# -- decks created here --------------------------------------------------------
+# -- handmade decks --------------------------------------------------------
 
 
 @pytest.mark.parametrize("art", [False, True])
-def test_a_created_deck_paints_its_marker_on_its_cover_or_its_well(
+def test_a_handmade_deck_paints_its_marker_on_its_cover_or_its_well(
     qapp, tmp_path, monkeypatch, art
 ):
     from tarot_canvas.models import library_curation
@@ -382,7 +382,7 @@ def test_a_created_deck_paints_its_marker_on_its_cover_or_its_well(
             original(painter, cover, icon, palette),
         ),
     )
-    monkeypatch.setattr(library_curation, "was_created_here", lambda path: True)
+    monkeypatch.setattr(library_curation, "is_handmade", lambda path: True)
     model = model_with_cover(tmp_path) if art else DeckListModel([fake_deck("Made", images=False)])
 
     render(DeckDelegate(), qapp, model.index(0, 0), qapp.palette())

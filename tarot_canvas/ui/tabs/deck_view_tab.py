@@ -40,6 +40,7 @@ from tarot_canvas.ui.deck_view.tableau_model import TableauModel
 from tarot_canvas.ui.deck_view.tableau_view import TableauView
 from tarot_canvas.ui.icons import deck_icon
 from tarot_canvas.ui.library.decks import header as deck_header
+from tarot_canvas.ui.library.decks.handmade_header import HandmadeDeckHeader
 from tarot_canvas.ui.library.decks.header import DeckHeader
 from tarot_canvas.ui.strings import DECK_VIEW
 from tarot_canvas.ui.tabs.base_tab import BaseTab
@@ -65,7 +66,7 @@ class DeckViewTab(BaseTab):
         super().__init__(parent)
         self.deck_path = deck_path
         self.mode = None
-        self.editor = None  # a DeckEditor, for a deck created here
+        self.editor = None  # a DeckEditor, for a handmade deck
         self.settings = get_settings()
         self._build(deck_library.load(deck_path))
 
@@ -74,7 +75,7 @@ class DeckViewTab(BaseTab):
         return self.model.deck
 
     def _build(self, deck):
-        self.editable = library_curation.was_created_here(deck.root_path)
+        self.editable = library_curation.is_handmade(deck.root_path)
 
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(0)
@@ -89,7 +90,8 @@ class DeckViewTab(BaseTab):
         main_layout.setContentsMargins(0, 0, 0, 0)
 
         # Deck-level header at the top of the page
-        self.header = DeckHeader(deck, parent=content, created=self.editable)
+        header_class = HandmadeDeckHeader if self.editable else DeckHeader
+        self.header = header_class(deck, parent=content)
         main_layout.addWidget(self.header)
 
         # The grid's own spacing makes up the rest of the margin, so headings line up
@@ -367,7 +369,7 @@ class DeckViewTab(BaseTab):
         menu.exec(view.viewport().mapToGlobal(pos))
         menu.deleteLater()
 
-    # -- a created deck's writes --------------------------------------------
+    # -- a handmade deck's writes --------------------------------------------
 
     def on_write_progress(self, done, total):
         if total <= 0:

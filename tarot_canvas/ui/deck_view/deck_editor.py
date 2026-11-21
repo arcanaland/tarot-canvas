@@ -1,4 +1,4 @@
-"""Filling a user-created deck"""
+"""Filling a handmade deck"""
 
 import logging
 import os
@@ -29,7 +29,7 @@ log = logging.getLogger(__name__)
 
 
 class DeckEditor(QObject):
-    """The editing capabilities for user-created decks"""
+    """The editing capabilities for handmade decks"""
 
     progress = pyqtSignal(int, int)  # done, total
     written = pyqtSignal()  # a write finished or failed
@@ -253,7 +253,7 @@ def _image_filter():
 
 
 class _SlotDrops(QObject):
-    """Local files dropped on a view of a created deck"""
+    """Local files dropped on a view of a handmade deck"""
 
     def __init__(self, view, editor):
         super().__init__(view)

@@ -20,7 +20,7 @@ SearchRole = Qt.ItemDataRole.UserRole + 7
 StateRole = Qt.ItemDataRole.UserRole + 8
 ProgressRole = Qt.ItemDataRole.UserRole + 9
 EntryRole = Qt.ItemDataRole.UserRole + 10
-CreatedRole = Qt.ItemDataRole.UserRole + 11  # made in this app
+HandmadeRole = Qt.ItemDataRole.UserRole + 11  # made in this app
 
 SORT_AUTHOR = "author"
 SORT_RECENT = "recent"
@@ -51,8 +51,8 @@ def back_image(deck):
     return deck.get_card_backs()[0].get("classic")
 
 
-def created_progress(deck):
-    """(placed, expected) for a created deck's cards, not its back"""
+def fill_progress(deck):
+    """(placed, expected) for a handmade deck's cards, not its back"""
     return sum(1 for card in deck.cards if card.default_image()), len(deck.cards)
 
 
@@ -64,13 +64,13 @@ def filled_slots(deck):
     return filled
 
 
-def deck_subtitle(deck, abbreviated=False, created=False):
+def deck_subtitle(deck, abbreviated=False, handmade=False):
     parts = [deck_author(deck)]
     if is_majors_only(deck):
         parts.append(LIBRARY["majors_short"] if abbreviated else LIBRARY["majors_only"])
-    if created:
-        placed, expected = created_progress(deck)
-        parts.append(DECK_VIEW["created_count"].format(placed=placed, expected=expected))
+    if handmade:
+        placed, expected = fill_progress(deck)
+        parts.append(DECK_VIEW["fill_count"].format(placed=placed, expected=expected))
 
     return " • ".join(parts)
 
@@ -85,7 +85,7 @@ class DeckListModel(QAbstractListModel):
 
     def _take_decks(self, decks):
         self._decks = list(decks or [])
-        self._created = [library_curation.was_created_here(deck.root_path) for deck in self._decks]
+        self._handmade = [library_curation.is_handmade(deck.root_path) for deck in self._decks]
         self._ghosts = available_entries(self._entries, self._decks)
 
     def set_decks(self, decks):
@@ -126,33 +126,33 @@ class DeckListModel(QAbstractListModel):
             return self._ghost_data(self._ghosts[index.row() - len(self._decks)], role)
 
         deck = self._decks[index.row()]
-        created = self._created[index.row()]
+        handmade = self._handmade[index.row()]
 
         if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.AccessibleTextRole):
             return deck.metadata.name
         if role == DeckRole:
             return deck
         if role == SubtitleRole:
-            return deck_subtitle(deck, created=created)
+            return deck_subtitle(deck, handmade=handmade)
         if role == CoverPathRole:
             return deck_cover_path(deck)
         if role == AuthorRole:
             return deck_author(deck)
         if role == CardCountRole:
-            return created_progress(deck)[0] if created else len(deck.cards)
+            return fill_progress(deck)[0] if handmade else len(deck.cards)
         if role == DeckPathRole:
             return deck.root_path
         if role == SearchRole:
             return f"{deck.metadata.name} {deck_author(deck)}"
         if role == Qt.ItemDataRole.ToolTipRole:
-            lines = [deck.metadata.name, deck_subtitle(deck, created=created)]
-            if created:
-                lines.append(LIBRARY["created_tooltip"])
+            lines = [deck.metadata.name, deck_subtitle(deck, handmade=handmade)]
+            if handmade:
+                lines.append(LIBRARY["handmade_tooltip"])
             return "\n".join(lines)
         if role == StateRole:
             return DeckState.INSTALLED
-        if role == CreatedRole:
-            return created
+        if role == HandmadeRole:
+            return handmade
         return None
 
     @staticmethod

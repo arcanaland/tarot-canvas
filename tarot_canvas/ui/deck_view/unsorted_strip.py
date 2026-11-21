@@ -1,4 +1,4 @@
-"""Unassigned cards at the bottom of user-created decks"""
+"""Unassigned cards at the bottom of handmade decks"""
 
 import os
 from pathlib import Path

@@ -1,4 +1,4 @@
-"""Which Library items the user has pinned, hidden, turned off or created (stored in library.toml)"""
+"""Which Library items the user has pinned, hidden, turned off, and the decks made here (stored in library.toml)"""
 
 import logging
 import os
@@ -24,7 +24,7 @@ DECKS = "decks"
 PINNED = "pinned"
 HIDDEN = "hidden"
 DISABLED = "disabled"
-CREATED = "created"
+HANDMADE = "handmade"
 
 INCLUDED_PREFIX = "included/"
 
@@ -213,18 +213,18 @@ def deck_key(path):
     return Path(path).name
 
 
-def created_decks():
-    """The folder names of the decks this app created"""
-    return set(keys(DECKS, CREATED))
+def handmade_decks():
+    """The folder names of the decks made in this app"""
+    return set(keys(DECKS, HANDMADE))
 
 
-def was_created_here(path):
-    """Whether the deck at path was created by this app; a listed folder that is gone is not"""
-    return Path(path).is_dir() and deck_key(path) in created_decks()
+def is_handmade(path):
+    """Whether the deck at path was made in this app; a listed folder that is gone was not"""
+    return Path(path).is_dir() and deck_key(path) in handmade_decks()
 
 
-def add_created_deck(path):
-    update(DECKS, add=[(CREATED, deck_key(path))])
+def add_handmade_deck(path):
+    update(DECKS, add=[(HANDMADE, deck_key(path))])
 
 
 # -- esoterica ----------------------------------------------------------------------------

@@ -153,7 +153,7 @@ def test_a_blank_name_is_refused(decks_root):
     assert not decks_root.exists() or not any(decks_root.iterdir())
 
 
-def test_a_created_deck_is_a_minimal_manifest_in_a_folder_named_by_its_identifier(deck):
+def test_a_handmade_deck_is_a_minimal_manifest_in_a_folder_named_by_its_identifier(deck):
     table = manifest(deck)
 
     assert table == {
@@ -169,9 +169,9 @@ def test_a_created_deck_is_a_minimal_manifest_in_a_folder_named_by_its_identifie
     assert sorted(os.listdir(deck)) == ["deck.toml"]
 
 
-def test_a_created_deck_is_listed_as_created_here(deck):
-    assert library_curation.was_created_here(deck)
-    assert library_curation.created_decks() == {deck.name}
+def test_a_handmade_deck_is_listed_as_handmade(deck):
+    assert library_curation.is_handmade(deck)
+    assert library_curation.handmade_decks() == {deck.name}
 
 
 def test_a_taken_folder_name_mints_again(decks_root, monkeypatch):
@@ -203,9 +203,9 @@ def test_a_majors_only_deck_loads_with_22_cards_and_every_suit_excluded(majors):
 
 
 def test_a_new_deck_is_majors_only_unless_told_otherwise(decks_root):
-    created = writer.create("Default", decks_root=decks_root)
+    handmade = writer.create("Default", decks_root=decks_root)
 
-    assert len(arcana_tarot.load_deck(created).cards) == 22
+    assert len(arcana_tarot.load_deck(handmade).cards) == 22
 
 
 def test_including_the_minors_makes_a_majors_only_deck_whole(majors):
@@ -245,7 +245,7 @@ def test_a_majors_only_deck_reports_no_exclusion_reason(majors):
     assert load_deck(majors).exclusion_reason is None
 
 
-def test_a_created_deck_is_in_the_library_after_a_rescan(deck, decks_root, monkeypatch):
+def test_a_handmade_deck_is_in_the_library_after_a_rescan(deck, decks_root, monkeypatch):
     monkeypatch.setattr(deck_library_module, "get_decks_directory", lambda: [decks_root])
     monkeypatch.setattr(ReferenceDeck, "is_reference_deck_present", staticmethod(lambda: False))
     library = DeckLibrary()
@@ -332,7 +332,7 @@ def test_set_fields_refuses_the_identifier_and_schema_version(deck):
             writer.set_fields(deck, **{field: "x"})
 
 
-def test_a_deck_not_created_here_is_refused(tmp_path, images):
+def test_a_deck_not_handmade_is_refused(tmp_path, images):
     installed = tmp_path / "installed"
     installed.mkdir()
     (installed / "deck.toml").write_text(
@@ -348,7 +348,7 @@ def test_a_deck_not_created_here_is_refused(tmp_path, images):
     ):
         with pytest.raises(DeckWriteError) as raised:
             call()
-        assert raised.value.reason is DeckWriteReason.NOT_CREATED_HERE
+        assert raised.value.reason is DeckWriteReason.NOT_HANDMADE
 
 
 # -- placing -------------------------------------------------------------------------------

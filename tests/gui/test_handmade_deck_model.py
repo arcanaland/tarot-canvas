@@ -1,4 +1,4 @@
-"""The deck view's models for a deck created in the app: every slot, and the back"""
+"""The deck view's models for a handmade deck: every slot, and the back"""
 
 import os
 
@@ -20,7 +20,7 @@ from tarot_canvas.ui.deck_view.card_model import (
     display_rows,
 )
 from tarot_canvas.ui.deck_view.tableau_model import KIND_LABEL, MAJOR_COLUMNS, TableauModel
-from tarot_canvas.ui.library.decks.model import created_progress
+from tarot_canvas.ui.library.decks.model import fill_progress
 
 
 @pytest.fixture
@@ -91,7 +91,7 @@ def test_the_back_is_not_a_card_and_find_never_matches_it(full, qapp):
     assert not model.matches(model.back_row(), Query("back"))
 
 
-def test_a_deck_not_created_here_has_the_rows_and_cells_it_had(full_deck, qapp):
+def test_a_deck_not_handmade_has_the_rows_and_cells_it_had(full_deck, qapp):
     plain = CardModel(full_deck)
     flagged = CardModel(full_deck, editable=False)
     assert plain.rowCount() == flagged.rowCount() == len(display_rows(full_deck))
@@ -127,14 +127,14 @@ def test_set_deck_with_a_placed_card_keeps_the_rows_and_rebuilds_the_tableau(
     assert tableau.index(*cells(tableau, KIND_BACK)[0]).data(BackPathRole)
 
 
-def test_created_progress_counts_cards_and_not_the_back(full, majors, tmp_path, qapp):
-    assert created_progress(load_deck(os.fspath(full))) == (0, 78)
-    assert created_progress(load_deck(os.fspath(majors))) == (0, 22)
+def test_fill_progress_counts_cards_and_not_the_back(full, majors, tmp_path, qapp):
+    assert fill_progress(load_deck(os.fspath(full))) == (0, 78)
+    assert fill_progress(load_deck(os.fspath(majors))) == (0, 22)
 
     writer.place(majors, "major_arcana.00", picture(tmp_path))
     writer.place(majors, writer.BACK, picture(tmp_path, "back.png"))
 
-    assert created_progress(load_deck(os.fspath(majors))) == (1, 22)
+    assert fill_progress(load_deck(os.fspath(majors))) == (1, 22)
 
 
 def test_each_slot_names_its_writer_id_and_whether_it_is_empty(majors, tmp_path, qapp):
@@ -159,7 +159,7 @@ def test_each_slot_names_its_writer_id_and_whether_it_is_empty(majors, tmp_path,
     assert back_cell.data(EmptySlotRole) is True
 
 
-def test_a_deck_not_created_here_has_no_empty_slots(majors, qapp):
+def test_a_deck_not_handmade_has_no_empty_slots(majors, qapp):
     model = CardModel(load_deck(os.fspath(majors)), editable=False)
 
     rows = model.card_rows()

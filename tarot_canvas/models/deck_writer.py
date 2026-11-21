@@ -59,7 +59,7 @@ class DeckWriteReason(enum.Enum):
     UNREADABLE_IMAGE = "not an image that can be read"
     NOT_IN_DECK = "the card is excluded from this deck"
     UNKNOWN_CARD = "not a card ID"
-    NOT_CREATED_HERE = "not a deck this app created"
+    NOT_HANDMADE = "not a deck made in this app"
     REQUIRED_FIELD = "a required field is blank"
 
 
@@ -115,7 +115,7 @@ def create(name, majors_only=True, decks_root=None):
     except BaseException:
         shutil.rmtree(deck, ignore_errors=True)
         raise
-    library_curation.add_created_deck(deck)
+    library_curation.add_handmade_deck(deck)
     return deck
 
 
@@ -261,11 +261,7 @@ def unplace(deck, card_id, progress=None):
 
 
 def place_many(deck, placements, unsorted, progress=None):
-    """Place {card_id: image} shortest first, then copy each of unsorted into unsorted/
-
-    Carries on past a file that fails, which goes to unsorted/ if it can; returns the failed
-    files' paths.
-    """
+    """Assign multiple images at the same time"""
     deck = _checked(deck)
     total = len(placements) + len(unsorted)
     done = 0
@@ -347,24 +343,20 @@ def refresh(deck, progress=None):
 
 
 def _checked(deck):
-    """deck as a Path, once it is known to be a deck created here; strays from a crash removed"""
+    """deck as a Path, once it is known to be a handmade deck; strays from a crash removed"""
     deck = Path(deck)
     try:
         with open(deck / DECK_TOML, encoding="utf-8") as handle:
             table = tomlkit.parse(handle.read()).get("deck")
     except FileNotFoundError:
-        raise DeckWriteError(
-            DeckWriteReason.NOT_CREATED_HERE, f"no {DECK_TOML} in {deck}"
-        ) from None
+        raise DeckWriteError(DeckWriteReason.NOT_HANDMADE, f"no {DECK_TOML} in {deck}") from None
     except ValueError as error:  # not TOML, or not UTF-8
-        raise DeckWriteError(DeckWriteReason.NOT_CREATED_HERE, f"{deck}: {error}") from error
+        raise DeckWriteError(DeckWriteReason.NOT_HANDMADE, f"{deck}: {error}") from error
     identifier = table.get("identifier") if isinstance(table, Mapping) else None
     if not isinstance(identifier, str) or not identifier.startswith(IDENTIFIER_PREFIX):
-        raise DeckWriteError(DeckWriteReason.NOT_CREATED_HERE, f"{deck} has no private identifier")
+        raise DeckWriteError(DeckWriteReason.NOT_HANDMADE, f"{deck} has no private identifier")
     if _roots(deck) and not (deck / SOURCE).is_dir():
-        raise DeckWriteError(
-            DeckWriteReason.NOT_CREATED_HERE, f"{deck} has images but no {SOURCE}/"
-        )
+        raise DeckWriteError(DeckWriteReason.NOT_HANDMADE, f"{deck} has images but no {SOURCE}/")
     _remove_strays(deck)
     return deck
 

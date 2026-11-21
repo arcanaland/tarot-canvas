@@ -10,7 +10,7 @@ from tarot_canvas.models import deck_writer
 
 
 class ImagesFailed(Exception):
-    """Files a batch could not place, after it placed the rest"""
+    """List of files that could not be assigned"""
 
     def __init__(self, files):
         super().__init__(", ".join(files))
@@ -81,7 +81,6 @@ class WriteQueue(QObject):
         self._add(lambda progress: deck_writer.refresh(self._deck, progress))
 
     def add_images(self, placements, unsorted):
-        """{card_id: path} into their slots, then the rest into Unsorted, as one job"""
         placements, unsorted = dict(placements), list(unsorted)
 
         def call(progress):

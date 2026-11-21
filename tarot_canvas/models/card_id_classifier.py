@@ -62,10 +62,7 @@ def _rank(word):
 
 
 def plan_images(paths, deck, filled):
-    """({card_id: path}, [path]): what goes in which slot, and what to Unsorted
-
-    A slot two files claim, a slot in filled, and a file with no card ID all go to Unsorted.
-    """
+    """Classify a batch of images from filenames"""
     claims = {}
     unsorted = []
     for path in paths:
@@ -74,11 +71,15 @@ def plan_images(paths, deck, filled):
             unsorted.append(path)
         else:
             claims.setdefault(card_id, []).append(path)
+
     placements = {}
+
     for card_id, claimed in claims.items():
         if len(claimed) == 1:
             placements[card_id] = claimed[0]
         else:
             unsorted.extend(claimed)
+
     order = {path: number for number, path in enumerate(paths)}
+
     return placements, sorted(unsorted, key=order.get)
