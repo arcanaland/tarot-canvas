@@ -10,9 +10,9 @@ from tarot_canvas.models import readings
 from tarot_canvas.models.readings import Reading, ReadingCard
 from tarot_canvas.ui import commands
 from tarot_canvas.ui.canvas.saved_canvas import AUTOSAVE_MS
+from tarot_canvas.ui.dates import format_qdatetime
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.strings import READINGS
-from tarot_canvas.utils.dates import format_qdatetime
 
 
 @pytest.fixture(autouse=True)

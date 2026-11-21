@@ -31,7 +31,6 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from tarot_canvas.about import load_about_data
 from tarot_canvas.models import deck_writer, readings, spreads
 from tarot_canvas.models.deck_library import DeckLibrary, deck_library
 from tarot_canvas.models.reading_events import reading_events
@@ -52,8 +51,8 @@ from tarot_canvas.ui.catalog.client import deck_catalog
 from tarot_canvas.ui.catalog.downloads import deck_downloads
 from tarot_canvas.ui.command_palette import CommandPalette
 from tarot_canvas.ui.commands import Scope, set_tooltip_with_keys
-from tarot_canvas.ui.document_tabs import DocumentTabs
 from tarot_canvas.ui.library.tab import LibraryTab
+from tarot_canvas.ui.metainfo import load_about_data
 from tarot_canvas.ui.spread_menu import spread_menu
 from tarot_canvas.ui.strings import (
     COMMANDS,
@@ -65,19 +64,20 @@ from tarot_canvas.ui.strings import (
     READINGS,
     SPREADS,
 )
+from tarot_canvas.ui.style.theme_manager import ThemeManager, ThemeType
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tarot_canvas.ui.tabs.deck_view_tab import DeckViewTab
+from tarot_canvas.ui.tabs.document_tabs import DocumentTabs
 from tarot_canvas.ui.tabs.reading_tab import ReadingTab
 from tarot_canvas.ui.tabs.spread_tab import SpreadTab
-from tarot_canvas.ui.welcome_tab import WelcomeTab
+from tarot_canvas.ui.tabs.welcome_tab import WelcomeTab
 from tarot_canvas.ui.widgets.placeholder_message import tinted_icon
 from tarot_canvas.ui.widgets.toast import Toast
 from tarot_canvas.ui.windows.about import AboutDialog, app_icon
 from tarot_canvas.ui.windows.log_viewer import LogViewerDialog
 from tarot_canvas.ui.windows.new_deck_dialog import NewDeckDialog
-from tarot_canvas.utils.theme_manager import ThemeManager, ThemeType
 
 log = logging.getLogger(__name__)
 

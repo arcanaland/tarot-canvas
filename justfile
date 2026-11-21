@@ -71,6 +71,7 @@ lint:
 
   uv run ruff check tarot_canvas tests bench
   uv run ruff format --check tarot_canvas tests bench
+  uv run lint-imports
   ./scripts/slop-guard.sh
 
 # Refresh the bundled esoterica from a release, checked against its SHA256SUMS

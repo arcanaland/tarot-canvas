@@ -19,7 +19,6 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from tarot_canvas.about import load_about_data
 from tarot_canvas.models import readings
 from tarot_canvas.models.reading_events import reading_events
 from tarot_canvas.models.spread_events import spread_events
@@ -29,16 +28,17 @@ from tarot_canvas.ui import typography
 from tarot_canvas.ui.activate_on_return import activate_on_return
 from tarot_canvas.ui.canvas.detail import card_unit_size
 from tarot_canvas.ui.canvas.saved_canvas import local_qdatetime, reading_label
+from tarot_canvas.ui.dates import relative_date
 from tarot_canvas.ui.icons import LIBRARY_ICON, SPREAD_ICON, deck_icon
 from tarot_canvas.ui.library.readings.model import reading_icon
 from tarot_canvas.ui.library.roles import SubtitleRole
 from tarot_canvas.ui.library.row_delegate import IconRowDelegate
 from tarot_canvas.ui.library.spreads.model import spread_thumbnail, spread_title
+from tarot_canvas.ui.metainfo import load_about_data
 from tarot_canvas.ui.refresh_when_shown import RefreshWhenShown
 from tarot_canvas.ui.spread_menu import sections
 from tarot_canvas.ui.strings import COMMANDS, MAIN_WINDOW, READINGS
 from tarot_canvas.ui.windows.about import ICON_PATH
-from tarot_canvas.utils.dates import relative_date
 
 # Cribbing this from Kate (<3)
 SPACING = 20

@@ -40,11 +40,11 @@ from tarot_canvas.settings import (
 )
 from tarot_canvas.ui.catalog.client import deck_catalog
 from tarot_canvas.ui.main_window import MainWindow
+from tarot_canvas.ui.style.theme_manager import ThemeManager, ThemeType
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.widgets.places_sidebar import PlacesSidebar
 from tarot_canvas.ui.windows import background_form, preferences_dialog
 from tarot_canvas.ui.windows.preferences_dialog import PreferencesDialog
-from tarot_canvas.utils.theme_manager import ThemeManager, ThemeType
 
 
 @pytest.fixture

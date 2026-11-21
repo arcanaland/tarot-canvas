@@ -23,9 +23,9 @@ from tarot_canvas.ui.canvas.reading_pane import (
     fact_indent,
 )
 from tarot_canvas.ui.canvas.side_pane import SidePane
+from tarot_canvas.ui.dates import format_qdatetime
 from tarot_canvas.ui.icons import CANVAS_ICON
 from tarot_canvas.ui.strings import READINGS
-from tarot_canvas.utils.dates import format_qdatetime
 
 log = logging.getLogger(__name__)
 

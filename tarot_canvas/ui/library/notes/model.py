@@ -1,9 +1,9 @@
 from PyQt6.QtCore import QAbstractListModel, QModelIndex, Qt, pyqtSignal
 
 from tarot_canvas.models import notes as notes_model
+from tarot_canvas.ui.dates import relative_date_from_timestamp
 from tarot_canvas.ui.library.cards import card_cover_path, card_name
 from tarot_canvas.ui.library.roles import CoverPathRole, PreviewRole, SubtitleRole
-from tarot_canvas.utils.dates import relative_date_from_timestamp
 
 CardIdRole = Qt.ItemDataRole.UserRole + 11
 NoteRole = Qt.ItemDataRole.UserRole + 13

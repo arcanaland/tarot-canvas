@@ -9,7 +9,7 @@ from PyQt6.QtGui import QIcon, QPalette
 from PyQt6.QtWidgets import QApplication, QStyleFactory
 
 from tarot_canvas.settings import THEME_KEY, get_settings, get_theme
-from tarot_canvas.ui import colour_scheme, fusion_style
+from tarot_canvas.ui.style import colour_scheme, fusion_style
 
 log = logging.getLogger(__name__)
 

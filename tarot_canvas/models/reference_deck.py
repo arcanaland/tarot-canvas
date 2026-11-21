@@ -5,7 +5,6 @@ import zipfile
 
 import requests
 
-from tarot_canvas.ui.strings import SETUP
 from tarot_canvas.utils.path_helper import get_data_directory
 
 log = logging.getLogger(__name__)
@@ -68,7 +67,7 @@ class ReferenceDeck:
         zip_file_path = os.path.join(parent_dir, "rider-waite-smith.zip")
 
         if progress_callback:
-            progress_callback(0, SETUP["starting"])
+            progress_callback(0, "starting")
 
         # Get file size for progress calculation
         try:
@@ -89,10 +88,10 @@ class ReferenceDeck:
                     # Update progress if callback provided
                     if progress_callback and total_size > 0:
                         percent = int(downloaded * 50 / total_size)  # 0-50% for download
-                        progress_callback(percent, SETUP["downloading"])
+                        progress_callback(percent, "downloading")
 
             if progress_callback:
-                progress_callback(50, SETUP["extracting_start"])
+                progress_callback(50, "extracting_start")
         else:
             raise Exception(
                 f"Failed to download the reference deck. Status code: {response.status_code}"
@@ -110,7 +109,7 @@ class ReferenceDeck:
                 # Update progress if callback provided
                 if progress_callback and total_files > 0:
                     percent = 50 + int(extracted * 50 / total_files)  # 50-100% for extraction
-                    progress_callback(percent, SETUP["extracting"])
+                    progress_callback(percent, "extracting")
 
         # Now move the correct directory to the final location
         # Find the rider-waite-smith directory within the extracted content
@@ -130,4 +129,4 @@ class ReferenceDeck:
         ReferenceDeck.drop_retired_back(reference_deck_path)
 
         if progress_callback:
-            progress_callback(100, SETUP["done"])
+            progress_callback(100, "done")

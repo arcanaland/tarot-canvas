@@ -1,7 +1,7 @@
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QLabel
 
-from tarot_canvas.ui.tabs.card_view.fold import Fold
+from tarot_canvas.ui.card_view.fold import Fold
 
 
 def make_fold(qtbot, expanded=False):

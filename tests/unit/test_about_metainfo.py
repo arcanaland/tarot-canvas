@@ -1,5 +1,5 @@
-import tarot_canvas.about as about_module
-from tarot_canvas.about import AboutData, Release, load_about_data, parse_metainfo
+import tarot_canvas.ui.metainfo as about_module
+from tarot_canvas.ui.metainfo import AboutData, Release, load_about_data, parse_metainfo
 
 
 def _metainfo(releases: str) -> str:

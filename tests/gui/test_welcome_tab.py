@@ -4,7 +4,6 @@ import pytest
 from PyQt6.QtCore import QSize
 from PyQt6.QtWidgets import QMessageBox, QPushButton
 
-from tarot_canvas.about import load_about_data
 from tarot_canvas.models import readings, spreads
 from tarot_canvas.models.reading_events import reading_events
 from tarot_canvas.models.readings import Reading
@@ -15,11 +14,12 @@ from tarot_canvas.ui.library.roles import SubtitleRole
 from tarot_canvas.ui.library.spreads.model import spread_title
 from tarot_canvas.ui.library.tab import LibraryTab
 from tarot_canvas.ui.main_window import MainWindow
+from tarot_canvas.ui.metainfo import load_about_data
 from tarot_canvas.ui.spread_menu import sections
 from tarot_canvas.ui.strings import DATES, MAIN_WINDOW
 from tarot_canvas.ui.tabs.reading_tab import ReadingTab
 from tarot_canvas.ui.tabs.spread_tab import SpreadTab
-from tarot_canvas.ui.welcome_tab import WelcomeTab, shows_part
+from tarot_canvas.ui.tabs.welcome_tab import WelcomeTab, shows_part
 
 
 @pytest.fixture(autouse=True)

@@ -1,7 +1,7 @@
 import pytest
 from PyQt6.QtCore import QDate, QDateTime, QLocale, QTime
 
-from tarot_canvas.utils.dates import (
+from tarot_canvas.ui.dates import (
     RELATIVE_DATE_DAYS,
     format_date,
     format_qdate,
