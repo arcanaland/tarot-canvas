@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 set -e
 
-# Two-phase release.
+# Two-phase release, then Flathub.
 #
 #   ./scripts/release.sh prepare X.Y.Z   bump the version, then stop
 #   <hand-author the <release> entry in the appdata XML>
 #   ./scripts/release.sh tag             check the notes, commit, tag
 #   ./scripts/release.sh push            push branch + tag together
+#   just flatpak submit                  open the Flathub PR, once the Release
+#                                        workflow has published the tarball
 #
 # The split exists because release notes are prose: they are written by hand, in
 # the branch, and reviewed in the PR diff like everything else. This script never
@@ -30,8 +32,10 @@ usage() {
 usage: release.sh prepare [X.Y.Z]   bump pyproject.toml + _version.py, then stop
        release.sh tag               validate notes, commit the bump, create the tag
        release.sh push              push the branch and the tag, atomically
+       just flatpak submit          open the Flathub PR once the Release workflow
+                                    has published the tarball
 
-Between the two, add a <release> entry for the new version to
+Between prepare and tag, add a <release> entry for the new version to
 tarot_canvas/resources/land.arcana.TarotCanvas.appdata.xml. The template is in an
 XML comment at the top of the <releases> block.
 EOF
@@ -198,6 +202,11 @@ phase_tag() {
     echo -e "${YELLOW}== warning: org.flatpak.Builder not installed, skipping AppStream validation${NC}"
   fi
 
+  # 5. What submit will carry to Flathub beyond the version bump.
+  echo "== comparing with Flathub..."
+  DRIFT=$(just flatpak drift 2>&1) || DRIFT="drift: could not run 'just flatpak drift'"
+  echo -e "${YELLOW}${DRIFT}${NC}"
+
   echo ""
   echo "== release notes for $VERSION:"
   printf '%s\n' "$BLOCK" | sed 's/^/   /'
@@ -273,6 +282,12 @@ phase_push() {
    Rebase onto origin/$BRANCH and start over from 'prepare'."
 
   echo -e "${GREEN}== pushed $BRANCH and $TAG_NAME${NC}"
+  echo ""
+  echo "Next, once the Release workflow has published tarot-canvas-$VERSION.tar.gz:"
+  echo ""
+  echo -e "   ${YELLOW}just flatpak submit${NC}"
+  echo ""
+  echo "then close any bot PR it lists."
 }
 
 # ------------------------------------------------------------------- main ----

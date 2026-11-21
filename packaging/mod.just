@@ -55,6 +55,27 @@ gen-modules:
     || { echo "gen-modules: poetry-core cleanup not added" >&2; exit 1; }
   mv python3-modules.yaml.tmp python3-modules.yaml
 
+  # Unpin the install lines, so a wheel the external data checker bumps still installs
+  sed -i -E 's/^( +--prefix=\$\{FLATPAK_DEST\} "[^"=]+)==[^"]*"/\1"/' python3-modules.yaml
+  if grep -nE '^ +--prefix=.*"[^"]*==' python3-modules.yaml >&2; then
+    echo "gen-modules: a pip3 install line is still pinned" >&2
+    exit 1
+  fi
+
+  # A dependency pinned to one version moves only with a release, which submit carries,
+  # so the checker must leave it alone
+  for dist in $(./pinned-deps.py ../pyproject.toml); do
+    awk -v module="python3-${dist}" '
+      /^  - name: / { inmod = ($3 == module) }
+      inmod && /^        x-checker-data:$/ { skip = 1; removed = 1; next }
+      skip && /^          / { next }
+      { skip = 0; print }
+      END { exit !removed }
+    ' python3-modules.yaml >python3-modules.yaml.tmp \
+      || { echo "gen-modules: no checker data removed from python3-${dist}" >&2; exit 1; }
+    mv python3-modules.yaml.tmp python3-modules.yaml
+  done
+
 [private]
 deps:
   #!/bin/bash
@@ -271,17 +292,73 @@ buildbot BUILD: buildbot-clean
   echo
   echo "run it with: flatpak run land.arcana.TarotCanvas//test"
  
-# Open a Flathub PR
-submit:
+# Compare with Flathub's manifest
+drift ref='master':
+  #!/bin/bash
+  set -uo pipefail
+
+  api="repos/{{flathub_repo}}/contents"
+  if ! flathub_manifest=$(gh api "${api}/land.arcana.TarotCanvas.yml?ref={{ref}}" \
+      -H 'Accept: application/vnd.github.raw' 2>/dev/null) \
+    || ! flathub_modules=$(gh api "${api}/python3-modules.yaml?ref={{ref}}" \
+      -H 'Accept: application/vnd.github.raw' 2>/dev/null); then
+    echo "drift: could not reach Flathub"
+    exit 0
+  fi
+
+  if body=$(diff -u --label "flathub/{{ref}}" --label "upstream (working tree)" \
+      <(./manifest-body.sh <(printf '%s\n' "${flathub_manifest}")) \
+      <(./manifest-body.sh land.arcana.TarotCanvas.yml)); then
+    echo "drift: none"
+  else
+    echo "drift: submit will carry this"
+    printf '%s\n' "${body}"
+  fi
+
+  flathub_deps=$(./module-deps.sh <(printf '%s\n' "${flathub_modules}"))
+  upstream_deps=$(./module-deps.sh python3-modules.yaml)
+  missing=$(comm -13 <(printf '%s\n' "${flathub_deps}") <(printf '%s\n' "${upstream_deps}") | xargs)
+  extra=$(comm -23 <(printf '%s\n' "${flathub_deps}") <(printf '%s\n' "${upstream_deps}") | xargs)
+  if [ -z "${missing}${extra}" ]; then
+    echo "deps: none"
+  fi
+  [ -z "${missing}" ] || echo "deps: missing on Flathub: ${missing}"
+  [ -z "${extra}" ] || echo "deps: only on Flathub: ${extra}"
+  exit 0
+
+# Open a Flathub PR for the tagged version. --dry-run stops before pushing.
+submit *FLAGS:
   #!/bin/bash
   set -euo pipefail
 
+  DRY_RUN=
+  for flag in {{FLAGS}}; do
+    case "${flag}" in
+      --dry-run) DRY_RUN=1 ;;
+      *) echo "submit: unknown flag ${flag}" >&2; exit 1 ;;
+    esac
+  done
+
+  die() { echo "== $1" >&2; exit 1; }
+
   CHECKOUT="{{flathub_checkout}}"
+  MANIFEST=land.arcana.TarotCanvas.yml
+  MODULES=python3-modules.yaml
   VERSION=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' ../tarot_canvas/_version.py)
+  TAG="v${VERSION}"
   BRANCH="update-${VERSION}"
+  REPO=$(git rev-parse --show-toplevel)
+  WORK=$(mktemp -d)
+  trap 'rm -rf "${WORK}"' EXIT
 
   echo "== version:  ${VERSION}"
   echo "== checkout: ${CHECKOUT}"
+
+  # The body comes from the tag, so an unreleased edit on main can't leak
+  git -C "${REPO}" rev-parse --verify --quiet "refs/tags/${TAG}" >/dev/null \
+    || die "no local tag ${TAG}"
+  git -C "${REPO}" show "${TAG}:packaging/${MANIFEST}" >"${WORK}/tagged.yml"
+  ./manifest-body.sh "${WORK}/tagged.yml" >"${WORK}/tagged-body"
 
   if [ -d "${CHECKOUT}/.git" ]; then
     git -C "${CHECKOUT}" fetch --quiet origin
@@ -295,22 +372,125 @@ submit:
 
   git -C "${CHECKOUT}" checkout --quiet -B "${BRANCH}" origin/master
 
-  podman run --rm \
-    -v "${CHECKOUT}:/run/host/repo:Z" \
-    -e GITHUB_TOKEN="$(gh auth token)" \
-    ghcr.io/flathub-infra/flatpak-external-data-checker \
-    --update --commit-only --commit-to-current-branch \
-    /run/host/repo/land.arcana.TarotCanvas.yml
+  # Flathub's body must be one upstream has had since the version Flathub ships.
+  # If not, someone edited Flathub directly: port that edit upstream first.
+  ./manifest-body.sh "${CHECKOUT}/${MANIFEST}" >"${WORK}/flathub-body"
+  OLD=$(sed -n 's|.*/download/v\([^/]*\)/.*|\1|p' "${CHECKOUT}/${MANIFEST}" | head -1)
+  [ -n "${OLD}" ] || die "no /download/vX.Y.Z/ in Flathub's url:"
+  git -C "${REPO}" rev-parse --verify --quiet "refs/tags/v${OLD}" >/dev/null \
+    || die "no local tag v${OLD}, the version Flathub ships"
+  matched=
+  for rev in "v${OLD}" $(git -C "${REPO}" log --format=%h "v${OLD}..${TAG}" -- "packaging/${MANIFEST}"); do
+    if git -C "${REPO}" show "${rev}:packaging/${MANIFEST}" | ./manifest-body.sh /dev/stdin 2>/dev/null \
+        | cmp -s - "${WORK}/flathub-body"; then
+      matched="${rev}"
+      break
+    fi
+  done
+  if [ -z "${matched}" ]; then
+    diff -u --label "upstream ${TAG}" --label "flathub master" \
+      "${WORK}/tagged-body" "${WORK}/flathub-body" || true
+    die "Flathub's manifest body matches no upstream revision since v${OLD}.
+     It was edited on Flathub. Port the edit upstream, tag, then submit."
+  fi
+  echo "== Flathub's body is upstream's at ${matched}"
 
-  if git -C "${CHECKOUT}" diff --quiet origin/master HEAD; then
-    echo "== manifest already current for ${VERSION}; no PR opened"
-    exit 0
+  # Upstream's body at the tag, then Flathub's sources: block and everything below
+  { cat "${WORK}/tagged-body"; sed -n '/^    sources:$/,$p' "${CHECKOUT}/${MANIFEST}"; } >"${WORK}/spliced.yml"
+  # Nothing above sources: may differ from the tag
+  lines=$(($(wc -l <"${WORK}/tagged-body") + 1))
+  cmp -s <(head -n "${lines}" "${WORK}/spliced.yml") <(head -n "${lines}" "${WORK}/tagged.yml") \
+    || die "the spliced manifest differs from ${TAG}'s above sources:"
+  if ! cmp -s "${WORK}/spliced.yml" "${CHECKOUT}/${MANIFEST}"; then
+    cp "${WORK}/spliced.yml" "${CHECKOUT}/${MANIFEST}"
+    git -C "${CHECKOUT}" commit --quiet -m "Update manifest body from upstream ${TAG}" -- "${MANIFEST}"
+    echo "== manifest body updated from ${TAG}"
   fi
 
-  git -C "${CHECKOUT}" --no-pager log --oneline origin/master..HEAD
-  git -C "${CHECKOUT}" push --quiet -u origin "${BRANCH}"
+  # A dependency the tag pins to one version moves only with a release, and the
+  # checker leaves it alone: take its module from the tag, as for the body
+  git -C "${REPO}" show "${TAG}:packaging/${MODULES}" >"${WORK}/tagged-modules.yaml"
+  git -C "${REPO}" show "${TAG}:pyproject.toml" >"${WORK}/pyproject.toml"
+  for dist in $(./pinned-deps.py "${WORK}/pyproject.toml"); do
+    ./module-deps.sh --blocks "${WORK}/tagged-modules.yaml" "${dist}" >"${WORK}/pinned-block"
+    module=$(sed -n 's/^  - name: //p' "${WORK}/pinned-block" | head -1)
+    # Not in the tag's modules (the BaseApp's PyQt), or not on Flathub yet: the
+    # missing-dependency check below handles the second
+    [ -n "${module}" ] || continue
+    awk -v module="${module}" -v block="${WORK}/pinned-block" '
+      /^  - name: / {
+        skip = ($3 == module)
+        if (skip && !done) { while ((getline line <block) > 0) print line; done = 1 }
+      }
+      !skip { print }
+    ' "${CHECKOUT}/${MODULES}" >"${WORK}/modules.yaml"
+    if ! cmp -s "${WORK}/modules.yaml" "${CHECKOUT}/${MODULES}"; then
+      cp "${WORK}/modules.yaml" "${CHECKOUT}/${MODULES}"
+      git -C "${CHECKOUT}" commit --quiet -m "Update ${module} from upstream ${TAG}" -- "${MODULES}"
+      echo "== ${module} updated from ${TAG}"
+    fi
+  done
 
-  gh pr create -R {{flathub_repo}} \
-    --base master --head "${BRANCH}" \
-    --title "Update tarot-canvas to ${VERSION}" \
-    --body ''
+  # A dry run reports a checker failure and goes on, so it still shows everything else
+  if ! podman run --rm \
+      -v "${CHECKOUT}:/run/host/repo:Z" \
+      -e GITHUB_TOKEN="$(gh auth token)" \
+      ghcr.io/flathub-infra/flatpak-external-data-checker \
+      --update --commit-only --commit-to-current-branch \
+      /run/host/repo/${MANIFEST}; then
+    [ -n "${DRY_RUN}" ] || die "the external data checker failed (above)"
+    echo "== the external data checker failed (above); a real submit stops here"
+  fi
+
+  if [ -n "${DRY_RUN}" ]; then
+    git -C "${CHECKOUT}" --no-pager log -p origin/master..HEAD
+  fi
+
+  # The checker bumps only the modules Flathub already lists, so a new dependency
+  # never arrives on its own.
+  flathub_deps=$(./module-deps.sh "${CHECKOUT}/${MODULES}")
+  tagged_deps=$(./module-deps.sh "${WORK}/tagged-modules.yaml")
+  extra=$(comm -23 <(printf '%s\n' "${flathub_deps}") <(printf '%s\n' "${tagged_deps}") | xargs)
+  missing=$(comm -13 <(printf '%s\n' "${flathub_deps}") <(printf '%s\n' "${tagged_deps}") | xargs)
+  [ -z "${extra}" ] || echo "== note: only on Flathub (dropped upstream): ${extra}"
+  if [ -n "${missing}" ]; then
+    echo "== missing on Flathub: ${missing}"
+    echo "== ${TAG}'s ${MODULES} carries them in:"
+    # shellcheck disable=SC2086
+    ./module-deps.sh --blocks "${WORK}/tagged-modules.yaml" ${missing}
+    die "port these modules into Flathub's ${MODULES} by hand, then submit again. Nothing was pushed."
+  fi
+
+  # A pinned install line can't install the wheel the checker just bumped
+  if grep -nE '^ +--prefix=.*"[^"]*==' "${CHECKOUT}/${MODULES}" >&2; then
+    die "Flathub's ${MODULES} pins the install lines above. Unpin them by hand
+     (gen-modules writes them unpinned), then submit again. Nothing was pushed."
+  fi
+
+  if [ -z "${DRY_RUN}" ]; then
+    if git -C "${CHECKOUT}" diff --quiet origin/master HEAD; then
+      echo "== manifest already current for ${VERSION}; no PR opened"
+    else
+      git -C "${CHECKOUT}" --no-pager log --oneline origin/master..HEAD
+      git -C "${CHECKOUT}" push --quiet -u origin "${BRANCH}"
+
+      gh pr create -R {{flathub_repo}} \
+        --base master --head "${BRANCH}" \
+        --title "Update tarot-canvas to ${VERSION}" \
+        --body ''
+    fi
+  else
+    echo "== dry run: nothing pushed"
+  fi
+
+  # check for bot PRs
+  if ! bots=$(gh pr list -R {{flathub_repo}} --author flathubbot --state open \
+      --json number,title --jq '.[] | "\(.number)\t\(.title)"'); then
+    echo "== note: could not list bot PRs on {{flathub_repo}}"
+  elif [ -n "${bots}" ]; then
+    echo "== open bot PRs, superseded by this submit:"
+    while IFS=$'\t' read -r number title; do
+      echo "   #${number} ${title}"
+      echo "   gh pr close ${number} -R {{flathub_repo}} --comment 'Superseded by the release PR.'"
+    done <<<"${bots}"
+  fi

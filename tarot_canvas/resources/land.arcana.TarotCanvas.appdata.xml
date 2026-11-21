@@ -58,13 +58,11 @@
     </screenshot>
   </screenshots>
   <releases>
-    <!--
-    <release version="1.10.0" date="2026-12-xx" type="development">
+    <release version="1.10.0" date="2026-11-22" type="development">
       <description>
-        <p>This version allows users to create their own decks directly through a new Deck Creation view.</p>
+        <p>This version allows users to create their own decks directly in the app.</p>
       </description>
     </release>
-    -->
     <release version="1.9.1" date="2026-11-19" type="stable">
       <description>
         <p>This version mainly introduces backend changes for reading decks. For most users, this change should be invisible.</p>
