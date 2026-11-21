@@ -380,6 +380,7 @@ DECK_VIEW = {
     "field.tags": "Tags",
     "field.version": "Version",
     "field.schema_version": "Schema version",
+    "extras_heading": "Extras",
     "back": "Card Back",
     "choose_image": "Add Image",
     "replace_image": "Replace Image",
@@ -408,11 +409,11 @@ DECK_VIEW = {
     "add_images_failed": "{count} images could not be added:\n{files}",
     "field.name": "Name",
     "field.artist": "Artist",
-    "artist_placeholder": "Artist",
-    "description_placeholder": "Description",
+    "artist_placeholder": "Add artist",
+    "description_placeholder": "Add a description",
     "cards_label": "Cards:",
     "cards_majors_only": "Majors only",
-    "cards_all": "All 78",
+    "cards_all": "Complete deck",
 }
 
 # File > New Deck…

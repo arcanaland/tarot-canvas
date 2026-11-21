@@ -211,6 +211,8 @@ class DeckViewTab(BaseTab):
         grid = SectionsView()
         grid.setModel(self.found)
         self.delegate = CardDelegate(grid, density=self.zoom_slider.key(), editable=self.editable)
+        if self.editable:
+            self.delegate.set_slot_shape(deck)
         grid.setItemDelegate(self.delegate)
         self._connect_view(grid)
         return grid
@@ -397,6 +399,7 @@ class DeckViewTab(BaseTab):
         self.model.set_deck(deck)
 
         if self.editable:
+            self.delegate.set_slot_shape(deck)
             # Rebuilt, it would take the focus from an editor being typed in
             self.header.update_from(deck)
         else:

@@ -3,7 +3,6 @@ from PyQt6.QtGui import QDesktopServices, QFontMetrics, QIcon, QPainter, QPalett
 from PyQt6.QtWidgets import (
     QApplication,
     QFormLayout,
-    QFrame,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -61,7 +60,7 @@ def wrapped_height(text, font, width):
 
 
 class HeaderFrame(QWidget):
-    """The cover, a text column beside it, and a rule under both
+    """The cover and a text column beside it; the first section's heading rule closes it
 
     A subclass sets text_container's layout.
     """
@@ -81,11 +80,6 @@ class HeaderFrame(QWidget):
         self.text_container = QWidget()
         self.row.addWidget(self.text_container, 1)
         outer.addLayout(self.row)
-
-        separator = QFrame()
-        separator.setFrameShape(QFrame.Shape.HLine)
-        separator.setFrameShadow(QFrame.Shadow.Plain)
-        outer.addWidget(separator)
         self.set_padding(units.LARGE_SPACING)
 
     def measure(self):

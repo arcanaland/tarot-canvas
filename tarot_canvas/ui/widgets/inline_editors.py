@@ -1,20 +1,42 @@
 """Editors that read as the text they edit until hovered or focused
 
 Each keeps the text last saved: committed(text) fires when it loses focus (or on Return, for a
-line) with text that differs from it, and Esc puts it back.
+line) with text that differs from it, and Esc puts it back. The text sits at the same inset
+whether the frame is shown or not, so it doesn't move on hover and lines up with plain labels.
 """
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import QMargins, QRect, Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QPalette
-from PyQt6.QtWidgets import QApplication, QFrame, QLineEdit, QPlainTextEdit, QStyle
+from PyQt6.QtWidgets import (
+    QApplication,
+    QFrame,
+    QLineEdit,
+    QPlainTextEdit,
+    QStyle,
+    QStyleOptionFrame,
+)
+
+# QLineEdit draws its text this far inside its contents rect (horizontalMargin, qlineedit_p.h)
+LINE_EDIT_TEXT_MARGIN = 2
 
 
 class _Saved:
     """The saved text, and the frame shown only on hover or focus"""
 
-    def _init_saved(self):
+    def _init_saved(self, framed_inset):
         self._saved = ""
         self._hovered = False
+        self._framed_inset = framed_inset
+        self._inset = framed_inset
+
+    def natural_inset(self):
+        """How far in from the left edge the text sits with the frame shown"""
+        return self._framed_inset
+
+    def set_text_inset(self, inset):
+        """Hold the text inset px in, framed or not; no less than natural_inset()"""
+        self._inset = max(inset, self._framed_inset)
+        self._frame()
 
     def saved(self):
         return self._saved
@@ -61,7 +83,9 @@ class InlineLineEdit(_Saved, QLineEdit):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._init_saved()
+        self._framed_margins = self._contents_margins(framed=True)
+        self._unframed_margins = self._contents_margins(framed=False)
+        self._init_saved(self._framed_margins.left() + LINE_EDIT_TEXT_MARGIN)
         self.editingFinished.connect(self._commit)
         self._frame()
 
@@ -72,8 +96,33 @@ class InlineLineEdit(_Saved, QLineEdit):
         self.setText(text)
         self.setCursorPosition(0)
 
+    def _contents_margins(self, framed):
+        """The style's inset of the text area, with or without the frame"""
+        option = QStyleOptionFrame()
+        self.initStyleOption(option)
+        option.lineWidth = (
+            self.style().pixelMetric(QStyle.PixelMetric.PM_DefaultFrameWidth, option, self)
+            if framed
+            else 0
+        )
+        # Room enough that no style drops the frame for want of it
+        option.rect = QRect(0, 0, 1000, 1000)
+        inner = self.style().subElementRect(QStyle.SubElement.SE_LineEditContents, option, self)
+        outer = option.rect
+        return QMargins(
+            inner.left() - outer.left(),
+            inner.top() - outer.top(),
+            outer.right() - inner.right(),
+            outer.bottom() - inner.bottom(),
+        )
+
     def _set_framed(self, framed):
         self.setFrame(framed)
+        full = self._framed_margins
+        shown = full if framed else self._unframed_margins
+        # Unframed, the text margins stand in for the frame, keeping text and height still
+        side = self._inset - LINE_EDIT_TEXT_MARGIN - shown.left()
+        self.setTextMargins(side, full.top() - shown.top(), side, full.bottom() - shown.bottom())
 
     def keyPressEvent(self, event):
         if not self._escape(event):
@@ -103,7 +152,9 @@ class InlineTextEdit(_Saved, QPlainTextEdit):
 
     def __init__(self, min_lines=2, max_lines=6, parent=None):
         super().__init__(parent)
-        self._init_saved()
+        self.setFrameShape(QFrame.Shape.StyledPanel)
+        self._frame_width = self.frameWidth()
+        self._init_saved(self._frame_width + self._document_margin())
         self._lines = (min_lines, max_lines)
         self.setTabChangesFocus(True)
         self.document().contentsChanged.connect(self._fit)
@@ -115,8 +166,16 @@ class InlineTextEdit(_Saved, QPlainTextEdit):
     def _show(self, text):
         self.setPlainText(text)
 
+    def _document_margin(self):
+        return round(self.document().documentMargin())
+
     def _set_framed(self, framed):
         self.setFrameShape(QFrame.Shape.StyledPanel if framed else QFrame.Shape.NoFrame)
+        # Unframed, viewport margins stand in for the frame, keeping text and height still
+        shown = self._frame_width if framed else 0
+        side = self._inset - shown - self._document_margin()
+        edge = self._frame_width - shown
+        self.setViewportMargins(side, edge, side, edge)
         self._fit()
 
     def _fit(self):
@@ -125,11 +184,10 @@ class InlineTextEdit(_Saved, QPlainTextEdit):
         lines = round(self.document().documentLayout().documentSize().height())
         lines = min(most, max(least, lines))
         # Room for the frame whether it's shown or not, so hovering doesn't change the height
-        frame = self.style().pixelMetric(QStyle.PixelMetric.PM_DefaultFrameWidth, None, self)
         height = (
             lines * self.fontMetrics().lineSpacing()
-            + 2 * round(self.document().documentMargin())
-            + 2 * max(frame, self.frameWidth())
+            + 2 * self._document_margin()
+            + 2 * self._frame_width
         )
         if self.height() != height:
             self.setFixedHeight(height)

@@ -85,7 +85,7 @@ def display_rows(deck, back=False):
         rows.extend((KIND_CARD, card.display_name, card, None) for card in cards)
 
     if back:
-        rows.append((KIND_HEADING, DECK_VIEW["back"], None, None))
+        rows.append((KIND_HEADING, DECK_VIEW["extras_heading"], None, None))
         rows.append((KIND_BACK, DECK_VIEW["back"], None, None))
     return rows
 

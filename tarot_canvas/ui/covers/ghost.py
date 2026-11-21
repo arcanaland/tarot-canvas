@@ -21,7 +21,15 @@ EMBLEM_GLYPH_FRACTION = 0.6
 EMBLEM_PLATE_ALPHA = 220
 
 
-def paint_placeholder_well(painter, well, palette, icon="image-missing"):
+def paint_placeholder_well(
+    painter,
+    well,
+    palette,
+    icon="image-missing",
+    *,
+    icon_fraction=PLACEHOLDER_ICON_FRACTION,
+    icon_opacity=1.0,
+):
     """A well the same footprint as real art; icon is a theme name or a QIcon"""
     painter.save()
     ground = QColor(palette.text().color())
@@ -33,9 +41,10 @@ def paint_placeholder_well(painter, well, palette, icon="image-missing"):
     if not isinstance(icon, QIcon):
         icon = QIcon.fromTheme(icon)
     if not icon.isNull():
-        extent = max(16, round(min(well.width(), well.height()) * PLACEHOLDER_ICON_FRACTION))
+        extent = max(16, round(min(well.width(), well.height()) * icon_fraction))
         target = QRect(0, 0, extent, extent)
         target.moveCenter(well.center())
+        painter.setOpacity(painter.opacity() * icon_opacity)
         icon.paint(painter, target, Qt.AlignmentFlag.AlignCenter, QIcon.Mode.Disabled)
     painter.restore()
 

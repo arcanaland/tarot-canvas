@@ -3,7 +3,7 @@
 import itertools
 
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QIcon, QPalette
+from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
     QButtonGroup,
     QHBoxLayout,
@@ -70,7 +70,6 @@ class FillProgress(QWidget):
         row.setSpacing(units.LARGE_SPACING)
         self.label = QLabel()
         typography.apply(self.label, typography.Role.SMALL)
-        self.label.setForegroundRole(QPalette.ColorRole.PlaceholderText)
         row.addWidget(self.label)
         self.bar = QProgressBar()
         self.bar.setTextVisible(False)
@@ -107,6 +106,7 @@ class HandmadeDeckHeader(HeaderFrame):
         ]
         for first, second in itertools.pairwise(order):
             QWidget.setTabOrder(first, second)
+        self._align_column()
         self.cover.set_expanded(True)
         self.align_text(top=True)
         self.update_from(deck)
@@ -153,6 +153,15 @@ class HandmadeDeckHeader(HeaderFrame):
         column.addWidget(self.fill)
         column.addStretch()
         return column
+
+    def _align_column(self):
+        """Everything down the column starts where the editors' text does"""
+        editors = (self.name_edit, self.artist_edit, self.description_edit)
+        inset = max(editor.natural_inset() for editor in editors)
+        for editor in editors:
+            editor.set_text_inset(inset)
+        for row in (self.cards, self.fill):
+            row.layout().setContentsMargins(inset, 0, 0, 0)
 
     @staticmethod
     def _editor(editor, name, placeholder=None):
