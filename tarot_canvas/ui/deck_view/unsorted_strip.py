@@ -1,4 +1,4 @@
-"""A created deck's images that are in no slot yet"""
+"""Unassigned cards at the bottom of user-created decks"""
 
 import os
 from pathlib import Path

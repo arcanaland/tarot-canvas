@@ -7,7 +7,7 @@ from PyQt6.QtGui import QColor, QImage
 
 from tarot_canvas.models import deck_writer as writer
 from tarot_canvas.models.deck_writer import DeckWriteError, DeckWriteReason
-from tarot_canvas.ui.deck_view.deck_editor import DeckEditor
+from tarot_canvas.ui.deck_view.write_queue import WriteQueue
 
 
 @pytest.fixture
@@ -33,13 +33,13 @@ def test_queued_places_run_in_order_one_at_a_time(deck, tmp_path, qtbot, monkeyp
         calls.append(("end", card_id))
 
     monkeypatch.setattr(writer, "place", recording)
-    editor = DeckEditor(deck)
+    queue = WriteQueue(deck)
     finished = []
-    editor.finished.connect(lambda: finished.append(1))
+    queue.finished.connect(lambda: finished.append(1))
 
-    editor.place("major_arcana.00", picture(tmp_path, "a.png"))
-    editor.place("major_arcana.01", picture(tmp_path, "b.png"))
-    assert editor.is_busy()
+    queue.place("major_arcana.00", picture(tmp_path, "a.png"))
+    queue.place("major_arcana.01", picture(tmp_path, "b.png"))
+    assert queue.is_busy()
     qtbot.waitUntil(lambda: len(finished) == 2)
 
     assert calls == [
@@ -48,19 +48,19 @@ def test_queued_places_run_in_order_one_at_a_time(deck, tmp_path, qtbot, monkeyp
         ("start", "major_arcana.01"),
         ("end", "major_arcana.01"),
     ]
-    assert not editor.is_busy()
+    assert not queue.is_busy()
 
 
 def test_an_unreadable_image_fails_and_the_next_job_still_runs(deck, tmp_path, qtbot):
     text = tmp_path / "notes.txt"
     text.write_text("not an image")
-    editor = DeckEditor(deck)
+    queue = WriteQueue(deck)
     failures, finished = [], []
-    editor.failed.connect(failures.append)
-    editor.finished.connect(lambda: finished.append(1))
+    queue.failed.connect(failures.append)
+    queue.finished.connect(lambda: finished.append(1))
 
-    editor.place("major_arcana.00", text)
-    editor.place("major_arcana.01", picture(tmp_path, "b.png"))
+    queue.place("major_arcana.00", text)
+    queue.place("major_arcana.01", picture(tmp_path, "b.png"))
     qtbot.waitUntil(lambda: finished == [1])
 
     assert len(failures) == 1

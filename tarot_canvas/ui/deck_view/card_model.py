@@ -11,13 +11,13 @@ from tarot_canvas.ui.strings import DECK_VIEW
 
 KindRole = Qt.ItemDataRole.UserRole + 1
 CardRole = Qt.ItemDataRole.UserRole + 2
-# A heading's canonical suit, when the deck names the suit something else
+# A heading's canonical suit (if a deck renamed it)
 CanonicalRole = Qt.ItemDataRole.UserRole + 3
-# The back's image, or None
+# A cardback image
 BackPathRole = Qt.ItemDataRole.UserRole + 4
-# A card's canonical ID, or BACK; what the deck writer calls the slot
+# A card's canonical ID
 SlotIdRole = Qt.ItemDataRole.UserRole + 5
-# A created deck's slot with no image yet; never true in a deck not created here
+# A user-created deck's slot without an image
 EmptySlotRole = Qt.ItemDataRole.UserRole + 6
 
 KIND_HEADING = "heading"

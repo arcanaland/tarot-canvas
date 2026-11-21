@@ -12,13 +12,10 @@ from PyQt6.QtWidgets import (
 from tarot_canvas.ui import units
 from tarot_canvas.ui.strings import NEW_DECK
 
-# The name field's width, in average characters
 NAME_WIDTH = 40
 
 
 class NewDeckDialog(QDialog):
-    """Asks for the new deck's name, and nothing else"""
-
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle(NEW_DECK["title"])
@@ -49,7 +46,6 @@ class NewDeckDialog(QDialog):
         layout.addWidget(explanation)
         layout.addLayout(form)
         layout.addWidget(self.buttons)
-        # A fixed size, so the window manager offers no maximize
         layout.setSizeConstraint(QLayout.SizeConstraint.SetFixedSize)
 
         self.name_field.textChanged.connect(self._update_create)

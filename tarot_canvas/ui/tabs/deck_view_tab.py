@@ -33,7 +33,7 @@ from tarot_canvas.ui.activate_on_return import activate_on_return
 from tarot_canvas.ui.card_transfer import copy_cards_to_clipboard
 from tarot_canvas.ui.deck_view.card_delegate import CardDelegate
 from tarot_canvas.ui.deck_view.card_model import CardFilter, CardModel, CardRole, is_slot
-from tarot_canvas.ui.deck_view.deck_filler import DeckFiller
+from tarot_canvas.ui.deck_view.deck_editor import DeckEditor
 from tarot_canvas.ui.deck_view.sections_view import SectionsView
 from tarot_canvas.ui.deck_view.selection_snapshot import SelectionSnapshot
 from tarot_canvas.ui.deck_view.tableau_model import TableauModel
@@ -65,7 +65,7 @@ class DeckViewTab(BaseTab):
         super().__init__(parent)
         self.deck_path = deck_path
         self.mode = None
-        self.filler = None  # a DeckFiller, for a deck created here
+        self.editor = None  # a DeckEditor, for a deck created here
         self.settings = get_settings()
         self._build(deck_library.load(deck_path))
 
@@ -111,15 +111,15 @@ class DeckViewTab(BaseTab):
 
         self.scroll = scroll = QScrollArea()
         if self.editable:
-            self.filler = DeckFiller(
+            self.editor = DeckEditor(
                 deck, self.delegate, [self.grid, self.tableau], scroll, self.current_view, self
             )
-            self.filler.progress.connect(self.on_write_progress)
-            self.filler.written.connect(self.on_written)
-            self.filler.edit_state_changed.connect(self.edit_state_changed)
+            self.editor.progress.connect(self.on_write_progress)
+            self.editor.written.connect(self.on_written)
+            self.editor.edit_state_changed.connect(self.edit_state_changed)
             unsorted_row = QHBoxLayout()
             unsorted_row.setContentsMargins(self.grid.spacing(), 0, self.grid.spacing(), 0)
-            unsorted_row.addWidget(self.filler.unsorted)
+            unsorted_row.addWidget(self.editor.unsorted)
             grid_row.addLayout(unsorted_row)
         main_layout.addLayout(grid_row)
         main_layout.addStretch()
@@ -292,14 +292,14 @@ class DeckViewTab(BaseTab):
         return [card for card in cards if card is not None]
 
     def on_card_clicked(self, index):
-        if self.filler is not None and self.filler.click(index):
+        if self.editor is not None and self.editor.click(index):
             return
         card = index.data(CardRole)
         if card and card.default_image():
             self.card_clicked.emit(card.default_image())
 
     def on_card_activated(self, index):
-        if self.filler is not None and self.filler.activate(index):
+        if self.editor is not None and self.editor.activate(index):
             return
         card = index.data(CardRole)
         if card:
@@ -346,8 +346,8 @@ class DeckViewTab(BaseTab):
 
     def menu_for(self, index):
         """The context menu for the card or slot at index"""
-        if self.filler is not None:
-            return self.filler.slot_menu(index, self.card_menu)
+        if self.editor is not None:
+            return self.editor.slot_menu(index, self.card_menu)
         return self.card_menu(index)
 
     def on_context_menu(self, pos):
@@ -355,7 +355,7 @@ class DeckViewTab(BaseTab):
         index = view.indexAt(pos)
         if not is_slot(index):
             return
-        if self.filler is None and index.data(CardRole) is None:
+        if self.editor is None and index.data(CardRole) is None:
             return
         selection = view.selectionModel()
         if not selection.isSelected(index):
@@ -374,7 +374,7 @@ class DeckViewTab(BaseTab):
         self.progress_bar.show()
 
     def on_written(self):
-        if not self.filler.is_busy():
+        if not self.editor.is_busy():
             self.progress_bar.hide()
         try:
             deck = deck_library.reload(self.deck_path)
@@ -398,8 +398,8 @@ class DeckViewTab(BaseTab):
         self.header = header
 
         snapshot.restore(view)
-        if self.filler is not None:
-            self.filler.set_deck(deck)
+        if self.editor is not None:
+            self.editor.set_deck(deck)
         self.tab_label_changed.emit()
         self.edit_state_changed()
         self._scrolled = scrolled
@@ -420,8 +420,8 @@ class DeckViewTab(BaseTab):
         if self.delegate.set_density(density):
             self.grid.doItemsLayout()
             self.tableau.update_sections()
-            if self.filler is not None:
-                self.filler.set_cover_size(self.delegate.cover_size())
+            if self.editor is not None:
+                self.editor.set_cover_size(self.delegate.cover_size())
         self.zoom_state_changed()
 
     # -- find ---------------------------------------------------------------
@@ -452,11 +452,11 @@ class DeckViewTab(BaseTab):
         return bool(self.selected_cards())
 
     def can_delete(self):
-        return self.filler is not None and self.filler.can_delete()
+        return self.editor is not None and self.editor.can_delete()
 
     def delete(self):
-        if self.filler is not None:
-            self.filler.delete()
+        if self.editor is not None:
+            self.editor.delete()
 
     def copy_card(self):
         cards = self.selected_cards()
