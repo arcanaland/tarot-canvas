@@ -1,5 +1,5 @@
 from PyQt6.QtCore import QRectF, Qt
-from PyQt6.QtGui import QColor, QFontMetricsF, QPainter, QPen, QPixmap, QTextLayout, QTextOption
+from PyQt6.QtGui import QColor, QFontMetricsF, QPainter, QPen, QPixmap
 
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
@@ -17,29 +17,6 @@ LABEL_HEIGHT = 0.07
 OUTLINE_PX = 1.5
 OUTLINE_DARKER = 167  # QColor.darker's factor for 60% of the fill's value
 LABEL_LINES = 3
-
-
-def _label_lines(label, font, width):
-    """label wrapped to width, its last line elided if it runs over"""
-    layout = QTextLayout(label, font)
-    option = QTextOption()
-    option.setWrapMode(QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)
-    layout.setTextOption(option)
-
-    starts = []
-    layout.beginLayout()
-    while (line := layout.createLine()).isValid():
-        line.setLineWidth(width)
-        starts.append(line.textStart())
-    layout.endLayout()
-
-    ends = [*starts[1:], len(label)]
-    lines = [label[start:end].strip() for start, end in zip(starts, ends, strict=True)]
-    if len(lines) > LABEL_LINES:
-        rest = label[starts[LABEL_LINES - 1] :]
-        elided = QFontMetricsF(font).elidedText(rest, Qt.TextElideMode.ElideRight, width)
-        lines = [*lines[: LABEL_LINES - 1], elided]
-    return lines
 
 
 def slot_ink(fill):
@@ -70,7 +47,7 @@ def _paint_landscape_text(painter, number, label, rect, basis):
     label_font = typography.in_pixels(typography.font(typography.Role.BODY), basis * LABEL_HEIGHT)
     metrics = QFontMetricsF(label_font)
     text_width = rect.width() - number_width - gap - 2 * margin
-    lines = _label_lines(label, label_font, text_width) if label else []
+    lines = typography.wrapped_lines(label, label_font, text_width, LABEL_LINES) if label else []
     # The pair centred together, the number's column first
     widest = max((metrics.horizontalAdvance(line) for line in lines), default=0.0)
     left = rect.x() + (rect.width() - (number_width + (gap + widest if lines else 0.0))) / 2
@@ -138,7 +115,9 @@ def render_slot(number, label, colour, size, scale, edge=None, ink=None, dashed=
     margin = width * LABEL_MARGIN
     text_width = width - 2 * margin
     metrics = QFontMetricsF(label_font)
-    for row, line in enumerate(_label_lines(label, label_font, text_width)):
+    for row, line in enumerate(
+        typography.wrapped_lines(label, label_font, text_width, LABEL_LINES)
+    ):
         painter.drawText(
             QRectF(margin, height / 2 + row * metrics.lineSpacing(), text_width, metrics.height()),
             Qt.AlignmentFlag.AlignHCenter,

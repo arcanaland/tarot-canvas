@@ -398,7 +398,7 @@ def refresh(deck, progress=None):
 
 
 def exported_files(deck):
-    """The deck's own files, relative and sorted: not its working folders, strays or links"""
+    """Our files without staging stuff"""
     deck = _checked(deck)
     working = {SOURCE, UNSORTED}
     found = []

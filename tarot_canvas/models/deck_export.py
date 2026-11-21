@@ -1,4 +1,4 @@
-"""Export a handmade deck: copy its own files aside, validate the copy, pack it"""
+"""Export a handmade deck"""
 
 import shutil
 import tempfile
@@ -27,7 +27,7 @@ class Staged:
 
 
 def stage(deck, staging_root):
-    """A copy of deck's exported files under staging_root, and the verdict on that copy"""
+    """A copy of deck's exported files at staging_root"""
     deck = Path(deck)
     files = deck_writer.exported_files(deck)
     with open(deck / DECK_TOML, "rb") as handle:
@@ -48,10 +48,7 @@ def stage(deck, staging_root):
 
 
 def write(staged, target):
-    """Pack the staged deck, then copy it to target in one write
-
-    target may be a document-portal file whose folder isn't ours, so no sibling and no rename.
-    """
+    """Pack the staged deck, then copy it to target in one write"""
     packed = staged.folder / _PACKED
     pack_container(staged.deck, packed)
     target = Path(target)

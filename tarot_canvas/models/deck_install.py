@@ -47,7 +47,7 @@ def install_container(container_path, dest, staging_root):
 
 
 def install_local(container_path, decks_root, staging_root):
-    """Unpack a container file into decks_root, named from its identifier, else its file name"""
+    """Unpack a container file into decks_root"""
     decks_root = Path(decks_root)
 
     def destination(staged):

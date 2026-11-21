@@ -12,9 +12,9 @@ from tarot_canvas.models.card_ids import CANONICAL_CARD_IDS
 from tarot_canvas.models.deck_container import unpack_container
 from tarot_canvas.models.deck_validation import Finding, Level, LoadError, Verdict
 from tarot_canvas.ui.deck_view import exporter
-from tarot_canvas.ui.deck_view.export_dialogs import FindingsDialog
+from tarot_canvas.ui.deck_view.export_dialogs import ExportFieldsDialog, FindingsDialog
 from tarot_canvas.ui.library.decks.model import MINOR_IDS
-from tarot_canvas.ui.strings import DECK_VIEW
+from tarot_canvas.ui.strings import DECK_VIEW, LIBRARY
 from tests.gui.test_handmade_deck_view import picture, settled, shown
 
 MAJORS = [card for card in CANONICAL_CARD_IDS if card.startswith("major_arcana.")]
@@ -52,9 +52,8 @@ def dialogs(tmp_path, monkeypatch, staging):
                 "label": dialog.empty_label.text() if dialog.empty_list else None,
             }
         )
-        for key, text in state["fields"].items():
-            edit = getattr(dialog, f"{key}_edit")
-            (edit.setPlainText if key == "description" else edit.setText)(text)
+        if "version" in state["fields"]:
+            dialog.version_edit.setText(state["fields"]["version"])
         return QDialog.DialogCode.Accepted if state["accept"] else QDialog.DialogCode.Rejected
 
     def findings_exec(dialog):
@@ -149,7 +148,8 @@ def test_a_changed_version_is_written_and_the_identifier_is_not(
     writer.place_unsorted(deck, picture(tmp_path, "loose.png"))
     identifier = manifest(deck)["deck"]["identifier"]
     tab = settled(qtbot, shown(qtbot, deck))
-    dialogs["fields"] = {"version": "1.0.0", "artist": "Someone"}
+    writer.set_fields(deck, artist="Someone")
+    dialogs["fields"] = {"version": "1.0.0"}
 
     exported(qtbot, tab)
 
@@ -268,3 +268,70 @@ def test_a_load_error_is_one_line_with_no_tree(qtbot, minimal_deck):
     assert dialog.load_error_label.text() == DECK_VIEW["export_load_error"].format(
         code="parse_error", message="broken"
     )
+
+
+# -- The fields dialog ---------------------------------------------------------------------
+
+
+def fields_dialog(qtbot, tab, empty=()):
+    dialog = ExportFieldsDialog(tab.deck, list(empty), tab)
+    qtbot.addWidget(dialog)
+    dialog.show()
+    qtbot.waitExposed(dialog)
+    return dialog
+
+
+def test_the_fields_dialog_shows_the_deck_and_asks_only_the_version(qtbot, tmp_path, curation_file):
+    deck = made(tmp_path, placed=MAJORS[:1])
+    writer.set_fields(deck, artist="Someone", description="Line one\nLine two")
+    tab = settled(qtbot, shown(qtbot, deck))
+
+    dialog = fields_dialog(qtbot, tab)
+
+    assert dialog.name_label.full_text() == "Exported"
+    assert dialog.artist_label.full_text() == "Someone"
+    assert dialog.description_label.full_text() == "Line one\nLine two"
+    assert dialog.description_label.text() == "Line one\nLine two"
+    assert dialog.focusWidget() is dialog.export_button
+    assert dialog.empty_list is None
+    assert dialog.changed_fields() == {}
+    dialog.version_edit.setText(" 1.0.0 ")
+    assert dialog.changed_fields() == {"version": "1.0.0"}
+    dialog.version_edit.setText("")
+    assert not dialog.export_button.isEnabled()
+
+
+def test_a_blank_artist_reads_as_the_librarys_unknown(qtbot, tmp_path, curation_file):
+    tab = settled(qtbot, shown(qtbot, made(tmp_path)))
+
+    dialog = fields_dialog(qtbot, tab)
+
+    assert dialog.artist_label.full_text() == LIBRARY["unknown_author"]
+    assert not dialog.description_label.isVisibleTo(dialog)
+
+
+def test_a_long_description_does_not_make_the_dialog_taller(qtbot, tmp_path, curation_file):
+    deck = made(tmp_path)
+    tab = settled(qtbot, shown(qtbot, deck))
+    short = fields_dialog(qtbot, tab).height()
+
+    writer.set_fields(deck, description="word " * 400)
+    tab = settled(qtbot, shown(qtbot, deck))
+    dialog = fields_dialog(qtbot, tab)
+
+    assert dialog.height() == short
+    assert dialog.description_label.text().endswith("…")
+    assert dialog.description_label.toolTip().startswith("word word")
+
+
+def test_the_empty_cards_are_listed_only_when_asked(qtbot, tmp_path, curation_file):
+    tab = settled(qtbot, shown(qtbot, made(tmp_path, placed=MAJORS[:3])))
+    empty = [card for card in tab.deck.cards if not card.default_image()]
+
+    dialog = fields_dialog(qtbot, tab, empty)
+
+    assert dialog.empty_label.text() == DECK_VIEW["export_empty"].format(count=19)
+    assert not dialog.empty_list.isVisibleTo(dialog)
+    dialog.empty_toggle.click()
+    assert dialog.empty_list.isVisibleTo(dialog)
+    assert dialog.empty_list.count() == 19

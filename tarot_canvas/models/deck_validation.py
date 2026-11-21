@@ -1,4 +1,4 @@
-"""What arcana_tarot finds wrong with a deck on disk, in types of our own"""
+"""Validation through libarcana"""
 
 import enum
 import os
@@ -43,7 +43,6 @@ class Verdict:
 
 
 def validate_deck(deck_dir):
-    """The verdict on the deck in deck_dir; a deck that won't load is a LoadError, not a raise"""
     try:
         import arcana_tarot
     except ImportError as error:
