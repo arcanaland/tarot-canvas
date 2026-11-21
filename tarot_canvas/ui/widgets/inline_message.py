@@ -31,7 +31,6 @@ class InlineMessage(QFrame):
         self.close_button.setToolTip(close_text)
         self.close_button.setAccessibleName(close_text)
         self.close_button.clicked.connect(self.dismiss)
-        # Unclosable when closing would hide the only way to act on it
         self.close_button.setVisible(closable)
 
         self._layout = QHBoxLayout(self)

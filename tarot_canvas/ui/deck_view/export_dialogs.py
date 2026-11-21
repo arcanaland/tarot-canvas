@@ -33,10 +33,7 @@ LevelRole = Qt.ItemDataRole.UserRole + 2
 
 
 class ClampedLabel(QLabel):
-    """Text wrapped to a fixed box and cut, with an ellipsis, to the lines the box holds
-
-    So the text can't decide how big the label is; the full text is the tooltip.
-    """
+    """Text wrapped to a fixed box and cut with an ellipsis"""
 
     def __init__(self, text, parent=None):
         super().__init__(parent)
@@ -66,11 +63,7 @@ class ClampedLabel(QLabel):
 
 
 class ExportFieldsDialog(QDialog):
-    """What will ship: the deck as its header has it, the empty cards left out, and its version
-
-    Name, artist and description are edited in the deck's header, so here they are only shown.
-    The version is asked here and nowhere else.
-    """
+    """What will ship"""
 
     def __init__(self, deck, empty_cards, parent=None, cover_cache=None):
         super().__init__(parent)
@@ -92,7 +85,7 @@ class ExportFieldsDialog(QDialog):
         layout.setSizeConstraint(QVBoxLayout.SizeConstraint.SetFixedSize)
 
     def _summary(self, deck, cover_cache):
-        """The cover beside name, artist and description, never taller than the cover"""
+        """The cover beside name, artist and description"""
         row = QHBoxLayout()
         row.setSpacing(units.LARGE_SPACING)
         self.cover = DeckCover(cover_cache)
@@ -129,7 +122,7 @@ class ExportFieldsDialog(QDialog):
         return row
 
     def _empty_section(self, empty_cards):
-        """A warning with the count; the cards themselves behind a disclosure"""
+        """A warning with the count"""
         section = QVBoxLayout()
         section.setSpacing(units.SMALL_SPACING)
         row = QHBoxLayout()
@@ -166,7 +159,7 @@ class ExportFieldsDialog(QDialog):
         self.empty_list.setVisible(shown)
 
     def _version_row(self):
-        """The one field asked here, on the row that confirms it"""
+        """The main field for the user to see"""
         row = QHBoxLayout()
         label = QLabel(DECK_VIEW["field.version"])
         self.version_edit = QLineEdit(self._saved_version)
@@ -200,7 +193,7 @@ class ExportFieldsDialog(QDialog):
 
 
 class FindingsDialog(QDialog):
-    """Why Export wrote nothing: the load error, or the findings card by card"""
+    """Why your deck is busted (chopped and unc)"""
 
     def __init__(self, verdict, deck, parent=None):
         super().__init__(parent)
@@ -276,7 +269,7 @@ class FindingsDialog(QDialog):
 
 
 def _card_order(card):
-    """The deck-level findings first, then the cards in canonical order"""
+    """The deck-level findings first then the cards"""
     if card is None:
         return (0, 0, "")
     if card in CANONICAL_CARD_IDS:

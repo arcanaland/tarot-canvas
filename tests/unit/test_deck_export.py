@@ -1,4 +1,5 @@
 import os
+import tomllib
 import zipfile
 
 import pytest
@@ -43,6 +44,18 @@ def test_the_staged_copy_holds_no_working_files_and_validates_cleaner(deck, stag
     assert {f.code for f in validate_deck(deck).findings} - {
         f.code for f in staged.verdict.findings
     } == {"ignored-image-root-lookalike", "raster-outside-image-root"}
+
+
+def test_only_the_staged_copy_lists_the_cards_left_out(deck, staging, tmp_path):
+    writer.place(deck, FOOL, image(tmp_path, "fool.png"))
+    working = (deck / "deck.toml").read_text(encoding="utf-8")
+
+    staged = deck_export.stage(deck, staging, ["major_arcana.01", "major_arcana.02"])
+
+    with open(staged.deck / "deck.toml", "rb") as handle:
+        listed = tomllib.load(handle)["excluded_cards"]["cards"]
+    assert listed[-2:] == ["major_arcana.01", "major_arcana.02"]
+    assert (deck / "deck.toml").read_text(encoding="utf-8") == working
 
 
 def test_the_written_container_validates_as_the_staged_copy_did(deck, staging, tmp_path):

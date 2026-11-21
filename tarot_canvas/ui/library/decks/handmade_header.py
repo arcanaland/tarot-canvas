@@ -2,10 +2,9 @@
 
 import itertools
 
-from PyQt6.QtCore import QEvent, Qt, pyqtSignal
-from PyQt6.QtGui import QIcon, QPalette
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
-    QApplication,
     QButtonGroup,
     QHBoxLayout,
     QLabel,
@@ -20,10 +19,8 @@ from PyQt6.QtWidgets import (
 from tarot_canvas.ui import typography, units
 from tarot_canvas.ui.library.decks.header import HeaderFrame, measure
 from tarot_canvas.ui.library.decks.model import (
-    MINOR_IDS,
-    excluded_cards,
     fill_progress,
-    left_out,
+    is_majors_only,
     placed_minors,
 )
 from tarot_canvas.ui.strings import DECK_VIEW
@@ -37,7 +34,7 @@ class CardsChoice(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._whole = None  # neither, when the deck leaves out some other set
+        self._whole = False
         self._deck = None
         row = QHBoxLayout(self)
         row.setContentsMargins(0, 0, 0, 0)
@@ -57,13 +54,9 @@ class CardsChoice(QWidget):
 
     def show_deck(self, deck):
         self._deck = deck
-        excluded = excluded_cards(deck)
-        self._whole = True if not excluded else False if excluded == MINOR_IDS else None
-        # Exclusive, a group can't have neither checked
-        self.group.setExclusive(False)
-        self.majors_radio.setChecked(self._whole is False)
-        self.all_radio.setChecked(self._whole is True)
-        self.group.setExclusive(True)
+        self._whole = not is_majors_only(deck)
+        self.majors_radio.setChecked(not self._whole)
+        self.all_radio.setChecked(self._whole)
         self.setEnabled(True)
 
     def _on_clicked(self, button):
@@ -98,30 +91,8 @@ class CardsChoice(QWidget):
         return box.clickedButton() is confirm
 
 
-class _LinkButton(QPushButton):
-    """A flat button whose text is in the link colour"""
-
-    def __init__(self, text, parent=None):
-        super().__init__(text, parent)
-        self.setFlat(True)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._follow_palette()
-
-    def _follow_palette(self):
-        palette = QApplication.palette(self)
-        palette.setColor(QPalette.ColorRole.ButtonText, palette.color(QPalette.ColorRole.Link))
-        self.setPalette(palette)
-
-    def event(self, event):
-        if event.type() == QEvent.Type.ApplicationPaletteChange:
-            self._follow_palette()
-        return super().event(event)
-
-
 class FillProgress(QWidget):
-    """How many of the deck's cards have an image, and how many it leaves out"""
-
-    put_back_requested = pyqtSignal()
+    """How many of the deck's cards have an image"""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -136,13 +107,6 @@ class FillProgress(QWidget):
         self.bar.setMaximumHeight(units.SMALL_SPACING * 2)
         self.bar.setMaximumWidth(measure() // 3)
         row.addWidget(self.bar, 1)
-        self.left_out_label = QLabel()
-        typography.apply(self.left_out_label, typography.Role.SMALL)
-        row.addWidget(self.left_out_label)
-        self.put_back_button = _LinkButton(DECK_VIEW["export_put_back"])
-        typography.apply(self.put_back_button, typography.Role.SMALL)
-        self.put_back_button.clicked.connect(self._on_put_back)
-        row.addWidget(self.put_back_button)
         row.addStretch(2)
 
     def show_deck(self, deck):
@@ -150,16 +114,6 @@ class FillProgress(QWidget):
         self.label.setText(DECK_VIEW["fill_count"].format(placed=placed, expected=expected))
         self.bar.setRange(0, max(1, expected))
         self.bar.setValue(placed)
-        count = left_out(deck)
-        self.left_out_label.setText(DECK_VIEW["export_left_out"].format(count=count))
-        self.left_out_label.setVisible(bool(count))
-        self.put_back_button.setVisible(bool(count))
-        self.put_back_button.setEnabled(True)
-
-    def _on_put_back(self):
-        # Until the reload, so a second click can't queue a second write
-        self.put_back_button.setEnabled(False)
-        self.put_back_requested.emit()
 
 
 class HandmadeDeckHeader(HeaderFrame):
@@ -168,7 +122,6 @@ class HandmadeDeckHeader(HeaderFrame):
     fields_edited = pyqtSignal(dict)  # [deck] key: new text, "" to remove it
     add_images_requested = pyqtSignal()
     export_requested = pyqtSignal()
-    put_back_requested = pyqtSignal()
     cards_chosen = pyqtSignal(bool)  # all 78, or majors only
 
     def __init__(self, deck, parent=None, cover_cache=None):
@@ -181,7 +134,6 @@ class HandmadeDeckHeader(HeaderFrame):
             self.description_edit,
             self.cards.majors_radio,
             self.cards.all_radio,
-            self.fill.put_back_button,
             self.add_images_button,
             self.export_button,
         ]
@@ -233,7 +185,6 @@ class HandmadeDeckHeader(HeaderFrame):
         self.cards.chosen.connect(self.cards_chosen)
         column.addWidget(self.cards)
         self.fill = FillProgress()
-        self.fill.put_back_requested.connect(self.put_back_requested)
         column.addWidget(self.fill)
         column.addStretch()
         return column

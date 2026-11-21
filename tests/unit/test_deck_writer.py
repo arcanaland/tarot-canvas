@@ -739,12 +739,3 @@ def test_excluding_a_card_with_an_image_is_refused(majors, images):
 
     assert caught.value.reason is DeckWriteReason.HAS_IMAGE
     assert MAGICIAN not in manifest(majors)["excluded_cards"]["cards"]
-
-
-def test_including_all_drops_every_exclusion(majors):
-    writer.exclude_cards(majors, [FOOL])
-
-    writer.include_all(majors)
-
-    assert "excluded_cards" not in manifest(majors)
-    assert len(arcana_tarot.load_deck(majors).cards) == 78

@@ -1,4 +1,4 @@
-"""Export…: ask the fields, leave out empty cards, validate a staged copy, then write it"""
+"""For exporting a handmade deck"""
 
 import logging
 import os
@@ -21,7 +21,6 @@ class DeckExporter(QObject):
     message = pyqtSignal(str)  # for a toast
 
     def __init__(self, queue, current_deck, widget):
-        """current_deck() is the deck as last reloaded; dialogs open over widget"""
         super().__init__(widget)
         self._queue = queue
         self._current_deck = current_deck
@@ -45,10 +44,9 @@ class DeckExporter(QObject):
         self._write_failed = False
         if fields:
             self._queue.set_fields(**fields)
-        if empty:
-            self._queue.exclude_cards([card.canonical_id for card in empty])
+        excluded = [card.canonical_id for card in empty]
         staging = get_staging_directory()
-        self._queue.then(lambda path: deck_export.stage(path, staging), self._on_staged)
+        self._queue.then(lambda path: deck_export.stage(path, staging, excluded), self._on_staged)
 
     def _on_write_failed(self, _error):
         if self.running:

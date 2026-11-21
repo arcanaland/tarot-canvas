@@ -437,8 +437,6 @@ DECK_VIEW = {
     "export_done": "Created {file}!",
     "export_done_with_warnings": "Created (with {count} warnings)",
     "export_failed": "Export failed: {error}",
-    "export_left_out": "{count} cards excluded",
-    "export_put_back": "Put back",
     "temporary": "You are previewing {file}.",
     "temporary_installed": "This deck is already in your Library.",
     "add_to_library": "Add to Library",

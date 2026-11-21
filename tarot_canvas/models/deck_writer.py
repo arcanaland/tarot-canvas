@@ -180,8 +180,14 @@ def exclude_cards(deck, card_ids, progress=None):
             raise DeckWriteError(DeckWriteReason.UNKNOWN_CARD, repr(card_id))
         if _has_image(deck, card_id):
             raise DeckWriteError(DeckWriteReason.HAS_IMAGE, card_id)
-    manifest = deck / DECK_TOML
-    document = tomlkit.parse(manifest.read_text(encoding="utf-8"))
+    list_excluded(deck / DECK_TOML, card_ids)
+    _sync(deck, progress)
+
+
+def list_excluded(manifest, card_ids):
+    """Add card_ids to manifest's [excluded_cards], after those it lists already; no check
+    that they are empty, and nothing derived is touched, so it suits a staged copy"""
+    document = tomlkit.parse(Path(manifest).read_text(encoding="utf-8"))
     excluded = document.get("excluded_cards")
     if excluded is None:
         excluded = tomlkit.table()
@@ -192,17 +198,7 @@ def exclude_cards(deck, card_ids, progress=None):
     cards.extend([*listed, *(c for c in CANONICAL_CARD_IDS if c in wanted and c not in listed)])
     cards.multiline(True)
     excluded["cards"] = cards
-    write_atomically(manifest, tomlkit.dumps(document))
-    _sync(deck, progress)
-
-
-def include_all(deck):
-    """Drop [excluded_cards], so the deck expects all 78"""
-    deck = _checked(deck)
-    manifest = deck / DECK_TOML
-    document = tomlkit.parse(manifest.read_text(encoding="utf-8"))
-    if document.pop("excluded_cards", None) is not None:
-        write_atomically(manifest, tomlkit.dumps(document))
+    write_atomically(Path(manifest), tomlkit.dumps(document))
 
 
 def _has_image(deck, card_id):

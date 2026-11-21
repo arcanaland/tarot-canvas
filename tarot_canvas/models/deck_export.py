@@ -26,8 +26,9 @@ class Staged:
         return self.folder / _DECK
 
 
-def stage(deck, staging_root):
-    """A copy of deck's exported files at staging_root"""
+def stage(deck, staging_root, excluded=()):
+    """A copy of deck's exported files at staging_root, with the cards in excluded listed in
+    its [excluded_cards]; the working deck.toml is not touched"""
     deck = Path(deck)
     files = deck_writer.exported_files(deck)
     with open(deck / DECK_TOML, "rb") as handle:
@@ -41,6 +42,8 @@ def stage(deck, staging_root):
             target = folder / _DECK / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(deck / relative, target)
+        if excluded:
+            deck_writer.list_excluded(folder / _DECK / DECK_TOML, excluded)
         return Staged(folder, validate_deck(folder / _DECK))
     except BaseException:
         shutil.rmtree(folder, ignore_errors=True)

@@ -13,11 +13,11 @@ from tarot_canvas.models.deck_container import unpack_container
 from tarot_canvas.models.deck_validation import Finding, Level, LoadError, Verdict
 from tarot_canvas.ui.deck_view import exporter
 from tarot_canvas.ui.deck_view.export_dialogs import ExportFieldsDialog, FindingsDialog
-from tarot_canvas.ui.library.decks.model import MINOR_IDS
 from tarot_canvas.ui.strings import DECK_VIEW, LIBRARY
 from tests.gui.test_handmade_deck_view import picture, settled, shown
 
 MAJORS = [card for card in CANONICAL_CARD_IDS if card.startswith("major_arcana.")]
+MINORS = [card for card in CANONICAL_CARD_IDS if card.startswith("minor_arcana.")]
 COURTS = [
     card
     for card in CANONICAL_CARD_IDS
@@ -94,9 +94,12 @@ def container_files(path):
         return archive.namelist(), tomllib.loads(archive.read("deck.toml").decode())
 
 
-def test_empty_cards_are_listed_left_out_and_put_back(qtbot, tmp_path, curation_file, dialogs):
+def test_empty_cards_are_left_out_of_the_export_and_stay_in_the_deck(
+    qtbot, tmp_path, curation_file, dialogs
+):
     deck = made(tmp_path, placed=MAJORS[:3])
     tab = settled(qtbot, shown(qtbot, deck))
+    before = manifest(deck)
 
     messages = exported(qtbot, tab)
 
@@ -105,22 +108,13 @@ def test_empty_cards_are_listed_left_out_and_put_back(qtbot, tmp_path, curation_
     ]
     target = dialogs["save_as"].with_name("exported.tarotdeck")
     assert messages == [DECK_VIEW["export_done"].format(file=target.name)]
-    expected = sorted(MINOR_IDS) + MAJORS[3:]
-    assert sorted(manifest(deck)["excluded_cards"]["cards"]) == sorted(expected)
     names, packed = container_files(target)
-    assert sorted(packed["excluded_cards"]["cards"]) == sorted(expected)
+    assert sorted(packed["excluded_cards"]["cards"]) == sorted(MINORS + MAJORS[3:])
     assert not [name for name in names if name.startswith(("source/", "unsorted/"))]
-    assert tab.header.fill.label.text() == DECK_VIEW["fill_count"].format(placed=3, expected=3)
-    assert tab.header.fill.left_out_label.isVisible()
-    assert tab.header.fill.left_out_label.text() == DECK_VIEW["export_left_out"].format(count=19)
+    assert manifest(deck) == before
+    assert tab.header.cards.majors_radio.isChecked()
+    assert tab.header.fill.label.text() == DECK_VIEW["fill_count"].format(placed=3, expected=22)
     assert list(staging_contents(tab)) == []
-
-    tab.header.fill.put_back_button.click()
-    settled(qtbot, tab)
-
-    assert len(tab.deck.cards) == 78
-    assert tab.header.cards.all_radio.isChecked()
-    assert not tab.header.fill.put_back_button.isVisible()
 
 
 def staging_contents(tab):
@@ -207,25 +201,19 @@ def test_export_waits_for_queued_writes(qtbot, tmp_path, curation_file, dialogs)
     assert tab.header.export_button.isEnabled()
 
 
-def test_a_mixed_set_checks_neither_and_majors_only_keeps_the_majors(
-    qtbot, tmp_path, curation_file, dialogs, monkeypatch
+def test_a_complete_deck_stays_complete_after_an_export_leaves_its_empty_cards_out(
+    qtbot, tmp_path, curation_file, dialogs
 ):
     deck = made(tmp_path, majors_only=False, placed=MAJORS + COURTS)
     tab = settled(qtbot, shown(qtbot, deck))
 
     exported(qtbot, tab)
 
-    cards = tab.header.cards
-    assert not cards.majors_radio.isChecked()
-    assert not cards.all_radio.isChecked()
-    assert len(tab.deck.cards) == 22 + 16
-
-    monkeypatch.setattr(cards, "_confirm_majors_only", lambda: True)
-    cards.majors_radio.click()
-    settled(qtbot, tab)
-
-    assert len(tab.deck.cards) == 22
-    assert cards.majors_radio.isChecked()
+    _names, packed = container_files(dialogs["save_as"].with_name("exported.tarotdeck"))
+    assert len(packed["excluded_cards"]["cards"]) == 56 - 16
+    assert "excluded_cards" not in manifest(deck)
+    assert tab.header.cards.all_radio.isChecked()
+    assert len(tab.deck.cards) == 78
 
 
 def test_the_findings_dialog_groups_by_card_and_hides_details(qtbot, minimal_deck):

@@ -109,13 +109,6 @@ class WriteQueue(QObject):
     def set_fields(self, **fields):
         self._add(lambda _progress: deck_writer.set_fields(self._deck, **fields))
 
-    def exclude_cards(self, card_ids):
-        card_ids = list(card_ids)
-        self._add(lambda progress: deck_writer.exclude_cards(self._deck, card_ids, progress))
-
-    def include_all(self):
-        self._add(lambda _progress: deck_writer.include_all(self._deck))
-
     # -- calls that hand back a result ------------------------------------
 
     def then(self, call, callback):

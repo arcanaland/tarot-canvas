@@ -138,7 +138,6 @@ class DeckViewTab(BaseTab):
             self.header.fields_edited.connect(self.on_fields_edited)
             self.header.add_images_requested.connect(self.editor.add_images)
             self.header.cards_chosen.connect(self.on_cards_chosen)
-            self.header.put_back_requested.connect(self.editor.queue.include_all)
             self.exporter = DeckExporter(self.editor.queue, lambda: self.deck, self)
             self.exporter.message.connect(self.message)
             self.exporter.running_changed.connect(self.update_export_button)
@@ -163,7 +162,7 @@ class DeckViewTab(BaseTab):
         )
 
     def _build_banner(self, deck):
-        """Says the deck is outside the Library, with no close: it holds the only way in"""
+        """Warning that the deck is outside the Library"""
         row = QVBoxLayout()
         row.setContentsMargins(SECTION_MARGIN, 0, SECTION_MARGIN, units.LARGE_SPACING)
         self.banner = InlineMessage(parent=self, closable=False)
