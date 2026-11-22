@@ -160,7 +160,7 @@ def test_a_handmade_deck_is_a_minimal_manifest_in_a_folder_named_by_its_identifi
         "deck": {
             "schema_version": "2.0",
             "name": "Test Deck",
-            "version": "0.1.0",
+            "version": "1.0.0",
             "identifier": table["deck"]["identifier"],
         }
     }
@@ -288,7 +288,7 @@ def test_set_fields_keeps_comments_order_and_what_it_does_not_know(deck):
     path = deck / "deck.toml"
     text = path.read_text()
     text = text.replace("[deck]\n", "# made by hand\n[deck]\n")
-    text = text.replace('version = "0.1.0"\n', 'version = "0.1.0"  # bump me\nx_mood = "calm"\n')
+    text = text.replace('version = "1.0.0"\n', 'version = "1.0.0"  # bump me\nx_mood = "calm"\n')
     text += '\n[app."land.example.other"]\nkept = true\n'
     path.write_text(text)
 
@@ -296,7 +296,7 @@ def test_set_fields_keeps_comments_order_and_what_it_does_not_know(deck):
 
     written = path.read_text()
     assert "# made by hand\n[deck]\n" in written
-    assert 'version = "0.1.0"  # bump me\nx_mood = "calm"\n' in written
+    assert 'version = "1.0.0"  # bump me\nx_mood = "calm"\n' in written
     assert '[app."land.example.other"]\nkept = true' in written
     table = manifest(deck)
     assert list(table["deck"]) == [
