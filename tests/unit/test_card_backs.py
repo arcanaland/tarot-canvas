@@ -130,7 +130,8 @@ def test_the_default_back_is_preferred(tmp_path, qapp):
 
 
 def test_the_house_back_is_drawn_once_per_size(qapp):
-    from tarot_canvas.ui.canvas.backs import HOUSE_FILL, house_back
+    from tarot_canvas.ui.canvas.backs import house_back
+    from tarot_canvas.ui.house_back import HOUSE_FILL
 
     first = house_back(QSize(61, 101))
     assert house_back(QSize(61, 101)).cacheKey() == first.cacheKey()

@@ -1,15 +1,9 @@
-from functools import cache, lru_cache
-from importlib.resources import files
+from functools import lru_cache
 
-from PyQt6.QtCore import QPointF, QRectF, QSize, Qt
-from PyQt6.QtGui import QColor, QImage, QPainter, QPen, QPixmap
+from PyQt6.QtCore import QSize, Qt
+from PyQt6.QtGui import QPainter, QPixmap
 
-HOUSE_FILL = QColor(58, 36, 48)
-HOUSE_EDGE = QColor(140, 112, 80)
-HOUSE_EDGE_PX = 3.0
-HOUSE_RADIUS = 0.05  # of the card's width
-HOUSE_ICON_WIDTH = 0.42  # of the card's width
-HOUSE_ICON_ALPHA = 0.45
+from tarot_canvas.ui.house_back import HOUSE_EDGE_PX, paint_house_back
 
 
 def back_path(deck):
@@ -22,49 +16,13 @@ def back_path(deck):
     return next(iter(backs.values()), None)
 
 
-@cache
-def _icon():
-    return QImage(str(files("tarot_canvas.resources.icons").joinpath("icon.png")))
-
-
-def _brass_icon(side):
-    """The icon at side, as brass where it is light and clear where it is dark"""
-    icon = _icon().scaled(
-        side,
-        side,
-        Qt.AspectRatioMode.KeepAspectRatio,
-        Qt.TransformationMode.SmoothTransformation,
-    )
-    tone = QImage(icon.size(), QImage.Format.Format_ARGB32_Premultiplied)
-    tone.fill(QColor(0, 0, 0))
-    under = QPainter(tone)
-    under.drawImage(0, 0, icon)
-    under.end()
-    brass = QImage(icon.size(), QImage.Format.Format_ARGB32_Premultiplied)
-    brass.fill(HOUSE_EDGE)
-    brass.setAlphaChannel(tone.convertToFormat(QImage.Format.Format_Grayscale8))
-    return brass
-
-
 @lru_cache(maxsize=16)
 def _house_back(w, h):
     """Our custom plum card back"""
     pixmap = QPixmap(w, h)
     pixmap.fill(Qt.GlobalColor.transparent)
     painter = QPainter(pixmap)
-    painter.setRenderHints(
-        QPainter.RenderHint.Antialiasing | QPainter.RenderHint.SmoothPixmapTransform
-    )
-    inset = HOUSE_EDGE_PX / 2.0
-    radius = w * HOUSE_RADIUS
-    painter.setBrush(HOUSE_FILL)
-    painter.setPen(QPen(HOUSE_EDGE, HOUSE_EDGE_PX))
-    painter.drawRoundedRect(QRectF(inset, inset, w - 2 * inset, h - 2 * inset), radius, radius)
-
-    if not _icon().isNull():
-        icon = _brass_icon(round(w * HOUSE_ICON_WIDTH))
-        painter.setOpacity(HOUSE_ICON_ALPHA)
-        painter.drawImage(QPointF((w - icon.width()) / 2.0, (h - icon.height()) / 2.0), icon)
+    paint_house_back(painter, w, h, HOUSE_EDGE_PX)
     painter.end()
     return pixmap
 

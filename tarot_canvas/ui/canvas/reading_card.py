@@ -9,9 +9,9 @@ from PyQt6.QtCore import QPointF, QRectF, Qt
 from PyQt6.QtGui import QColor, QPainter, QPen, QPixmap
 from PyQt6.QtWidgets import QGraphicsItem
 
-from tarot_canvas.ui.canvas.backs import HOUSE_EDGE_PX, HOUSE_RADIUS
 from tarot_canvas.ui.canvas.card_item import DraggableCardItem
 from tarot_canvas.ui.canvas.motion import TICK_MS, MotionChannels
+from tarot_canvas.ui.house_back import HOUSE_EDGE_PX, HOUSE_RADIUS
 
 TURN_S = 0.5
 # How far a card lifts as it is turned over
