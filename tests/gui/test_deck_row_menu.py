@@ -174,7 +174,7 @@ def test_a_ghost_has_no_menu(ghost_library):  # noqa: F811
 
     assert page.row_menu(ghost) is None
     page.list_view.setCurrentIndex(ghost)
-    assert page.details_pane.menu_button is None
+    assert not page.details_pane.menu_button.isVisibleTo(page.details_pane)
 
 
 def test_the_menu_key_opens_the_current_covers_menu(library_tab, decks, monkeypatch):
