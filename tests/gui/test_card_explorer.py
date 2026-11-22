@@ -156,3 +156,52 @@ def test_decks_changed_repopulates_the_deck_selector(
     items = [explorer.deck_selector.itemText(i) for i in range(explorer.deck_selector.count())]
     assert items == ["Minimal Test Deck", "Second Deck"]
     assert explorer.deck_selector.currentText() == "Minimal Test Deck"
+
+
+def test_decks_changed_keeps_the_deck_by_folder_and_what_is_collapsed(
+    qtbot, stub_deck_library, other_deck
+):
+    from tarot_canvas.models.deck_events import deck_events
+
+    explorer = panel(qtbot)
+    explorer.deck_selector.setCurrentIndex(1)  # named as the first is
+    explorer.tree_view.collapse(explorer.model.index(0, 0))
+
+    deck_events().decks_changed.emit()
+
+    assert explorer.current_deck is other_deck
+    assert explorer.deck_selector.currentIndex() == 1
+    assert not explorer.tree_view.isExpanded(explorer.model.index(0, 0))
+
+
+def test_a_reloaded_deck_rebuilds_the_tree(qtbot, stub_deck_library, other_deck, minimal_deck):
+    from tarot_canvas.models.arcana_backend import load_deck
+    from tarot_canvas.models.deck_events import deck_events
+
+    explorer = panel(qtbot)
+    explorer.deck_selector.setCurrentIndex(1)
+    reloaded = load_deck(str(other_deck.root_path))
+    stub_deck_library.decks = lambda: [minimal_deck, reloaded]
+
+    deck_events().decks_changed.emit()
+
+    assert explorer.current_deck is reloaded
+    assert explorer.model.index(0, 0).data(Qt.ItemDataRole.UserRole)["deck"] is reloaded
+
+
+def test_the_chosen_deck_going_leaves_the_first_and_none_leaves_nothing(
+    qtbot, stub_deck_library, other_deck, minimal_deck
+):
+    from tarot_canvas.models.deck_events import deck_events
+
+    explorer = panel(qtbot)
+    explorer.deck_selector.setCurrentIndex(1)
+
+    stub_deck_library.decks = lambda: [minimal_deck]
+    deck_events().decks_changed.emit()
+    assert explorer.current_deck is minimal_deck
+
+    stub_deck_library.decks = lambda: []
+    deck_events().decks_changed.emit()
+    assert explorer.current_deck is None
+    assert explorer.model.rowCount() == 0

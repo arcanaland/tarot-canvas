@@ -9,8 +9,16 @@ from tarot_canvas.models.deck_writer import BACK
 from tarot_canvas.settings import get_recent_decks
 from tarot_canvas.ui.catalog.client import deck_catalog
 from tarot_canvas.ui.catalog.downloads import DeckState, deck_downloads
-from tarot_canvas.ui.library.roles import SORT_COUNT, SORT_NAME, CoverPathRole, SubtitleRole
-from tarot_canvas.ui.strings import DECK_VIEW, LIBRARY, failure_text
+from tarot_canvas.ui.library.roles import (
+    SORT_COUNT,
+    SORT_NAME,
+    CoverPathRole,
+    DimmedRole,
+    PinnedRole,
+    SubtitleRole,
+    ToggleRole,
+)
+from tarot_canvas.ui.strings import DECK_VIEW, LIBRARY, SPREADS, failure_text
 
 DeckRole = Qt.ItemDataRole.UserRole + 1
 AuthorRole = Qt.ItemDataRole.UserRole + 4
@@ -21,6 +29,10 @@ StateRole = Qt.ItemDataRole.UserRole + 8
 ProgressRole = Qt.ItemDataRole.UserRole + 9
 EntryRole = Qt.ItemDataRole.UserRole + 10
 HandmadeRole = Qt.ItemDataRole.UserRole + 11  # made in this app
+DeckHiddenRole = Qt.ItemDataRole.UserRole + 12
+
+# The grid's order, under every sort
+PINNED_BUCKET, INSTALLED_BUCKET, TOGGLE_BUCKET, GHOST_BUCKET = range(4)
 
 SORT_AUTHOR = "author"
 SORT_RECENT = "recent"
@@ -86,17 +98,32 @@ def deck_subtitle(deck, abbreviated=False, handmade=False):
 
 
 class DeckListModel(QAbstractListModel):
-    """Installed decks, then a ghost row per catalog entry no installed deck matches."""
+    """Installed decks, the hidden ones' toggle, then a ghost row per catalog entry
+    no installed deck matches."""
 
     def __init__(self, decks=None, parent=None, entries=None):
         super().__init__(parent)
+        self._show_hidden = False  # for this session: Show isn't remembered
         self._entries = list(entries or [])
         self._take_decks(decks)
 
     def _take_decks(self, decks):
         self._decks = list(decks or [])
         self._handmade = [library_curation.is_handmade(deck.root_path) for deck in self._decks]
+        pins, hides = library_curation.deck_pins(), library_curation.deck_hides()
+        self._pinned = [deck.metadata.identifier in pins for deck in self._decks]
+        self._hidden = [deck.metadata.identifier in hides for deck in self._decks]
+        self._hidden_count = sum(self._hidden)
         self._ghosts = available_entries(self._entries, self._decks)
+
+    def shows_hidden(self):
+        return self._show_hidden
+
+    def toggle_hidden(self):
+        # A reset, so the activation that follows a click finds no row to toggle back
+        self.beginResetModel()
+        self._show_hidden = not self._show_hidden
+        self.endResetModel()
 
     def set_decks(self, decks):
         self.beginResetModel()
@@ -120,20 +147,34 @@ class DeckListModel(QAbstractListModel):
     def _ghosts_changed(self, matches):
         for offset, entry in enumerate(self._ghosts):
             if matches(entry):
-                index = self.index(len(self._decks) + offset, 0)
+                index = self.index(self._first_ghost() + offset, 0)
                 self.dataChanged.emit(index, index)
+
+    def _first_ghost(self):
+        return len(self._decks) + (1 if self._hidden_count else 0)
 
     def rowCount(self, parent=None):
         if parent is not None and parent.isValid():
             return 0
-        return len(self._decks) + len(self._ghosts)
+        return self._first_ghost() + len(self._ghosts)
+
+    def flags(self, index):
+        if index.isValid() and self._is_toggle(index.row()):
+            # Clicked or Entered, never selected
+            return Qt.ItemFlag.ItemIsEnabled
+        return super().flags(index)
+
+    def _is_toggle(self, row):
+        return len(self._decks) <= row < self._first_ghost()
 
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
         if not index.isValid() or not 0 <= index.row() < self.rowCount():
             return None
 
-        if index.row() >= len(self._decks):
-            return self._ghost_data(self._ghosts[index.row() - len(self._decks)], role)
+        if self._is_toggle(index.row()):
+            return self._toggle_data(role)
+        if index.row() >= self._first_ghost():
+            return self._ghost_data(self._ghosts[index.row() - self._first_ghost()], role)
 
         deck = self._decks[index.row()]
         handmade = self._handmade[index.row()]
@@ -163,6 +204,18 @@ class DeckListModel(QAbstractListModel):
             return DeckState.INSTALLED
         if role == HandmadeRole:
             return handmade
+        if role == PinnedRole:
+            return self._pinned[index.row()]
+        if role in (DeckHiddenRole, DimmedRole):
+            return self._hidden[index.row()]
+        return None
+
+    def _toggle_data(self, role):
+        if role == ToggleRole:
+            return True
+        if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.AccessibleTextRole):
+            key = "hidden_collapse" if self._show_hidden else "hidden_show"
+            return SPREADS[key].format(count=self._hidden_count)
         return None
 
     @staticmethod
@@ -195,7 +248,7 @@ class DeckListModel(QAbstractListModel):
 
 
 class DeckFilterProxyModel(QSortFilterProxyModel):
-    """Case-insensitive search over name and author."""
+    """Case-insensitive search over name and author, which also finds hidden decks."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -226,8 +279,18 @@ class DeckFilterProxyModel(QSortFilterProxyModel):
             self._recent = get_recent_decks()
             self.invalidate()
 
+    def filterAcceptsRow(self, row, parent):
+        model = self.sourceModel()
+        index = model.index(row, 0, parent)
+        searching = bool(self.filterRegularExpression().pattern())
+        if index.data(ToggleRole):
+            return not searching
+        if not searching and index.data(DeckHiddenRole) and not model.shows_hidden():
+            return False
+        return super().filterAcceptsRow(row, parent)
+
     def lessThan(self, left, right):
-        # make sure ghost decks are at the end
+        # the buckets keep their order, whichever way the sort runs
         left_bucket, right_bucket = self._bucket(left), self._bucket(right)
         if left_bucket != right_bucket:
             if self.sort_order() == Qt.SortOrder.DescendingOrder:
@@ -253,7 +316,11 @@ class DeckFilterProxyModel(QSortFilterProxyModel):
         return self._name_of(left) < self._name_of(right)
 
     def _bucket(self, index):
-        return 0 if self.sourceModel().data(index, EntryRole) is None else 1
+        if index.data(EntryRole) is not None:
+            return GHOST_BUCKET
+        if index.data(ToggleRole):
+            return TOGGLE_BUCKET
+        return PINNED_BUCKET if index.data(PinnedRole) else INSTALLED_BUCKET
 
     def _compare_with_name_tiebreak(self, left_value, right_value, left, right):
         if left_value == right_value:

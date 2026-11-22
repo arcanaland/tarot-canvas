@@ -745,6 +745,8 @@ LIBRARY = {
     "cancel": "Cancel",
     "try_again": "Try Again",
     "deck_menu_tooltip": "Manage deck",
+    "hide_deck": "Hide",
+    "unhide_deck": "Unhide",
     "remove_deck": "Remove from Library",
     "deck_removed": "Removed {name} from your library.",
     "deck_remove_failed": "Could not delete the deck.",

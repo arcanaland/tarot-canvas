@@ -9,7 +9,14 @@ from tarot_canvas.ui.catalog.downloads import DeckState
 from tarot_canvas.ui.covers.cache import CoverCache
 from tarot_canvas.ui.covers.ghost import paint_emblem, paint_ghost_cover, paint_placeholder_well
 from tarot_canvas.ui.library.decks.model import HandmadeRole, ProgressRole, StateRole
-from tarot_canvas.ui.library.roles import SELECTED_SUBTITLE_ALPHA, CoverPathRole, SubtitleRole
+from tarot_canvas.ui.library.roles import (
+    SELECTED_SUBTITLE_ALPHA,
+    CoverPathRole,
+    DimmedRole,
+    SubtitleRole,
+)
+from tarot_canvas.ui.library.row_delegate import DIMMED_OPACITY
+from tarot_canvas.ui.library.section_row import is_toggle, paint_toggle
 
 HOVER_ALPHA = 38  # ~15% Highlight behind a hovered cell
 
@@ -86,6 +93,9 @@ class DeckDelegate(QStyledItemDelegate):
     # -- painting ---------------------------------------------------------
 
     def paint(self, painter, option, index):
+        if is_toggle(index):
+            paint_toggle(painter, option, index, Qt.AlignmentFlag.AlignHCenter)
+            return
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
@@ -94,6 +104,9 @@ class DeckDelegate(QStyledItemDelegate):
         hovered = bool(option.state & QStyle.StateFlag.State_MouseOver)
 
         self._paint_background(painter, option, palette, selected, hovered)
+        # Not the highlight: its white title can't be read on a faded one
+        if index.data(DimmedRole):
+            painter.setOpacity(DIMMED_OPACITY)
 
         layout = self._layout(option)
         self._paint_cover(painter, layout.cover, palette, index, selected)

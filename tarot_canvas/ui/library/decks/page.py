@@ -1,6 +1,7 @@
 import logging
 import os
 from contextlib import contextmanager
+from pathlib import Path
 
 from PyQt6.QtCore import QItemSelectionModel, QSize, Qt, QUrl, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QDesktopServices
@@ -27,13 +28,16 @@ from tarot_canvas.ui.library.decks.model import (
     SORT_AUTHOR,
     SORT_RECENT,
     DeckFilterProxyModel,
+    DeckHiddenRole,
     DeckListModel,
+    DeckPathRole,
     DeckRole,
     EntryRole,
 )
 from tarot_canvas.ui.library.decks.row_menu import deck_row_menu, fill_deck_menu
 from tarot_canvas.ui.library.deletable_page import DeletableListPage
 from tarot_canvas.ui.library.roles import SORT_COUNT, SORT_NAME
+from tarot_canvas.ui.library.section_row import is_toggle
 from tarot_canvas.ui.strings import LIBRARY, SPREADS
 
 log = logging.getLogger(__name__)
@@ -84,6 +88,7 @@ class DecksPage(DeletableListPage):
         self.decks_model = decks_model
         self.decks_model.setParent(self)
         self._programmatic = 0  # nesting depth of selection the user didn't make
+        self._removed = {}  # identifier by folder: a final Remove has no deck.toml left to read
 
         self.details_pane.open_requested.connect(self.open_deck)
         self.details_pane.download_requested.connect(self._start_download)
@@ -214,6 +219,7 @@ class DecksPage(DeletableListPage):
         text = self._texts["deleted"].format(name=deck.metadata.name)
         if not self.delete(deck.root_path, text):
             return
+        self._removed[Path(deck.root_path)] = deck.metadata.identifier
         # The pane would go on offering a deck that is no longer there
         shown_deck = shown.deck if shown is not None else None
         if (
@@ -224,7 +230,7 @@ class DecksPage(DeletableListPage):
             self._select_near(row)
 
     def _forget(self, path):
-        curation.forget_deck(path)
+        curation.forget_deck(path, self._removed.pop(path, None))
 
     def _row_of(self, deck_path):
         for row in range(self.list_model.rowCount()):
@@ -233,11 +239,19 @@ class DecksPage(DeletableListPage):
         return None
 
     def _select_near(self, row):
-        """The cover that took a removed one's place, or the last"""
+        """The cover that took a gone one's place, or the last"""
         count = self.list_model.rowCount()
-        if count:
-            with self._programmatic_selection():
-                self._select_index(self.list_model.index(min(row, count - 1), 0))
+        for near in (*range(row, count), *reversed(range(min(row, count)))):
+            index = self.list_model.index(near, 0)
+            if not is_toggle(index):
+                with self._programmatic_selection():
+                    self._select_index(index)
+                return
+
+    def toggle_hidden(self):
+        """Show or put away the hidden decks"""
+        with self._selection_kept():
+            self.decks_model.toggle_hidden()
 
     def _start_download(self, entry):
         deck_downloads().start(entry)
@@ -260,14 +274,14 @@ class DecksPage(DeletableListPage):
     # -- what a page fills in -----------------------------------------------
 
     def _details_for(self, index):
-        return details_for(index)
-
-    def _show(self, details):
-        # A deck's row always has details, so the pane always follows it
-        self.details_pane.show_details(details)
-        self.details_changed.emit()
+        return None if is_toggle(index) else details_for(index)
 
     def _on_activated(self, index):
+        if is_toggle(index):
+            # Where a click activates, a right or middle one does too: only a left one toggles
+            if not self._pointer_on(index):
+                self.toggle_hidden()
+            return
         deck = index.data(DeckRole)
         if deck is not None:
             self.open_deck(deck)
@@ -278,7 +292,10 @@ class DecksPage(DeletableListPage):
             self.details_requested.emit()
             self.details_pane.focus_action()
 
-    def _on_clicked(self, _index):
+    def _on_clicked(self, index):
+        if is_toggle(index):
+            self.toggle_hidden()
+            return
         self.row_chosen.emit()
 
     def _on_current_changed(self, current, _previous):
@@ -348,10 +365,19 @@ class DecksPage(DeletableListPage):
         current = self.list_view.currentIndex()
         deck = current.data(DeckRole) if current.isValid() else None
         entry = current.data(EntryRole) if current.isValid() else None
+        on_toggle = is_toggle(current)
+        row = current.row()
+        above = [self.list_model.index(i, 0).data(DeckPathRole) for i in range(row)]
         with self._programmatic_selection():
             yield
             if deck is not None:
-                self.select_deck_path(deck.root_path)
+                if not self.select_deck_path(deck.root_path) and self._is_hidden(deck.root_path):
+                    # Less those above hidden with it, as a shared identifier does
+                    gone = sum(1 for path in above if path and self._row_of(path) is None)
+                    self._select_near(row - gone)
+            elif on_toggle:
+                # Current for the keyboard, but never selected
+                self._select_first(is_toggle, QItemSelectionModel.SelectionFlag.NoUpdate)
             elif entry is not None and not self._select_first(_is_ghost_of(entry)):
                 self._select_first(_is_installed_copy_of(entry))
         self._update_empty_state()
@@ -364,14 +390,16 @@ class DecksPage(DeletableListPage):
         finally:
             self._programmatic -= 1
 
-    def _select_first(self, matches):
+    def _is_hidden(self, deck_path):
+        index = self._source_row(_is_deck_at(deck_path))
+        return index is not None and bool(index.data(DeckHiddenRole))
+
+    def _select_first(self, matches, flag=QItemSelectionModel.SelectionFlag.ClearAndSelect):
         for row in range(self.list_model.rowCount()):
             index = self.list_model.index(row, 0)
             if matches(index):
                 with self._programmatic_selection():
-                    self.list_view.selectionModel().setCurrentIndex(
-                        index, QItemSelectionModel.SelectionFlag.ClearAndSelect
-                    )
+                    self.list_view.selectionModel().setCurrentIndex(index, flag)
                 return True
         return False
 

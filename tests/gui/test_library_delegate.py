@@ -3,6 +3,7 @@ from PyQt6.QtCore import QRect, QSize, Qt
 from PyQt6.QtGui import QColor, QIcon, QImage, QPainter, QPalette
 from PyQt6.QtWidgets import QStyle, QStyleOptionViewItem
 
+from tarot_canvas.models import library_curation as curation
 from tarot_canvas.models.deck_types import Card, CardImage, CardKind
 from tarot_canvas.ui import units
 from tarot_canvas.ui.catalog.client import deck_catalog
@@ -168,6 +169,54 @@ def model_with_cover(tmp_path, colour="red"):
     pip = Card(canonical_id="minor_arcana.cups.ace", kind=CardKind.MINOR, display_name="Ace")
     deck.cards_of_kind = lambda kind: [fool] if kind is CardKind.MAJOR else [pip] * 56
     return DeckListModel([deck])
+
+
+def test_a_hidden_deck_is_painted_dimmed(qapp, tmp_path):
+    delegate = DeckDelegate()
+    model = model_with_cover(tmp_path)
+
+    def strongest():
+        image = render(delegate, qapp, model.index(0, 0), qapp.palette())
+        return max(QColor.fromRgba(pixel).alphaF() for pixel in colours_in(image))
+
+    assert strongest() > 0.95
+    model._hidden = [True]
+    assert strongest() < 0.6
+
+
+def test_a_selected_hidden_decks_highlight_is_not_dimmed(qapp, tmp_path):
+    delegate = DeckDelegate()
+    model = model_with_cover(tmp_path)
+    model._hidden = [True]
+    palette = QPalette(qapp.palette())
+    palette.setColor(QPalette.ColorRole.Highlight, QColor("#3daee9"))
+    state = QStyle.StateFlag.State_Enabled | QStyle.StateFlag.State_Selected
+
+    image = render(delegate, qapp, model.index(0, 0), palette, state)
+
+    assert QColor("#3daee9").rgba() in colours_in(image)
+
+
+def test_the_toggle_paints_text_centred_and_no_cover(qapp, monkeypatch):
+    deck = fake_deck("Away", images=False, identifier="x/deck/away")
+    curation.set_deck_hidden("x/deck/away", True)
+    delegate = DeckDelegate()
+    model = DeckListModel([deck])
+    covers = []
+    monkeypatch.setattr(delegate, "_paint_cover", lambda *args: covers.append(args))
+
+    image = render(delegate, qapp, model.index(1, 0), qapp.palette())
+
+    inked = [
+        (x, y)
+        for x in range(image.width())
+        for y in range(image.height())
+        if image.pixelColor(x, y).alpha()
+    ]
+    xs, ys = zip(*inked, strict=True)
+    assert covers == []
+    assert abs((min(xs) + max(xs)) / 2 - image.width() / 2) < 5
+    assert abs((min(ys) + max(ys)) / 2 - image.height() / 2) < 6
 
 
 def test_selection_is_painted_in_the_palette_highlight(qapp, tmp_path):

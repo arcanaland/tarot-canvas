@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 
 from tarot_canvas.models import spreads
+from tarot_canvas.models.deck_events import deck_events
 from tarot_canvas.models.esoterica_events import esoterica_events
 from tarot_canvas.models.reading_events import reading_events
 from tarot_canvas.models.spread_events import spread_events
@@ -227,9 +228,54 @@ def add_handmade_deck(path):
     update(DECKS, add=[(HANDMADE, deck_key(path))])
 
 
-def forget_deck(path):
-    """A deck removed through the app takes what is kept about it with it"""
-    update(DECKS, remove=[(HANDMADE, deck_key(path))])
+def deck_pins():
+    """The identifiers of the pinned decks"""
+    return set(keys(DECKS, PINNED))
+
+
+def deck_hides():
+    """The identifiers of the hidden decks; pinned wins over a hand-edit that also hides"""
+    return set(keys(DECKS, HIDDEN)) - deck_pins()
+
+
+def set_deck_pinned(identifier, pinned):
+    """Pinning a hidden deck unhides it"""
+    if not identifier:
+        log.error("Refusing to pin or unpin a deck without an identifier")
+        return
+    if pinned:
+        changed = update(DECKS, add=[(PINNED, identifier)], remove=[(HIDDEN, identifier)])
+    else:
+        changed = update(DECKS, remove=[(PINNED, identifier)])
+    if changed:
+        deck_events().decks_changed.emit()
+
+
+def set_deck_hidden(identifier, hidden):
+    """Hiding a pinned deck unpins it"""
+    if not identifier:
+        log.error("Refusing to hide or unhide a deck without an identifier")
+        return
+    if hidden:
+        changed = update(DECKS, add=[(HIDDEN, identifier)], remove=[(PINNED, identifier)])
+    else:
+        changed = update(DECKS, remove=[(HIDDEN, identifier)])
+    if changed:
+        deck_events().decks_changed.emit()
+
+
+def forget_deck(path, identifier=None):
+    """A deck removed through the app takes what is kept about it with it
+
+    Its pin and hide stay while another deck has the identifier.
+    """
+    # Importing the library scans the disk, and esoterica imports this module
+    from tarot_canvas.models.deck_library import deck_library
+
+    forgotten = [(HANDMADE, deck_key(path))]
+    if identifier and not deck_library.find_by_identifier(identifier):
+        forgotten += [(PINNED, identifier), (HIDDEN, identifier)]
+    update(DECKS, remove=forgotten)
 
 
 # -- esoterica ----------------------------------------------------------------------------

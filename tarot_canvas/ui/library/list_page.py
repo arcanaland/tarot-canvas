@@ -1,4 +1,5 @@
 from PyQt6.QtCore import QItemSelectionModel, Qt, pyqtSignal
+from PyQt6.QtGui import QCursor
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QFrame,
@@ -93,6 +94,10 @@ class LibraryListPage(QWidget):
 
     def _on_activated(self, index):
         raise NotImplementedError
+
+    def _pointer_on(self, index):
+        view = self.list_view
+        return view.indexAt(view.viewport().mapFromGlobal(QCursor.pos())) == index
 
     # -- selection --------------------------------------------------------
 

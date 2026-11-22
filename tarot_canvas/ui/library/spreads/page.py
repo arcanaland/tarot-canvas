@@ -1,7 +1,7 @@
 import logging
 
 from PyQt6.QtCore import Qt, pyqtSignal, pyqtSlot
-from PyQt6.QtGui import QCursor, QIcon
+from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QMenu
 
 from tarot_canvas.models import library_curation as curation
@@ -151,10 +151,6 @@ class SpreadsPage(DeletableListPage):
         if self._details_for(index) is not None:
             self._show_details(index)
             self.details_requested.emit()
-
-    def _pointer_on(self, index):
-        view = self.list_view
-        return view.indexAt(view.viewport().mapFromGlobal(QCursor.pos())) == index
 
     def _on_pressed(self, _index):
         self._button_click = False

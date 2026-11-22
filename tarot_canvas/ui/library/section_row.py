@@ -51,7 +51,7 @@ def toggle_size_hint():
     )
 
 
-def paint_toggle(painter, option, index):
+def paint_toggle(painter, option, index, alignment=Qt.AlignmentFlag.AlignLeft):
     """A quiet row of small text that acts when clicked, as a link would"""
     painter.save()
     font = typography.font(typography.Role.SMALL)
@@ -63,7 +63,7 @@ def paint_toggle(painter, option, index):
     painter.setPen(option.palette.placeholderText().color())
     painter.drawText(
         rect,
-        int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter),
+        int(alignment | Qt.AlignmentFlag.AlignVCenter),
         QFontMetrics(font).elidedText(
             index.data(Qt.ItemDataRole.DisplayRole) or "", Qt.TextElideMode.ElideRight, rect.width()
         ),
