@@ -261,10 +261,7 @@ def _shelf(identifier, pins, hides):
 
 
 class DeckFilterProxyModel(QSortFilterProxyModel):
-    """The shelves in order, each sorted under its heading, Hidden folded until it's opened.
-
-    Search is case-insensitive over name and author, and looks inside Hidden.
-    """
+    """Search is case-insensitive over name and author."""
 
     def __init__(self, parent=None):
         super().__init__(parent)

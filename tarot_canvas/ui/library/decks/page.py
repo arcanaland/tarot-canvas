@@ -52,7 +52,7 @@ SORT_CHOICES = [
 
 
 class DecksPage(DeletableListPage):
-    """Covers on shelves: the installed decks, the catalog's not yet installed, then the hidden"""
+    """The installed deck shelf, then the available deck shelf, then hidden decks"""
 
     DETAILS_BESIDE = True
     LIST_VIEW = DeckGrid

@@ -1,4 +1,4 @@
-"""The decks' covers on their shelves"""
+"""A grid of tarot decks cover on a shelf"""
 
 from PyQt6.QtCore import QItemSelectionModel, Qt, pyqtSignal
 from PyQt6.QtWidgets import QAbstractItemView
@@ -8,9 +8,7 @@ from tarot_canvas.ui.widgets.heading_grid import HeadingGrid
 
 
 class DeckGrid(HeadingGrid):
-    """Clicking a heading leaves the selection and the current cover alone"""
-
-    heading_clicked = pyqtSignal()  # one that folds
+    heading_clicked = pyqtSignal()  # for foldable sections
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -26,7 +24,6 @@ class DeckGrid(HeadingGrid):
         return super().selectionCommand(index, event)
 
     def scrollTo(self, index, hint=QAbstractItemView.ScrollHint.EnsureVisible):
-        """A cover on its shelf's first line brings the heading along"""
         super().scrollTo(index, hint)
         cover = self.visualRect(index)
         for row in reversed(range(index.row())):
