@@ -2,6 +2,11 @@ dbus := if env('DBUS_SESSION_BUS_ADDRESS', '') == '' { 'dbus-run-session --' } e
 
 flathub_repo := 'flathub/land.arcana.TarotCanvas'
 
+# What the prod profile shows of the release app's data, read-only
+prod_linked := 'tarot/decks tarot/esoterica tarot-canvas/notes tarot-canvas/readings tarot-canvas/spreads'
+# What it copies, since the app replaces these, deletes from them or crashes on them read-only
+prod_copied := 'tarot-canvas/library.toml tarot-canvas/backgrounds tarot-canvas/reference-decks'
+
 # What devel-install last installed: its inputs' fingerprint and the installed commit
 devel_stamp := env('XDG_CACHE_HOME', home_dir() / '.cache') / 'tarot-canvas' / 'devel-installed'
 
@@ -201,6 +206,51 @@ devel-pristine WHAT="all": (fresh-what WHAT) devel-ensure (devel-in "pristine" W
 # Build, install and run the dev build in a profile of its own, made empty if new
 devel-as NAME: devel-ensure (devel-in NAME "all")
 
+# Build, install and run the dev build on the release app's library, read-only
+devel-prod: (devel-as "prod")
+
+# As devel-prod, but with its settings and other copies taken from the release app again
+devel-prod-fresh: devel-ensure (devel-in "prod" "all" "wipe")
+
+# Create what the prod profile lacks, leaving its copies as they are
+[private]
+devel-prod-profile:
+  #!/bin/bash
+  set -euo pipefail
+
+  release=~/.var/app/land.arcana.TarotCanvas
+  profile=~/.var/app/land.arcana.TarotCanvas.Devel/profiles/prod
+  if [ ! -d "${release}/data/tarot-canvas" ]; then
+    echo "No release app data to show: ${release}/data/tarot-canvas" >&2
+    exit 1
+  fi
+  mkdir -p "${profile}/config/ArcanaLand" "${profile}/data/tarot" "${profile}/data/tarot-canvas"
+
+  for dir in {{prod_linked}}; do
+    from="${release}/data/${dir}" to="${profile}/data/${dir}"
+    # Never with a trailing slash, which would follow the link
+    if [ -L "${to}" ]; then rm "${to}"; fi
+    [ -d "${from}" ] || continue
+    if [ -e "${to}" ]; then
+      echo "In the way of a link: ${to}; just devel-prod-fresh replaces the profile" >&2
+      exit 1
+    fi
+    ln -s "${from}" "${to}"
+  done
+
+  for item in {{prod_copied}}; do
+    from="${release}/data/${item}" to="${profile}/data/${item}"
+    if [ -e "${from}" ] && [ ! -e "${to}" ]; then
+      cp -a --reflink=auto "${from}" "${to}"
+    fi
+  done
+
+  # Recent decks and the readings' deck are stored by path
+  conf=ArcanaLand/TarotCanvas.conf
+  if [ -f "${release}/config/${conf}" ] && [ ! -e "${profile}/config/${conf}" ]; then
+    sed "s#${release}/data/#${profile}/data/#g" "${release}/config/${conf}" >"${profile}/config/${conf}"
+  fi
+
 # Copy the dev build's config, data and cache into a new profile for devel-as
 devel-snapshot NAME:
   #!/bin/bash
@@ -209,7 +259,7 @@ devel-snapshot NAME:
   root=~/.var/app/land.arcana.TarotCanvas.Devel
   profile="${root}/profiles/{{NAME}}"
   case "{{NAME}}" in
-    fresh | pristine | */* | .* | "") echo "Not a profile name: {{NAME}}" >&2; exit 1 ;;
+    fresh | pristine | prod | */* | .* | "") echo "Not a profile name: {{NAME}}" >&2; exit 1 ;;
   esac
   if [ -e "${profile}" ]; then
     echo "Profile {{NAME}} already exists: ${profile}" >&2
@@ -267,12 +317,22 @@ devel-in NAME WHAT WIPE="" SEED="":
     python3 -m zipfile -e "${zip}" "${decks}"
   fi
 
+  # Granted per run, so no other profile can see them; this :ro outranks a saved override
+  grants=()
+  if [ "{{NAME}}" = prod ]; then
+    {{just_executable()}} --justfile {{source_file()}} devel-prod-profile
+    for dir in {{prod_linked}}; do
+      link="${profile}/data/${dir}"
+      if [ -L "${link}" ]; then grants+=("--filesystem=$(readlink "${link}"):ro"); fi
+    done
+  fi
+
   exports=()
   for part in "${parts[@]}"; do
     exports+=("XDG_${part^^}_HOME=${profile}/${part}")
   done
   echo "Profile {{NAME}} (${parts[*]}): ${profile}"
-  flatpak run --command=sh "${app}//master" -c 'export "$@"; exec tarot-canvas' sh "${exports[@]}"
+  flatpak run "${grants[@]}" --command=sh "${app}//master" -c 'export "$@"; exec tarot-canvas' sh "${exports[@]}"
 
 # Uninstall dev build and delete its data
 devel-uninstall:
