@@ -1,8 +1,9 @@
 import logging
 import os
 from contextlib import contextmanager
+from pathlib import Path
 
-from PyQt6.QtCore import QItemSelectionModel, QSize, Qt, QUrl, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QItemSelectionModel, QModelIndex, QSize, Qt, QUrl, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QDesktopServices
 from PyQt6.QtWidgets import QAbstractItemView, QListView
 
@@ -23,17 +24,21 @@ from tarot_canvas.ui.catalog.downloads import deck_downloads
 from tarot_canvas.ui.library.decks.delegate import DeckDelegate
 from tarot_canvas.ui.library.decks.details import details_for
 from tarot_canvas.ui.library.decks.details_pane import DeckDetailsPane
+from tarot_canvas.ui.library.decks.grid import DeckGrid
 from tarot_canvas.ui.library.decks.model import (
+    HIDDEN_SHELF,
     SORT_AUTHOR,
     SORT_RECENT,
     DeckFilterProxyModel,
     DeckListModel,
     DeckRole,
     EntryRole,
+    ShelfRole,
 )
 from tarot_canvas.ui.library.decks.row_menu import deck_row_menu, fill_deck_menu
 from tarot_canvas.ui.library.deletable_page import DeletableListPage
 from tarot_canvas.ui.library.roles import SORT_COUNT, SORT_NAME
+from tarot_canvas.ui.library.section_row import is_section
 from tarot_canvas.ui.strings import LIBRARY, SPREADS
 
 log = logging.getLogger(__name__)
@@ -47,9 +52,10 @@ SORT_CHOICES = [
 
 
 class DecksPage(DeletableListPage):
-    """The installed decks, then the catalog's not yet installed, as a grid of covers"""
+    """The installed deck shelf, then the available deck shelf, then hidden decks"""
 
     DETAILS_BESIDE = True
+    LIST_VIEW = DeckGrid
 
     deck_selected = pyqtSignal(object)  # the Deck made current
     open_requested = pyqtSignal(object)  # the Deck to open in a tab
@@ -84,6 +90,7 @@ class DecksPage(DeletableListPage):
         self.decks_model = decks_model
         self.decks_model.setParent(self)
         self._programmatic = 0  # nesting depth of selection the user didn't make
+        self._removed = {}  # identifier by folder: a final Remove has no deck.toml left to read
 
         self.details_pane.open_requested.connect(self.open_deck)
         self.details_pane.download_requested.connect(self._start_download)
@@ -114,11 +121,12 @@ class DecksPage(DeletableListPage):
         view.setFlow(QListView.Flow.LeftToRight)
         view.setWrapping(True)
         view.setMovement(QListView.Movement.Static)
-        view.setUniformItemSizes(True)
+        view.setUniformItemSizes(False)  # for the headings
         view.setSpacing(units.LARGE_SPACING)
         view.setAlternatingRowColors(False)
         view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
         view.clicked.connect(self._on_clicked)
+        view.heading_clicked.connect(self.toggle_hidden)
         return view
 
     # -- what the library asks of a page ----------------------------------
@@ -145,6 +153,8 @@ class DecksPage(DeletableListPage):
     def set_search(self, text):
         self.list_model.setFilterFixedString(text)
         self._update_empty_state()
+        # A heading the search keeps may have changed its count or lost its arrow
+        self.list_view.viewport().update()
 
     def set_density(self, density):
         if self.row_delegate.set_density(density):
@@ -155,7 +165,7 @@ class DecksPage(DeletableListPage):
     # -- the decks --------------------------------------------------------
 
     def current_deck(self):
-        index = self.list_view.currentIndex()
+        index = self._cover_in_hand()
         return index.data(DeckRole) if index.isValid() else None
 
     def select_deck_path(self, deck_path):
@@ -211,20 +221,18 @@ class DecksPage(DeletableListPage):
                 main_window.tab_widget.setCurrentWidget(library)
         shown = self.details_pane.details()
         row = self._row_of(deck.root_path)
+        neighbours = self._neighbours(self.list_model.rowCount() if row is None else row)
         text = self._texts["deleted"].format(name=deck.metadata.name)
         if not self.delete(deck.root_path, text):
             return
+        self._removed[Path(deck.root_path)] = deck.metadata.identifier
         # The pane would go on offering a deck that is no longer there
         shown_deck = shown.deck if shown is not None else None
-        if (
-            row is not None
-            and shown_deck is not None
-            and _same_path(shown_deck.root_path, deck.root_path)
-        ):
-            self._select_near(row)
+        if shown_deck is not None and _same_path(shown_deck.root_path, deck.root_path):
+            self._select_neighbour(neighbours)
 
     def _forget(self, path):
-        curation.forget_deck(path)
+        curation.forget_deck(path, self._removed.pop(path, None))
 
     def _row_of(self, deck_path):
         for row in range(self.list_model.rowCount()):
@@ -232,12 +240,33 @@ class DecksPage(DeletableListPage):
                 return row
         return None
 
-    def _select_near(self, row):
-        """The cover that took a removed one's place, or the last"""
-        count = self.list_model.rowCount()
-        if count:
-            with self._programmatic_selection():
-                self._select_index(self.list_model.index(min(row, count - 1), 0))
+    def _neighbours(self, row):
+        """What finds each cover after row, nearest first, then each before it"""
+        found = []
+        for near in (*range(row + 1, self.list_model.rowCount()), *reversed(range(row))):
+            index = self.list_model.index(near, 0)
+            deck, entry = index.data(DeckRole), index.data(EntryRole)
+            if deck is not None:
+                found.append(_is_deck_at(deck.root_path))
+            elif entry is not None:
+                found.append(_is_ghost_of(entry))
+        return found
+
+    def _select_neighbour(self, neighbours):
+        """The first still in the grid. By cover, not row: headings come and go"""
+        return any(self._select_first(matches) for matches in neighbours)
+
+    @pyqtSlot()
+    def toggle_hidden(self):
+        """Open or fold Hidden"""
+        with self._programmatic_selection():
+            self.list_model.toggle_hidden()
+        for row in range(self.list_model.rowCount()):
+            index = self.list_model.index(row, 0)
+            if index.data(ShelfRole) == HIDDEN_SHELF and not is_section(index):
+                # It opens at the grid's end, often below the fold
+                self.list_view.scrollTo(index)
+                break
 
     def _start_download(self, entry):
         deck_downloads().start(entry)
@@ -260,14 +289,13 @@ class DecksPage(DeletableListPage):
     # -- what a page fills in -----------------------------------------------
 
     def _details_for(self, index):
-        return details_for(index)
-
-    def _show(self, details):
-        # A deck's row always has details, so the pane always follows it
-        self.details_pane.show_details(details)
-        self.details_changed.emit()
+        return None if is_section(index) else details_for(index)
 
     def _on_activated(self, index):
+        if is_section(index):
+            if _folds(index):
+                self.toggle_hidden()
+            return
         deck = index.data(DeckRole)
         if deck is not None:
             self.open_deck(deck)
@@ -343,17 +371,30 @@ class DecksPage(DeletableListPage):
 
     # -- selection --------------------------------------------------------
 
+    def _cover_in_hand(self):
+        """The current cover, or the selected one while a heading is current"""
+        current = self.list_view.currentIndex()
+        if not is_section(current):
+            return current
+        return next(iter(self.list_view.selectedIndexes()), QModelIndex())
+
     @contextmanager
     def _selection_kept(self):
-        current = self.list_view.currentIndex()
-        deck = current.data(DeckRole) if current.isValid() else None
-        entry = current.data(EntryRole) if current.isValid() else None
+        on_heading = is_section(self.list_view.currentIndex())
+        cover = self._cover_in_hand()
+        deck = cover.data(DeckRole) if cover.isValid() else None
+        entry = cover.data(EntryRole) if cover.isValid() else None
+        neighbours = self._neighbours(cover.row()) if deck is not None else []
         with self._programmatic_selection():
             yield
             if deck is not None:
-                self.select_deck_path(deck.root_path)
+                if not self.select_deck_path(deck.root_path) and self._is_hidden(deck.root_path):
+                    self._select_neighbour(neighbours)
             elif entry is not None and not self._select_first(_is_ghost_of(entry)):
                 self._select_first(_is_installed_copy_of(entry))
+            if on_heading:
+                # Current for the keyboard, but never selected
+                self._select_first(_folds, QItemSelectionModel.SelectionFlag.NoUpdate)
         self._update_empty_state()
 
     @contextmanager
@@ -364,20 +405,26 @@ class DecksPage(DeletableListPage):
         finally:
             self._programmatic -= 1
 
-    def _select_first(self, matches):
+    def _is_hidden(self, deck_path):
+        index = self._source_row(_is_deck_at(deck_path))
+        return index is not None and index.data(ShelfRole) == HIDDEN_SHELF
+
+    def _select_first(self, matches, flag=QItemSelectionModel.SelectionFlag.ClearAndSelect):
         for row in range(self.list_model.rowCount()):
             index = self.list_model.index(row, 0)
             if matches(index):
                 with self._programmatic_selection():
-                    self.list_view.selectionModel().setCurrentIndex(
-                        index, QItemSelectionModel.SelectionFlag.ClearAndSelect
-                    )
+                    self.list_view.selectionModel().setCurrentIndex(index, flag)
                 return True
         return False
 
 
 def _same_path(a, b):
     return os.fspath(a) == os.fspath(b)
+
+
+def _folds(index):
+    return is_section(index) and bool(index.flags() & Qt.ItemFlag.ItemIsEnabled)
 
 
 def _is_deck_at(deck_path):

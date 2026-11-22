@@ -17,6 +17,7 @@ class LibraryListPage(QWidget):
 
     # Where the details pane sits: below a list, beside a grid
     DETAILS_BESIDE = False
+    LIST_VIEW = QListView
 
     details_changed = pyqtSignal()
 
@@ -40,7 +41,7 @@ class LibraryListPage(QWidget):
         self.details_pane = details_pane
 
     def _build_list(self, delegate_class):
-        view = QListView()
+        view = self.LIST_VIEW()
         view.setModel(self.list_model)
         self.row_delegate = delegate_class(view)
         view.setItemDelegate(self.row_delegate)

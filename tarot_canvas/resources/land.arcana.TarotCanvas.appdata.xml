@@ -58,9 +58,13 @@
     </screenshot>
   </screenshots>
   <releases>
-    <release version="1.10.0" date="2026-11-22" type="development">
+    <release version="1.10.0" date="2026-11-22" type="stable">
       <description>
-        <p>This version allows users to create their own decks directly in the app.</p>
+        <p>This version allows users to create tarot decks directly in the app.</p>
+        <ul>
+          <li>Custom decks can be used in your readings and journal entries.</li>
+          <li>Export your deck as a .tarotdeck file to share with friends!</li>
+        </ul>
       </description>
     </release>
     <release version="1.9.1" date="2026-11-19" type="stable">

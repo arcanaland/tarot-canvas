@@ -49,7 +49,7 @@ def pane(qtbot):
 
 
 def buttons(pane):
-    return pane._actions.findChildren(QPushButton)
+    return [button for button in pane.findChildren(QPushButton) if button.isVisibleTo(pane)]
 
 
 @pytest.mark.parametrize(
@@ -59,8 +59,9 @@ def buttons(pane):
 def test_each_state_shows_exactly_its_action(pane, details, label):
     pane.show_details(details)
     assert [button.text() for button in buttons(pane)] == [label]
-    assert (pane.progress_bar is not None) == (details.state is DeckState.DOWNLOADING)
-    assert (pane.failure_label is not None) == (details.state is DeckState.FAILED)
+    assert pane.progress_bar.isVisibleTo(pane) == (details.state is DeckState.DOWNLOADING)
+    assert pane.failure_message.isVisibleTo(pane) == (details.state is DeckState.FAILED)
+    assert pane.menu_button.isVisibleTo(pane) == (details.state is DeckState.INSTALLED)
 
 
 @pytest.mark.parametrize(
@@ -134,7 +135,7 @@ def test_a_failure_shows_its_text(pane):
     assert pane.failure_label.text() == failure_text(FAILURE)
 
 
-def test_progress_moves_the_bar_without_a_rebuild(pane):
+def test_progress_moves_the_bar_under_the_same_cancel(pane):
     pane.show_details(DOWNLOADING)
     cancel = pane.action_button
     assert pane.progress_bar.value() == 10
@@ -144,14 +145,14 @@ def test_progress_moves_the_bar_without_a_rebuild(pane):
     assert pane.progress_bar.value() == 50
 
 
-def test_a_new_state_rebuilds_the_action(pane):
+def test_a_new_state_changes_the_action(pane):
     pane.show_details(AVAILABLE)
     download = pane.action_button
     pane.show_details(DOWNLOADING)
     assert pane.action_button is not download
 
 
-def test_the_action_keeps_focus_through_a_rebuild(pane, qtbot):
+def test_the_action_keeps_focus_through_each_state(pane, qtbot):
     # Only an active window's widgets report hasFocus
     with qtbot.waitActive(pane):
         pane.show()
@@ -160,8 +161,97 @@ def test_the_action_keeps_focus_through_a_rebuild(pane, qtbot):
     pane.focus_action()
     assert pane.action_button.hasFocus()
 
+    for details in (DOWNLOADING, FAILED, DOWNLOADING, INSTALLED, AVAILABLE):
+        pane.show_details(details)
+        assert pane.action_button.hasFocus(), details.state
+
+
+def test_a_new_state_takes_no_focus_it_did_not_have(pane, qtbot):
+    with qtbot.waitActive(pane):
+        pane.show()
+        pane.activateWindow()
     pane.show_details(DOWNLOADING)
-    assert pane.action_button.hasFocus()
+    pane.scroll_area.setFocus()
+
+    pane.show_details(INSTALLED)
+    assert pane.scroll_area.hasFocus()
+
+
+def top(widget, pane):
+    return widget.mapTo(pane, widget.rect().topLeft()).y()
+
+
+def test_it_reads_title_actions_description_then_metadata(pane, qtbot):
+    pane.resize(360, 900)
+    pane.show_details(INSTALLED)
+    with qtbot.waitExposed(pane):
+        pane.show()
+
+    order = [
+        pane.heading_label,
+        pane.artist_label,
+        pane.action_button,
+        pane.description_label,
+        pane.card_count_label,
+        pane.license_label,
+        pane.version_label,
+        pane.attribution_label,
+    ]
+    tops = [top(widget, pane) for widget in order]
+    assert tops == sorted(tops)
+
+
+def test_tab_goes_from_the_actions_to_what_scrolls(pane, qtbot):
+    pane.show_details(INSTALLED)
+    with qtbot.waitActive(pane):
+        pane.show()
+        pane.activateWindow()
+    pane.focus_action()
+
+    qtbot.keyClick(pane.action_button, Qt.Key.Key_Tab)
+    assert pane.menu_button.hasFocus()
+    qtbot.keyClick(pane.menu_button, Qt.Key.Key_Tab)
+    assert pane.scroll_area.hasFocus()
+
+
+@pytest.mark.parametrize("details", [DOWNLOADING, FAILED])
+def test_a_downloads_status_spans_the_pane_under_the_header(pane, qtbot, details):
+    pane.resize(360, 900)
+    pane.show_details(details)
+    with qtbot.waitExposed(pane):
+        pane.show()
+
+    assert top(pane.status, pane) >= pane.header.geometry().bottom()
+    assert pane.status.width() == pane.width()
+
+
+def test_cancel_is_not_where_download_was(pane, qtbot):
+    pane.resize(360, 900)
+    pane.show_details(AVAILABLE)
+    with qtbot.waitExposed(pane):
+        pane.show()
+    button = pane.download_button
+    clicked = button.rect().translated(button.mapTo(pane, button.rect().topLeft()))
+
+    pane.show_details(DOWNLOADING)
+    button = pane.cancel_button
+    qtbot.waitUntil(button.isVisible)
+    assert not clicked.intersects(
+        button.rect().translated(button.mapTo(pane, button.rect().topLeft()))
+    )
+
+
+def test_a_short_pane_never_squeezes_the_header(pane, qtbot):
+    pane.resize(288, 360)
+    long = "A deck with a very long name that wraps over several lines"
+    pane.show_details(replace(FAILED, name=long, artist=long))
+    with qtbot.waitExposed(pane):
+        pane.show()
+
+    labels = (pane.heading_label, pane.artist_label)
+    qtbot.waitUntil(
+        lambda: all(label.height() >= label.heightForWidth(label.width()) for label in labels)
+    )
 
 
 def window_text(label):

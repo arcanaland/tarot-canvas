@@ -1,8 +1,9 @@
 import pytest
-from PyQt6.QtCore import QRect, QSize, Qt
+from PyQt6.QtCore import QModelIndex, QRect, QSize, Qt
 from PyQt6.QtGui import QColor, QIcon, QImage, QPainter, QPalette
 from PyQt6.QtWidgets import QStyle, QStyleOptionViewItem
 
+from tarot_canvas.models import library_curation as curation
 from tarot_canvas.models.deck_types import Card, CardImage, CardKind
 from tarot_canvas.ui import units
 from tarot_canvas.ui.catalog.client import deck_catalog
@@ -10,7 +11,7 @@ from tarot_canvas.ui.catalog.downloads import deck_downloads
 from tarot_canvas.ui.covers.cache import CoverCache
 from tarot_canvas.ui.library.decks import delegate as deck_delegate
 from tarot_canvas.ui.library.decks.delegate import DeckDelegate
-from tarot_canvas.ui.library.decks.model import DeckListModel
+from tarot_canvas.ui.library.decks.model import HIDDEN_SHELF, DeckListModel
 from tarot_canvas.utils.package_download import DownloadFailure, FailureKind
 from tests.unit.test_library_model import catalog_entry, fake_deck
 
@@ -38,7 +39,7 @@ def _hint(delegate, qapp):
     probe = QStyleOptionViewItem()
     probe.font = qapp.font()
     probe.rect = QRect(0, 0, 1, 1)
-    size = delegate.sizeHint(probe, None)
+    size = delegate.sizeHint(probe, QModelIndex())
     return size.width(), size.height()
 
 
@@ -168,6 +169,48 @@ def model_with_cover(tmp_path, colour="red"):
     pip = Card(canonical_id="minor_arcana.cups.ace", kind=CardKind.MINOR, display_name="Ace")
     deck.cards_of_kind = lambda kind: [fool] if kind is CardKind.MAJOR else [pip] * 56
     return DeckListModel([deck])
+
+
+def test_a_hidden_deck_is_painted_as_any_installed_deck(qapp, tmp_path):
+    delegate = DeckDelegate()
+    model = model_with_cover(tmp_path)
+    plain = render(delegate, qapp, model.index(0, 0), qapp.palette())
+
+    model._shelves = [HIDDEN_SHELF]
+
+    assert render(delegate, qapp, model.index(0, 0), qapp.palette()) == plain
+
+
+def test_a_heading_paints_its_text_and_no_cover(qapp, monkeypatch):
+    curation.set_deck_hidden("x/deck/away", True)
+    delegate = DeckDelegate()
+    model = DeckListModel([fake_deck("Away", images=False, identifier="x/deck/away")])
+    covers = []
+    monkeypatch.setattr(delegate, "_paint_cover", lambda *args: covers.append(args))
+
+    image = render(delegate, qapp, model.index(1, 0), qapp.palette())
+
+    assert covers == []
+    assert any(QColor.fromRgba(pixel).alpha() for pixel in colours_in(image))
+
+
+def test_a_headings_text_lines_up_with_the_cells_content_and_its_rule_with_the_cells(qapp):
+    delegate = DeckDelegate()
+    model = DeckListModel([], entries=[GHOST])
+    option = option_for(delegate, qapp)
+    line, rule = delegate.heading_layout(option.rect, 1)
+
+    image = render(delegate, qapp, model.index(1, 0), qapp.palette())
+
+    inked = [
+        x
+        for x in range(image.width())
+        for y in range(line.top(), line.bottom() + 1)
+        if image.pixelColor(x, y).alpha()
+    ]
+    content = delegate._layout(option).cover.left()
+    assert content <= min(inked) < content + units.SMALL_SPACING
+    assert image.pixelColor(0, rule.top()).alpha()
 
 
 def test_selection_is_painted_in_the_palette_highlight(qapp, tmp_path):

@@ -33,7 +33,7 @@ BACK = "card_backs.classic"
 
 IDENTIFIER_PREFIX = "land.arcana.private/deck/"
 SCHEMA_VERSION = "2.0"
-FIRST_VERSION = "0.1.0"
+FIRST_VERSION = "1.0.0"
 SLUG_LENGTH = 40
 
 SOURCE = "source"

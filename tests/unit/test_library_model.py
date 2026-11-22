@@ -22,7 +22,13 @@ from tarot_canvas.ui.library.decks.model import (
     deck_subtitle,
     is_majors_only,
 )
-from tarot_canvas.ui.library.roles import SORT_COUNT, SORT_NAME, CoverPathRole, SubtitleRole
+from tarot_canvas.ui.library.roles import (
+    SORT_COUNT,
+    SORT_NAME,
+    CoverPathRole,
+    SectionRole,
+    SubtitleRole,
+)
 from tarot_canvas.ui.strings import DECK_VIEW, LIBRARY, failure_text
 from tarot_canvas.utils.package_download import DownloadFailure, FailureKind
 from tests.unit.test_catalog import index, raw_entry
@@ -142,8 +148,10 @@ def proxy(qapp):
     return proxy
 
 
-def names(proxy):
-    return [proxy.index(row, 0).data() for row in range(proxy.rowCount())]
+def names(model):
+    """The covers', not the headings'"""
+    indexes = (model.index(row, 0) for row in range(model.rowCount()))
+    return [index.data() for index in indexes if not index.data(SectionRole)]
 
 
 def test_sort_by_name(proxy):
@@ -204,10 +212,6 @@ def ghost_proxy(qapp):
     return proxy
 
 
-def row_names(model):
-    return [model.data(model.index(row, 0)) for row in range(model.rowCount())]
-
-
 @pytest.mark.parametrize("key", [SORT_NAME, SORT_AUTHOR, SORT_COUNT, SORT_RECENT])
 def test_ghosts_trail_installed_decks_under_every_sort(ghost_proxy, key):
     """Recently opened sorts descending, which would put ghosts first."""
@@ -247,7 +251,7 @@ def test_search_finds_a_ghost_by_its_artist(ghost_proxy):
 def test_an_entry_an_installed_deck_matches_has_no_row(qapp):
     installed = fake_deck("Aquatic", identifier=AQUATIC.identifier)
     model = DeckListModel([installed], entries=[AQUATIC, ASCII])
-    assert row_names(model) == ["Aquatic", "Ascii Tarot"]
+    assert names(model) == ["Aquatic", "Ascii Tarot"]
 
 
 def test_installing_the_matching_deck_replaces_the_ghost(qapp):
@@ -255,16 +259,16 @@ def test_installing_the_matching_deck_replaces_the_ghost(qapp):
     assert model.data(model.index(0, 0), DeckRole) is None
 
     model.set_decks([fake_deck("Aquatic", identifier=AQUATIC.identifier)])
-    assert row_names(model) == ["Aquatic"]
+    assert names(model) == ["Aquatic"]
     assert model.data(model.index(0, 0), DeckRole) is not None
 
 
 def test_set_entries_replaces_the_ghosts(qapp):
     model = DeckListModel([fake_deck("Zodiac")], entries=[AQUATIC])
     model.set_entries([AQUATIC, ASCII])
-    assert row_names(model) == ["Zodiac", "Aquatic Tarot", "Ascii Tarot"]
+    assert names(model) == ["Zodiac", "Aquatic Tarot", "Ascii Tarot"]
     model.set_entries([])
-    assert row_names(model) == ["Zodiac"]
+    assert names(model) == ["Zodiac"]
 
 
 def test_a_download_or_cover_change_repaints_only_its_row(qapp):

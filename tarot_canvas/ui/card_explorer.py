@@ -1,7 +1,7 @@
 import os
 import sys
 
-from PyQt6.QtCore import QPoint, Qt, pyqtSignal
+from PyQt6.QtCore import QPoint, QSignalBlocker, Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QDrag, QIcon, QPixmap, QStandardItem, QStandardItemModel
 from PyQt6.QtWidgets import (
     QAbstractItemView,
@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
 )
 
 from tarot_canvas.models.deck_events import deck_events
-from tarot_canvas.models.deck_library import deck_library
+from tarot_canvas.models.deck_library import DeckLibrary, deck_library
 from tarot_canvas.models.deck_types import CardKind
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.card_transfer import CARD_MIME, card_mime_data, copy_card_to_clipboard
@@ -194,15 +194,21 @@ class CardExplorerPanel(QWidget):
         # Get all available decks
         self.available_decks = deck_library.decks()
 
-        # Add decks to combo box
-        self.deck_selector.clear()
-        for deck in self.available_decks:
-            self.deck_selector.addItem(deck.metadata.name)
+        # The same folder stays chosen, else the first deck is
+        paths = [DeckLibrary.path_key(deck.root_path) for deck in self.available_decks]
+        current = self.current_deck and DeckLibrary.path_key(self.current_deck.root_path)
+        row = paths.index(current) if current in paths else 0
+        with QSignalBlocker(self.deck_selector):
+            self.deck_selector.clear()
+            for deck in self.available_decks:
+                self.deck_selector.addItem(deck.metadata.name)
+            self.deck_selector.setCurrentIndex(row)
 
-        # Select first deck by default if available
-        if self.deck_selector.count() > 0:
-            self.deck_selector.setCurrentIndex(0)
-            self.on_deck_changed(0)
+        deck = self.available_decks[row] if self.available_decks else None
+        # The same object has the same cards, so its tree keeps what is collapsed
+        if deck is not self.current_deck:
+            self.current_deck = deck
+            self.populate_tree()
 
     def on_deck_changed(self, index):
         """Handle deck selection change"""
@@ -298,19 +304,7 @@ class CardExplorerPanel(QWidget):
             menu.exec(self.tree_view.viewport().mapToGlobal(pos))
             menu.deleteLater()
 
+    @pyqtSlot()
     def refresh(self):
-        """Refresh the deck selector and tree view"""
-        # Store current selected deck name
-        current_deck_name = self.deck_selector.currentText() if self.current_deck else None
-
-        # Repopulate deck selector
+        """Refresh the deck selector, and the tree if its deck changed"""
         self.populate_deck_selector()
-
-        # Try to restore previous selection
-        if current_deck_name:
-            index = self.deck_selector.findText(current_deck_name)
-            if index >= 0:
-                self.deck_selector.setCurrentIndex(index)
-            else:
-                # If previous deck is no longer available, select first deck
-                self.deck_selector.setCurrentIndex(0) if self.deck_selector.count() > 0 else None

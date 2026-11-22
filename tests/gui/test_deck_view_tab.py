@@ -23,7 +23,6 @@ from tarot_canvas.settings import (
 )
 from tarot_canvas.ui import typography, units
 from tarot_canvas.ui.card_transfer import CARD_MIME, card_from_mime
-from tarot_canvas.ui.deck_view import card_delegate
 from tarot_canvas.ui.deck_view.card_model import (
     KIND_CARD,
     KIND_HEADING,
@@ -31,6 +30,7 @@ from tarot_canvas.ui.deck_view.card_model import (
     CardRole,
     KindRole,
 )
+from tarot_canvas.ui.library.decks import delegate as deck_delegate
 from tarot_canvas.ui.library.decks.header import DeckHeader
 from tarot_canvas.ui.strings import DECK_VIEW
 from tarot_canvas.ui.tabs import deck_view_tab as module
@@ -392,7 +392,7 @@ def test_every_section_but_the_first_has_room_above_its_heading(full_tab):
         rect = grid.visualRect(heading)
         above = max(card.bottom() for card in cards if card.bottom() < rect.top())
         text, _ = full_tab.delegate.heading_layout(rect, heading.row())
-        assert text.top() - above >= card_delegate.SECTION_SPACE
+        assert text.top() - above >= deck_delegate.SECTION_SPACE
     first = grid.visualRect(headings[0])
     assert full_tab.delegate.heading_layout(first, headings[0].row())[0].top() == first.top()
 
@@ -413,7 +413,7 @@ def test_a_hairline_runs_under_each_heading(full_tab):
     assert rule.width() == option.rect.width()
     assert rule.top() > text.bottom()
     assert colour.rgb() == option.palette.windowText().color().rgb()
-    assert colour.alpha() == card_delegate.HEADING_RULE_ALPHA
+    assert colour.alpha() == deck_delegate.HEADING_RULE_ALPHA
 
 
 # -- cover size ---------------------------------------------------------------------

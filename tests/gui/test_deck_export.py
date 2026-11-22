@@ -142,16 +142,16 @@ def test_a_changed_version_is_written_and_the_identifier_is_not(
     identifier = manifest(deck)["deck"]["identifier"]
     tab = settled(qtbot, shown(qtbot, deck))
     writer.set_fields(deck, artist="Someone")
-    dialogs["fields"] = {"version": "1.0.0"}
+    dialogs["fields"] = {"version": "2.0.0"}
 
     exported(qtbot, tab)
 
     assert dialogs["fields_dialogs"][0]["empty"] == 0
-    assert dialogs["suggested"][0].endswith("exported-1.0.0.tarotdeck")
+    assert dialogs["suggested"][0].endswith("exported-2.0.0.tarotdeck")
     target = dialogs["save_as"].with_name("exported.tarotdeck")
     names, packed = container_files(target)
     for table in (manifest(deck)["deck"], packed["deck"]):
-        assert table["version"] == "1.0.0"
+        assert table["version"] == "2.0.0"
         assert table["artist"] == "Someone"
         assert table["identifier"] == identifier
     assert not [name for name in names if name.startswith(("source/", "unsorted/"))]
@@ -374,8 +374,8 @@ def test_the_fields_dialog_shows_the_deck_and_asks_only_the_version(qtbot, tmp_p
     assert dialog.focusWidget() is dialog.export_button
     assert dialog.empty_list is None
     assert dialog.changed_fields() == {}
-    dialog.version_edit.setText(" 1.0.0 ")
-    assert dialog.changed_fields() == {"version": "1.0.0"}
+    dialog.version_edit.setText(" 2.0.0 ")
+    assert dialog.changed_fields() == {"version": "2.0.0"}
     dialog.version_edit.setText("")
     assert not dialog.export_button.isEnabled()
 

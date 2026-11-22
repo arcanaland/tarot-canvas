@@ -22,9 +22,11 @@ from tests.conftest import DECK_LIBRARY_CONSUMERS, MINIMAL_DECK_PATH
 from tests.gui.test_library_tab import ghost_library, ghost_of, installed, transport  # noqa: F401
 from tests.gui.test_spreads_view import store, two_slots
 
-OPEN, START, FOLDER, EXPORT, REMOVE = (
+OPEN, START, PIN, HIDE, FOLDER, EXPORT, REMOVE = (
     LIBRARY["open"],
     READINGS["open"],
+    SPREADS["pin"],
+    LIBRARY["hide_deck"],
     SPREADS["open_folder"],
     DECK_VIEW["export"],
     LIBRARY["remove_deck"],
@@ -44,6 +46,7 @@ def decks(tmp_path, monkeypatch):
         ReferenceDeck, "get_reference_deck_path", staticmethod(lambda: str(reference))
     )
     library = DeckLibrary()
+    monkeypatch.setattr(deck_library_module, "deck_library", library)
     for module in DECK_LIBRARY_CONSUMERS:
         monkeypatch.setattr(f"{module}.deck_library", library, raising=False)
     return library, root / "downloaded", handmade
@@ -118,6 +121,9 @@ def test_a_downloaded_deck_can_be_opened_read_shown_and_removed(library_tab, dec
         (OPEN, True),
         (START, True),
         None,
+        (PIN, False),  # it has no identifier
+        (HIDE, False),
+        None,
         (FOLDER, True),
         None,
         (REMOVE, True),
@@ -128,6 +134,8 @@ def test_a_handmade_deck_also_exports(library_tab, decks):
     _library, _downloaded, handmade = decks
     menu = page_of(library_tab).row_menu(index_at(page_of(library_tab), handmade))
 
+    assert (PIN, True) in items(menu)
+    assert (HIDE, True) in items(menu)
     assert (EXPORT, True) in items(menu)
     assert items(menu).index((EXPORT, True)) == items(menu).index((FOLDER, True)) + 1
 
@@ -166,7 +174,7 @@ def test_a_ghost_has_no_menu(ghost_library):  # noqa: F811
 
     assert page.row_menu(ghost) is None
     page.list_view.setCurrentIndex(ghost)
-    assert page.details_pane.menu_button is None
+    assert not page.details_pane.menu_button.isVisibleTo(page.details_pane)
 
 
 def test_the_menu_key_opens_the_current_covers_menu(library_tab, decks, monkeypatch):
@@ -268,6 +276,66 @@ def test_a_final_remove_takes_the_folder_and_its_handmade_key(library_tab, decks
     assert not handmade.with_name(handmade.name + ".deleted").exists()
     assert curation.handmade_decks() == set()
     assert DeckLibrary.path_key(handmade) not in deck_paths(page)
+
+
+@pytest.mark.parametrize("change", [curation.set_deck_pinned, curation.set_deck_hidden])
+def test_a_final_remove_takes_the_pin_or_hide_and_an_undone_one_keeps_it(
+    library_tab, decks, change
+):
+    library, _downloaded, handmade = decks
+    page = page_of(library_tab)
+    identifier = library.load(handmade).metadata.identifier
+    change(identifier, True)
+    page.toggle_hidden()
+
+    remove(page, handmade)
+    page.undo_action.trigger()
+    assert identifier in curation.deck_pins() | curation.deck_hides()
+
+    remove(page, handmade)
+    page.commit_pending_delete()
+    assert curation.deck_pins() | curation.deck_hides() == set()
+
+
+def test_removing_a_deck_folded_away_moves_the_pane_off_it(library_tab, decks):
+    library, _downloaded, handmade = decks
+    page = page_of(library_tab)
+    curation.set_deck_hidden(library.load(handmade).metadata.identifier, True)
+    page.toggle_hidden()
+    page.select_deck_path(index_at(page, handmade).data(DeckRole).root_path)
+    page.toggle_hidden()
+
+    page.remove(page.details_pane.details().deck)
+
+    assert DeckLibrary.path_key(page.details_pane.details().deck.root_path) != (
+        DeckLibrary.path_key(handmade)
+    )
+
+
+def test_removing_twins_in_a_row_forgets_the_pin_with_the_second(library_tab, decks):
+    library, _downloaded, handmade = decks
+    page = page_of(library_tab)
+    copy = shutil.copytree(handmade, handmade.with_name("copy"))
+    library.rescan()
+    identifier = library.load(handmade).metadata.identifier
+    curation.set_deck_pinned(identifier, True)
+
+    remove(page, handmade)
+    remove(page, copy)  # makes the first final
+    assert curation.deck_pins() == {identifier}
+
+    page.commit_pending_delete()
+    assert curation.deck_pins() == set()
+
+
+def test_the_panes_menu_flips_once_the_deck_is_pinned(library_tab, decks):
+    library, _downloaded, handmade = decks
+    page = page_of(library_tab)
+    curation.set_deck_pinned(library.load(handmade).metadata.identifier, True)
+
+    menu = pane_menu(page, index_at(page, handmade))
+
+    assert (SPREADS["unpin"], True) in items(menu)
 
 
 def test_closing_the_library_makes_a_pending_remove_final(library_tab, decks):

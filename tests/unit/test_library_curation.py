@@ -1,8 +1,11 @@
 import tomllib
+from types import SimpleNamespace
 
 import pytest
 
+from tarot_canvas.models import deck_library as deck_library_module
 from tarot_canvas.models import library_curation as curation
+from tarot_canvas.models.deck_events import deck_events
 from tarot_canvas.models.esoterica_events import esoterica_events
 from tarot_canvas.models.reading_events import reading_events
 from tarot_canvas.models.spread_events import spread_events
@@ -18,7 +21,7 @@ def stored(file):
 
 @pytest.fixture
 def emitted():
-    """Which of the three views' signals fired"""
+    """Which of the four views' signals fired"""
     fired = []
     connections = [
         (signal, signal.connect(lambda name=name: fired.append(name)))
@@ -26,6 +29,7 @@ def emitted():
             ("spreads", spread_events().spreads_changed),
             ("readings", reading_events().readings_changed),
             ("esoterica", esoterica_events().sources_changed),
+            ("decks", deck_events().decks_changed),
         )
     ]
     yield fired
@@ -277,3 +281,84 @@ def test_forgetting_the_last_handmade_deck_empties_the_table(curation_file, tmp_
     curation.forget_deck(tmp_path / "mine")
 
     assert stored(curation_file) == {}
+
+
+# -- decks pinned and hidden --------------------------------------------------------------
+
+LOTUS = "x/deck/lotus"
+
+
+@pytest.fixture
+def installed(monkeypatch):
+    """The identifiers of the decks still in the library"""
+    identifiers = []
+    stub = SimpleNamespace(
+        find_by_identifier=lambda identifier: [i for i in identifiers if i == identifier]
+    )
+    monkeypatch.setattr(deck_library_module, "deck_library", stub)
+    return identifiers
+
+
+def test_a_deck_is_pinned_and_hidden_by_its_identifier(curation_file, emitted):
+    curation.set_deck_pinned(LOTUS, True)
+    assert stored(curation_file) == {"decks": {"pinned": [LOTUS]}}
+
+    curation.set_deck_hidden(LOTUS, True)
+    assert stored(curation_file) == {"decks": {"hidden": [LOTUS]}}
+    assert (curation.deck_pins(), curation.deck_hides()) == (set(), {LOTUS})
+
+    curation.set_deck_pinned(LOTUS, True)
+    assert (curation.deck_pins(), curation.deck_hides()) == ({LOTUS}, set())
+
+    curation.set_deck_pinned(LOTUS, False)
+    assert stored(curation_file) == {}
+    assert emitted == ["decks"] * 4
+
+
+def test_unhiding_a_deck_empties_the_table(curation_file, emitted):
+    curation.set_deck_hidden(LOTUS, True)
+    curation.set_deck_hidden(LOTUS, False)
+
+    assert stored(curation_file) == {}
+    assert emitted == ["decks"] * 2
+
+
+def test_a_deck_change_that_changes_nothing_says_nothing(curation_file, emitted):
+    curation.set_deck_pinned(LOTUS, False)
+    curation.set_deck_hidden(LOTUS, False)
+
+    assert not curation_file.exists()
+    assert emitted == []
+
+
+@pytest.mark.parametrize("identifier", [None, ""])
+def test_a_deck_without_an_identifier_is_refused(curation_file, emitted, caplog, identifier):
+    curation.set_deck_pinned(identifier, True)
+    curation.set_deck_hidden(identifier, True)
+
+    assert not curation_file.exists()
+    assert emitted == []
+    assert len(caplog.records) == 2
+
+
+@pytest.mark.parametrize("kind", ["pinned", "hidden"])
+def test_forgetting_the_last_deck_with_an_identifier_drops_its_key(
+    curation_file, installed, tmp_path, kind
+):
+    curation_file.write_text(f'[decks]\n{kind} = ["{LOTUS}", "x/deck/gone"]\n')
+
+    curation.forget_deck(tmp_path / "lotus", LOTUS)
+
+    assert stored(curation_file) == {"decks": {kind: ["x/deck/gone"]}}
+
+
+@pytest.mark.parametrize("kind", ["pinned", "hidden"])
+def test_forgetting_one_of_two_decks_sharing_an_identifier_keeps_its_key(
+    curation_file, installed, tmp_path, kind
+):
+    curation_file.write_text(f'[decks]\nhandmade = ["copy"]\n{kind} = ["{LOTUS}"]\n')
+    installed.append(LOTUS)
+
+    curation.forget_deck(tmp_path / "copy", LOTUS)
+
+    assert stored(curation_file) == {"decks": {kind: [LOTUS]}}

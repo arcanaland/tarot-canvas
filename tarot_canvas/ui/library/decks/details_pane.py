@@ -1,18 +1,14 @@
 """The library's details pane"""
 
-from dataclasses import replace
-
 from PyQt6.QtCore import QLocale, QPoint, QRect, QRectF, QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPalette
 from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
-    QLabel,
     QMenu,
     QProgressBar,
     QPushButton,
     QScrollArea,
-    QStyle,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -31,10 +27,13 @@ from tarot_canvas.ui.widgets.cover_banner import (
     is_readable_cover,
     set_banner_text,
 )
+from tarot_canvas.ui.widgets.inline_message import InlineMessage
 from tarot_canvas.ui.widgets.pane_text import pane_form, pane_text
 
 
 class DeckDetailsPane(QWidget):
+    """The deck and its actions, then what a reader wants, then its metadata"""
+
     open_requested = pyqtSignal(object)  # the Deck
     download_requested = pyqtSignal(object)  # the CatalogEntry
     cancel_requested = pyqtSignal(str)  # the entry's slug
@@ -43,62 +42,85 @@ class DeckDetailsPane(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._details = None
-        self._actions = None
         self.action_button = None
-        self.menu_button = None
-        self.progress_bar = None
-        self.failure_label = None
 
         self.heading_label = typography.apply(pane_text(), typography.Role.HEADING_1, primary=True)
         self.artist_label = pane_text()
-        self.header = _Header(self.heading_label, self.artist_label)
 
-        self.version_label = pane_text()
-        self.size_label = pane_text()
-        self.license_label = pane_text()
-        self.card_count_label = pane_text()
-        self.form = pane_form()
-        self.form.addRow(LIBRARY["form_version"], self.version_label)
-        self.form.addRow(LIBRARY["form_size"], self.size_label)
-        self.form.addRow(LIBRARY["form_license"], self.license_label)
-        self.form.addRow(LIBRARY["form_cards"], self.card_count_label)
+        # Cancel is away from Download, so a double click on Download can't land on it
+        self.open_button = _button(LIBRARY["open"], "document-open", self._on_open)
+        self.download_button = _button(LIBRARY["download"], "download", self._on_download)
+        self.retry_button = _button(LIBRARY["try_again"], "view-refresh", self._on_download)
+        self.cancel_button = _button(LIBRARY["cancel"], "dialog-cancel", self._on_cancel)
+        self.menu_button = self._build_menu_button()
+
+        actions = _row()
+        actions.addWidget(self.open_button)
+        actions.addWidget(self.download_button)
+        actions.addWidget(self.retry_button)
+        actions.addStretch(1)
+        actions.addWidget(self.menu_button)
+        self.header = _Header(self.heading_label, self.artist_label, actions)
+
+        margin = units.GRID_UNIT
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 100)
+        self.failure_message = InlineMessage(warning=True, closable=False)
+        self.failure_label = self.failure_message.label
+        self.failure_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+
+        # A download's progress or failure, across the pane
+        self.status = QWidget()
+        progress = _row()
+        progress.addWidget(self.progress_bar, 1)
+        progress.addWidget(self.cancel_button)
+        status = QVBoxLayout(self.status)
+        status.setContentsMargins(margin, units.LARGE_SPACING, margin, units.LARGE_SPACING)
+        status.addLayout(progress)
+        status.addWidget(self.failure_message)
 
         self.description_label = pane_text()
+
+        self.card_count_label = pane_text()
+        self.size_label = pane_text()
+        self.license_label = pane_text()
+        self.version_label = pane_text()
+        self.form = pane_form()
+        self.form.setSpacing(units.LARGE_SPACING)  # else it takes the body's
+        self.form.addRow(LIBRARY["form_cards"], self.card_count_label)
+        self.form.addRow(LIBRARY["form_size"], self.size_label)
+        self.form.addRow(LIBRARY["form_license"], self.license_label)
+        self.form.addRow(LIBRARY["form_version"], self.version_label)
+
         self.attribution_label = typography.apply(pane_text(), typography.Role.SMALL)
         self.attribution_label.setForegroundRole(QPalette.ColorRole.PlaceholderText)
 
-        margin = units.GRID_UNIT
-        body = QVBoxLayout()
-        body.setContentsMargins(margin, 2 * units.LARGE_SPACING, margin, 0)
-        body.setSpacing(units.LARGE_SPACING)
-        body.addLayout(self.form)
-        body.addSpacing(units.LARGE_SPACING)
+        content = QWidget()
+        body = QVBoxLayout(content)
+        body.setContentsMargins(margin, units.LARGE_SPACING, margin, margin)
+        body.setSpacing(2 * units.LARGE_SPACING)
         body.addWidget(self.description_label)
+        body.addLayout(self.form)
         body.addWidget(self.attribution_label)
         body.addStretch(1)
 
-        content = QWidget()
-        column = QVBoxLayout(content)
-        column.setContentsMargins(0, 0, 0, 0)
-        column.setSpacing(0)
-        column.addWidget(self.header)
-        column.addLayout(body, 1)
-
-        # A long description scrolls
+        # Only what is under the header scrolls
         self.scroll_area = QScrollArea()
         self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.scroll_area.setWidget(content)
-
-        self._action_area = QVBoxLayout()
-        self._action_area.setContentsMargins(margin, margin, margin, margin)
+        self.scroll_area.setMinimumHeight(1)  # it gives way before the header does
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
+        layout.addWidget(self.header)
+        layout.addWidget(self.status)
         layout.addWidget(self.scroll_area, 1)
-        layout.addLayout(self._action_area)
+
+        for widget in (*self._buttons(), self.progress_bar, self.status):
+            widget.hide()
 
     def details(self):
         return self._details
@@ -106,30 +128,22 @@ class DeckDetailsPane(QWidget):
     def show_details(self, details):
         previous, self._details = self._details, details
 
-        # Progress alone moves the bar in place: a rebuild would drop a click on Cancel
-        if previous is not None and replace(previous, progress=details.progress) == details:
-            if self.progress_bar is not None:
-                self.progress_bar.setValue(_percent(details.progress))
-            return
-
         self._set_text(self.heading_label, details.name)
         self._set_text(self.artist_label, details.artist)
         self.header.set_cover_path(details.cover_path)
-        self._set_row(self.version_label, details.version)
+        self._show_state(details)
+
+        self._set_text(self.description_label, details.description)
+        count = None if details.card_count is None else QLocale().toString(details.card_count)
+        self._set_row(self.card_count_label, count)
         size = None if details.size is None else QLocale().formattedDataSize(details.size)
         self._set_row(self.size_label, size)
         self._set_row(self.license_label, license_name(details.license))
-        count = None if details.card_count is None else QLocale().toString(details.card_count)
-        self._set_row(self.card_count_label, count)
-        self._set_text(self.description_label, details.description)
+        self._set_row(self.version_label, details.version)
         self._set_text(self.attribution_label, details.attribution)
 
         if previous is None or _identity(previous) != _identity(details):
             self.scroll_area.verticalScrollBar().setValue(0)
-        if previous is None or _action_key(previous) != _action_key(details):
-            self._rebuild_actions(details)
-        elif self.progress_bar is not None:
-            self.progress_bar.setValue(_percent(details.progress))
 
     def focus_action(self):
         if self.action_button is not None:
@@ -144,88 +158,59 @@ class DeckDetailsPane(QWidget):
         label.setText(text or "")
         self.form.setRowVisible(label, text is not None)
 
-    # -- the action area --------------------------------------------------
+    # -- the actions and a download's status ------------------------------
 
-    def _rebuild_actions(self, details):
-        had_focus = self._actions is not None and self._actions.isAncestorOf(
-            self.window().focusWidget()
+    def _buttons(self):
+        return (
+            self.open_button,
+            self.menu_button,
+            self.download_button,
+            self.retry_button,
+            self.cancel_button,
         )
-        if self._actions is not None:
-            self._action_area.removeWidget(self._actions)
-            self._actions.hide()
-            self._actions.deleteLater()
 
-        self._actions = QWidget()
-        self.action_button = self.menu_button = self.progress_bar = self.failure_label = None
-        builders = {
-            DeckState.INSTALLED: self._build_installed,
-            DeckState.AVAILABLE: self._build_available,
-            DeckState.DOWNLOADING: self._build_downloading,
-            DeckState.FAILED: self._build_failed,
-        }
-        builders[details.state](details)
-        self._action_area.addWidget(self._actions)
-        self._actions.show()
+    def _show_state(self, details):
+        state = details.state
+        installed = state is DeckState.INSTALLED
+        downloading = state is DeckState.DOWNLOADING
+        failed = state is DeckState.FAILED
 
+        action = {
+            DeckState.INSTALLED: self.open_button,
+            DeckState.AVAILABLE: self.download_button,
+            DeckState.DOWNLOADING: self.cancel_button,
+            DeckState.FAILED: self.retry_button,
+        }[state]
+        changed = action is not self.action_button
+        had_focus = changed and self.window().focusWidget() in self._buttons()
+        self.action_button = action
+
+        self.progress_bar.setValue(_percent(details.progress))
+        self.progress_bar.setVisible(downloading)
+        if failed:
+            self.failure_message.show_message(failure_text(details.failure))
+        else:
+            self.failure_message.hide()
+        self.status.setVisible(downloading or failed)
+
+        action.show()
+        # Before the old button hides, which would pass focus along
         if had_focus:
             self.focus_action()
+        for button in self._buttons():
+            button.setVisible(button is action or (installed and button is self.menu_button))
 
-    # Open, Download and Try Again sit at the leading edge and Cancel at the trailing one
-
-    def _build_installed(self, _details):
-        self.action_button = _button(LIBRARY["open"], "document-open", self._on_open)
-        self.menu_button = QToolButton()
-        self.menu_button.setIcon(QIcon.fromTheme("overflow-menu"))
-        self.menu_button.setToolTip(LIBRARY["deck_menu_tooltip"])
-        self.menu_button.setAccessibleName(LIBRARY["deck_menu_tooltip"])
-        self.menu_button.setAutoRaise(True)
-        self.menu_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        menu = QMenu(self.menu_button)
+    def _build_menu_button(self):
+        button = QToolButton()
+        button.setIcon(QIcon.fromTheme("overflow-menu"))
+        button.setToolTip(LIBRARY["deck_menu_tooltip"])
+        button.setAccessibleName(LIBRARY["deck_menu_tooltip"])
+        button.setAutoRaise(True)
+        button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        menu = QMenu(button)
         menu.aboutToShow.connect(lambda: self._on_menu_about_to_show(menu))
-        self.menu_button.setMenu(menu)
-        row = _row(self._actions)
-        row.addWidget(self.action_button)
-        row.addStretch(1)
-        row.addWidget(self.menu_button)
-
-    def _build_available(self, _details):
-        self.action_button = _button(LIBRARY["download"], "download", self._on_download)
-        row = _row(self._actions)
-        row.addWidget(self.action_button)
-        row.addStretch(1)
-
-    def _build_downloading(self, details):
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setRange(0, 100)
-        self.progress_bar.setValue(_percent(details.progress))
-        self.action_button = _button(LIBRARY["cancel"], "dialog-cancel", self._on_cancel)
-        row = _row(self._actions)
-        row.addWidget(self.progress_bar, 1)
-        row.addWidget(self.action_button)
-
-    def _build_failed(self, details):
-        message = QFrame()
-        message.setFrameShape(QFrame.Shape.StyledPanel)
-        icon_label = QLabel()
-        extent = self.style().pixelMetric(QStyle.PixelMetric.PM_ToolBarIconSize)
-        icon_label.setPixmap(QIcon.fromTheme("dialog-error").pixmap(QSize(extent, extent)))
-        icon_label.setAlignment(Qt.AlignmentFlag.AlignTop)
-        self.failure_label = pane_text(failure_text(details.failure))
-        inner = QHBoxLayout(message)
-        inner.setSpacing(units.LARGE_SPACING)
-        inner.addWidget(icon_label)
-        inner.addWidget(self.failure_label, 1)
-
-        self.action_button = _button(LIBRARY["try_again"], "view-refresh", self._on_download)
-        buttons = _row()
-        buttons.addWidget(self.action_button)
-        buttons.addStretch(1)
-
-        column = QVBoxLayout(self._actions)
-        column.setContentsMargins(0, 0, 0, 0)
-        column.setSpacing(units.LARGE_SPACING)
-        column.addWidget(message)
-        column.addLayout(buttons)
+        button.setMenu(menu)
+        return button
 
     def _on_open(self):
         self.open_requested.emit(self._details.deck)
@@ -247,10 +232,6 @@ def _identity(details):
     return ("entry", details.entry.slug)
 
 
-def _action_key(details):
-    return (_identity(details), details.state, details.failure)
-
-
 def _percent(progress):
     return round((progress or 0.0) * 100)
 
@@ -261,15 +242,15 @@ def _button(text, icon_name, slot):
     return button
 
 
-def _row(parent=None):
-    row = QHBoxLayout(parent)
+def _row():
+    row = QHBoxLayout()
     row.setContentsMargins(0, 0, 0, 0)
     row.setSpacing(units.LARGE_SPACING)
     return row
 
 
 class _Header(QWidget):
-    def __init__(self, heading, subheading, parent=None):
+    def __init__(self, heading, subheading, actions, parent=None):
         super().__init__(parent)
         self._heading, self._subheading = heading, subheading
         self._path = None
@@ -282,10 +263,15 @@ class _Header(QWidget):
         text.setSpacing(units.SMALL_SPACING)
         text.addWidget(heading)
         text.addWidget(subheading)
+        # Clear of the band, and level with the cover's foot
+        text.addSpacing(BANNER_PADDING + units.LARGE_SPACING)
         text.addStretch(1)
+        text.addLayout(actions)
 
         row = QHBoxLayout(self)
-        row.setContentsMargins(units.GRID_UNIT, BANNER_PADDING, units.GRID_UNIT, 0)
+        row.setContentsMargins(
+            units.GRID_UNIT, BANNER_PADDING, units.GRID_UNIT, units.LARGE_SPACING
+        )
         row.setSpacing(units.LARGE_SPACING)
         row.addWidget(self.cover, 0, Qt.AlignmentFlag.AlignTop)
         row.addLayout(text, 1)

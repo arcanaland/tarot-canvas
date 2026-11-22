@@ -25,6 +25,16 @@ devel-pristine WHAT="all":
 devel-as NAME:
   @just flatpak devel-as {{NAME}}
 
+# Build+install+run in the flatpak on your release app's library, read-only
+[group('dev')]
+devel-prod:
+  @just flatpak devel-prod
+
+# As devel-prod, but with its settings and other copies taken afresh
+[group('dev')]
+devel-prod-fresh:
+  @just flatpak devel-prod-fresh
+
 [group('dev')]
 run:
   uv run tarot-canvas
