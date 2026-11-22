@@ -2,10 +2,10 @@ import weakref
 
 from PyQt6 import sip
 from PyQt6.QtCore import QObject, QPersistentModelIndex, QPoint, QRect, QSize, Qt
-from PyQt6.QtGui import QColor, QFont, QFontMetrics, QPalette, QPixmap
+from PyQt6.QtGui import QFont, QFontMetrics, QPixmap
 from PyQt6.QtWidgets import QStyle
 
-from tarot_canvas.ui import typography, units
+from tarot_canvas.ui import units
 from tarot_canvas.ui.canvas.detail import art_loader, art_size, fit_device_size
 from tarot_canvas.ui.covers.cache import modified_ns
 from tarot_canvas.ui.covers.ghost import PLACEHOLDER_ICON_FRACTION, paint_placeholder_well
@@ -20,14 +20,11 @@ from tarot_canvas.ui.deck_view.card_model import (
     KindRole,
 )
 from tarot_canvas.ui.deck_view.tableau_model import KIND_GHOST, KIND_LABEL, DimmedRole
-from tarot_canvas.ui.library.decks.delegate import CellLayout, DeckDelegate
+from tarot_canvas.ui.library.decks.delegate import TEXT_FLAGS, CellLayout, DeckDelegate
 from tarot_canvas.ui.strings import DECK_VIEW
 
-TEXT_FLAGS = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
 NOTE_FLAGS = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop | Qt.TextFlag.TextWordWrap
 
-SECTION_SPACE = 2 * units.GRID_UNIT
-HEADING_RULE_ALPHA = 51
 DIMMED_OPACITY = 0.3
 EMPTY_SLOT_ICON = "list-add"
 # Quiet across a grid of empty slots, full on the one under the pointer
@@ -149,10 +146,6 @@ class CardDelegate(DeckDelegate):
     # -- fonts ------------------------------------------------------------
 
     @staticmethod
-    def heading_font():
-        return typography.font(typography.Role.HEADING_2)
-
-    @staticmethod
     def note_font(base):
         font = QFont(base)
         font.setItalic(True)
@@ -173,20 +166,6 @@ class CardDelegate(DeckDelegate):
         )
         return CellLayout(cover=cover_rect, title=title_rect, subtitle=QRect())
 
-    def line_width(self, option):
-        view = self.parent()
-        if view is None:
-            return 1
-        return max(1, view.viewport().width() - 2 * view.spacing())
-
-    def heading_layout(self, rect, row):
-        """(text line, rule) inside a heading's rect"""
-        space = SECTION_SPACE if row > 0 else 0
-        line_height = QFontMetrics(self.heading_font()).height()
-        text = QRect(rect.left(), rect.top() + space, rect.width(), line_height)
-        rule = QRect(rect.left(), text.bottom() + 1 + units.SMALL_SPACING, rect.width(), 1)
-        return text, rule
-
     def sizeHint(self, option, index):
         kind = index.data(KindRole)
         if kind is None:
@@ -198,8 +177,7 @@ class CardDelegate(DeckDelegate):
                 metrics.height() + 2 * units.SMALL_SPACING,
             )
         if kind == KIND_HEADING:
-            _, rule = self.heading_layout(QRect(0, 0, self.line_width(option), 0), index.row())
-            return QSize(rule.width(), rule.bottom() + 1)
+            return self.heading_size(option, index.row())
         if kind == KIND_NOTE:
             width = self.line_width(option)
             bounds = QFontMetrics(self.note_font(option.font)).boundingRect(
@@ -213,15 +191,6 @@ class CardDelegate(DeckDelegate):
             cover.width() + 2 * units.LARGE_SPACING,
             cover.height() + title_height + units.SMALL_SPACING + 2 * units.LARGE_SPACING,
         )
-
-    @staticmethod
-    def line_palette(option):
-        palette = QPalette(option.palette)
-        active = bool(option.state & QStyle.StateFlag.State_Active)
-        palette.setCurrentColorGroup(
-            QPalette.ColorGroup.Active if active else QPalette.ColorGroup.Inactive
-        )
-        return palette
 
     # -- painting ---------------------------------------------------------
 
@@ -267,11 +236,9 @@ class CardDelegate(DeckDelegate):
         else:
             text_rect, rule = self.heading_layout(option.rect, index.row())
             font = self.heading_font()
-            painter.setFont(font)
-            painter.setPen(palette.windowText().color())
             metrics = QFontMetrics(font)
-            elided = metrics.elidedText(text, Qt.TextElideMode.ElideRight, text_rect.width())
-            painter.drawText(text_rect, int(TEXT_FLAGS), elided)
+            colour = palette.windowText().color()
+            elided = self._paint_heading(painter, text_rect, rule, text, font, colour)
 
             canonical = index.data(CanonicalRole)
             if canonical and elided == text:
@@ -284,10 +251,6 @@ class CardDelegate(DeckDelegate):
                     int(TEXT_FLAGS),
                     metrics.elidedText(aside, Qt.TextElideMode.ElideRight, aside_rect.width()),
                 )
-
-            colour = QColor(palette.windowText().color())
-            colour.setAlpha(HEADING_RULE_ALPHA)
-            painter.fillRect(rule, colour)
         painter.restore()
 
     def _paint_subtitle(self, painter, rect, palette, index, selected):

@@ -1,6 +1,13 @@
 """A list model over the loaded decks, then the catalog's decks not yet installed"""
 
-from PyQt6.QtCore import QAbstractListModel, QLocale, QSortFilterProxyModel, Qt, pyqtSlot
+from PyQt6.QtCore import (
+    QAbstractListModel,
+    QLocale,
+    QModelIndex,
+    QSortFilterProxyModel,
+    Qt,
+    pyqtSlot,
+)
 
 from tarot_canvas.models import library_curation
 from tarot_canvas.models.catalog import available_entries
@@ -13,10 +20,8 @@ from tarot_canvas.ui.library.roles import (
     SORT_COUNT,
     SORT_NAME,
     CoverPathRole,
-    DimmedRole,
-    PinnedRole,
+    SectionRole,
     SubtitleRole,
-    ToggleRole,
 )
 from tarot_canvas.ui.strings import DECK_VIEW, LIBRARY, SPREADS, failure_text
 
@@ -29,10 +34,11 @@ StateRole = Qt.ItemDataRole.UserRole + 8
 ProgressRole = Qt.ItemDataRole.UserRole + 9
 EntryRole = Qt.ItemDataRole.UserRole + 10
 HandmadeRole = Qt.ItemDataRole.UserRole + 11  # made in this app
-DeckHiddenRole = Qt.ItemDataRole.UserRole + 12
+ShelfRole = Qt.ItemDataRole.UserRole + 12  # a cover's, or the one a heading heads
+ExpandedRole = Qt.ItemDataRole.UserRole + 13  # on a heading that folds, whether it is open
 
 # The grid's order, under every sort
-PINNED_BUCKET, INSTALLED_BUCKET, TOGGLE_BUCKET, GHOST_BUCKET = range(4)
+PINNED_SHELF, DECKS_SHELF, AVAILABLE_SHELF, HIDDEN_SHELF = range(4)
 
 SORT_AUTHOR = "author"
 SORT_RECENT = "recent"
@@ -98,12 +104,11 @@ def deck_subtitle(deck, abbreviated=False, handmade=False):
 
 
 class DeckListModel(QAbstractListModel):
-    """Installed decks, the hidden ones' toggle, then a ghost row per catalog entry
-    no installed deck matches."""
+    """Installed decks, a ghost row per catalog entry no installed deck matches, then
+    the shelves' headings. The proxy puts each heading above its shelf."""
 
     def __init__(self, decks=None, parent=None, entries=None):
         super().__init__(parent)
-        self._show_hidden = False  # for this session: Show isn't remembered
         self._entries = list(entries or [])
         self._take_decks(decks)
 
@@ -111,19 +116,18 @@ class DeckListModel(QAbstractListModel):
         self._decks = list(decks or [])
         self._handmade = [library_curation.is_handmade(deck.root_path) for deck in self._decks]
         pins, hides = library_curation.deck_pins(), library_curation.deck_hides()
-        self._pinned = [deck.metadata.identifier in pins for deck in self._decks]
-        self._hidden = [deck.metadata.identifier in hides for deck in self._decks]
-        self._hidden_count = sum(self._hidden)
+        self._shelves = [_shelf(deck.metadata.identifier, pins, hides) for deck in self._decks]
+        self._take_ghosts()
+
+    def _take_ghosts(self):
         self._ghosts = available_entries(self._entries, self._decks)
-
-    def shows_hidden(self):
-        return self._show_hidden
-
-    def toggle_hidden(self):
-        # A reset, so the activation that follows a click finds no row to toggle back
-        self.beginResetModel()
-        self._show_hidden = not self._show_hidden
-        self.endResetModel()
+        used = set(self._shelves)
+        if self._ghosts:
+            used.add(AVAILABLE_SHELF)
+        # With nothing pinned the covers come first, unheaded
+        if PINNED_SHELF not in used:
+            used.discard(DECKS_SHELF)
+        self._headings = sorted(used)
 
     def set_decks(self, decks):
         self.beginResetModel()
@@ -133,7 +137,7 @@ class DeckListModel(QAbstractListModel):
     def set_entries(self, entries):
         self.beginResetModel()
         self._entries = list(entries or [])
-        self._ghosts = available_entries(self._entries, self._decks)
+        self._take_ghosts()
         self.endResetModel()
 
     @pyqtSlot(str)
@@ -147,34 +151,30 @@ class DeckListModel(QAbstractListModel):
     def _ghosts_changed(self, matches):
         for offset, entry in enumerate(self._ghosts):
             if matches(entry):
-                index = self.index(self._first_ghost() + offset, 0)
+                index = self.index(len(self._decks) + offset, 0)
                 self.dataChanged.emit(index, index)
 
-    def _first_ghost(self):
-        return len(self._decks) + (1 if self._hidden_count else 0)
+    def _first_heading(self):
+        return len(self._decks) + len(self._ghosts)
 
     def rowCount(self, parent=None):
         if parent is not None and parent.isValid():
             return 0
-        return self._first_ghost() + len(self._ghosts)
+        return self._first_heading() + len(self._headings)
 
     def flags(self, index):
-        if index.isValid() and self._is_toggle(index.row()):
-            # Clicked or Entered, never selected
-            return Qt.ItemFlag.ItemIsEnabled
+        if index.isValid() and index.row() >= self._first_heading():
+            return Qt.ItemFlag.NoItemFlags
         return super().flags(index)
-
-    def _is_toggle(self, row):
-        return len(self._decks) <= row < self._first_ghost()
 
     def data(self, index, role=Qt.ItemDataRole.DisplayRole):
         if not index.isValid() or not 0 <= index.row() < self.rowCount():
             return None
 
-        if self._is_toggle(index.row()):
-            return self._toggle_data(role)
-        if index.row() >= self._first_ghost():
-            return self._ghost_data(self._ghosts[index.row() - self._first_ghost()], role)
+        if index.row() >= self._first_heading():
+            return self._heading_data(self._headings[index.row() - self._first_heading()], role)
+        if index.row() >= len(self._decks):
+            return self._ghost_data(self._ghosts[index.row() - len(self._decks)], role)
 
         deck = self._decks[index.row()]
         handmade = self._handmade[index.row()]
@@ -204,18 +204,23 @@ class DeckListModel(QAbstractListModel):
             return DeckState.INSTALLED
         if role == HandmadeRole:
             return handmade
-        if role == PinnedRole:
-            return self._pinned[index.row()]
-        if role in (DeckHiddenRole, DimmedRole):
-            return self._hidden[index.row()]
+        if role == ShelfRole:
+            return self._shelves[index.row()]
         return None
 
-    def _toggle_data(self, role):
-        if role == ToggleRole:
+    def _heading_data(self, shelf, role):
+        if role == SectionRole:
             return True
+        if role == ShelfRole:
+            return shelf
         if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.AccessibleTextRole):
-            key = "hidden_collapse" if self._show_hidden else "hidden_show"
-            return SPREADS[key].format(count=self._hidden_count)
+            if shelf == PINNED_SHELF:
+                return SPREADS["section_pinned"]
+            if shelf == DECKS_SHELF:
+                return LIBRARY["decks_view"]
+            if shelf == AVAILABLE_SHELF:
+                return LIBRARY["shelf_available"]
+            return LIBRARY["shelf_hidden"].format(count=self._shelves.count(HIDDEN_SHELF))
         return None
 
     @staticmethod
@@ -244,11 +249,22 @@ class DeckListModel(QAbstractListModel):
             return deck_downloads().progress(entry.slug)
         if role == EntryRole:
             return entry
+        if role == ShelfRole:
+            return AVAILABLE_SHELF
         return None
 
 
+def _shelf(identifier, pins, hides):
+    if identifier in pins:
+        return PINNED_SHELF
+    return HIDDEN_SHELF if identifier in hides else DECKS_SHELF
+
+
 class DeckFilterProxyModel(QSortFilterProxyModel):
-    """Case-insensitive search over name and author, which also finds hidden decks."""
+    """The shelves in order, each sorted under its heading, Hidden folded until it's opened.
+
+    Search is case-insensitive over name and author, and looks inside Hidden.
+    """
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -257,6 +273,7 @@ class DeckFilterProxyModel(QSortFilterProxyModel):
         self.setDynamicSortFilter(True)
         self._sort_key = SORT_NAME
         self._recent = {}
+        self._show_hidden = False  # for this session: opening it isn't remembered
 
     def set_sort_key(self, key):
         valid = (SORT_NAME, SORT_AUTHOR, SORT_COUNT, SORT_RECENT)
@@ -279,23 +296,84 @@ class DeckFilterProxyModel(QSortFilterProxyModel):
             self._recent = get_recent_decks()
             self.invalidate()
 
-    def filterAcceptsRow(self, row, parent):
+    def is_searching(self):
+        return bool(self.filterRegularExpression().pattern())
+
+    def toggle_hidden(self):
+        self._show_hidden = not self._show_hidden
+        # Not a reset: the covers above keep their place and their selection
+        self.invalidateFilter()
+        for row in range(self.rowCount()):
+            index = self.index(row, 0)
+            if self._folds(index):
+                self.dataChanged.emit(index, index)
+
+    def _folds(self, index):
+        return (
+            bool(index.data(SectionRole))
+            and super().data(index, ShelfRole) == HIDDEN_SHELF
+            and not self.is_searching()
+        )
+
+    def flags(self, index):
+        if index.isValid() and self._folds(index):
+            # Clicked or Entered, never selected
+            return Qt.ItemFlag.ItemIsEnabled
+        return super().flags(index)
+
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
+        value = super().data(index, role)
+        if role not in (
+            Qt.ItemDataRole.DisplayRole,
+            Qt.ItemDataRole.AccessibleTextRole,
+            Qt.ItemDataRole.AccessibleDescriptionRole,
+            ExpandedRole,
+        ):
+            return value
+        if super().data(index, ShelfRole) != HIDDEN_SHELF or not super().data(index, SectionRole):
+            return value
+        searching = self.is_searching()
+        if role == ExpandedRole:
+            return None if searching else self._show_hidden
+        if role == Qt.ItemDataRole.AccessibleDescriptionRole:
+            if searching:
+                return None
+            if self._show_hidden:
+                return SPREADS["hidden_collapse"]
+            return SPREADS["hidden_show"].format(count=len(self._found(HIDDEN_SHELF)))
+        if searching:
+            return LIBRARY["shelf_hidden"].format(count=len(self._found(HIDDEN_SHELF)))
+        return value
+
+    def _found(self, shelf):
+        """The source rows of shelf's covers that the search finds"""
         model = self.sourceModel()
-        index = model.index(row, 0, parent)
-        searching = bool(self.filterRegularExpression().pattern())
-        if index.data(ToggleRole):
-            return not searching
-        if not searching and index.data(DeckHiddenRole) and not model.shows_hidden():
+        found = []
+        for row in range(model.rowCount()):
+            index = model.index(row, 0)
+            if index.data(ShelfRole) != shelf or index.data(SectionRole):
+                continue
+            if super().filterAcceptsRow(row, QModelIndex()):
+                found.append(row)
+        return found
+
+    def filterAcceptsRow(self, row, parent):
+        index = self.sourceModel().index(row, 0, parent)
+        searching = self.is_searching()
+        shelf = index.data(ShelfRole)
+        if index.data(SectionRole):
+            return not searching or bool(self._found(shelf))
+        if shelf == HIDDEN_SHELF and not (searching or self._show_hidden):
             return False
         return super().filterAcceptsRow(row, parent)
 
     def lessThan(self, left, right):
-        # the buckets keep their order, whichever way the sort runs
-        left_bucket, right_bucket = self._bucket(left), self._bucket(right)
-        if left_bucket != right_bucket:
+        # the shelves keep their order and lead with their headings, whichever way the sort runs
+        left_place, right_place = self._place(left), self._place(right)
+        if left_place != right_place:
             if self.sort_order() == Qt.SortOrder.DescendingOrder:
-                return left_bucket > right_bucket
-            return left_bucket < right_bucket
+                return left_place > right_place
+            return left_place < right_place
 
         model = self.sourceModel()
         if self._sort_key == SORT_AUTHOR:
@@ -315,12 +393,9 @@ class DeckFilterProxyModel(QSortFilterProxyModel):
             )
         return self._name_of(left) < self._name_of(right)
 
-    def _bucket(self, index):
-        if index.data(EntryRole) is not None:
-            return GHOST_BUCKET
-        if index.data(ToggleRole):
-            return TOGGLE_BUCKET
-        return PINNED_BUCKET if index.data(PinnedRole) else INSTALLED_BUCKET
+    @staticmethod
+    def _place(index):
+        return index.data(ShelfRole), not index.data(SectionRole)
 
     def _compare_with_name_tiebreak(self, left_value, right_value, left, right):
         if left_value == right_value:

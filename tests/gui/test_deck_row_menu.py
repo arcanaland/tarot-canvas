@@ -286,7 +286,7 @@ def test_a_final_remove_takes_the_pin_or_hide_and_an_undone_one_keeps_it(
     page = page_of(library_tab)
     identifier = library.load(handmade).metadata.identifier
     change(identifier, True)
-    page.decks_model.toggle_hidden()
+    page.toggle_hidden()
 
     remove(page, handmade)
     page.undo_action.trigger()
@@ -295,6 +295,21 @@ def test_a_final_remove_takes_the_pin_or_hide_and_an_undone_one_keeps_it(
     remove(page, handmade)
     page.commit_pending_delete()
     assert curation.deck_pins() | curation.deck_hides() == set()
+
+
+def test_removing_a_deck_folded_away_moves_the_pane_off_it(library_tab, decks):
+    library, _downloaded, handmade = decks
+    page = page_of(library_tab)
+    curation.set_deck_hidden(library.load(handmade).metadata.identifier, True)
+    page.toggle_hidden()
+    page.select_deck_path(index_at(page, handmade).data(DeckRole).root_path)
+    page.toggle_hidden()
+
+    page.remove(page.details_pane.details().deck)
+
+    assert DeckLibrary.path_key(page.details_pane.details().deck.root_path) != (
+        DeckLibrary.path_key(handmade)
+    )
 
 
 def test_removing_twins_in_a_row_forgets_the_pin_with_the_second(library_tab, decks):

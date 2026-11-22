@@ -2,7 +2,7 @@
 
 My workflow is usually something like:
 
-```
+```bash
 nvim .
 # hack hack hack
 just devel

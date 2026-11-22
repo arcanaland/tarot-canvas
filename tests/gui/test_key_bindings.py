@@ -127,7 +127,7 @@ def test_every_key_is_bound_as_it_was(qtbot):
         ("library", "Ctrl+I", WC, "LibraryTab"),
         ("library", "Ctrl+Return", WC, "LibraryTab"),
         # Dismiss keys inside a widget, not commands
-        ("library", "Esc", WS, "QListView"),
+        ("library", "Esc", WS, "DeckGrid"),
         ("library", "Esc", WS, "QListView"),
         ("library", "Esc", WS, "QListView"),
         ("library", "Esc", WS, "QListView"),

@@ -28,7 +28,7 @@ from tarot_canvas.ui.library.decks.model import (
 from tarot_canvas.ui.library.roles import CoverPathRole
 from tarot_canvas.ui.library.spreads.model import SpreadPathRole
 from tarot_canvas.ui.library.tab import LibraryTab
-from tarot_canvas.ui.strings import DOWNLOAD
+from tarot_canvas.ui.strings import DOWNLOAD, LIBRARY
 from tests.gui.test_catalog_client import FakeTransport
 from tests.gui.test_spreads_view import index_of, menu_button_centre, store, two_slots
 from tests.unit.test_catalog import index, raw_entry
@@ -501,7 +501,8 @@ def test_a_deck_the_search_hides_stays_shown(library):
 
 def test_a_catalog_deck_you_lack_trails_the_installed_decks(ghost_library):
     assert names(ghost_library)[-1] == "Aquatic Tarot"
-    assert sorted(names(ghost_library)[:-1]) == ["Aurora", "Zodiac"]
+    assert names(ghost_library)[-2] == LIBRARY["shelf_available"]
+    assert sorted(names(ghost_library)[:-2]) == ["Aurora", "Zodiac"]
     assert ghost_of(ghost_library).data(DeckRole) is None
 
 
