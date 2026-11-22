@@ -11,9 +11,6 @@ HOUSE_RADIUS = 0.05  # of the card's width
 HOUSE_ICON_WIDTH = 0.42  # of the card's width
 HOUSE_ICON_ALPHA = 0.45
 
-FILE_ICON_ASPECT = 0.569  # the reference deck's width over height
-FILE_ICON_SIZES = (16, 22, 24, 32, 48, 64, 128, 256)
-
 
 @cache
 def _icon():
@@ -54,15 +51,3 @@ def paint_house_back(painter: QPainter, w: int, h: int, edge: float):
         icon = _brass_icon(round(w * HOUSE_ICON_WIDTH))
         painter.setOpacity(HOUSE_ICON_ALPHA)
         painter.drawImage(QPointF((w - icon.width()) / 2.0, (h - icon.height()) / 2.0), icon)
-
-
-def file_icon(size: int) -> QImage:
-    """The house back standing in a size-px square, as the icon of a .tarotdeck file"""
-    w = round(size * FILE_ICON_ASPECT)
-    image = QImage(size, size, QImage.Format.Format_ARGB32_Premultiplied)
-    image.fill(Qt.GlobalColor.transparent)
-    painter = QPainter(image)
-    painter.translate((size - w) // 2, 0)
-    paint_house_back(painter, w, size, max(1.0, HOUSE_EDGE_PX * size / 256))
-    painter.end()
-    return image
