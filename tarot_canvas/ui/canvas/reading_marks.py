@@ -39,12 +39,7 @@ def paint_badge(painter, circle, number, font, lit):
 
 
 def badge_centre(corners, laid_angle, reach):
-    """Where a badge's middle sits: reach px in along both edges from the card's top-left corner.
-
-    corners are the card's four on-screen corners, in order round it. laid_angle is the angle it was
-    laid at in degrees, so "top-left" means as laid: a reversed card, or one mid-turn, keeps its
-    badge in the same corner as an upright one.
-    """
+    """Where a badge's middle sits"""
     centre = sum(corners, QPointF()) / 4.0
     unturn = QTransform().rotate(-laid_angle)
     laid = [unturn.map(corner - centre) for corner in corners]

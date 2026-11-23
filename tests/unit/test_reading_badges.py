@@ -29,7 +29,7 @@ def close(a, b):
     return abs(a.x() - b.x()) < 1e-6 and abs(a.y() - b.y()) < 1e-6
 
 
-def test_upright_card_keeps_the_old_inset():
+def test_upright_card_are_inset():
     assert close(badge_centre(corners_of(laid(0)), 0, REACH), QPointF(310, 210))
 
 
