@@ -18,24 +18,30 @@ from PyQt6.QtWidgets import (
     QWidgetAction,
 )
 
+from tarot_canvas.models import library_curation
+from tarot_canvas.models.deck_choices import deck_choices
 from tarot_canvas.models.deck_library import DeckLibrary
 from tarot_canvas.ui.commands import set_menu_text, set_tooltip_with_keys
-from tarot_canvas.ui.strings import CARD_VIEW
+from tarot_canvas.ui.strings import CARD_VIEW, LIBRARY
+
+# A row of the deck list: its index into compatible_decks
+DeckIndexRole = Qt.ItemDataRole.UserRole
 
 
 class TitleButton(QToolButton):
     """A flat, bold button that reads as a heading, eliding rather than pinning its pane wide"""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, bold=True):
         super().__init__(parent)
         self._title = ""
         self.setAutoRaise(True)
         self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
         self.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-        font = self.font()
-        font.setBold(True)
-        self.setFont(font)
+        if bold:
+            font = self.font()
+            font.setBold(True)
+            self.setFont(font)
 
     def title(self):
         return self._title
@@ -92,7 +98,9 @@ class DeckBar(QWidget):
     def __init__(self, tab):
         super().__init__(tab)
         self.tab = tab
+        # (deck, card), the pinned ones first
         self.compatible_decks = []
+        self.pinned_count = 0
         self.current_index = 0
 
         self.deck_button = TitleButton()
@@ -126,40 +134,46 @@ class DeckBar(QWidget):
     def has_choice(self):
         return len(self.compatible_decks) > 1
 
-    def update_decks(self, card, current_deck, deck_library):
+    def update_decks(self, card, current_deck):
         """List every deck that has this card, current_deck selected."""
         card_id = card.canonical_id if card else None
-        self.compatible_decks = deck_library.decks_containing(card_id) if card_id else []
+        pinned, rest = deck_choices(current_deck, card_id) if card_id else ([], [])
 
         current = DeckLibrary.path_key(current_deck.root_path)
-        current_index = next(
-            (
-                i
-                for i, (deck, _) in enumerate(self.compatible_decks)
-                if DeckLibrary.path_key(deck.root_path) == current
-            ),
-            None,
-        )
-        if current_index is None:
+        if not any(DeckLibrary.path_key(deck.root_path) == current for deck, _ in pinned + rest):
             # A deck opened from outside the library is still the one on screen
-            self.compatible_decks.insert(0, (current_deck, card))
-            current_index = 0
+            pins = library_curation.deck_pins()
+            (pinned if current_deck.metadata.identifier in pins else rest).insert(
+                0, (current_deck, card)
+            )
 
-        self.current_index = current_index
+        self.compatible_decks = pinned + rest
+        self.pinned_count = len(pinned)
+        self.current_index = next(
+            i
+            for i, (deck, _) in enumerate(self.compatible_decks)
+            if DeckLibrary.path_key(deck.root_path) == current
+        )
         self.deck_button.set_title(current_deck.metadata.name)
 
     def fill_deck_list(self):
         """Built as the menu opens: stepping through cards shouldn't decode every deck's art"""
         self.deck_list.clear()
-        for deck, card in self.compatible_decks:
+        for index, (deck, card) in enumerate(self.compatible_decks):
+            if index == 0 and self.pinned_count:
+                heading = QListWidgetItem(LIBRARY["pinned_heading"])
+                heading.setFlags(Qt.ItemFlag.NoItemFlags)
+                self.deck_list.addItem(heading)
             item = QListWidgetItem(self._thumbnail(card), deck.metadata.name)
             item.setToolTip(deck.metadata.name)
+            item.setData(DeckIndexRole, index)
             self.deck_list.addItem(item)
-        self.deck_list.setCurrentRow(self.current_index)
+            if index == self.current_index:
+                self.deck_list.setCurrentItem(item)
 
-        rows = min(len(self.compatible_decks), self.MAX_VISIBLE_ROWS)
-        row_height = self.deck_list.sizeHintForRow(0) if rows else 0
-        self.deck_list.setMaximumHeight(rows * row_height + 2 * self.deck_list.frameWidth())
+        shown = min(self.deck_list.count(), self.MAX_VISIBLE_ROWS)
+        height = sum(self.deck_list.sizeHintForRow(row) for row in range(shown))
+        self.deck_list.setMaximumHeight(height + 2 * self.deck_list.frameWidth())
         self.deck_list.setFocus()
 
     def _thumbnail(self, card):
@@ -176,8 +190,11 @@ class DeckBar(QWidget):
         return QIcon(pixmap)
 
     def on_item_chosen(self, item):
+        index = item.data(DeckIndexRole)
+        if index is None:
+            return
         self.deck_menu.hide()
-        self.select(self.deck_list.row(item))
+        self.select(index)
 
     def select(self, index):
         if not 0 <= index < len(self.compatible_decks):

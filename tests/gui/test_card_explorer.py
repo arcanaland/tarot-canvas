@@ -59,14 +59,20 @@ def test_macos_has_no_close_button(qtbot):
     assert not explorer.close_button.isVisible()
 
 
+def deck_actions(explorer):
+    menu = explorer.deck_selector.menu()
+    menu.aboutToShow.emit()
+    return [action for action in menu.actions() if not action.isSeparator()]
+
+
 def test_preferred_width_follows_the_selected_deck(qtbot):
     explorer = panel(qtbot)
-    if explorer.deck_selector.count() < 2:
+    if len(deck_actions(explorer)) < 2:
         return
 
     widths = []
-    for i in range(explorer.deck_selector.count()):
-        explorer.deck_selector.setCurrentIndex(i)
+    for action in deck_actions(explorer):
+        action.trigger()
         widths.append((explorer.preferred_width(), widest_row(explorer)))
 
     for preferred, widest in widths:
@@ -144,7 +150,7 @@ def test_decks_changed_repopulates_the_deck_selector(
     from tests.conftest import MINIMAL_DECK_PATH
 
     explorer = panel(qtbot)
-    assert explorer.deck_selector.count() == 1
+    assert len(deck_actions(explorer)) == 1
 
     shutil.copytree(MINIMAL_DECK_PATH, tmp_path / "second")
     manifest = tmp_path / "second" / "deck.toml"
@@ -153,9 +159,15 @@ def test_decks_changed_repopulates_the_deck_selector(
     stub_deck_library.decks = lambda: [minimal_deck, second]
     deck_events().decks_changed.emit()
 
-    items = [explorer.deck_selector.itemText(i) for i in range(explorer.deck_selector.count())]
-    assert items == ["Minimal Test Deck", "Second Deck"]
-    assert explorer.deck_selector.currentText() == "Minimal Test Deck"
+    assert [action.text() for action in deck_actions(explorer)] == [
+        "Minimal Test Deck",
+        "Second Deck",
+    ]
+    assert explorer.deck_selector.title() == "Minimal Test Deck"
+
+    deck_actions(explorer)[1].trigger()
+    assert explorer.current_deck is second
+    assert explorer.deck_selector.title() == "Second Deck"
 
 
 def test_decks_changed_keeps_the_deck_by_folder_and_what_is_collapsed(
@@ -164,13 +176,13 @@ def test_decks_changed_keeps_the_deck_by_folder_and_what_is_collapsed(
     from tarot_canvas.models.deck_events import deck_events
 
     explorer = panel(qtbot)
-    explorer.deck_selector.setCurrentIndex(1)  # named as the first is
+    explorer.choose_deck(other_deck)  # named as the first is
     explorer.tree_view.collapse(explorer.model.index(0, 0))
 
     deck_events().decks_changed.emit()
 
     assert explorer.current_deck is other_deck
-    assert explorer.deck_selector.currentIndex() == 1
+    assert [action.isChecked() for action in deck_actions(explorer)].count(True) == 1
     assert not explorer.tree_view.isExpanded(explorer.model.index(0, 0))
 
 
@@ -179,7 +191,7 @@ def test_a_reloaded_deck_rebuilds_the_tree(qtbot, stub_deck_library, other_deck,
     from tarot_canvas.models.deck_events import deck_events
 
     explorer = panel(qtbot)
-    explorer.deck_selector.setCurrentIndex(1)
+    explorer.choose_deck(other_deck)
     reloaded = load_deck(str(other_deck.root_path))
     stub_deck_library.decks = lambda: [minimal_deck, reloaded]
 
@@ -195,7 +207,7 @@ def test_the_chosen_deck_going_leaves_the_first_and_none_leaves_nothing(
     from tarot_canvas.models.deck_events import deck_events
 
     explorer = panel(qtbot)
-    explorer.deck_selector.setCurrentIndex(1)
+    explorer.choose_deck(other_deck)
 
     stub_deck_library.decks = lambda: [minimal_deck]
     deck_events().decks_changed.emit()

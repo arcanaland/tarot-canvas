@@ -1330,8 +1330,10 @@ def test_a_context_menu_leaves_no_press_behind(qtbot, monkeypatch):
 
 
 def swap_rows(menu):
+    """The submenu, and its decks with the card's own first"""
     swap = next(action.menu() for action in menu.actions() if action.menu() is not None)
-    return swap, swap.actions()
+    rows = [action for action in swap.actions() if not action.isSeparator()]
+    return swap, sorted(rows, key=lambda action: not action.isChecked())
 
 
 def test_swap_lists_the_decks_that_have_the_card(qtbot, minimal_deck, other_deck):
@@ -1786,3 +1788,39 @@ def test_copy_and_cut_on_a_card_take_one_card(qtbot, clipboard, minimal_deck):
     ground_entry(tab.card_menu(card_centre(first)), "window.cut").trigger()
     assert clipboard.mimeData().hasFormat(CARD_MIME)
     assert first not in tab.scene.items()
+
+
+# -- Swap Deck
+
+
+def test_swap_deck_heads_the_pinned_and_leaves_out_the_hidden(qtbot, tmp_path, stub_deck_library):
+    from tarot_canvas.models import library_curation
+    from tarot_canvas.models.arcana_backend import load_deck
+    from tarot_canvas.ui.strings import LIBRARY
+    from tests.conftest import write_full_deck
+
+    aurora, birch, cedar, dune = (
+        load_deck(str(write_full_deck(tmp_path / name, name, f"x/deck/{name.lower()}")))
+        for name in ("Aurora", "Birch", "Cedar", "Dune")
+    )
+    stub_deck_library.decks = lambda: [dune, cedar, birch, aurora]
+    library_curation.set_deck_pinned("x/deck/cedar", True)
+    library_curation.set_deck_hidden("x/deck/birch", True)
+    library_curation.set_deck_hidden("x/deck/dune", True)
+    tab = make_tab(qtbot)
+    item = tab.add_specific_card(dune.find_card("major_arcana.00"), dune)
+
+    actions = swap_rows(tab.build_card_menu(item))[0].actions()
+
+    assert [(action.isSeparator(), action.text()) for action in actions] == [
+        (True, LIBRARY["pinned_heading"]),
+        (False, "Cedar"),
+        (True, ""),
+        (False, "Aurora"),
+        (False, "Dune"),
+    ]
+    current = actions[-1]
+    assert current.isChecked() and not current.isEnabled()
+
+    actions[1].trigger()
+    assert only_card(tab).deck is cedar
