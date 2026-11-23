@@ -8,6 +8,7 @@ from tarot_canvas.models import spreads
 from tarot_canvas.ui import commands
 from tarot_canvas.ui.canvas.detail import card_unit_size
 from tarot_canvas.ui.icons import LIBRARY_ICON
+from tarot_canvas.ui.library.decks.menu import add_pinned_heading
 from tarot_canvas.ui.library.spreads.model import spread_thumbnail, spread_title
 from tarot_canvas.ui.strings import READINGS
 
@@ -28,7 +29,7 @@ def _smallest_first(rows):
 
 
 def sections():
-    """The menu's (folder, Spread) rows, in sections: pinned, the user's, then the included
+    """The menu's (folder, Spread) rows as (pinned, the user's, the included), any empty
 
     A pinned spread shows only under Pinned, and a hidden one not at all.
     """
@@ -38,9 +39,7 @@ def sections():
     pins = [row for row in own + included if curation.spread_key(row[0]) in pinned]
     own = [row for row in own if curation.spread_key(row[0]) not in pinned]
     included = [row for row in included if curation.spread_key(row[0]) not in pinned | hidden]
-    return [
-        rows for rows in (_smallest_first(pins), own[:MAX_OWN], _smallest_first(included)) if rows
-    ]
+    return _smallest_first(pins), own[:MAX_OWN], _smallest_first(included)
 
 
 def _fill(menu, start, browse, blank):
@@ -50,9 +49,16 @@ def _fill(menu, start, browse, blank):
         action = menu.addAction(commands.command_icon(canvas), canvas.text)
         commands.set_menu_text(action, canvas.text, canvas.id)
         action.triggered.connect(blank)
-        menu.addSeparator()
     unit = card_unit_size()
-    for rows in sections():
+    pinned, own, included = sections()
+    # The heading is a separator of its own
+    if pinned:
+        add_pinned_heading(menu)
+    elif blank is not None:
+        menu.addSeparator()
+    for rows in (pinned, own, included):
+        if not rows:
+            continue
         for path, spread in rows:
             action = menu.addAction(
                 spread_thumbnail(spread, unit),

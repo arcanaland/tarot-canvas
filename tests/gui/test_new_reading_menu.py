@@ -13,7 +13,7 @@ from tarot_canvas.ui.canvas.placement import Phase
 from tarot_canvas.ui.library.tab import LibraryTab
 from tarot_canvas.ui.main_window import MainWindow
 from tarot_canvas.ui.spread_menu import MAX_OWN
-from tarot_canvas.ui.strings import MAIN_WINDOW, READINGS
+from tarot_canvas.ui.strings import LIBRARY, MAIN_WINDOW, READINGS
 from tarot_canvas.ui.tabs.reading_tab import ReadingTab
 from tarot_canvas.ui.tabs.spread_tab import SpreadTab
 
@@ -52,7 +52,11 @@ def filled(menu):
 
 
 def entries(menu):
-    return [None if action.isSeparator() else action.text() for action in menu.actions()]
+    """Each action's text; None for a separator, which a section's heading is not"""
+    return [
+        None if action.isSeparator() and not action.text() else action.text()
+        for action in menu.actions()
+    ]
 
 
 def entry(menu, text):
@@ -209,7 +213,10 @@ def test_pinned_spreads_lead_and_hidden_ones_leave_the_menu(window, included_bas
     curation.set_spread_pinned(spreads_base / "old", True)
     curation.set_spread_hidden(included_base / "single", True)
 
-    assert entries(filled(window.new_reading_menu)) == [
+    menu = filled(window.new_reading_menu)
+    assert menu.actions()[0].isSeparator()  # a section
+    assert entries(menu) == [
+        LIBRARY["pinned_heading"],
         "Old",  # smallest first, as Included is
         "Celtic Cross",
         None,
@@ -228,5 +235,5 @@ def test_pinned_spreads_dont_count_against_the_users_few(window, spreads_base):
 
     listed = entries(filled(window.new_reading_menu))
 
-    assert listed[:2] == [f"Mine {MAX_OWN}", None]
-    assert listed[2 : 2 + MAX_OWN] == [f"Mine {n}" for n in range(MAX_OWN - 1, -1, -1)]
+    assert listed[:3] == [LIBRARY["pinned_heading"], f"Mine {MAX_OWN}", None]
+    assert listed[3 : 3 + MAX_OWN] == [f"Mine {n}" for n in range(MAX_OWN - 1, -1, -1)]

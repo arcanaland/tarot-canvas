@@ -1,11 +1,10 @@
 import os
 import sys
 
-from PyQt6.QtCore import QPoint, QSignalBlocker, Qt, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QPoint, Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QDrag, QIcon, QPixmap, QStandardItem, QStandardItemModel
 from PyQt6.QtWidgets import (
     QAbstractItemView,
-    QComboBox,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -16,12 +15,15 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from tarot_canvas.models.deck_choices import deck_choices
 from tarot_canvas.models.deck_events import deck_events
-from tarot_canvas.models.deck_library import DeckLibrary, deck_library
+from tarot_canvas.models.deck_library import DeckLibrary
 from tarot_canvas.models.deck_types import CardKind
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.card_transfer import CARD_MIME, card_mime_data, copy_card_to_clipboard
+from tarot_canvas.ui.card_view.card_bar import TitleButton
 from tarot_canvas.ui.commands import set_tooltip_with_keys
+from tarot_canvas.ui.library.decks.menu import deck_menu
 from tarot_canvas.ui.strings import EXPLORER
 
 
@@ -87,6 +89,9 @@ class CardTreeView(QTreeView):
 
 
 class CardExplorerPanel(QWidget):
+    # Narrower than this and the deck's name elides rather than pinning the panel wide
+    MIN_DECK_BUTTON_WIDTH = 80
+
     # Signal emitted when a card action is requested
     card_action_requested = pyqtSignal(str, object, object)  # action, card, deck
     # Signal emitted when the header's close button is clicked
@@ -164,12 +169,11 @@ class CardExplorerPanel(QWidget):
         deck_layout = QHBoxLayout()
         deck_layout.setContentsMargins(5, 5, 5, 5)
 
-        self.deck_selector = QComboBox()
-        self.deck_selector.currentIndexChanged.connect(self.on_deck_changed)
-        self.deck_selector.setSizeAdjustPolicy(
-            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
+        self.deck_selector = TitleButton(bold=False)
+        self.deck_selector.setMinimumWidth(self.MIN_DECK_BUTTON_WIDTH)
+        self.deck_selector.setMenu(
+            deck_menu(self.deck_selector, on_chosen=self.choose_deck, current=self.chosen_deck)
         )
-        self.deck_selector.setMinimumContentsLength(10)
         deck_layout.addWidget(self.deck_selector, 1)  # 1 = stretch factor
 
         layout.addLayout(deck_layout)
@@ -190,30 +194,24 @@ class CardExplorerPanel(QWidget):
         return min(max(width, self.minimumSizeHint().width()), self.maximumWidth())
 
     def populate_deck_selector(self):
-        """Fill the deck selector dropdown with available decks"""
-        # Get all available decks
-        self.available_decks = deck_library.decks()
-
-        # The same folder stays chosen, else the first deck is
-        paths = [DeckLibrary.path_key(deck.root_path) for deck in self.available_decks]
+        """Choose again among the decks: the same folder, else the first"""
+        pinned, rest = deck_choices(current=self.current_deck)
+        decks = pinned + rest
         current = self.current_deck and DeckLibrary.path_key(self.current_deck.root_path)
-        row = paths.index(current) if current in paths else 0
-        with QSignalBlocker(self.deck_selector):
-            self.deck_selector.clear()
-            for deck in self.available_decks:
-                self.deck_selector.addItem(deck.metadata.name)
-            self.deck_selector.setCurrentIndex(row)
+        deck = next(
+            (each for each in decks if DeckLibrary.path_key(each.root_path) == current),
+            decks[0] if decks else None,
+        )
+        self.choose_deck(deck)
 
-        deck = self.available_decks[row] if self.available_decks else None
+    def chosen_deck(self):
+        return self.current_deck
+
+    def choose_deck(self, deck):
+        self.deck_selector.set_title(deck.metadata.name if deck is not None else "")
         # The same object has the same cards, so its tree keeps what is collapsed
         if deck is not self.current_deck:
             self.current_deck = deck
-            self.populate_tree()
-
-    def on_deck_changed(self, index):
-        """Handle deck selection change"""
-        if 0 <= index < len(self.available_decks):
-            self.current_deck = self.available_decks[index]
             self.populate_tree()
 
     def populate_tree(self):

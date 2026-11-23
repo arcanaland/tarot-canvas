@@ -207,14 +207,15 @@ def test_the_pane_offers_the_deck_and_reversals_until_the_deal(qtbot, deck, off)
     tab = make_tab(qtbot)
     pane = tab.pane
 
-    assert not pane.deck_combo.isHidden()
+    assert not pane.deck_button.isHidden()
     assert not pane.reversals_check.isHidden()
     assert pane.date_text.isHidden()
-    assert pane.deck_combo.currentData() is deck
+    assert pane.chosen_deck() is deck
+    assert pane.deck_button.text() == deck.metadata.name
 
     deal(qtbot, tab)
 
-    assert pane.deck_combo.isHidden()
+    assert pane.deck_button.isHidden()
     assert pane.deck_label.text() == deck.metadata.name
     assert pane.reversals_check.isHidden()
     assert pane.reversals_label.text() == READINGS["reversals_with"]
@@ -1084,12 +1085,12 @@ def test_with_every_position_filled_by_hand_the_reading_just_begins(qtbot, deck,
 
     placed = fill_by_hand(tab, deck, tab.slots()[:2])
     assert tab.bar.deal.text() == READINGS["deal"]
-    assert pane.deck_combo.isEnabled() and pane.reversals_check.isEnabled()
+    assert pane.deck_button.isEnabled() and pane.reversals_check.isEnabled()
 
     placed += fill_by_hand(tab, deck, tab.slots()[2:])
     assert tab.bar.deal.text() == READINGS["begin"]
     assert themed[-1] == FINISH_ICON
-    assert not pane.deck_combo.isEnabled()
+    assert not pane.deck_button.isEnabled()
     assert not pane.reversals_check.isEnabled()
 
     QTest.mouseClick(tab.bar.deal, LEFT)
@@ -1113,7 +1114,7 @@ def test_taking_a_card_back_off_its_socket_puts_the_deal_back(qtbot, deck, off, 
 
     assert tab.bar.deal.text() == READINGS["deal"]
     assert themed[-1] == DEAL_ICON
-    assert tab.pane.deck_combo.isEnabled()
+    assert tab.pane.deck_button.isEnabled()
 
 
 def test_the_deck_line_names_every_deck_the_cards_came_from(
@@ -1141,12 +1142,43 @@ def test_a_new_reading_starts_with_the_deck_last_chosen(
     first = make_tab(qtbot)
     assert first.deck is deck
 
-    first.pane.deck_combo.setCurrentIndex(first.pane.deck_combo.findData(other))
+    choose_deck(first.pane, other)
 
+    assert first.deck is other
+    assert first.pane.deck_button.text() == "Other"
     assert get_readings_deck() == other.root_path
     second = make_tab(qtbot)
     assert second.deck is other
-    assert second.pane.deck_combo.currentData() is other
+    assert second.pane.chosen_deck() is other
+
+
+def choose_deck(pane, deck):
+    menu = pane.deck_button.menu()
+    menu.aboutToShow.emit()
+    (action,) = (each for each in menu.actions() if each.text() == deck.metadata.name)
+    action.trigger()
+
+
+def test_a_hidden_deck_is_not_offered_but_stays_when_it_is_the_readings(
+    qtbot, deck, off, tmp_path, stub_deck_library
+):
+    from tarot_canvas.models import library_curation
+
+    other = load_deck(str(write_full_deck(tmp_path / "other", "Other", "x/deck/other")))
+    stub_deck_library.decks = lambda: [deck, other]
+    tab = make_tab(qtbot)
+    menu = tab.pane.deck_button.menu()
+
+    library_curation.set_deck_hidden(other.metadata.identifier, True)
+    menu.aboutToShow.emit()
+    assert [action.text() for action in menu.actions()] == [deck.metadata.name]
+
+    library_curation.set_deck_hidden(other.metadata.identifier, False)
+    choose_deck(tab.pane, other)
+    library_curation.set_deck_hidden(other.metadata.identifier, True)
+    menu.aboutToShow.emit()
+    checked = [action.text() for action in menu.actions() if action.isChecked()]
+    assert checked == ["Other"]
 
 
 def test_a_remembered_deck_since_removed_gives_way_to_the_reference(qtbot, deck, off):

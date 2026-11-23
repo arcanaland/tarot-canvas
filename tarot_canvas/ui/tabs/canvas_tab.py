@@ -29,7 +29,8 @@ from PyQt6.QtWidgets import (
 )
 
 from tarot_canvas.models import backgrounds, readings
-from tarot_canvas.models.deck_library import DeckLibrary, deck_library
+from tarot_canvas.models.deck_choices import deck_choices
+from tarot_canvas.models.deck_library import deck_library
 from tarot_canvas.models.ground import drawn
 from tarot_canvas.models.spreads import Position, Spread, offsets_from_middle
 from tarot_canvas.settings import (
@@ -104,6 +105,7 @@ from tarot_canvas.ui.card_transfer import (
     has_card,
 )
 from tarot_canvas.ui.commands import Scope, set_tooltip_with_keys
+from tarot_canvas.ui.library.decks.menu import add_deck_actions
 from tarot_canvas.ui.strings import CANVAS, MAIN_WINDOW, READINGS, SPREADS
 from tarot_canvas.ui.tabs.base_tab import BaseTab
 
@@ -993,21 +995,14 @@ class CanvasTab(BaseTab):
 
     def _add_swap_menu(self, menu, item):
         swap_menu = menu.addMenu(CANVAS["swap_deck"])
-        current = DeckLibrary.path_key(item.deck.root_path) if item.deck else None
         card_id = item.card_data.canonical_id if item.card_data else None
-        others = 0
-        for deck, card in deck_library.decks_containing(card_id) if card_id else []:
-            action = swap_menu.addAction(deck.metadata.name)
-            if DeckLibrary.path_key(deck.root_path) == current:
-                action.setCheckable(True)
-                action.setChecked(True)
-                action.setEnabled(False)
-            else:
-                others += 1
-                action.triggered.connect(
-                    lambda _checked=False, deck=deck, card=card: self.swap_card(item, deck, card)
-                )
-        swap_menu.setEnabled(others > 0)
+        pinned, rest = deck_choices(item.deck, card_id) if card_id else ([], [])
+        current = add_deck_actions(
+            swap_menu, pinned, rest, item.deck, lambda entry: self.swap_card(item, *entry)
+        )
+        if current is not None:
+            current.setEnabled(False)
+        swap_menu.setEnabled(len(pinned) + len(rest) > (current is not None))
 
     def on_context_menu_requested(self, scene_pos, global_pos):
         pressed = self.scene.mouseGrabberItem()

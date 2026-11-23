@@ -27,7 +27,6 @@ from PyQt6.QtWidgets import (
     QAbstractItemView,
     QApplication,
     QCheckBox,
-    QComboBox,
     QDateTimeEdit,
     QFrame,
     QGridLayout,
@@ -40,6 +39,7 @@ from PyQt6.QtWidgets import (
     QStyleOptionFocusRect,
     QStylePainter,
     QTextEdit,
+    QToolButton,
     QToolTip,
     QWidget,
 )
@@ -60,6 +60,7 @@ from tarot_canvas.ui.canvas.spread_pane import (
 )
 from tarot_canvas.ui.dates import format_qdatetime
 from tarot_canvas.ui.icons import SPREAD_ICON, deck_icon
+from tarot_canvas.ui.library.decks.menu import deck_menu
 from tarot_canvas.ui.strings import READINGS
 from tarot_canvas.ui.widgets.expand_button import ExpandButton
 from tarot_canvas.ui.widgets.reorder_list import GRIP_WIDTH
@@ -81,20 +82,23 @@ LIST_STRETCH = 1000
 NOTES_MIN_LINES = 4
 
 
+def fact_button():
+    """A flat button of text, which reads as a fact until it is pointed at"""
+    button = QToolButton()
+    button.setAutoRaise(True)
+    button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+    button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+    return button
+
+
 def fact_indent():
-    """Where a fact's plain text starts: where a frameless menu's text does"""
-    combo = QComboBox()
-    combo.setFrame(False)
-    combo.ensurePolished()
-    option = QStyleOptionComboBox()
-    combo.initStyleOption(option)
-    field = combo.style().subControlRect(
-        QStyle.ComplexControl.CC_ComboBox,
-        option,
-        QStyle.SubControl.SC_ComboBoxEditField,
-        combo,
-    )
-    return field.left()
+    """Where a fact's plain text starts: where a fact button's does"""
+    button = fact_button()
+    text = "M" * 12
+    button.setText(text)
+    button.ensurePolished()
+    # Its text is centred, the chrome on either side alike
+    return (button.sizeHint().width() - button.fontMetrics().horizontalAdvance(text)) // 2
 
 
 class FactLines(QWidget):
@@ -523,7 +527,9 @@ class ReadingRowDelegate(PositionDelegate):
 class ReadingPane(SidePane):
     """The pane on the side of a reading canvas"""
 
-    def __init__(self, reading, positions, spread_name, spread_description, decks, deck):
+    deck_chosen = pyqtSignal()
+
+    def __init__(self, reading, positions, spread_name, spread_description, deck):
         super().__init__()
         self.reading = reading
         # The reading's note, from the deal on
@@ -539,7 +545,7 @@ class ReadingPane(SidePane):
         heading.addWidget(self.question_edit, 1)
         self.body.addLayout(heading)
 
-        self._build_facts(spread_name, spread_description, decks, deck)
+        self._build_facts(spread_name, spread_description, deck)
         self.list_view = self._build_list(positions)
 
         # The list takes room first
@@ -555,7 +561,7 @@ class ReadingPane(SidePane):
         for above in (self.question_edit, self.facts):
             above.installEventFilter(self)
 
-    def _build_facts(self, spread_name, spread_description, decks, deck):
+    def _build_facts(self, spread_name, spread_description, deck):
         self.facts = facts = FactLines()
 
         # The spread.
@@ -565,16 +571,15 @@ class ReadingPane(SidePane):
         facts.add(QIcon.fromTheme(SPREAD_ICON), self.spread_label)
 
         # The deck
-        self.deck_combo = QComboBox()
-        self.deck_combo.setFrame(False)
-        self.deck_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
-        for each in decks:
-            self.deck_combo.addItem(each.metadata.name, each)
-            if each is deck:
-                self.deck_combo.setCurrentIndex(self.deck_combo.count() - 1)
+        self._deck = None
+        self.deck_button = fact_button()
+        self.deck_button.setMenu(
+            deck_menu(self.deck_button, on_chosen=self.choose_deck, current=self.chosen_deck)
+        )
+        self.choose_deck(deck)
         self.deck_label = QLabel()
         self.deck_label.setWordWrap(True)
-        facts.add(deck_icon(), self.deck_combo, self.deck_label, None, control=True)
+        facts.add(deck_icon(), self.deck_button, self.deck_label, None, control=True)
 
         # Reversals
         self.reversals_check = QCheckBox(READINGS["reversals"])
@@ -593,7 +598,7 @@ class ReadingPane(SidePane):
         self.date_edit = self.date_line.editor
         self.date_mark = facts.add(QIcon.fromTheme(DATE_ICON), self.date_text, self.date_edit, None)
 
-        # Plain text starts where the deck menu's text does, so the facts line up in a column
+        # Plain text starts where the deck button's text does, so the facts line up in a column
         indent = fact_indent()
         for label in (self.spread_label, self.deck_label, self.reversals_label):
             label.setIndent(indent)
@@ -614,7 +619,15 @@ class ReadingPane(SidePane):
         return view
 
     def chosen_deck(self):
-        return self.deck_combo.currentData()
+        return self._deck
+
+    def choose_deck(self, deck):
+        if deck is self._deck:
+            return
+        self._deck = deck
+        name = deck.metadata.name if deck is not None else ""
+        self.deck_button.setText(name.replace("&", "&&"))  # a deck name is no mnemonic
+        self.deck_chosen.emit()
 
     def sync(self, phase, decks, reversals, dealt_at, draws=True):
         """Controls while staged, enabled only while the deal will draw: once every position
@@ -622,8 +635,8 @@ class ReadingPane(SidePane):
         the reading's cards came from, one per line; whether it was dealt with reversals, unless
         nothing was dealt; and the date"""
         staged = phase is Phase.STAGED
-        self.deck_combo.setVisible(staged)
-        self.deck_combo.setEnabled(staged and draws)
+        self.deck_button.setVisible(staged)
+        self.deck_button.setEnabled(staged and draws)
         self.deck_label.setVisible(not staged)
         self.deck_label.setText("\n".join(deck.metadata.name for deck in decks))
         self.reversals_check.setVisible(staged)

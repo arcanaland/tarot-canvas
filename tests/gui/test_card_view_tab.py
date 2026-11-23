@@ -340,6 +340,8 @@ def test_d_draws_another_card(qtbot, big_image_deck):
 
 
 def test_brackets_step_through_the_decks(qtbot, big_image_deck, minimal_deck, stub_deck_library):
+    # Named apart: by one name, the decks would go by path, which differs between machines
+    big_image_deck = renamed(big_image_deck, "Big Image Deck")
     stub_deck_library.decks = lambda: [big_image_deck, minimal_deck]
     tab = make_tab(qtbot, big_image_deck, 1200, 900)
 
@@ -352,6 +354,8 @@ def test_brackets_step_through_the_decks(qtbot, big_image_deck, minimal_deck, st
 
 
 def test_the_deck_menu_shows_each_decks_art(qtbot, big_image_deck, minimal_deck, stub_deck_library):
+    # Named apart: by one name, the decks would go by path, which differs between machines
+    big_image_deck = renamed(big_image_deck, "Big Image Deck")
     stub_deck_library.decks = lambda: [big_image_deck, minimal_deck]
     tab = make_tab(qtbot, big_image_deck, 1200, 900)
     bar = tab.deck_bar
@@ -364,6 +368,41 @@ def test_the_deck_menu_shows_each_decks_art(qtbot, big_image_deck, minimal_deck,
     bar.deck_list.itemClicked.emit(bar.deck_list.item(1))
     assert tab.deck is minimal_deck
     assert bar.current_index == 1
+
+
+def test_the_deck_menu_heads_the_pinned_decks_with_a_row_that_is_never_chosen(
+    qtbot, tmp_path, stub_deck_library
+):
+    from tarot_canvas.models import library_curation
+    from tarot_canvas.ui.strings import LIBRARY
+    from tests.conftest import write_full_deck
+
+    aurora, birch, cedar = (
+        load_deck(str(write_full_deck(tmp_path / name, name, f"x/deck/{name.lower()}")))
+        for name in ("Aurora", "Birch", "Cedar")
+    )
+    stub_deck_library.decks = lambda: [aurora, birch, cedar]
+    library_curation.set_deck_pinned("x/deck/cedar", True)
+    library_curation.set_deck_hidden("x/deck/birch", True)
+    tab = make_tab(qtbot, aurora, 1200, 900)
+    bar = tab.deck_bar
+
+    bar.deck_menu.aboutToShow.emit()
+    rows = [bar.deck_list.item(row) for row in range(bar.deck_list.count())]
+    assert [row.text() for row in rows] == [LIBRARY["pinned_heading"], "Cedar", "Aurora"]
+    assert rows[0].flags() == Qt.ItemFlag.NoItemFlags
+    assert bar.deck_list.currentRow() == 2
+
+    for _ in range(3):
+        qtbot.keyClick(bar.deck_list, Qt.Key.Key_Up)
+        assert bar.deck_list.currentRow() != 0
+    bar.deck_list.itemClicked.emit(rows[0])
+    assert tab.deck is aurora
+
+    press(qtbot, tab, Qt.Key.Key_BracketRight)
+    assert tab.deck is cedar
+    bar.deck_menu.aboutToShow.emit()
+    assert bar.deck_list.currentRow() == 1
 
 
 def test_brackets_do_nothing_with_one_deck(qtbot, big_image_deck, stub_deck_library):

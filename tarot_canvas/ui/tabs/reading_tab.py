@@ -10,7 +10,6 @@ from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QSplitter, QVBoxLayout, QWidget
 
 from tarot_canvas.models import readings
-from tarot_canvas.models.deck_library import deck_library
 from tarot_canvas.models.readings import Reading
 from tarot_canvas.settings import (
     get_readings_reversals,
@@ -130,7 +129,6 @@ class ReadingTab(SpreadSlots, CanvasTab):
             self.positions,
             spread.name,
             spread.description,
-            deck_library.decks(),
             remembered,
         )
         self.pane.dock(self.splitter)
@@ -173,7 +171,7 @@ class ReadingTab(SpreadSlots, CanvasTab):
         pane.question_edit.submitted.connect(self.deal)
         pane.date_edit.dateTimeChanged.connect(self._on_date_edited)
 
-        pane.deck_combo.currentIndexChanged.connect(self._on_deck_chosen)
+        pane.deck_chosen.connect(self._on_deck_chosen)
 
         # The user's last choice, from any reading
         pane.reversals_check.setChecked(get_readings_reversals())

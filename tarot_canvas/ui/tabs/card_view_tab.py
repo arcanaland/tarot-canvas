@@ -117,7 +117,7 @@ class CardViewTab(BaseTab):
 
         self.load_image()
 
-        self.deck_bar.update_decks(self.card, self.deck, deck_library)
+        self.deck_bar.update_decks(self.card, self.deck)
         self.sync_deck_bar()
         # A slot, so Qt drops the app-wide connection when the tab is deleted
         deck_events().decks_changed.connect(self.on_decks_changed)
@@ -415,7 +415,7 @@ class CardViewTab(BaseTab):
                 self.esoterica_tab.update_card_info(card, self.deck)
             self.tab_label_changed.emit()
 
-            self.deck_bar.update_decks(card, self.deck, self.deck_library)
+            self.deck_bar.update_decks(card, self.deck)
             self.sync_deck_bar()
         finally:
             self.setUpdatesEnabled(True)
@@ -429,7 +429,7 @@ class CardViewTab(BaseTab):
         """A deck installed: list again the decks that have this card, for the bar and Go"""
         if self.card is None or self.deck is None:
             return
-        self.deck_bar.update_decks(self.card, self.deck, self.deck_library)
+        self.deck_bar.update_decks(self.card, self.deck)
         self.sync_deck_bar()
 
     # -- zoom --------------------------------------------------------------

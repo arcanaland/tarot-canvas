@@ -753,6 +753,7 @@ LIBRARY = {
     "deck_removed": "Removed {name} from your library.",
     "deck_remove_failed": "Could not delete the deck.",
     "deck_restore_failed": "Failed to restore deck.",
+    "pinned_heading": "Pinned",
 }
 
 # The About dialog; {link} is an HTML link

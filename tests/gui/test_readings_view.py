@@ -697,6 +697,20 @@ def test_new_readings_menu_leads_with_a_blank_canvas(window):
     assert isinstance(tab, CanvasTab) and tab.reading_path is None
 
 
+def test_a_pinned_heading_takes_the_place_of_the_blank_canvas_separator(window, monkeypatch):
+    from tarot_canvas.ui import spread_menu
+    from tarot_canvas.ui.strings import LIBRARY
+
+    pinned = [("/spreads/one", Spread(name="One", positions=(Position(id="1"),)))]
+    monkeypatch.setattr(spread_menu, "sections", lambda: (pinned, [], []))
+    library, _page = readings_view(window)
+    menu = library.new_reading_button.menu()
+    menu.aboutToShow.emit()
+
+    heading = menu.actions()[1]
+    assert heading.isSeparator() and heading.text() == LIBRARY["pinned_heading"]
+
+
 # -- delete ---------------------------------------------------------------------------------
 
 

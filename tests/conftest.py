@@ -38,6 +38,7 @@ DECK_LIBRARY_CONSUMERS = [
     "tarot_canvas.ui.card_explorer",
     "tarot_canvas.ui.catalog.downloads",
     "tarot_canvas.ui.library.decks.menu",
+    "tarot_canvas.models.deck_choices",
 ]
 
 
@@ -314,16 +315,17 @@ def minimal_v1_deck():
 FULL_DECK_ART_SIZE = (60, 100)
 
 
-def write_full_deck(root, name="Full Test Deck"):
+def write_full_deck(root, name="Full Test Deck", identifier=None):
     """A 78-card deck with a tiny PNG per card, laid out as the minimal fixture is."""
     from PyQt6.QtGui import QColor, QImage
 
     from tarot_canvas.models.card_ids import CANONICAL_CARD_IDS
 
     root.mkdir(parents=True, exist_ok=True)
-    (root / "deck.toml").write_text(
-        f'[deck]\nschema_version = "2.0"\nname = "{name}"\nversion = "1.0.0"\n', encoding="utf-8"
-    )
+    manifest = f'[deck]\nschema_version = "2.0"\nname = "{name}"\nversion = "1.0.0"\n'
+    if identifier is not None:
+        manifest += f'identifier = "{identifier}"\n'
+    (root / "deck.toml").write_text(manifest, encoding="utf-8")
     image = QImage(*FULL_DECK_ART_SIZE, QImage.Format.Format_RGB32)
     image.fill(QColor("steelblue"))
     art = root / "art.png"
