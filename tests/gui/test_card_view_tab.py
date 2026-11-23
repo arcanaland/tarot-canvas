@@ -340,6 +340,8 @@ def test_d_draws_another_card(qtbot, big_image_deck):
 
 
 def test_brackets_step_through_the_decks(qtbot, big_image_deck, minimal_deck, stub_deck_library):
+    # Named apart: by one name, the decks would go by path, which differs between machines
+    big_image_deck = renamed(big_image_deck, "Big Image Deck")
     stub_deck_library.decks = lambda: [big_image_deck, minimal_deck]
     tab = make_tab(qtbot, big_image_deck, 1200, 900)
 
@@ -352,6 +354,8 @@ def test_brackets_step_through_the_decks(qtbot, big_image_deck, minimal_deck, st
 
 
 def test_the_deck_menu_shows_each_decks_art(qtbot, big_image_deck, minimal_deck, stub_deck_library):
+    # Named apart: by one name, the decks would go by path, which differs between machines
+    big_image_deck = renamed(big_image_deck, "Big Image Deck")
     stub_deck_library.decks = lambda: [big_image_deck, minimal_deck]
     tab = make_tab(qtbot, big_image_deck, 1200, 900)
     bar = tab.deck_bar

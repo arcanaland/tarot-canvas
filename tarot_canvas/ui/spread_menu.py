@@ -49,11 +49,13 @@ def _fill(menu, start, browse, blank):
         action = menu.addAction(commands.command_icon(canvas), canvas.text)
         commands.set_menu_text(action, canvas.text, canvas.id)
         action.triggered.connect(blank)
-        menu.addSeparator()
     unit = card_unit_size()
     pinned, own, included = sections()
+    # The heading is a separator of its own
     if pinned:
         add_pinned_heading(menu)
+    elif blank is not None:
+        menu.addSeparator()
     for rows in (pinned, own, included):
         if not rows:
             continue

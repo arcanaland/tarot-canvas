@@ -26,11 +26,7 @@ def add_pinned_heading(menu):
 
 
 def add_deck_actions(menu, pinned, rest, checked, chosen):
-    """The decks as one exclusive group, the pinned ones first under their heading
-
-    Entries are decks or (deck, card) pairs, as deck_choices returns them; checked is
-    the deck to mark, and chosen(entry) runs on a choice. Returns the marked action.
-    """
+    """The decks as one exclusive group"""
     group = QActionGroup(menu)  # exclusive: the mark is the icon
     wanted = DeckLibrary.path_key(checked.root_path) if checked is not None else None
     marked = None
