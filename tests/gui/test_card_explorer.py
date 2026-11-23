@@ -151,6 +151,7 @@ def test_decks_changed_repopulates_the_deck_selector(
 
     explorer = panel(qtbot)
     assert len(deck_actions(explorer)) == 1
+    assert explorer.deck_bar.isHidden()
 
     shutil.copytree(MINIMAL_DECK_PATH, tmp_path / "second")
     manifest = tmp_path / "second" / "deck.toml"
@@ -164,6 +165,7 @@ def test_decks_changed_repopulates_the_deck_selector(
         "Second Deck",
     ]
     assert explorer.deck_selector.title() == "Minimal Test Deck"
+    assert not explorer.deck_bar.isHidden()
 
     deck_actions(explorer)[1].trigger()
     assert explorer.current_deck is second
@@ -217,3 +219,81 @@ def test_the_chosen_deck_going_leaves_the_first_and_none_leaves_nothing(
     deck_events().decks_changed.emit()
     assert explorer.current_deck is None
     assert explorer.model.rowCount() == 0
+
+
+def second_deck(root, identifier=None):
+    """The minimal deck copied under another name, and an identifier if given"""
+    import shutil
+
+    from tarot_canvas.models.arcana_backend import load_deck
+    from tests.conftest import MINIMAL_DECK_PATH
+
+    shutil.copytree(MINIMAL_DECK_PATH, root)
+    manifest = root / "deck.toml"
+    named = 'name = "Second Deck"'
+    if identifier is not None:
+        named += f'\nidentifier = "{identifier}"'
+    manifest.write_text(manifest.read_text().replace('name = "Minimal Test Deck"', named))
+    return load_deck(str(root))
+
+
+def test_one_deck_hides_the_deck_bar_and_still_shows_its_cards(
+    qtbot, stub_deck_library, minimal_deck
+):
+    explorer = panel(qtbot)
+
+    assert explorer.deck_bar.isHidden()
+    assert explorer.current_deck is minimal_deck
+    assert explorer.model.rowCount() > 0
+
+
+def test_two_decks_show_the_deck_bar(qtbot, other_deck):
+    explorer = panel(qtbot)
+    explorer.show()
+
+    assert not explorer.deck_bar.isHidden()
+    assert explorer.deck_selector.isVisibleTo(explorer)
+
+
+def test_the_deck_bar_follows_the_number_of_decks(
+    qtbot, stub_deck_library, minimal_deck, other_deck
+):
+    from tarot_canvas.models.deck_events import deck_events
+
+    stub_deck_library.decks = lambda: [minimal_deck]
+    explorer = panel(qtbot)
+    assert explorer.deck_bar.isHidden()
+
+    stub_deck_library.decks = lambda: [minimal_deck, other_deck]
+    deck_events().decks_changed.emit()
+    assert not explorer.deck_bar.isHidden()
+
+    stub_deck_library.decks = lambda: [minimal_deck]
+    deck_events().decks_changed.emit()
+    assert explorer.deck_bar.isHidden()
+
+    stub_deck_library.decks = lambda: []
+    deck_events().decks_changed.emit()
+    assert explorer.deck_bar.isHidden()
+    assert explorer.current_deck is None
+
+
+def test_a_hidden_deck_is_no_choice_so_the_deck_bar_hides(
+    qtbot, tmp_path, stub_deck_library, minimal_deck
+):
+    from tarot_canvas.models import library_curation
+    from tarot_canvas.models.deck_events import deck_events
+
+    second = second_deck(tmp_path / "second", identifier="test/deck/second")
+    stub_deck_library.decks = lambda: [minimal_deck, second]
+    explorer = panel(qtbot)
+    assert not explorer.deck_bar.isHidden()
+
+    library_curation.set_deck_hidden("test/deck/second", True)
+    deck_events().decks_changed.emit()
+    assert explorer.deck_bar.isHidden()
+    assert explorer.current_deck is minimal_deck
+
+    library_curation.set_deck_hidden("test/deck/second", False)
+    deck_events().decks_changed.emit()
+    assert not explorer.deck_bar.isHidden()
