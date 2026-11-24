@@ -159,11 +159,17 @@ class CardExplorerPanel(QWidget):
 
         layout.addWidget(self.tree_view, 1)  # 1 = stretch factor
 
+        # The separator and deck selector
+        self.deck_bar = QWidget()
+        deck_bar_layout = QVBoxLayout(self.deck_bar)
+        deck_bar_layout.setContentsMargins(0, 0, 0, 0)
+        deck_bar_layout.setSpacing(0)
+
         # Add a separator line
         separator = QFrame()
         separator.setFrameShape(QFrame.Shape.HLine)
         separator.setFrameShadow(QFrame.Shadow.Sunken)
-        layout.addWidget(separator)
+        deck_bar_layout.addWidget(separator)
 
         # Create deck selector at the bottom
         deck_layout = QHBoxLayout()
@@ -176,7 +182,8 @@ class CardExplorerPanel(QWidget):
         )
         deck_layout.addWidget(self.deck_selector, 1)  # 1 = stretch factor
 
-        layout.addLayout(deck_layout)
+        deck_bar_layout.addLayout(deck_layout)
+        layout.addWidget(self.deck_bar)
 
         self.setMaximumWidth(300)
 
@@ -194,7 +201,7 @@ class CardExplorerPanel(QWidget):
         return min(max(width, self.minimumSizeHint().width()), self.maximumWidth())
 
     def populate_deck_selector(self):
-        """Choose again among the decks: the same folder, else the first"""
+        """Choose again among the decks: the same folder, else the first."""
         pinned, rest = deck_choices(current=self.current_deck)
         decks = pinned + rest
         current = self.current_deck and DeckLibrary.path_key(self.current_deck.root_path)
@@ -203,6 +210,9 @@ class CardExplorerPanel(QWidget):
             decks[0] if decks else None,
         )
         self.choose_deck(deck)
+
+        # hide the bar if there's only one deck
+        self.deck_bar.setVisible(len(decks) > 1)
 
     def chosen_deck(self):
         return self.current_deck
