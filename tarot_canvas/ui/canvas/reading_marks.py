@@ -3,7 +3,7 @@
 import math
 
 from PyQt6.QtCore import QPointF, QRectF, Qt
-from PyQt6.QtGui import QColor, QFontMetricsF, QPainter, QPen
+from PyQt6.QtGui import QColor, QFontMetricsF, QPainter, QPen, QTransform
 
 from tarot_canvas.ui import typography
 from tarot_canvas.ui.canvas.selection import GILT_ON_DARK, gilt_for_ground
@@ -38,6 +38,22 @@ def paint_badge(painter, circle, number, font, lit):
     painter.drawText(circle, int(Qt.AlignmentFlag.AlignCenter), str(number))
 
 
+def badge_centre(corners, laid_angle, reach):
+    """Where a badge's middle sits"""
+    centre = sum(corners, QPointF()) / 4.0
+    unturn = QTransform().rotate(-laid_angle)
+    laid = [unturn.map(corner - centre) for corner in corners]
+    i = min(range(4), key=lambda k: laid[k].x() + laid[k].y())
+    corner = corners[i]
+    point = QPointF(corner)
+    for neighbour in (corners[i - 1], corners[(i + 1) % 4]):
+        edge = neighbour - corner
+        length = math.hypot(edge.x(), edge.y())
+        if length > 0.0:
+            point += edge * (reach / length)
+    return point
+
+
 def _viewport_painting(painter):
     painter.save()
     painter.resetTransform()
@@ -59,9 +75,21 @@ class Badges:
         side = QFontMetricsF(self.font).height() + 4
         inset = side * BADGE_INSET
         _viewport_painting(painter)
+        to_viewport = self.view.viewportTransform()
         for card, number, lit in marks:
-            corner = self.view.mapFromScene(card.sceneBoundingRect()).boundingRect().topLeft()
-            circle = QRectF(corner.x() + inset, corner.y() + inset, side, side)
+            rect = card.boundingRect()
+            on_screen = card.deviceTransform(to_viewport)
+            corners = [
+                on_screen.map(point)
+                for point in (
+                    rect.topLeft(),
+                    rect.topRight(),
+                    rect.bottomRight(),
+                    rect.bottomLeft(),
+                )
+            ]
+            middle = badge_centre(corners, card.motion.orient, inset + side / 2.0)
+            circle = QRectF(middle.x() - side / 2.0, middle.y() - side / 2.0, side, side)
             paint_badge(painter, circle, number, self.font, lit)
         painter.restore()
 
