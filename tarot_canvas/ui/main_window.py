@@ -78,6 +78,7 @@ from tarot_canvas.ui.strings import (
 )
 from tarot_canvas.ui.style.theme_manager import ThemeManager, ThemeType
 from tarot_canvas.ui.tabs.base_tab import BaseTab
+from tarot_canvas.ui.tabs.board_tab import BoardTab
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.card_view_tab import CardViewTab
 from tarot_canvas.ui.tabs.deck_view_tab import DeckViewTab
@@ -255,6 +256,7 @@ class MainWindow(QMainWindow):
             {
                 "window.new_canvas": self.new_canvas_tab,
                 "window.new_spread": self.new_spread_tab,
+                "window.new_decan_board": self.new_decan_board_tab,
                 "window.new_deck": self.new_deck,
                 "window.new_library": self.new_library_tab,
                 "window.new_card_view": self.new_card_view_tab,
@@ -627,6 +629,9 @@ class MainWindow(QMainWindow):
 
     def new_spread_tab(self):
         return self.add_canvas_tab(SpreadTab())
+
+    def new_decan_board_tab(self):
+        return self.add_canvas_tab(BoardTab())
 
     def new_deck(self):
         """Ask for a name, create the deck and open it"""

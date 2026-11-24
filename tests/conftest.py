@@ -29,6 +29,7 @@ DECK_LIBRARY_CONSUMERS = [
     "tarot_canvas.ui.command_palette",
     "tarot_canvas.ui.canvas.detail",
     "tarot_canvas.ui.tabs.canvas_tab",
+    "tarot_canvas.ui.tabs.board_tab",
     "tarot_canvas.ui.main_window",
     "tarot_canvas.ui.tabs.card_view_tab",
     "tarot_canvas.ui.tabs.deck_view_tab",

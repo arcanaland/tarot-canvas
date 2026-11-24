@@ -5,6 +5,7 @@ COMMANDS = {
     # File
     "new_canvas": "New &Canvas",
     "new_spread": "New Spread",
+    "new_decan_board": "Decan Board",
     "new_deck": "New Deck…",
     "new_library": "L&ibrary",
     "new_card_view": "New C&ard View",

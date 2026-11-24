@@ -84,6 +84,7 @@ COMMANDS = (
     _command("window.new_canvas", T["new_canvas"], "draw-rectangle", ["Ctrl+N"], W),
     _command("window.new_card_view", T["new_card_view"], "view-pages-single", ["Ctrl+T"], W),
     _command("window.new_spread", T["new_spread"], SPREAD_ICON, ["Ctrl+Shift+N"], W),
+    _command("window.new_decan_board", T["new_decan_board"], "view-calendar", [], W),
     _command("window.new_deck", T["new_deck"], deck_icon, [], W),
     _command("window.open_deck", T["open_deck"], "document-open", ["Ctrl+O"], W),
     _command("window.open_deck_folder", T["open_deck_folder"], "document-open-folder", [], W),
