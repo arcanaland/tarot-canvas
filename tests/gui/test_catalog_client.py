@@ -144,14 +144,12 @@ def test_304_bumps_checked_at_and_leaves_the_index_alone(make, transport, cache)
 
 def test_200_replaces_the_index_atomically(make, transport, cache):
     seed(cache, age=STALE)
-    (cache / "index.json.tmp").write_bytes(b"left by a crash")
     catalog = make()
     catalog.activate()
     transport.reply(INDEX_URL, 200, NEWER, etag='"v2"')
 
     assert (cache / "index.json").read_bytes() == NEWER
-    assert not (cache / "index.json.tmp").exists()
-    assert not (cache / "index.meta.json.tmp").exists()
+    assert not [name for name in os.listdir(cache) if name.startswith(".")]
     assert read_meta(cache).etag == '"v2"'
     assert catalog.emitted == [["aquatic-tarot"], ["aquatic-tarot", "ascii-tarot"]]
 

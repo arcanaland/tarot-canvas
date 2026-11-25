@@ -4,6 +4,7 @@ import pytest
 
 from tarot_canvas.models import spreads, toml_files
 from tarot_canvas.models.spreads import Position, Spread
+from tarot_canvas.utils import files
 
 
 def sample():
@@ -54,7 +55,7 @@ def test_a_failed_save_keeps_the_old_file_and_leaves_no_temporary(tmp_path, monk
     def fail(*_):
         raise OSError("disk full")
 
-    monkeypatch.setattr(toml_files.os, "replace", fail)
+    monkeypatch.setattr(files.os, "replace", fail)
     with pytest.raises(OSError):
         spreads.save(tmp_path, sample())
 

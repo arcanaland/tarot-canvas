@@ -10,6 +10,7 @@ from tarot_canvas.models.ground import Ground
 from tarot_canvas.models.reading_events import reading_events
 from tarot_canvas.models.readings import Reading, ReadingCard
 from tarot_canvas.models.spreads import Position, Spread
+from tarot_canvas.utils import files
 
 PACIFIC = timezone(timedelta(hours=-8))
 WHEN = datetime(2026, 11, 9, 21, 14, tzinfo=PACIFIC)
@@ -274,7 +275,7 @@ def test_a_failed_save_keeps_the_old_file_and_leaves_no_temporary(tmp_path, monk
     def fail(*_):
         raise OSError("disk full")
 
-    monkeypatch.setattr(toml_files.os, "replace", fail)
+    monkeypatch.setattr(files.os, "replace", fail)
     with pytest.raises(OSError):
         readings.save(tmp_path, sample(question="new"))
 

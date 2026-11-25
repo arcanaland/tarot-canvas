@@ -10,7 +10,6 @@ import os
 import re
 import secrets
 import shutil
-import tempfile
 import unicodedata
 from collections.abc import Mapping
 from pathlib import Path
@@ -23,7 +22,7 @@ from tarot_canvas.models import library_curation, staged_delete
 from tarot_canvas.models.card_ids import CANONICAL_CARD_IDS
 from tarot_canvas.models.deck_container import DECK_TOML
 from tarot_canvas.models.deck_install import install_dir_name
-from tarot_canvas.models.toml_files import write_atomically
+from tarot_canvas.utils.files import atomic_path, write_atomic
 from tarot_canvas.utils.path_helper import get_decks_directory
 
 log = logging.getLogger(__name__)
@@ -111,7 +110,7 @@ def create(name, majors_only=True, decks_root=None):
             continue
         break
     try:
-        write_atomically(deck / DECK_TOML, _new_manifest(name, identifier, majors_only))
+        write_atomic(deck / DECK_TOML, _new_manifest(name, identifier, majors_only))
     except BaseException:
         shutil.rmtree(deck, ignore_errors=True)
         raise
@@ -154,7 +153,7 @@ def include_minors(deck):
         excluded["cards"] = cards
     else:
         del document["excluded_cards"]
-    write_atomically(manifest, tomlkit.dumps(document))
+    write_atomic(manifest, tomlkit.dumps(document))
 
 
 def exclude_minors(deck, progress=None):
@@ -186,7 +185,7 @@ def list_excluded(manifest, card_ids):
     cards.extend([*listed, *(c for c in CANONICAL_CARD_IDS if c in wanted and c not in listed)])
     cards.multiline(True)
     excluded["cards"] = cards
-    write_atomically(Path(manifest), tomlkit.dumps(document))
+    write_atomic(Path(manifest), tomlkit.dumps(document))
 
 
 def _remove_empty_folders(top):
@@ -220,7 +219,7 @@ def set_fields(deck, **fields):
             table[key] = value
         else:
             raise TypeError(f"{key} must be a string, not {type(value).__name__}")
-    write_atomically(manifest, tomlkit.dumps(document))
+    write_atomic(manifest, tomlkit.dumps(document))
 
 
 # -- placing and removing cards ------------------------------------------------------------
@@ -243,7 +242,7 @@ def place(deck, card_id, image, progress=None):
     if _is_unsorted(deck, image):
         os.replace(image, target)
     else:
-        with _atomic(target) as temporary:
+        with atomic_path(target) as temporary:
             shutil.copyfile(image, temporary)
     _sync(deck, progress)
     if not any(_files_with_stem(root / _subpath(card_id)) for root in _roots(deck)):
@@ -327,7 +326,7 @@ def place_unsorted(deck, image):
     unsorted = deck / UNSORTED
     unsorted.mkdir(exist_ok=True)
     target = _free_name(unsorted, image.name)
-    with _atomic(target) as temporary:
+    with atomic_path(target) as temporary:
         shutil.copyfile(image, temporary)
     return target.name
 
@@ -525,21 +524,6 @@ def _to_unsorted(deck, path):
     os.replace(path, _free_name(unsorted, path.name))
 
 
-@contextlib.contextmanager
-def _atomic(target):
-    """A temporary path beside target, renamed over target once written"""
-    descriptor, temporary = tempfile.mkstemp(dir=target.parent, prefix=f".{target.name}.")
-    os.close(descriptor)
-    try:
-        yield temporary
-        with open(temporary, "rb+") as handle:
-            os.fsync(handle.fileno())
-        os.replace(temporary, target)
-    except BaseException:
-        Path(temporary).unlink(missing_ok=True)
-        raise
-
-
 # -- images --------------------------------------------------------------------------------
 
 
@@ -577,7 +561,7 @@ def _derived_suffix(image_format):
 def _derive(source, height, image_format, transformed, target_height, target):
     """Write source at target_height to target: a byte copy where it already is, else encoded"""
     if height == target_height and image_format in _BASELINE and not transformed:
-        with _atomic(target) as temporary:
+        with atomic_path(target) as temporary:
             shutil.copyfile(source, temporary)
         return
     reader = _reader(source)
@@ -596,8 +580,8 @@ def _derive(source, height, image_format, transformed, target_height, target):
     if not writer.write(image):
         raise OSError(f"could not encode {source} as {out_format}: {writer.errorString()}")
     buffer.close()
-    with _atomic(target) as temporary:
-        Path(temporary).write_bytes(bytes(encoded))
+    with atomic_path(target) as temporary:
+        temporary.write_bytes(bytes(encoded))
 
 
 # -- keeping h<H>/ in step with source/ ----------------------------------------------------

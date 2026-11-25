@@ -1,12 +1,12 @@
 """Our app's stored TOML files in ~/.local/share/tarot-canvas"""
 
-import os
-import tempfile
 import time
 import tomllib
 from pathlib import Path
 
 import tomli_w
+
+from tarot_canvas.utils.files import write_atomic
 
 APP_TABLE = "land.arcana.tarotcanvas"
 MAX_NUMBER = 1e9
@@ -59,24 +59,9 @@ def number(table, key, default=0.0):
     return value
 
 
-def write_atomically(file, text):
-    """Replace file with text"""
-    file = Path(file)
-    descriptor, temporary = tempfile.mkstemp(dir=file.parent, prefix=f".{file.name}.")
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            handle.write(text)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, file)
-    except BaseException:
-        Path(temporary).unlink(missing_ok=True)
-        raise
-
-
 def write_toml(file, table):
     """Replace file with table as TOML, atomically"""
-    write_atomically(file, tomli_w.dumps(table, multiline_strings=True))
+    write_atomic(file, tomli_w.dumps(table, multiline_strings=True))
 
 
 # -- the app's own table: [app."land.arcana.tarotcanvas"] ---------------------------------
