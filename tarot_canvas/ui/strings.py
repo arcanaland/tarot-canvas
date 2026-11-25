@@ -315,6 +315,11 @@ _SPELLINGS = {
 }
 
 
+def without_mnemonic(text):
+    """A label as read: no mnemonic, && as &, and no key after a tab"""
+    return text.split("\t")[0].replace("&&", "\0").replace("&", "").replace("\0", "&")
+
+
 def label_for(key):
     """The label for an entry, family or group key; empty hides what it labels."""
     return ESOTERICA.get(key) or ESOTERICA.get(_SPELLINGS.get(key), "") or ""
@@ -852,7 +857,7 @@ READINGS = {
 # The command palette
 PALETTE = {
     "title": "Find Card",
-    "search": "Search for cards...",
+    "search": "<clankertext>Search for cards, or type > to run a command</clankertext>",
     "hint": "Press Enter to {action}",
     "add_to_canvas": "Add to Canvas",
     "open_card_view": "Open Card View",

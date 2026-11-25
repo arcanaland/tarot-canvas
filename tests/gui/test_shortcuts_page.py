@@ -248,3 +248,33 @@ def test_applying_a_key_rekeys_an_open_window_and_its_tooltips(qtbot):
     assert summoned == [True]
     assert tab.commands["canvas.summon"].toolTip() == "Summon a random card (S)"
     assert window.go_actions["first"].text() == "&First Card\tG"
+
+
+def test_a_menu_command_with_no_key_is_listed_and_a_key_given_it_runs_it(qtbot, monkeypatch):
+    shown = []
+    monkeypatch.setattr(
+        "tarot_canvas.ui.main_window.LogViewerDialog",
+        lambda parent: type("Shown", (), {"exec": lambda self: shown.append(parent)})(),
+    )
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.show()
+    qtbot.waitExposed(window)
+    _dialog, page = make_dialog(qtbot)
+    assert cell(page, "window.log_viewer", 0).data() == "Log Viewer"
+    assert cell(page, "notes.new_note", 0).data()
+    tab = window.new_canvas_tab()
+    window.activateWindow()
+    qtbot.waitActive(window)
+    tab.view.setFocus()
+    qtbot.waitUntil(lambda: QApplication.focusWidget() is tab.view)
+
+    page.propose(cell(page, "window.log_viewer"), QKeySequence("Ctrl+Alt+L"))
+    page.apply()
+    qtbot.keyClick(
+        tab.view,
+        Qt.Key.Key_L,
+        Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier,
+    )
+
+    assert shown == [window]

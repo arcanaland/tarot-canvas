@@ -226,7 +226,7 @@ def test_a_spread_has_one_icon(qtbot):
 
 
 # No surface shows an icon for these: a tab has no fixed one, the wheel and Esc are shown nowhere,
-# and the card view's info tabs have none
+# the card view's info tabs have none, and a theme's radio mark is its icon
 NO_ICON_ANYWHERE = {
     *(f"window.tab_{n}" for n in range(1, 10)),
     *(f"card.view_{n}" for n in range(1, 4)),
@@ -234,6 +234,9 @@ NO_ICON_ANYWHERE = {
     "canvas.turn_fine",
     "canvas.cancel",
     "card.cancel",
+    "window.theme_system",
+    "window.theme_light",
+    "window.theme_dark",
 }
 
 

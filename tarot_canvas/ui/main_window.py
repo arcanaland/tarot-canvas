@@ -62,6 +62,7 @@ from tarot_canvas.ui.catalog.client import deck_catalog
 from tarot_canvas.ui.catalog.downloads import deck_downloads
 from tarot_canvas.ui.command_palette import CommandPalette
 from tarot_canvas.ui.commands import Scope, set_tooltip_with_keys
+from tarot_canvas.ui.icons import welcome_icon
 from tarot_canvas.ui.library.tab import LibraryTab
 from tarot_canvas.ui.metainfo import load_about_data
 from tarot_canvas.ui.spread_menu import spread_menu
@@ -75,6 +76,7 @@ from tarot_canvas.ui.strings import (
     READINGS,
     SPREADS,
     failure_text,
+    without_mnemonic,
 )
 from tarot_canvas.ui.style.theme_manager import ThemeManager, ThemeType
 from tarot_canvas.ui.tabs.base_tab import BaseTab
@@ -85,9 +87,8 @@ from tarot_canvas.ui.tabs.document_tabs import DocumentTabs
 from tarot_canvas.ui.tabs.reading_tab import ReadingTab
 from tarot_canvas.ui.tabs.spread_tab import SpreadTab
 from tarot_canvas.ui.tabs.welcome_tab import WelcomeTab
-from tarot_canvas.ui.widgets.placeholder_message import tinted_icon
 from tarot_canvas.ui.widgets.toast import Toast
-from tarot_canvas.ui.windows.about import AboutDialog, app_icon
+from tarot_canvas.ui.windows.about import AboutDialog
 from tarot_canvas.ui.windows.log_viewer import LogViewerDialog
 from tarot_canvas.ui.windows.new_deck_dialog import NewDeckDialog
 from tarot_canvas.utils.package_download import FileJob
@@ -96,8 +97,14 @@ from tarot_canvas.utils.path_helper import get_decks_directory, get_staging_dire
 log = logging.getLogger(__name__)
 
 ICON_PATH = files("tarot_canvas.resources.icons").joinpath("icon.png")
-WELCOME_TAB_ICON = files("tarot_canvas.resources.icons").joinpath("esoterica.svg")
 WELCOME_TAB_NAME = "welcome"  # objectName of its page
+HELP_COMMANDS = (
+    "window.welcome",
+    "window.faq",
+    "window.report_bug",
+    "window.community",
+    "window.about",
+)
 
 # trying to fit a 1366x768 laptop
 FIRST_LAUNCH_SIZE = QSize(1280, 800)
@@ -248,6 +255,9 @@ class MainWindow(QMainWindow):
             "window.card_explorer",
             "window.preferences",
             *(f"window.go_{where}" for where in GO_PLACES),
+            *HELP_COMMANDS,
+            "window.log_viewer",
+            *(f"window.theme_{theme.value}" for theme in ThemeType),
         }
         actions = commands.bind(
             self,
@@ -281,6 +291,16 @@ class MainWindow(QMainWindow):
                 **{f"window.go_{where}": partial(self.go, where) for where in GO_PLACES},
                 "window.find_card": self.show_command_palette,
                 "window.preferences": self.show_preferences,
+                "window.log_viewer": self.show_log_viewer,
+                **{
+                    f"window.theme_{theme.value}": partial(self.change_theme, theme)
+                    for theme in ThemeType
+                },
+                "window.welcome": self.show_welcome_tab,
+                "window.faq": self.show_faqs,
+                "window.report_bug": self.report_bug,
+                "window.community": self.show_community,
+                "window.about": self.show_about,
             },
             detached=detached,
         )
@@ -378,11 +398,7 @@ class MainWindow(QMainWindow):
         # Tools menu
         tools_menu = menu_bar.addMenu(MAIN_WINDOW["menu_tools"])
 
-        # Add Log Viewer action
-        log_viewer_action = QAction(MAIN_WINDOW["log_viewer"], self)
-        log_viewer_action.setIcon(QIcon.fromTheme("view-list-text"))
-        log_viewer_action.triggered.connect(self.show_log_viewer)
-        tools_menu.addAction(log_viewer_action)
+        tools_menu.addAction(actions["window.log_viewer"])
 
         settings_menu = menu_bar.addMenu(MAIN_WINDOW["menu_settings"])
 
@@ -390,46 +406,18 @@ class MainWindow(QMainWindow):
         theme_menu.setIcon(QIcon.fromTheme("games-config-theme"))
         settings_menu.addMenu(theme_menu)
 
-        # Create a theme action group for radio behavior; the radio mark is the icon
+        # Radio behaviour; the radio mark is the icon
         theme_group = QActionGroup(self)
         theme_group.setExclusive(True)
-
-        # System theme action
-        system_theme_action = QAction(MAIN_WINDOW["theme_system"], self)
-        system_theme_action.setCheckable(True)
-        system_theme_action.triggered.connect(lambda: self.change_theme(ThemeType.SYSTEM))
-        theme_group.addAction(system_theme_action)
-        theme_menu.addAction(system_theme_action)
-
-        # Light theme action
-        light_theme_action = QAction(MAIN_WINDOW["theme_light"], self)
-        light_theme_action.setCheckable(True)
-        light_theme_action.triggered.connect(lambda: self.change_theme(ThemeType.LIGHT))
-        theme_group.addAction(light_theme_action)
-        theme_menu.addAction(light_theme_action)
-
-        # Dark theme action
-        dark_theme_action = QAction(MAIN_WINDOW["theme_dark"], self)
-        dark_theme_action.setCheckable(True)
-        dark_theme_action.triggered.connect(lambda: self.change_theme(ThemeType.DARK))
-        theme_group.addAction(dark_theme_action)
-        theme_menu.addAction(dark_theme_action)
-
-        # Set the checked state based on current theme
         current_theme = ThemeManager.get_instance().get_current_theme()
-        if current_theme == ThemeType.SYSTEM:
-            system_theme_action.setChecked(True)
-        elif current_theme == ThemeType.LIGHT:
-            light_theme_action.setChecked(True)
-        elif current_theme == ThemeType.DARK:
-            dark_theme_action.setChecked(True)
-
-        # Store theme actions for later reference
-        self.theme_actions = {
-            ThemeType.SYSTEM: system_theme_action,
-            ThemeType.LIGHT: light_theme_action,
-            ThemeType.DARK: dark_theme_action,
-        }
+        self.theme_actions = {}
+        for theme in ThemeType:
+            action = actions[f"window.theme_{theme.value}"]
+            action.setCheckable(True)
+            action.setChecked(theme == current_theme)
+            theme_group.addAction(action)
+            theme_menu.addAction(action)
+            self.theme_actions[theme] = action
 
         settings_menu.addSeparator()
 
@@ -440,33 +428,8 @@ class MainWindow(QMainWindow):
 
         # Help menu
         help_menu = menu_bar.addMenu(MAIN_WINDOW["menu_help"])
-
-        welcome_action = QAction(MAIN_WINDOW["welcome_page"], self)
-        welcome_action.setIcon(tinted_icon(WELCOME_TAB_ICON))
-        welcome_action.triggered.connect(self.show_welcome_tab)
-        help_menu.addAction(welcome_action)
-
-        faq_action = QAction(MAIN_WINDOW["faq"], self)
-        faq_action.setIcon(QIcon.fromTheme("help-contents"))
-        faq_action.triggered.connect(self.show_faqs)
-        help_menu.addAction(faq_action)
-
-        report_bug_action = QAction(MAIN_WINDOW["report_bug"], self)
-        report_bug_action.setIcon(QIcon.fromTheme("tools-report-bug"))
-        report_bug_action.triggered.connect(self.report_bug)
-        help_menu.addAction(report_bug_action)
-
-        community_action = QAction(MAIN_WINDOW["community"], self)
-        community_action.setIcon(QIcon.fromTheme("system-users"))
-        community_action.triggered.connect(self.show_community)
-        help_menu.addAction(community_action)
-
-        help_menu.addSeparator()
-
-        about_action = QAction(MAIN_WINDOW["about"], self)
-        about_action.setIcon(app_icon(load_about_data().app_id))
-        about_action.triggered.connect(self.show_about)
-        help_menu.addAction(about_action)
+        help_menu.addActions([actions[command_id] for command_id in HELP_COMMANDS])
+        help_menu.insertSeparator(actions["window.about"])
 
     def init_ui(self):
         # Create main layout
@@ -589,9 +552,7 @@ class MainWindow(QMainWindow):
             show_community=self.show_community,
         )
         welcome_tab.setObjectName(WELCOME_TAB_NAME)
-        self.tab_widget.addTab(
-            welcome_tab, tinted_icon(WELCOME_TAB_ICON), MAIN_WINDOW["welcome_tab"]
-        )
+        self.tab_widget.addTab(welcome_tab, welcome_icon(), MAIN_WINDOW["welcome_tab"])
 
     def show_welcome_tab(self):
         """Raise the welcome tab, or open it"""
@@ -1525,10 +1486,60 @@ class MainWindow(QMainWindow):
             elif hasattr(current_tab, "card"):
                 active_tab_type = "card"
 
-        # Create and show command palette
-        palette = CommandPalette(self, active_tab_type)
+        # Edit, Go, Zoom and the rest only refresh as their menu opens; the focus is still
+        # where the user left it, so the Edit entries see the field they were typing in
+        self.update_edit_actions()
+        self.update_go_actions()
+        self.update_zoom_actions()
+        self.update_save_action()
+        self.update_canvas_background_action()
+
+        palette = CommandPalette(self, active_tab_type, self.palette_commands())
         palette.card_selected.connect(self.handle_command_palette_selection)
         palette.exec()
+        chosen = palette.chosen_action
+        palette.deleteLater()
+        # Once the palette is gone, so a dialog it opens isn't stacked on it
+        if chosen is not None:
+            chosen.trigger()
+
+    def menu_titles(self):
+        """Each menu and submenu of the menu bar, by its title as read"""
+        titles = {}
+        menus = [action.menu() for action in self.menuBar().actions()]
+        while menus:
+            menu = menus.pop()
+            if menu is None:
+                continue
+            titles[menu] = without_mnemonic(menu.title())
+            menus += [action.menu() for action in menu.actions()]
+        return titles
+
+    def palette_commands(self):
+        """(action, where it lives) for each command live in the current tab, in registry order"""
+        candidates = self.findChildren(QAction, options=Qt.FindChildOption.FindDirectChildrenOnly)
+        if (tab := self.tab_widget.currentWidget()) is not None:
+            candidates += tab.findChildren(QAction)
+        live = {}
+        for action in candidates:
+            command = commands.find(action.objectName())
+            if command is None or not command.palette or command.id in live:
+                continue
+            if action.isEnabled() and action.isVisible():
+                live[command.id] = action
+
+        titles = self.menu_titles()
+        found = []
+        for command in commands.COMMANDS:
+            if (action := live.get(command.id)) is None:
+                continue
+            if command.scope is Scope.WINDOW:
+                menus = [titles[obj] for obj in action.associatedObjects() if obj in titles]
+                where = menus[0] if menus else ""
+            else:
+                where = commands.scope_heading(command.scope)
+            found.append((action, where))
+        return found
 
     def handle_command_palette_selection(self, card, deck):
         """Handle card selection from command palette"""

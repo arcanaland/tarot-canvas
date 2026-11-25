@@ -148,3 +148,15 @@ class CardTerms:
         if query.text in self.name:
             return SUBSTRING
         return None
+
+
+class LabelTerms(CardTerms):
+    """What a plain label, such as a command's, can be found by: its own words only"""
+
+    def __init__(self, label):
+        self.name = label.casefold()
+        self.name_joined = " ".join(_significant(words(label)))
+        self.rank = self.suit = None
+        self._own = set(words(label)) - STOPWORDS
+        self._numbers = set()
+        self._other = set()

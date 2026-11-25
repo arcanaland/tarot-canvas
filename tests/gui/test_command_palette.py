@@ -1,11 +1,13 @@
+import shutil
 from types import SimpleNamespace
 
 import pytest
 from PyQt6.QtCore import Qt
 
+from tarot_canvas.models import library_curation
 from tarot_canvas.models.deck_types import Card, CardImage, CardKind, DeckMetadata
 from tarot_canvas.ui import command_palette
-from tarot_canvas.ui.command_palette import THUMBNAIL_SIZE, CommandPalette
+from tarot_canvas.ui.command_palette import ROW_ROLE, THUMBNAIL_SIZE, CommandPalette
 from tarot_canvas.ui.covers.cache import CoverCache
 from tests.conftest import MINIMAL_DECK_PATH
 
@@ -41,9 +43,18 @@ def four_cards(stub_deck_library):
             rank_key="ace",
         ),
     ]
-    deck = SimpleNamespace(cards=tuple(cards), metadata=DeckMetadata(name="Fixture"))
+    deck = fixture_deck("Fixture", cards)
     stub_deck_library.reference = lambda: deck
+    stub_deck_library.decks = lambda: [deck]
     return cards
+
+
+def fixture_deck(name, cards, identifier=None):
+    return SimpleNamespace(
+        cards=tuple(cards),
+        metadata=DeckMetadata(name=name, identifier=identifier),
+        root_path=f"/decks/{name}",
+    )
 
 
 @pytest.fixture
@@ -53,7 +64,7 @@ def decodes(monkeypatch):
     original = CoverCache._decode
 
     def counting(path, well_size, device_pixel_ratio):
-        decoded.append(path)
+        decoded.append((path, well_size))
         return original(path, well_size, device_pixel_ratio)
 
     monkeypatch.setattr(CoverCache, "_decode", staticmethod(counting))
@@ -72,6 +83,12 @@ def palette(qtbot, decodes):
     return widget
 
 
+def paint(palette):
+    """Lay the rows out and paint them now, rather than at the next event loop pass"""
+    palette.results_list.doItemsLayout()
+    palette.results_list.viewport().grab()
+
+
 def visible_names(palette):
     return [
         palette.results_list.item(row).data(Qt.ItemDataRole.UserRole)[0].display_name
@@ -83,28 +100,28 @@ def current_name(palette):
     return palette.results_list.currentItem().data(Qt.ItemDataRole.UserRole)[0].display_name
 
 
-def test_thumbnails_are_decoded_at_display_size(palette):
-    labels = [
-        palette.results_list.itemWidget(palette.results_list.item(row)).findChildren(
-            command_palette.QLabel
-        )[0]
-        for row in range(palette.results_list.count())
-    ]
-    pixmaps = [label.pixmap() for label in labels if not label.pixmap().isNull()]
+def test_thumbnails_are_decoded_at_display_size(palette, decodes):
+    paint(palette)
 
-    assert pixmaps
-    for pixmap in pixmaps:
-        assert pixmap.height() / pixmap.devicePixelRatio() <= THUMBNAIL_SIZE.height()
-        assert pixmap.width() / pixmap.devicePixelRatio() <= THUMBNAIL_SIZE.width()
+    assert decodes
+    assert {size for _path, size in decodes} == {THUMBNAIL_SIZE}
+
+
+def shown_palette(qtbot):
+    palette = CommandPalette()
+    qtbot.addWidget(palette)
+    palette.show()
+    qtbot.waitExposed(palette)
+    # Painting is what decodes
+    paint(palette)
+    return palette
 
 
 def test_reopening_the_palette_decodes_nothing(qtbot, decodes):
-    first = CommandPalette()
-    qtbot.addWidget(first)
+    shown_palette(qtbot)
     after_first = len(decodes)
 
-    second = CommandPalette()
-    qtbot.addWidget(second)
+    shown_palette(qtbot)
 
     assert after_first > 0
     assert len(decodes) == after_first
@@ -112,9 +129,8 @@ def test_reopening_the_palette_decodes_nothing(qtbot, decodes):
 
 def test_filtering_hides_rows_instead_of_rebuilding_them(palette, decodes):
     count = palette.results_list.count()
-    widgets = [
-        palette.results_list.itemWidget(palette.results_list.item(row)) for row in range(count)
-    ]
+    items = [palette.results_list.item(row) for row in range(count)]
+    paint(palette)
     decoded = len(decodes)
 
     palette.search_input.setText("fool")
@@ -124,9 +140,8 @@ def test_filtering_hides_rows_instead_of_rebuilding_them(palette, decodes):
     palette.search_input.setText("")
     assert palette.results_list.count() == count
     assert len(palette.visible_rows()) == count
-    assert [
-        palette.results_list.itemWidget(palette.results_list.item(row)) for row in range(count)
-    ] == widgets
+    assert [palette.results_list.item(row) for row in range(count)] == items
+    paint(palette)
     assert len(decodes) == decoded
 
 
@@ -176,3 +191,50 @@ def test_clearing_the_search_restores_deck_order(palette, four_cards):
     palette.search_input.setText("a")
     palette.search_input.setText("")
     assert visible_names(palette) == [card.display_name for card in four_cards]
+
+
+def star():
+    return Card(canonical_id="major_arcana.17", kind=CardKind.MAJOR, display_name="The Star")
+
+
+def test_every_visible_deck_lists_its_cards_and_each_row_names_its_deck(qtbot, stub_deck_library):
+    decks = [fixture_deck("Birch", [star()], "x/birch"), fixture_deck("Ash", [star()], "x/ash")]
+    stub_deck_library.decks = lambda: decks
+    palette = shown_palette(qtbot)
+
+    palette.search_input.setText("star")
+    rows = [palette.results_list.item(row) for row in palette.visible_rows()]
+    details = [row.data(ROW_ROLE).subtitle for row in rows]
+
+    assert details == ["Major Arcana - Ash", "Major Arcana - Birch"]
+
+
+def test_a_hidden_decks_cards_are_not_listed(qtbot, stub_deck_library):
+    decks = [fixture_deck("Birch", [star()], "x/birch"), fixture_deck("Ash", [star()], "x/ash")]
+    stub_deck_library.decks = lambda: decks
+    library_curation.set_deck_hidden("x/ash", True)
+
+    palette = shown_palette(qtbot)
+
+    assert [deck.metadata.name for _card, deck in palette.cards] == ["Birch"]
+
+
+def test_opening_decodes_only_the_rows_in_view(qtbot, tmp_path, stub_deck_library, decodes):
+    cards = []
+    for number in range(40):
+        art = tmp_path / f"{number:02}.png"
+        shutil.copy(ART / "00.png", art)
+        cards.append(
+            Card(
+                canonical_id=f"major_arcana.{number:02}",
+                kind=CardKind.MAJOR,
+                display_name=f"Card {number}",
+                images=(CardImage(str(art), "raster"),),
+            )
+        )
+    stub_deck_library.decks = lambda: [fixture_deck("Many", cards)]
+
+    palette = shown_palette(qtbot)
+
+    assert palette.results_list.count() == len(cards)
+    assert 0 < len(decodes) < len(cards)
