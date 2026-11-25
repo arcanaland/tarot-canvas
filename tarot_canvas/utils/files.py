@@ -6,7 +6,7 @@ from pathlib import Path
 
 @contextlib.contextmanager
 def atomic_path(path):
-    """A temporary path beside path, renamed over it once written"""
+    """Create a temp next to original and then rewrite"""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
@@ -23,8 +23,9 @@ def atomic_path(path):
 
 
 def write_atomic(path, data):
-    """Replace path with data, str as UTF-8"""
+    """Dump contents of data into a file at path atomically"""
     if isinstance(data, str):
         data = data.encode("utf-8")
+
     with atomic_path(path) as temporary:
         temporary.write_bytes(data)
