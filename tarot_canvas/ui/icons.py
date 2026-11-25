@@ -11,7 +11,9 @@ from tarot_canvas.settings import (
     LIBRARY_VIEW_READINGS,
     LIBRARY_VIEW_SPREADS,
 )
+from tarot_canvas.ui.metainfo import load_about_data
 from tarot_canvas.ui.widgets.placeholder_message import tinted_icon
+from tarot_canvas.ui.windows.about import app_icon
 
 LIBRARY_ICON = "view-institution"
 SPREAD_ICON = "view-grid"
@@ -19,11 +21,21 @@ CANVAS_ICON = "draw-rectangle"
 
 DECK_ICON = files("tarot_canvas.resources.icons").joinpath("deck.svg")
 ESOTERICA_VIEW_ICON = files("tarot_canvas.resources.icons").joinpath("esoterica.svg")
+WELCOME_ICON = ESOTERICA_VIEW_ICON
 
 
 def deck_icon():
     """had to draw this one myself in inkscape :3"""
     return tinted_icon(DECK_ICON)
+
+
+def welcome_icon():
+    return tinted_icon(WELCOME_ICON)
+
+
+def about_icon():
+    """The app's own icon"""
+    return app_icon(load_about_data().app_id)
 
 
 def library_view_icon(view):

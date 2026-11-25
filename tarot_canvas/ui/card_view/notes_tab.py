@@ -86,7 +86,11 @@ class NotesTab(QWidget):
         actions = commands.bind(
             self,
             Scope.NOTES,
-            {"notes.rename": self.rename_target, "notes.delete": self.delete_target},
+            {
+                "notes.new_note": self.create_new_note,
+                "notes.rename": self.rename_target,
+                "notes.delete": self.delete_target,
+            },
             # On the list and in the menus only, so the editor keeps F2 and Delete
             detached={"notes.rename", "notes.delete"},
         )
@@ -112,11 +116,8 @@ class NotesTab(QWidget):
             # forgotten only once that action has run
             menu.aboutToHide.connect(lambda: QTimer.singleShot(0, self.forget_menu_target))
 
-        self.new_note_action = QAction(
-            QIcon.fromTheme("document-new"), notes_text("create_note"), self
-        )
+        self.new_note_action = actions["notes.new_note"]
         self.new_note_action.setToolTip(notes_text("new_note_tooltip"))
-        self.new_note_action.triggered.connect(self.create_new_note)
 
     def setup_ui(self):
         """Set up the notes tab UI"""

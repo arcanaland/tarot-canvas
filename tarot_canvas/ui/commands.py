@@ -12,8 +12,15 @@ from PyQt6.QtGui import QAction, QIcon, QKeySequence
 from PyQt6.QtWidgets import QApplication
 
 from tarot_canvas.settings import LIBRARY_VIEWS, get_shortcut_keys, set_shortcut_keys
-from tarot_canvas.ui.icons import LIBRARY_ICON, SPREAD_ICON, deck_icon, library_view_icon
-from tarot_canvas.ui.strings import COMMANDS, NOTES, PREFERENCES, READINGS
+from tarot_canvas.ui.icons import (
+    LIBRARY_ICON,
+    SPREAD_ICON,
+    about_icon,
+    deck_icon,
+    library_view_icon,
+    welcome_icon,
+)
+from tarot_canvas.ui.strings import COMMANDS, MAIN_WINDOW, NOTES, PREFERENCES, READINGS, notes_text
 
 StandardKey = QKeySequence.StandardKey
 
@@ -35,6 +42,20 @@ CONTEXTS = {
     Scope.NOTES: Qt.ShortcutContext.WidgetWithChildrenShortcut,
     Scope.LIBRARY: Qt.ShortcutContext.WidgetWithChildrenShortcut,
 }
+
+# The Shortcuts page's headings, each over the scopes it lists
+GROUPS = (
+    ("shortcuts_global", (Scope.WINDOW,)),
+    ("shortcuts_canvas", (Scope.CANVAS,)),
+    ("shortcuts_card", (Scope.CARD, Scope.CARD_IMAGE)),
+    ("shortcuts_notes", (Scope.NOTES,)),
+    ("shortcuts_library", (Scope.LIBRARY,)),
+)
+
+
+def scope_heading(scope):
+    return next(PREFERENCES[key] for key, scopes in GROUPS if scope in scopes)
+
 
 # Scopes whose keys can fire at the same moment, so no key may be in two of one set
 ACTIVE_TOGETHER = (
@@ -63,9 +84,13 @@ class Command:
     wheel: Qt.KeyboardModifier | None = None
     # Wheel commands its tooltip names after its own key
     hints: tuple[str, ...] = ()
+    # Found by name in the palette
+    palette: bool = True
 
 
 def _command(id, text, icon, defaults, scope, **kwargs):
+    # The art's keys are the Go entries' and the card view's own, found by those names
+    kwargs.setdefault("palette", scope is not Scope.CARD_IMAGE)
     return Command(id, text, icon, tuple(defaults), scope, **kwargs)
 
 
@@ -138,8 +163,14 @@ COMMANDS = (
         shows="card_image.next_deck",
     ),
     _command("window.new_library", T["new_library"], LIBRARY_ICON, ["Ctrl+L"], W),
-    _command("window.find_card", T["find_card"], "edit-find", ["Ctrl+P"], W),
+    # The palette itself
+    _command("window.find_card", T["find_card"], "edit-find", ["Ctrl+P"], W, palette=False),
+    # Tools
+    _command("window.log_viewer", MAIN_WINDOW["log_viewer"], "view-list-text", [], W),
     # Settings
+    _command("window.theme_system", MAIN_WINDOW["theme_system"], None, [], W),
+    _command("window.theme_light", MAIN_WINDOW["theme_light"], None, [], W),
+    _command("window.theme_dark", MAIN_WINDOW["theme_dark"], None, [], W),
     _command(
         "window.preferences",
         PREFERENCES["configure"],
@@ -147,9 +178,15 @@ COMMANDS = (
         [StandardKey.Preferences],
         W,
     ),
+    # Help
+    _command("window.welcome", MAIN_WINDOW["welcome_page"], welcome_icon, [], W),
+    _command("window.faq", MAIN_WINDOW["faq"], "help-contents", [], W),
+    _command("window.report_bug", MAIN_WINDOW["report_bug"], "tools-report-bug", [], W),
+    _command("window.community", MAIN_WINDOW["community"], "system-users", [], W),
+    _command("window.about", MAIN_WINDOW["about"], about_icon, [], W),
     # Alt+1 to Alt+9 pick a tab by position
     *(
-        _command(f"window.tab_{n}", T["tab_n"].format(n=n), None, [f"Alt+{n}"], W)
+        _command(f"window.tab_{n}", T["tab_n"].format(n=n), None, [f"Alt+{n}"], W, palette=False)
         for n in range(1, 10)
     ),
     # Canvas
@@ -197,15 +234,19 @@ COMMANDS = (
         CV,
         context=Qt.ShortcutContext.WidgetWithChildrenShortcut,
     ),
-    _command("canvas.cancel", T["cancel_selection"], None, ["Esc"], CV),
+    _command("canvas.cancel", T["cancel_selection"], None, ["Esc"], CV, palette=False),
+    # The spread designer's
+    _command("canvas.start_reading", READINGS["open"], "media-playback-start", [], CV),
     # Card view
     _command(
         "card.toggle_details", T["card_toggle_details"], "sidebar-expand-right", ["Ctrl+I"], C
     ),
-    _command("card.cancel", T["card_cancel"], None, ["Esc"], C),
+    _command("card.cancel", T["card_cancel"], None, ["Esc"], C, palette=False),
     # Ctrl+1 to Ctrl+3 pick an info tab by position, as Alt+digit picks a window tab
     *(
-        _command(f"card.view_{n}", T["card_view_n"].format(n=n), None, [f"Ctrl+{n}"], C)
+        _command(
+            f"card.view_{n}", T["card_view_n"].format(n=n), None, [f"Ctrl+{n}"], C, palette=False
+        )
         for n in range(1, 4)
     ),
     # Card art: bare keys, so typing in the details pane is left alone
@@ -228,6 +269,7 @@ COMMANDS = (
     _command("card_image.previous_or_pan", T["go_previous"], None, ["Left"], CI, fixed=True),
     _command("card_image.next_or_pan", T["go_next"], None, ["Right"], CI, fixed=True),
     # Notes
+    _command("notes.new_note", notes_text("create_note"), "document-new", [], N),
     _command("notes.rename", NOTES["rename"], "edit-rename", ["F2"], N),
     _command("notes.delete", NOTES["delete"], "edit-delete", [], N, shows="window.delete"),
     # Library
@@ -246,6 +288,7 @@ COMMANDS = (
             partial(library_view_icon, view),
             [f"Ctrl+{n}"],
             L,
+            palette=False,
         )
         for n, view in enumerate(LIBRARY_VIEWS, 1)
     ),
@@ -265,6 +308,11 @@ _SHOWN_BY = {command.shows: command for command in COMMANDS if command.shows}
 
 def by_id(command_id):
     return _BY_ID[command_id]
+
+
+def find(command_id):
+    """The command with this id, or None for an id the registry doesn't hold"""
+    return _BY_ID.get(command_id)
 
 
 def _shown_by(command):

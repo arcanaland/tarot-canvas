@@ -8,7 +8,7 @@ from tarot_canvas.ui import typography
 from tarot_canvas.ui.canvas.placement import Phase
 from tarot_canvas.ui.canvas.reading_card import is_face_down
 from tarot_canvas.ui.canvas.reading_marks import next_gilt
-from tarot_canvas.ui.strings import COMMANDS, READINGS
+from tarot_canvas.ui.strings import COMMANDS, READINGS, without_mnemonic
 
 BAR_PAD_PX = 6
 BAR_RADIUS_PX = 12
@@ -212,7 +212,7 @@ class PlayerBar(QWidget):
         typography.apply(self.deal, typography.Role.HEADING_3)
         self.previous = _button(
             "media-skip-backward",
-            COMMANDS["go_previous"].replace("&", ""),
+            without_mnemonic(COMMANDS["go_previous"]),
             (Qt.Key.Key_Left,),
             lambda: reading.step("previous"),
         )
@@ -228,7 +228,7 @@ class PlayerBar(QWidget):
         )
         self.next = _button(
             "media-skip-forward",
-            COMMANDS["go_next"].replace("&", ""),
+            without_mnemonic(COMMANDS["go_next"]),
             (Qt.Key.Key_Right,),
             lambda: reading.step("next"),
         )

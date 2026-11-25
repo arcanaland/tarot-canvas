@@ -4,13 +4,9 @@ from PyQt6.QtCore import QEvent, QObject, Qt, pyqtSignal
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QHBoxLayout, QSlider, QToolButton, QWidget
 
-from tarot_canvas.ui.strings import PREFERENCES
+from tarot_canvas.ui.strings import PREFERENCES, without_mnemonic
 
 SLIDER_WIDTH = 96
-
-
-def _plain(label):
-    return label.replace("&", "")
 
 
 class ZoomSlider(QWidget):
@@ -27,7 +23,7 @@ class ZoomSlider(QWidget):
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(0)
 
-        self.out_button = self._button("zoom-out", _plain(PREFERENCES["zoom_out"]))
+        self.out_button = self._button("zoom-out", without_mnemonic(PREFERENCES["zoom_out"]))
         self.out_button.clicked.connect(self.step_out)
         row.addWidget(self.out_button)
 
@@ -41,7 +37,7 @@ class ZoomSlider(QWidget):
         self.slider.valueChanged.connect(self._on_value_changed)
         row.addWidget(self.slider)
 
-        self.in_button = self._button("zoom-in", _plain(PREFERENCES["zoom_in"]))
+        self.in_button = self._button("zoom-in", without_mnemonic(PREFERENCES["zoom_in"]))
         self.in_button.clicked.connect(self.step_in)
         row.addWidget(self.in_button)
 

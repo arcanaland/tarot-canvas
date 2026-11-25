@@ -37,7 +37,7 @@ from tarot_canvas.ui.library.spreads.model import spread_thumbnail, spread_title
 from tarot_canvas.ui.metainfo import load_about_data
 from tarot_canvas.ui.refresh_when_shown import RefreshWhenShown
 from tarot_canvas.ui.spread_menu import sections
-from tarot_canvas.ui.strings import COMMANDS, MAIN_WINDOW, READINGS
+from tarot_canvas.ui.strings import COMMANDS, MAIN_WINDOW, READINGS, without_mnemonic
 from tarot_canvas.ui.windows.about import ICON_PATH
 
 # Cribbing this from Kate (<3)
@@ -53,10 +53,6 @@ OUTER_STRETCH = 3
 CONTENT_STRETCH = 5
 
 FolderRole = Qt.ItemDataRole.UserRole + 51
-
-
-def without_mnemonic(text):
-    return text.replace("&&", "\0").replace("&", "").replace("\0", "&")
 
 
 def shows_part(visible, room, content, part, spacing):

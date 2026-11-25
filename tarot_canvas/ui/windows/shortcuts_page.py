@@ -13,29 +13,15 @@ from PyQt6.QtWidgets import (
 )
 
 from tarot_canvas.ui import commands, units
-from tarot_canvas.ui.commands import COMMANDS, Scope
-from tarot_canvas.ui.strings import NOTES, PREFERENCES
+from tarot_canvas.ui.commands import COMMANDS, GROUPS, Scope
+from tarot_canvas.ui.strings import NOTES, PREFERENCES, without_mnemonic
 from tarot_canvas.ui.widgets.inline_message import InlineMessage
-
-GROUPS = (
-    ("shortcuts_global", (Scope.WINDOW,)),
-    ("shortcuts_canvas", (Scope.CANVAS,)),
-    ("shortcuts_card", (Scope.CARD, Scope.CARD_IMAGE)),
-    ("shortcuts_notes", (Scope.NOTES,)),
-    ("shortcuts_library", (Scope.LIBRARY,)),
-)
 
 COMMAND_ROLE = Qt.ItemDataRole.UserRole
 KEY_ROLE = Qt.ItemDataRole.UserRole + 1
 
 # Shortcut and Alternate
 CELLS = 2
-
-
-def label(command):
-    """A command's text without its mnemonic or the key after a tab"""
-    text = (command.text or "").split("\t")[0]
-    return text.replace("&&", "\0").replace("&", "").replace("\0", "&")
 
 
 def listed_commands():
@@ -164,7 +150,7 @@ class ShortcutsPage(QWidget):
         layout.addWidget(self.message)
 
     def _command_row(self, command):
-        name = QStandardItem(label(command))
+        name = QStandardItem(without_mnemonic(command.text or ""))
         name.setIcon(commands.command_icon(command))
         name.setData(command.id, COMMAND_ROLE)
         name.setEditable(False)
@@ -240,7 +226,9 @@ class ShortcutsPage(QWidget):
             if clash == key and command_id in (holder, other):
                 owner = commands.by_id(other if holder == command_id else holder)
                 self.message.show_message(
-                    PREFERENCES["shortcuts_taken"].format(command=label(owner))
+                    PREFERENCES["shortcuts_taken"].format(
+                        command=without_mnemonic(owner.text or "")
+                    )
                 )
                 return
 

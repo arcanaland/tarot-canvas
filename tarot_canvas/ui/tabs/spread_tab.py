@@ -17,7 +17,7 @@ from tarot_canvas.models.spreads import (
 from tarot_canvas.ui.canvas.detail import card_unit_size
 from tarot_canvas.ui.canvas.spread_pane import SpreadPane
 from tarot_canvas.ui.icons import SPREAD_ICON
-from tarot_canvas.ui.strings import CANVAS, COMMANDS, READINGS, SPREADS
+from tarot_canvas.ui.strings import CANVAS, COMMANDS, SPREADS
 from tarot_canvas.ui.tabs.canvas_tab import CanvasTab
 from tarot_canvas.ui.tabs.spread_slots import SpreadSlots
 
@@ -49,10 +49,7 @@ class SpreadTab(SpreadSlots, CanvasTab):
 
         self.pane_action = self.pane.toggle_action(self, SPREADS["pane_tooltip"])
         self.toolbar.addAction(self.pane_action)
-        self.start_reading_action = QAction(
-            QIcon.fromTheme("media-playback-start"), READINGS["open"], self
-        )
-        self.start_reading_action.triggered.connect(self.start_reading)
+        self.start_reading_action = self.commands["canvas.start_reading"]
         self.toolbar.addAction(self.start_reading_action)
         self._build_menu()
 
@@ -89,6 +86,7 @@ class SpreadTab(SpreadSlots, CanvasTab):
         handlers = super().command_handlers()
         del handlers["canvas.flip"]
         del handlers["canvas.save_layout_as_spread"]
+        handlers["canvas.start_reading"] = self.start_reading
         return handlers
 
     def _menu_action(self, text, icon, slot):
